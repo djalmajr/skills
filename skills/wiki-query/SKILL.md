@@ -35,7 +35,7 @@ Never run `qmd embed`, `qmd update`, or `qmd collection add` automatically — t
    Drop a sub-query if it does not add signal (a glossary lookup needs only `lex`; a "how does X work" is mostly `vec`/`hyde`).
 
 2. **Retrieve via QMD**
-   - **MCP**: call `mcp__qmd__query` with the structured `searches` array (or the multi-line `q` string) and the `intent` field. Restrict by `collections` when the question is scoped (e.g. `["zomme-kb"]` vs cross-repo).
+   - **MCP**: call `mcp__qmd__query` with the structured `searches` array (or the multi-line `q` string) and the `intent` field. Restrict by `collections` when the question is scoped (e.g. `["knowledge-base"]` vs cross-repo).
    - **CLI**: `qmd query "$(cat <<EOF
      intent: ...
      lex: ...

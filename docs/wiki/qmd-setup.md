@@ -90,7 +90,7 @@ The skills work best when **the wiki and its sibling product repos are all index
 
 ```sh
 # 1. The wiki itself — most important collection
-qmd collection add . --name zomme-kb --mask "**/*.md"
+qmd collection add . --name knowledge-base --mask "**/*.md"
 
 # 2. Sibling product repos (only the markdown — code is irrelevant for wiki queries)
 qmd collection add ../skedly --name skedly --mask "**/*.md"
@@ -110,13 +110,13 @@ qmd embed
 qmd context add / "Plataforma Zomme: Skedly (agendamento), Kashes (financeiro), Simplifica (folha — planejado), acmecorp.com (site institucional). Wiki canônica em knowledge-base/."
 
 # Wiki collection contexts
-qmd context add qmd://zomme-kb/ "Wiki canônica da plataforma Zomme. Esta é a fonte de verdade para regras de negócio."
-qmd context add qmd://zomme-kb/business "Regras de negócio (pricing, jornadas, riscos, oferta, papéis). Audience: business."
-qmd context add qmd://zomme-kb/apps "Documentação técnica de aplicações. Audience: dev. NÃO contém regras de negócio — essas vivem em business/."
-qmd context add qmd://zomme-kb/data "Schemas Drizzle e ENUMs de domínio. Audience: dev."
-qmd context add qmd://zomme-kb/ops "Operações, infra, deploy. Audience: ops."
-qmd context add qmd://zomme-kb/raw "Fontes brutas preservadas como referência histórica. NÃO é fonte de verdade — sempre confirmar contra a página final em business/, apps/, data/ ou ops/."
-qmd context add qmd://zomme-kb/sources "Sumários de ingest. Cada arquivo descreve o que foi absorvido de uma fonte raw/ e quais páginas finais foram criadas/atualizadas."
+qmd context add qmd://knowledge-base/ "Wiki canônica da plataforma Zomme. Esta é a fonte de verdade para regras de negócio."
+qmd context add qmd://knowledge-base/business "Regras de negócio (pricing, jornadas, riscos, oferta, papéis). Audience: business."
+qmd context add qmd://knowledge-base/apps "Documentação técnica de aplicações. Audience: dev. NÃO contém regras de negócio — essas vivem em business/."
+qmd context add qmd://knowledge-base/data "Schemas Drizzle e ENUMs de domínio. Audience: dev."
+qmd context add qmd://knowledge-base/ops "Operações, infra, deploy. Audience: ops."
+qmd context add qmd://knowledge-base/raw "Fontes brutas preservadas como referência histórica. NÃO é fonte de verdade — sempre confirmar contra a página final em business/, apps/, data/ ou ops/."
+qmd context add qmd://knowledge-base/sources "Sumários de ingest. Cada arquivo descreve o que foi absorvido de uma fonte raw/ e quais páginas finais foram criadas/atualizadas."
 
 # Product repo contexts
 qmd context add qmd://skedly/ "Repo do produto Skedly (greenfield ativo). Stack TanStack Start + CF Workers + D1 + Better Auth embedded. Contém apenas regras técnicas — regras de negócio estão em ../knowledge-base/business/."
