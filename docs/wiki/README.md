@@ -4,6 +4,8 @@ AI-maintained organizational knowledge system based on the [LLM Wiki pattern (Ka
 
 **Skills covered:** wiki-ingest, wiki-query, wiki-lint
 
+> **Retrieval engine.** The skills work without setup, but they perform much better when [QMD](https://github.com/tobi/qmd) is installed and the wiki is indexed. QMD provides BM25 + vector + LLM reranking locally, plus per-path context injection that the skills rely on for audience separation (e.g. teaching agents that `raw/` is preserved-but-not-canonical). See [`qmd-setup.md`](./qmd-setup.md) for the one-time owner setup, including the `Qwen3-Embedding-0.6B` model recommendation for non-English wikis.
+
 ---
 
 ## How it works

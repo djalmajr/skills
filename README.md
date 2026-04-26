@@ -79,6 +79,12 @@ raw/                 # Original sources (before ingestion)
 | `/wiki-query` | Ask about something in the wiki |
 | `/wiki-lint` | Audit and organize the wiki |
 
+### Retrieval engine — QMD (recommended)
+
+The wiki skills prefer **[QMD](https://github.com/tobi/qmd)** as the retrieval engine: a local hybrid search (BM25 + vector + LLM reranking) that runs entirely on-device and supports per-path context injection. The skills detect QMD per-session — when it is configured they use `mcp__qmd__query` (or the `qmd` CLI), and when it is not they fall back to `grep` / `Read` / `wiki/index.md`.
+
+Setup is one-time per repo and is documented in [`docs/wiki/qmd-setup.md`](docs/wiki/qmd-setup.md). For non-English wikis (e.g. pt-BR) the guide also explains how to switch the embedding model to `Qwen3-Embedding-0.6B` for proper multilingual recall.
+
 ### Project setup
 
 When installing in a new project, create the initial structure:
@@ -89,6 +95,8 @@ touch wiki/CONVENTIONS.md wiki/index.md wiki/log.md
 ```
 
 The project's AGENTS.md instructs the AI to consult the wiki before answering domain questions.
+
+> **Note on business rules placement.** In the Zomme platform layout, **all business/product rules live in the central wiki** (`knowledge-base/`), not inside the product repos (`skedly`, `kashes`, `simplifica`, `acmecorp.com`). Product repos hold only technical rules — stack, environment, gotchas, ADRs. The `wiki-ingest` skill enforces this split when deciding where to land a new source.
 
 Inspired by [LLM Wiki — Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
