@@ -30,21 +30,25 @@ The single biggest win is **context as a tree**: descriptions you attach per pat
   ```
 - ~2 GB of disk for the local GGUF models (cached in `~/.cache/qmd/models/` after first use)
 
-## Install QMD
+## Running QMD — `bunx` is recommended
 
-Pick one:
+The recommended way to invoke QMD is via `bunx` (or `npx`) — no global install required, every invocation pulls the latest published version, and the local model cache (`~/.cache/qmd/models/`) is shared across invocations.
 
-```sh
-# Global install with Bun
-bun install -g @tobilu/qmd
+The rest of this guide assumes you have an alias `qmd='bunx @tobilu/qmd'` in your shell. If you also need to set `QMD_EMBED_MODEL` for a non-English wiki (see next section), the snippet at the end of this document persists both in your shell rc in one shot.
 
-# Or with npm
-npm install -g @tobilu/qmd
+If you prefer a global install, `bun install -g @tobilu/qmd` (or `npm install -g`) works the same; you just trade auto-updates for slightly faster cold starts.
 
-# Or via the Claude Code plugin (registers the MCP server automatically)
-claude plugin marketplace add tobi/qmd
-claude plugin install qmd@qmd
-```
+### MCP integration — pick one
+
+Stdio mode (default in Claude Code MCP config) re-launches the binary every session, so cold start matters. Three options:
+
+- **Claude Code plugin** (recommended for most users — handles install + MCP registration)
+  ```sh
+  claude plugin marketplace add tobi/qmd
+  claude plugin install qmd@qmd
+  ```
+- **Background HTTP daemon** (ideal if multiple agents hit QMD — see the daemon section below). Pair with `bunx` freely; the daemon starts once and stays warm.
+- **Direct `bunx` in MCP config** — simplest, accepts a small per-session cold start.
 
 Verify:
 ```sh
@@ -59,11 +63,35 @@ A fresh install reports `totalDocuments: 0` and no collections.
 The default embedding model (`embeddinggemma-300M`) is English-optimized. If your wiki is in **any non-English language** (Portuguese, Spanish, German, Japanese, Chinese, etc.), set:
 
 ```sh
-# Add to your shell profile (~/.zshrc or ~/.bashrc)
 export QMD_EMBED_MODEL="hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf"
 ```
 
 Qwen3-Embedding-0.6B covers 119 languages and ranks among the best multilingual embedding models on MTEB. The 0.6B variant is ~600 MB — bigger than the default but produces much better recall on non-English content.
+
+### Persisting alias + var in your shell rc
+
+This snippet detects your active shell (zsh, bash, or fish), writes both the `qmd` alias and the `QMD_EMBED_MODEL` export to the matching rc file, and is idempotent — running it twice will not duplicate the lines:
+
+```sh
+ALIAS_LINE="alias qmd='bunx @tobilu/qmd'"
+QMD_VAR='QMD_EMBED_MODEL="hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf"'
+case "$SHELL" in
+  */zsh)  RC="$HOME/.zshrc"; EXPORT_LINE="export $QMD_VAR" ;;
+  */bash) RC="$HOME/.bashrc"; [ ! -f "$RC" ] && RC="$HOME/.bash_profile"
+          EXPORT_LINE="export $QMD_VAR" ;;
+  */fish) RC="$HOME/.config/fish/config.fish"
+          EXPORT_LINE='set -gx QMD_EMBED_MODEL "hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf"' ;;
+  *) echo "Unsupported shell: $SHELL — configure manually."; return 1 ;;
+esac
+mkdir -p "$(dirname "$RC")" && touch "$RC"
+grep -qF "alias qmd=" "$RC" || printf '\n# QMD CLI alias\n%s\n' "$ALIAS_LINE" >> "$RC"
+grep -qF 'QMD_EMBED_MODEL' "$RC" || printf '\n# QMD multilingual embedding model\n%s\n' "$EXPORT_LINE" >> "$RC"
+echo "QMD configured in $RC. Re-open the shell or run: source $RC"
+```
+
+Skip the alias block (`grep -qF "alias qmd=" ... || ...`) if you installed globally and prefer the bare `qmd` binary. Skip the `QMD_EMBED_MODEL` block if your wiki is in English (the default model is fine).
+
+Reload the rc (`source ~/.zshrc` etc.) or open a new shell so `qmd` sees the var.
 
 If you already embedded with the default model, **re-embed everything** after switching:
 ```sh
