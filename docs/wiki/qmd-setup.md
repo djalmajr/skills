@@ -102,58 +102,46 @@ qmd embed -f
 
 ## Setting up collections
 
-Each collection is an indexed root path. The recommended pattern when your wiki sits next to the product repos it documents is to register them all as separate collections — that way `/wiki-query` can answer cross-repo questions and `/wiki-lint` can detect when business rules have leaked outside the wiki.
-
-```
-~/Developer/<org>/
-├── <wiki-repo>/         # ← the wiki itself (canonical source of truth)
-├── <product-a>/         # product repo
-├── <product-b>/         # product repo
-├── <site-repo>/         # marketing/landing site
-└── <legacy-repo>/       # frozen reference, if any
-```
+Each collection is an indexed root path. The default — and recommended — setup is **a single collection: the wiki itself**.
 
 ### One-time setup (run from inside the wiki repo)
 
 ```sh
-# 1. The wiki itself — most important collection
 qmd collection add . --name <wiki-name> --mask "**/*.md"
-
-# 2. Sibling repos (only the markdown — code is irrelevant for wiki queries)
-qmd collection add ../<product-a> --name <product-a> --mask "**/*.md"
-qmd collection add ../<product-b> --name <product-b> --mask "**/*.md"
-# Add more siblings as your project grows.
-
-# 3. Generate embeddings (downloads models on first run; takes a few minutes)
-qmd embed
+qmd embed   # downloads models on first run; takes a few minutes
 ```
+
+### Why only the wiki — and not the sibling product repos
+
+It is tempting to index every sibling repo (`../<product-a>/`, `../<product-b>/`) so `/wiki-query` can answer cross-repo questions. The wiki skills push back on this for a reason:
+
+- The skills' working assumption is that **the wiki is the single canonical source of business knowledge**. Indexing product repos invites agents to "discover" content there and treat it as authoritative — the exact drift these skills are designed to prevent.
+- Cross-repo audits (e.g. "did a business rule leak into the product repo's `CLAUDE.md`?") are part of `/wiki-lint`, which performs them with `grep` / `Read` against the sibling repos. No QMD index needed for that.
+- Every additional collection is one more thing to keep up to date with `qmd update` — extra friction for a marginal use case.
+
+If your project has a genuine need for cross-repo semantic search (e.g. a wiki that explicitly aggregates technical docs from many repos and treats those as part of its canonical surface), feel free to add additional collections — just be deliberate about it and reflect that intent in the contexts you attach.
 
 ### Add hierarchical context — this is what makes QMD shine
 
 `context` is metadata attached to a path inside a collection. Every result under that path is returned with the context string, which lets you encode rules **once** instead of repeating them in every page or prompt.
 
-The contexts you add depend on your project's conventions. Three categories pay off the most:
+The contexts you add depend on your project's conventions. Two categories pay off the most:
 
 1. **Audience separation** — tell QMD which folders hold business rules, technical docs, ops procedures, raw sources, etc. Agents will respect the split when synthesizing answers and when deciding where to ingest a new source.
 2. **Truth markers** — flag folders that are **not** authoritative (e.g. `raw/` preserved sources, `archive/` deprecated content, `*-legacy.md`).
-3. **Repo boundaries** — when you have multiple collections, give each one a one-line description of what it contains and where its canonical rules live (e.g. "this product repo holds technical rules only — business rules live in `../<wiki-name>/`").
 
 Generic shape:
 
 ```sh
-# Global context (applies to every result, regardless of collection)
-qmd context add / "<one-paragraph summary of the entire knowledge graph>"
+# Global context (applies to every result)
+qmd context add / "<one-paragraph summary of what the wiki contains and what it is canonical for>"
 
-# Per-collection context (replace <wiki-name> with your collection name)
-qmd context add qmd://<wiki-name>/ "<what this wiki contains; mark it as canonical>"
+# Per-folder context inside the wiki collection
 qmd context add qmd://<wiki-name>/<folder> "<what this folder contains; flag the audience>"
 qmd context add qmd://<wiki-name>/raw "<flag raw sources as preserved-but-not-canonical>"
-
-# Per-sibling-repo context
-qmd context add qmd://<product-a>/ "<what this product is; where its canonical rules live>"
 ```
 
-> **Why these contexts matter.** Without them, agents tend to "discover" content in `raw/` or in product repos and treat it as canonical, which leads to drift. With contexts, every result already carries that framing — the agent stops treating preserved or technical sources as authoritative for business questions.
+> **Why these contexts matter.** Without them, agents tend to "discover" content in `raw/` or other non-canonical folders and treat it as authoritative, which leads to drift. With contexts, every result already carries that framing.
 
 Project-specific examples (collection names, context strings, language) belong **in the wiki repo itself**, not in this skills repo. Any project that uses these skills should add a `QMD.md` (or similar) at the wiki root with the exact commands the owner needs to run for that project.
 
