@@ -9,7 +9,7 @@ Follow `wiki/CONVENTIONS.md` for format conventions, frontmatter, and links.
 
 ## Language
 
-Write the artifact in the user's language. If the user communicates in Portuguese, write in Portuguese with correct grammar and accents. If in English, write in English. When in doubt, ask the user which language to use.
+Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output.
 
 ## Retrieval — prefer QMD when available
 

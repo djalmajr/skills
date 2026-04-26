@@ -9,7 +9,7 @@ Follow `wiki/CONVENTIONS.md` for format conventions, frontmatter, naming, and la
 
 ## Language
 
-Write the artifact in the user's language. If the user communicates in Portuguese, write in Portuguese with correct grammar and accents. If in English, write in English. When in doubt, ask the user which language to use.
+Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output.
 
 ## Retrieval — prefer QMD when available
 
@@ -42,7 +42,7 @@ After the ingest finishes, **remind the owner** to run `qmd update` (or `qmd emb
    - **Wait for confirmation** before proceeding.
 
 5. **Decide where each rule lands.** Respect the audience separation:
-   - `wiki/business/` — **all business/product rules** (audience: business). Pricing, journeys, policies, monetization, no-show, LGPD operational rules, anything customer-facing or contractual.
+   - `wiki/business/` — **all business/product rules** (audience: business). Pricing, journeys, policies, monetization, privacy/compliance rules, anything customer-facing or contractual.
    - `wiki/apps/` — app-level technical docs (audience: dev). Stack, gotchas, deploy specifics. **No business rules here** — link out to `wiki/business/` if relevant.
    - `wiki/ops/` — operational procedures (audience: ops).
    - `wiki/data/` — data models and schemas (audience: dev).
@@ -53,7 +53,7 @@ After the ingest finishes, **remind the owner** to run `qmd update` (or `qmd emb
    - If it does not exist → **create** a new page following `wiki/CONVENTIONS.md`.
    - Use standard markdown links: `[text](./path.md)` (not wikilinks).
    - Do NOT duplicate content across pages — use cross-refs.
-   - Sibling repos (greenfields, legacy monorepos) are referenced as `../<repo>/`, not absolute paths. Add the GitHub remote link `[github.com/<org>/<repo>](https://github.com/<org>/<repo>)` when first introducing the repo.
+   - Sibling repos are referenced as `../<repo>/` (relative to the wiki), not absolute paths. Add the GitHub remote link `[github.com/<org>/<repo>](https://github.com/<org>/<repo>)` when first introducing the repo.
 
 7. **Create the source summary** in `wiki/sources/<slug>.md`:
    ```yaml
@@ -72,7 +72,7 @@ After the ingest finishes, **remind the owner** to run `qmd update` (or `qmd emb
    - Key points summary
    - Wiki pages created/updated with links
    - Insights not captured in other pages (if any)
-   - **Decisions left pending** — surface explicitly if the source raises questions the owner needs to answer (e.g. "still take-rate or pure subscription?")
+   - **Decisions left pending** — surface explicitly if the source raises questions the owner needs to answer rather than silently picking a side.
 
 8. **Update indexes in parallel:**
    - `raw/index.md` — mark the source as ✅ Ingested with a link to the summary.

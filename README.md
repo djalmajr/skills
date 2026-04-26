@@ -83,7 +83,7 @@ raw/                 # Original sources (before ingestion)
 
 The wiki skills prefer **[QMD](https://github.com/tobi/qmd)** as the retrieval engine: a local hybrid search (BM25 + vector + LLM reranking) that runs entirely on-device and supports per-path context injection. The skills detect QMD per-session — when it is configured they use `mcp__qmd__query` (or the `qmd` CLI), and when it is not they fall back to `grep` / `Read` / `wiki/index.md`.
 
-Setup is one-time per repo and is documented in [`docs/wiki/qmd-setup.md`](docs/wiki/qmd-setup.md). For non-English wikis (e.g. pt-BR) the guide also explains how to switch the embedding model to `Qwen3-Embedding-0.6B` for proper multilingual recall.
+Setup is one-time per repo and is documented in [`docs/wiki/qmd-setup.md`](docs/wiki/qmd-setup.md). For non-English wikis the guide also explains how to switch the embedding model to a multilingual one for proper recall.
 
 ### Project setup
 

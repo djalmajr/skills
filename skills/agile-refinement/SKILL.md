@@ -18,7 +18,7 @@ If empty, ask the user what they want to validate: planning artifacts or code ch
 
 ## Language
 
-Write any report output in the user's language. If the user communicates in Portuguese, write in Portuguese with correct grammar and accents. If in English, write in English. When in doubt, ask the user which language to use.
+Write any report output in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output.
 
 ## Objective
 
