@@ -124,5 +124,5 @@ When the source already has `wiki/sources/<slug>.md`:
 - Always use complete YAML frontmatter (see `wiki/CONVENTIONS.md`).
 - If you find a contradiction with existing pages, flag it explicitly.
 - Always update `raw/index.md`, `wiki/index.md`, and `wiki/log.md`.
-- **Business rules belong in `wiki/business/`**, never inside the product repos. If a rule is currently sitting in a product repo (e.g. `../skedly/docs/`), the ingest should migrate it to `wiki/business/` and leave a cross-ref in the product repo's `CLAUDE.md` / `AGENTS.md` if appropriate.
+- **Business rules belong in `wiki/business/`**, never inside product/code repos. If a rule is currently sitting in a product repo (somewhere like `../<product>/docs/`), the ingest should migrate it to `wiki/business/` and leave a cross-ref in the product repo's `CLAUDE.md` / `AGENTS.md` if appropriate.
 - **Never** run `qmd embed` / `qmd update` / `qmd collection add` automatically — those are owner-run commands.

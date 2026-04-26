@@ -1,4 +1,4 @@
-# Essential Skills — Zomme Delivery Framework
+# Essential Skills
 
 Skills for agile delivery management powered by AI agents.
 
@@ -6,10 +6,10 @@ Skills for agile delivery management powered by AI agents.
 
 ```bash
 # All skills
-npx skills add zomme/essential-skills --all
+npx skills add djalmajr/essential-skills --all
 
 # Specific skills
-npx skills add zomme/essential-skills --skill agile-epic --skill agile-story
+npx skills add djalmajr/essential-skills --skill agile-epic --skill agile-story
 ```
 
 ## Skills (17)
@@ -96,7 +96,7 @@ touch wiki/CONVENTIONS.md wiki/index.md wiki/log.md
 
 The project's AGENTS.md instructs the AI to consult the wiki before answering domain questions.
 
-> **Note on business rules placement.** In the Zomme platform layout, **all business/product rules live in the central wiki** (`knowledge-base/`), not inside the product repos (`skedly`, `kashes`, `simplifica`, `acmecorp.com`). Product repos hold only technical rules — stack, environment, gotchas, ADRs. The `wiki-ingest` skill enforces this split when deciding where to land a new source.
+> **Note on business rules placement.** When your project separates a wiki repo from product/code repos, the convention these skills follow is: **all business/product rules live in the central wiki**, never inside the product repos. Product repos hold only technical rules — stack, environment, gotchas, ADRs. The `wiki-ingest` skill enforces this split when deciding where to land a new source. Document the specific layout (which sibling repos exist, what each one is for) in your project's wiki — these skills stay agnostic to project specifics.
 
 Inspired by [LLM Wiki — Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 

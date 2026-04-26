@@ -17,7 +17,7 @@ This document is the **owner-run setup guide**. The skills themselves never run 
 | Cross-repo search across siblings | manual | ✅ (multiple collections) |
 | Score-based filtering for agents | ❌ | ✅ (`--min-score`) |
 
-The single biggest win is **context as a tree**: descriptions you attach per path get returned alongside any hit under that path. The skills rely on this to know things like "`raw/` is not the source of truth" without bloating prompts.
+The single biggest win is **context as a tree**: descriptions you attach per path get returned alongside any hit under that path. The skills rely on this to know things like "raw sources are not the source of truth" without bloating prompts.
 
 ---
 
@@ -35,7 +35,7 @@ The single biggest win is **context as a tree**: descriptions you attach per pat
 Pick one:
 
 ```sh
-# Global install with Bun (recommended in this project, since the rest of the stack uses Bun)
+# Global install with Bun
 bun install -g @tobilu/qmd
 
 # Or with npm
@@ -54,16 +54,16 @@ A fresh install reports `totalDocuments: 0` and no collections.
 
 ---
 
-## Embedding model — use Qwen3 for pt-BR / multilingual content
+## Embedding model — pick the right one for your content language
 
-The default embedding model (`embeddinggemma-300M`) is English-optimized. If your wiki is in **Portuguese** (or any non-English language), set:
+The default embedding model (`embeddinggemma-300M`) is English-optimized. If your wiki is in **any non-English language** (Portuguese, Spanish, German, Japanese, Chinese, etc.), set:
 
 ```sh
 # Add to your shell profile (~/.zshrc or ~/.bashrc)
 export QMD_EMBED_MODEL="hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf"
 ```
 
-Qwen3-Embedding-0.6B covers 119 languages (including pt-BR and full CJK) and ranks among the best multilingual embedding models on MTEB. The 0.6B variant is ~600 MB — bigger than the default but produces much better recall on non-English content.
+Qwen3-Embedding-0.6B covers 119 languages and ranks among the best multilingual embedding models on MTEB. The 0.6B variant is ~600 MB — bigger than the default but produces much better recall on non-English content.
 
 If you already embedded with the default model, **re-embed everything** after switching:
 ```sh
@@ -72,32 +72,29 @@ qmd embed -f
 
 ---
 
-## Recommended setup for the Zomme platform
+## Setting up collections
 
-The skills work best when **the wiki and its sibling product repos are all indexed as separate collections**. This lets `/wiki-query` answer "where is X documented?" across the whole monorepo-style layout, while `/wiki-lint` can detect when business rules leak into product repos.
+Each collection is an indexed root path. The recommended pattern when your wiki sits next to the product repos it documents is to register them all as separate collections — that way `/wiki-query` can answer cross-repo questions and `/wiki-lint` can detect when business rules have leaked outside the wiki.
 
 ```
-~/Developer/zomme/
-├── knowledge-base/      # ← the wiki itself (canonical source of truth)
-├── skedly/              # product repo
-├── kashes/              # product repo
-├── simplifica/          # product repo (planned)
-├── acmecorp.com/         # marketing site
-└── platform/            # legacy monorepo (frozen)
+~/Developer/<org>/
+├── <wiki-repo>/         # ← the wiki itself (canonical source of truth)
+├── <product-a>/         # product repo
+├── <product-b>/         # product repo
+├── <site-repo>/         # marketing/landing site
+└── <legacy-repo>/       # frozen reference, if any
 ```
 
-### One-time setup (run from inside `knowledge-base/`)
+### One-time setup (run from inside the wiki repo)
 
 ```sh
 # 1. The wiki itself — most important collection
-qmd collection add . --name knowledge-base --mask "**/*.md"
+qmd collection add . --name <wiki-name> --mask "**/*.md"
 
-# 2. Sibling product repos (only the markdown — code is irrelevant for wiki queries)
-qmd collection add ../skedly --name skedly --mask "**/*.md"
-qmd collection add ../kashes --name kashes --mask "**/*.md"
-qmd collection add ../acmecorp.com --name site --mask "**/*.md"
-qmd collection add ../platform --name platform-legacy --mask "**/*.md"
-# Add ../simplifica when it exists.
+# 2. Sibling repos (only the markdown — code is irrelevant for wiki queries)
+qmd collection add ../<product-a> --name <product-a> --mask "**/*.md"
+qmd collection add ../<product-b> --name <product-b> --mask "**/*.md"
+# Add more siblings as your project grows.
 
 # 3. Generate embeddings (downloads models on first run; takes a few minutes)
 qmd embed
@@ -105,34 +102,39 @@ qmd embed
 
 ### Add hierarchical context — this is what makes QMD shine
 
+`context` is metadata attached to a path inside a collection. Every result under that path is returned with the context string, which lets you encode rules **once** instead of repeating them in every page or prompt.
+
+The contexts you add depend on your project's conventions. Three categories pay off the most:
+
+1. **Audience separation** — tell QMD which folders hold business rules, technical docs, ops procedures, raw sources, etc. Agents will respect the split when synthesizing answers and when deciding where to ingest a new source.
+2. **Truth markers** — flag folders that are **not** authoritative (e.g. `raw/` preserved sources, `archive/` deprecated content, `*-legacy.md`).
+3. **Repo boundaries** — when you have multiple collections, give each one a one-line description of what it contains and where its canonical rules live (e.g. "this product repo holds technical rules only — business rules live in `../<wiki-name>/`").
+
+Generic shape:
+
 ```sh
-# Global context applied to every result
-qmd context add / "Plataforma Zomme: Skedly (agendamento), Kashes (financeiro), Simplifica (folha — planejado), acmecorp.com (site institucional). Wiki canônica em knowledge-base/."
+# Global context (applies to every result, regardless of collection)
+qmd context add / "<one-paragraph summary of the entire knowledge graph>"
 
-# Wiki collection contexts
-qmd context add qmd://knowledge-base/ "Wiki canônica da plataforma Zomme. Esta é a fonte de verdade para regras de negócio."
-qmd context add qmd://knowledge-base/business "Regras de negócio (pricing, jornadas, riscos, oferta, papéis). Audience: business."
-qmd context add qmd://knowledge-base/apps "Documentação técnica de aplicações. Audience: dev. NÃO contém regras de negócio — essas vivem em business/."
-qmd context add qmd://knowledge-base/data "Schemas Drizzle e ENUMs de domínio. Audience: dev."
-qmd context add qmd://knowledge-base/ops "Operações, infra, deploy. Audience: ops."
-qmd context add qmd://knowledge-base/raw "Fontes brutas preservadas como referência histórica. NÃO é fonte de verdade — sempre confirmar contra a página final em business/, apps/, data/ ou ops/."
-qmd context add qmd://knowledge-base/sources "Sumários de ingest. Cada arquivo descreve o que foi absorvido de uma fonte raw/ e quais páginas finais foram criadas/atualizadas."
+# Per-collection context (replace <wiki-name> with your collection name)
+qmd context add qmd://<wiki-name>/ "<what this wiki contains; mark it as canonical>"
+qmd context add qmd://<wiki-name>/<folder> "<what this folder contains; flag the audience>"
+qmd context add qmd://<wiki-name>/raw "<flag raw sources as preserved-but-not-canonical>"
 
-# Product repo contexts
-qmd context add qmd://skedly/ "Repo do produto Skedly (greenfield ativo). Stack TanStack Start + CF Workers + D1 + Better Auth embedded. Contém apenas regras técnicas — regras de negócio estão em ../knowledge-base/business/."
-qmd context add qmd://kashes/ "Repo do produto Kashes (greenfield em construção). Mesma stack do Skedly. Regras de negócio em ../knowledge-base/business/."
-qmd context add qmd://site/ "Site institucional acmecorp.com (Astro + CF Pages + D1). Marketing e waitlist."
-qmd context add qmd://platform-legacy/ "Monorepo legado congelado em 2026-04-22. NÃO está sendo evoluído. Útil só como referência histórica."
+# Per-sibling-repo context
+qmd context add qmd://<product-a>/ "<what this product is; where its canonical rules live>"
 ```
 
-> **Why these specific contexts?** They encode three rules the agents need to respect: (1) `wiki/business/` is the canonical home for business rules, (2) `raw/` is preserved but is not authoritative, (3) product repos hold only technical rules. With these contexts, search results carry that framing automatically — agents stop "discovering" rules in `raw/` or product repos and treating them as canonical.
+> **Why these contexts matter.** Without them, agents tend to "discover" content in `raw/` or in product repos and treat it as canonical, which leads to drift. With contexts, every result already carries that framing — the agent stops treating preserved or technical sources as authoritative for business questions.
+
+Project-specific examples (collection names, context strings, language) belong **in the wiki repo itself**, not in this skills repo. Any project that uses these skills should add a `QMD.md` (or similar) at the wiki root with the exact commands the owner needs to run for that project.
 
 ### Verify
 
 ```sh
 qmd status                          # see collections + doc counts
 qmd context list                    # confirm contexts are attached
-qmd query "qual a política de cancelamento do Skedly?"   # smoke test
+qmd query "<a real question your wiki should answer>"   # smoke test
 ```
 
 ---
@@ -146,7 +148,7 @@ qmd update                # rescan filesystem, re-index changed files
 qmd embed                 # generate embeddings for new/changed chunks
 ```
 
-Convenient one-liner you can drop in `~/Developer/zomme/knowledge-base/Makefile` or a project-specific shell alias:
+Convenient one-liner you can drop in a `Makefile` or a project-specific shell alias:
 
 ```makefile
 qmd-refresh:

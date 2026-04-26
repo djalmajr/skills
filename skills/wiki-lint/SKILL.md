@@ -53,7 +53,7 @@ Cross-reference `raw/index.md` with `wiki/sources/`:
 ### 5. Audience boundary check
 - Pages in `wiki/apps/` should not contain **business rules** (pricing, policies, journeys, monetization). If they do, those rules must move to `wiki/business/` and the `apps/` page should keep only a cross-ref.
 - Run a QMD query like `intent: business rule (pricing/policy/monetization/cancellation)` filtered to the `apps/` collection (or path-prefixed) to spot leakage.
-- Same check applies to product repos: if QMD is configured with sibling collections (e.g. `skedly`, `kashes`), search those for business-rule language and report them as candidates to migrate into `wiki/business/`.
+- Same check applies to product repos: if QMD is configured with sibling collections (one per product/code repo), search those for business-rule language and report them as candidates to migrate into `wiki/business/`.
 
 ### 6. Missing cross-refs
 - For each substantive wiki page, run a QMD query for its title/topic and inspect the top 5-10 hits. Pages that semantically belong together but do not link should be flagged.
