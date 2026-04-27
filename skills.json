@@ -19,6 +19,7 @@
         "agile-tdd",
         "wiki-ingest",
         "wiki-lint",
+        "wiki-policy-check",
         "wiki-query"
       ]
     }

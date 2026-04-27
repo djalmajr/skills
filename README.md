@@ -12,7 +12,7 @@ npx skills add djalmajr/essential-skills --all
 npx skills add djalmajr/essential-skills --skill agile-epic --skill agile-story
 ```
 
-## Skills (17)
+## Skills (18)
 
 ### Agile (14)
 
@@ -33,13 +33,14 @@ npx skills add djalmajr/essential-skills --skill agile-epic --skill agile-story
 | agile-proto | Interactive UI prototypes |
 | agile-tdd | TDD cycle + pragmatic testing strategy |
 
-### Wiki (3)
+### Wiki (4)
 
 | Skill | Purpose |
 |-------|---------|
 | wiki-ingest | Ingest new source into wiki (documents, notes, decisions) |
 | wiki-query | Ask about something in the wiki |
 | wiki-lint | Audit and organize the wiki |
+| wiki-policy-check | Audit a product/code repo for business rules that should live in the wiki |
 
 ## Flow
 
@@ -78,6 +79,7 @@ raw/                 # Original sources (before ingestion)
 | `/wiki-ingest` | Ingest new source into wiki (documents, notes, decisions) |
 | `/wiki-query` | Ask about something in the wiki |
 | `/wiki-lint` | Audit and organize the wiki |
+| `/wiki-policy-check` | Audit a product/code repo for business rules that should be in the wiki |
 
 ### Retrieval engine — QMD (recommended)
 
