@@ -10,7 +10,36 @@ STATE_FILE="${TMPDIR:-/tmp}/wiki-suggest-${SESSION_ID:-unknown}.fired"
 [ -f "$STATE_FILE" ] && exit 0
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+GUARDRAILS="$ROOT/.wiki-guardrails.yml"
 cd "$ROOT" 2>/dev/null || exit 0
+[ -f "$GUARDRAILS" ] || exit 0
+
+guardrail_list() {
+  local key="$1"
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key ":[[:space:]]*$" { in_list=1; next }
+    in_list && /^[[:space:]]*-[[:space:]]*/ {
+      line=$0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+      gsub(/^\"|\"$/, "", line)
+      gsub(/^'"'"'|'"'"'$/, "", line)
+      print line
+      next
+    }
+    in_list && /^[^[:space:]]/ { exit }
+  ' "$GUARDRAILS"
+}
+
+guardrail_match() {
+  local key="$1"
+  local rel="$2"
+  local pattern=""
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    case "$rel" in $pattern) return 0 ;; esac
+  done < <(guardrail_list "$key")
+  return 1
+}
 
 changed="$(
   {
@@ -24,18 +53,15 @@ changed="$(
 match=""
 count=0
 while IFS= read -r file; do
-  case "$file" in
-    .mcp.json|package.json|bun.lock|.github/workflows/*|wrangler.jsonc|apps/*/wrangler.jsonc|apps/*/src/server/db/*|apps/*/drizzle/*|apps/*/src/server/auth/*|packages/*/src/components/*)
-      match="${match}  - ${file}"$'\n'
-      count=$((count + 1))
-      ;;
-  esac
+  guardrail_match sensitive_paths "$file" || continue
+  match="${match}  - ${file}"$'\n'
+  count=$((count + 1))
 done <<< "$changed"
 
 [ "$count" -gt 0 ] || exit 0
 touch "$STATE_FILE"
 
-reason="Touched ${count} sensitive path(s). Evaluate whether this deserves wiki ingest before finalizing:
+reason="Touched ${count} sensitive path(s) from .wiki-guardrails.yml. Evaluate whether this deserves wiki ingest before finalizing:
 
 ${match}
 If yes, update __WIKI_PATH__ and log it. If no, respond explicitly with \"sem ingest\"."

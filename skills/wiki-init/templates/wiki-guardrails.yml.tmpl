@@ -2,6 +2,7 @@ wiki_path: "__WIKI_PATH__"
 qmd_index: "__QMD_INDEX__"
 wiki_collection: "__WIKI_COLLECTION__"
 language: "__LANGUAGE__"
+query_language: "__LANGUAGE__"
 qmd_command: "__QMD_COMMAND__"
 harnesses:
   claude: __CLAUDE_ENABLED__
@@ -14,22 +15,65 @@ repo_markdown_allowlist:
   - CHANGELOG.md
   - SETUP.md
   - LICENSE.md
+  - apps/*/README.md
+  - apps/*/SETUP.md
+  - apps/*/CLAUDE.md
+  - apps/*/AGENTS.md
+  - apps/*/CHANGELOG.md
+  - apps/*/.agents/*.md
   - apps/*/.agents/**/*.md
+  - apps/*/.claude/*.md
+  - apps/*/.claude/**/*.md
+  - apps/*/.ai/*.md
+  - apps/*/.ai/**/*.md
+  - apps/*/planning/*.md
+  - apps/*/planning/**/*.md
+  - apps/*/test-results/*.md
+  - apps/*/test-results/**/*.md
+  - apps/*/project.inlang/*.md
+  - apps/*/project.inlang/**/*.md
+  - apps/*/src/**/README.md
+  - planning/*.md
   - planning/**/*.md
+  - .opencode/*.md
   - .opencode/**/*.md
   - packages/*/README.md
+  - packages/*/CLAUDE.md
+  - packages/*/AGENTS.md
+  - packages/*/CHANGELOG.md
+  - packages/*/src/**/README.md
+  - charts/*.md
+  - charts/**/*.md
+  - .github/*.md
   - .github/**/*.md
+  - .claude/*.md
   - .claude/**/*.md
+  - .codex/*.md
   - .codex/**/*.md
 sensitive_paths:
   - package.json
+  - apps/*/package.json
+  - packages/*/package.json
   - bun.lock
   - .mcp.json
+  - .github/workflows/*
   - .github/workflows/**
+  - lefthook.yml
+  - lefthook.yaml
+  - biome.json
+  - apps/*/biome.json
+  - packages/*/biome.json
   - wrangler.jsonc
   - apps/*/wrangler.jsonc
+  - apps/*/src/server/db/*
   - apps/*/src/server/db/**
+  - apps/*/src/server/db/schema*
+  - apps/*/src/server/db/schema*/**
+  - apps/*/src/server/auth/*
   - apps/*/src/server/auth/**
+  - apps/*/drizzle/*
   - apps/*/drizzle/**
   - apps/*/worker-configuration.d.ts
+  - apps/*/messages/*.json
+  - packages/*/src/components/*
   - packages/*/src/components/**

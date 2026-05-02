@@ -7,6 +7,10 @@ description: "Audits this repo for business rules that should live in the centra
 
 Convention this skill enforces: **technical rules live in the project repo; business and product rules live in the central wiki.** This skill audits all markdown in the current repo for content that crossed the line and reports what should migrate.
 
+## Project guardrails
+
+If `.wiki-guardrails.yml` exists, treat it as the local policy source for wiki path, markdown allowlist, and sensitive paths. Do not infer a different allowlist from the skill. If it is missing, read `CLAUDE.md`/`AGENTS.md` and report that guardrails are missing.
+
 ## Where the wiki lives
 
 The path of "the central wiki" is project-specific. Before running, read the project's `CLAUDE.md` and/or `AGENTS.md` (and `.agents/rules/` if present) to find:

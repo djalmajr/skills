@@ -11,6 +11,10 @@ Follow `wiki/CONVENTIONS.md` for format conventions, frontmatter, and links.
 
 Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output.
 
+## Query language alignment
+
+For semantic lint checks, query in the wiki language. Determine it from `.wiki-guardrails.yml` (`query_language` or `language`), then from wiki frontmatter/index if guardrails are absent. Preserve exact names and code identifiers. Reports to the user should remain in the user's language.
+
 ## Retrieval — prefer QMD when available
 
 Use [QMD](https://github.com/tobi/qmd) (local hybrid search) for the **semantic checks** (orphans, missing cross-refs, contradictions). Setup is one-time per repo — see `docs/wiki/qmd-setup.md`. For purely structural checks (frontmatter, broken links), grep/glob is fine and faster.

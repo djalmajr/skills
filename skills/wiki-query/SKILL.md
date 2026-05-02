@@ -11,6 +11,15 @@ Follow `wiki/CONVENTIONS.md` for format conventions, links, and language.
 
 Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output.
 
+## Query language alignment
+
+When the user's language differs from the wiki language, translate the retrieval query into the wiki language before searching. Determine the wiki language from `.wiki-guardrails.yml` (`query_language` or `language`), then from wiki frontmatter/index if guardrails are absent. Keep exact product names and code identifiers unchanged.
+
+- Write `intent:`, `vec:`, and `hyde:` in the wiki language.
+- Use `lex:` for exact terms from both languages when useful.
+- Answer the user in the user's language unless they ask otherwise.
+- If translation is uncertain, say which terms were translated and keep the original terms in `lex:`.
+
 ## Retrieval — prefer QMD when available
 
 The recommended retrieval engine is **[QMD](https://github.com/tobi/qmd)** (local hybrid search: BM25 + vector + LLM reranking). Setup is one-time per repo — see `docs/wiki/qmd-setup.md` in this skills repo.

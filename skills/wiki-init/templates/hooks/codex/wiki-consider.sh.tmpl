@@ -3,6 +3,7 @@ set -euo pipefail
 
 INPUT="$(cat)"
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+GUARDRAILS="$ROOT/.wiki-guardrails.yml"
 TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')"
 
 case "$TOOL" in
@@ -10,17 +11,33 @@ case "$TOOL" in
   *) exit 0 ;;
 esac
 
-sensitive_reason() {
-  case "$1" in
-    .mcp.json) printf 'MCP configuration changed' ;;
-    package.json|*/package.json|bun.lock) printf 'dependency/script surface changed' ;;
-    .github/workflows/*) printf 'CI/deploy workflow changed' ;;
-    wrangler.jsonc|apps/*/wrangler.jsonc) printf 'Workers runtime/deploy configuration changed' ;;
-    apps/*/src/server/db/*|apps/*/drizzle/*) printf 'database schema/migration changed' ;;
-    apps/*/src/server/auth/*) printf 'auth flow changed' ;;
-    packages/*/src/components/*) printf 'shared UI component changed' ;;
-    *) return 1 ;;
-  esac
+[ -f "$GUARDRAILS" ] || exit 0
+
+guardrail_list() {
+  local key="$1"
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key ":[[:space:]]*$" { in_list=1; next }
+    in_list && /^[[:space:]]*-[[:space:]]*/ {
+      line=$0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+      gsub(/^\"|\"$/, "", line)
+      gsub(/^'"'"'|'"'"'$/, "", line)
+      print line
+      next
+    }
+    in_list && /^[^[:space:]]/ { exit }
+  ' "$GUARDRAILS"
+}
+
+guardrail_match() {
+  local key="$1"
+  local rel="$2"
+  local pattern=""
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    case "$rel" in $pattern) return 0 ;; esac
+  done < <(guardrail_list "$key")
+  return 1
 }
 
 changed="$(
@@ -41,10 +58,9 @@ changed="$(
 lines=""
 while IFS= read -r file; do
   [ -n "$file" ] || continue
-  reason="$(sensitive_reason "$file" || true)"
-  [ -n "$reason" ] || continue
+  guardrail_match sensitive_paths "$file" || continue
   lines="${lines}
-- ${file} (${reason})"
+- ${file} (matches .wiki-guardrails.yml sensitive_paths)"
 done <<< "$changed"
 
 [ -n "$lines" ] || exit 0
@@ -55,10 +71,10 @@ LAST="$(cat "$STAMP_FILE" 2>/dev/null || echo 0)"
 [ $((NOW - LAST)) -ge 30 ] || exit 0
 echo "$NOW" > "$STAMP_FILE"
 
-cat >&2 <<EOF
+cat >&2 <<EOF_CONSIDER
 Wiki ingest consideration: sensitive paths changed.${lines}
 Before final response, decide whether this creates or changes a canonical rule, contract, schema, gotcha, dependency quirk, cross-project convention, or operational/business constraint.
 If yes, update __WIKI_PATH__ and let wiki-reindex run.
-EOF
+EOF_CONSIDER
 
 exit 0

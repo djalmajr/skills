@@ -3,6 +3,7 @@ set -euo pipefail
 
 INPUT="$(cat)"
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+GUARDRAILS="$ROOT/.wiki-guardrails.yml"
 WIKI_DIR="$(cd "$ROOT/__WIKI_PATH__" 2>/dev/null && pwd -P || printf '%s\n' "$ROOT/__WIKI_PATH__")"
 TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')"
 
@@ -10,6 +11,38 @@ case "$TOOL" in
   apply_patch|Edit|Write|MultiEdit|NotebookEdit) ;;
   *) exit 0 ;;
 esac
+
+[ -f "$GUARDRAILS" ] || {
+  echo "wiki-policy: .wiki-guardrails.yml missing; markdown boundary check skipped" >&2
+  exit 0
+}
+
+guardrail_list() {
+  local key="$1"
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key ":[[:space:]]*$" { in_list=1; next }
+    in_list && /^[[:space:]]*-[[:space:]]*/ {
+      line=$0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+      gsub(/^\"|\"$/, "", line)
+      gsub(/^'"'"'|'"'"'$/, "", line)
+      print line
+      next
+    }
+    in_list && /^[^[:space:]]/ { exit }
+  ' "$GUARDRAILS"
+}
+
+guardrail_match() {
+  local key="$1"
+  local rel="$2"
+  local pattern=""
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    case "$rel" in $pattern) return 0 ;; esac
+  done < <(guardrail_list "$key")
+  return 1
+}
 
 payload_entries() {
   printf '%s' "$INPUT" | jq -r '
@@ -31,17 +64,7 @@ repo_relative_file() {
 
 is_allowed_markdown() {
   local rel="$1"
-  case "$rel" in
-    README.md|CLAUDE.md|AGENTS.md|MIGRATION.md|CHANGELOG.md|SETUP.md|LICENSE.md) return 0 ;;
-    apps/*/.agents/*.md|apps/*/.agents/**/*.md) return 0 ;;
-    planning/*.md|planning/**/*.md) return 0 ;;
-    .opencode/*.md|.opencode/**/*.md) return 0 ;;
-    packages/*/README.md) return 0 ;;
-    .github/*.md|.github/**/*.md) return 0 ;;
-    .claude/*.md|.claude/**/*.md) return 0 ;;
-    .codex/*.md|.codex/**/*.md) return 0 ;;
-    *) return 1 ;;
-  esac
+  guardrail_match repo_markdown_allowlist "$rel" || guardrail_match markdown_allowlist "$rel"
 }
 
 is_tracked() {
@@ -68,17 +91,17 @@ while IFS=$'\t' read -r op file; do
 done < <(payload_entries)
 
 if [ -n "$warned_existing" ]; then
-  cat >&2 <<EOF
-wiki-policy: edit in markdown outside allowlist (legacy drift, not blocked):${warned_existing}
+  cat >&2 <<EOF_WARN
+wiki-policy: edit in markdown outside .wiki-guardrails.yml allowlist (legacy drift, not blocked):${warned_existing}
 Consider moving canonical content to __WIKI_PATH__ via /wiki-ingest.
-EOF
+EOF_WARN
 fi
 
 if [ -n "$blocked_new" ]; then
-  cat >&2 <<EOF
-wiki-policy: blocked markdown outside allowlist:${blocked_new}
-Canonical docs/rules belong in __WIKI_PATH__.
-EOF
+  cat >&2 <<EOF_BLOCK
+wiki-policy: blocked markdown outside .wiki-guardrails.yml allowlist:${blocked_new}
+Canonical docs/rules belong in __WIKI_PATH__ or the project allowlist must be updated intentionally.
+EOF_BLOCK
   exit 2
 fi
 

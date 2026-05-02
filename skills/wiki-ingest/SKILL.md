@@ -11,6 +11,15 @@ Follow `wiki/CONVENTIONS.md` for format conventions, frontmatter, naming, and la
 
 Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output.
 
+## Query language alignment
+
+When matching a source against existing wiki pages, search in the wiki language, not necessarily in the user's or source's language. Determine the wiki language from `.wiki-guardrails.yml` (`query_language` or `language`), then from wiki frontmatter/index if guardrails are absent. Keep product names, filenames, APIs, schema names, and code identifiers unchanged.
+
+- Translate QMD `intent:`, `vec:`, and `hyde:` into the wiki language.
+- Keep exact source terms in `lex:` when they may appear untranslated.
+- Write/update wiki artifacts in the wiki language unless the target page clearly uses another language.
+- Communicate progress and questions to the user in the user's language.
+
 ## Retrieval — prefer QMD when available
 
 When searching for **existing pages that should absorb the new source**, use [QMD](https://github.com/tobi/qmd) (local hybrid search) if it is set up for this wiki. Setup is one-time per repo — see `docs/wiki/qmd-setup.md`.

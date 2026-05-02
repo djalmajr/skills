@@ -481,10 +481,11 @@ function actions(root: string, opts: Options): Action[] {
   const qmdForWrapper = qmdCurrent || "qmd";
   const list: Action[] = [];
 
+  const guardrailsTarget = join(root, ".wiki-guardrails.yml");
   list.push({
-    path: join(root, ".wiki-guardrails.yml"),
-    kind: existsSync(join(root, ".wiki-guardrails.yml")) ? "update" : "create",
-    reason: "project wiki guardrails config",
+    path: guardrailsTarget,
+    kind: existsSync(guardrailsTarget) ? "skip" : "create",
+    reason: existsSync(guardrailsTarget) ? "existing project guardrails are the local policy source; not overwritten" : "project wiki guardrails config",
     content: template("wiki-guardrails.yml.tmpl", vars),
   });
 
@@ -596,11 +597,13 @@ function printDoctor(root: string, opts: Options): void {
   console.log("");
   console.log("markdown drift:");
   const drift = markdownDrift(root);
-  if (drift.length === 0) {
-    console.log("- none detected");
+  if (drift.skippedReason) {
+    console.log(`- skipped: ${drift.skippedReason}`);
+  } else if (drift.items.length === 0) {
+    console.log(`- none detected (${drift.source})`);
   } else {
-    console.log(`- ${drift.length} tracked .md outside default allowlist`);
-    for (const item of drift.slice(0, 10)) console.log(`  - ${item}`);
+    console.log(`- ${drift.items.length} tracked .md outside ${drift.source}`);
+    for (const item of drift.items.slice(0, 10)) console.log(`  - ${item}`);
   }
   console.log("");
   console.log("qmd:");
@@ -616,26 +619,87 @@ function printDoctor(root: string, opts: Options): void {
   console.log(opts.write ? "write mode: enabled" : "write mode: dry-run (pass --write to apply)");
 }
 
-function markdownDrift(root: string): string[] {
-  const out = run("git", ["ls-files", "*.md"], root);
-  if (!out.ok || !out.out) return [];
-  return out.out
-    .split("\n")
-    .filter(Boolean)
-    .filter((rel) => !isDefaultAllowedMarkdown(rel));
+type MarkdownDrift = {
+  items: string[];
+  source: string;
+  skippedReason?: string;
+};
+
+function parseGuardrailList(root: string, keys: string[]): string[] | null {
+  const path = join(root, ".wiki-guardrails.yml");
+  const content = readMaybe(path);
+  if (!content) return null;
+  const lines = content.split("\n");
+  for (const key of keys) {
+    const values: string[] = [];
+    let inList = false;
+    for (const line of lines) {
+      if (new RegExp(`^\\s*${escapeRegex(key)}:\\s*$`).test(line)) {
+        inList = true;
+        continue;
+      }
+      if (!inList) continue;
+      if (/^\s*-\s+/.test(line)) {
+        values.push(line.replace(/^\s*-\s+/, "").replace(/^["']|["']$/g, ""));
+        continue;
+      }
+      if (/^\S/.test(line)) break;
+    }
+    if (values.length > 0) return values;
+  }
+  return [];
 }
 
-function isDefaultAllowedMarkdown(rel: string): boolean {
-  return (
-    /^(README|AGENTS|CLAUDE|MIGRATION|CHANGELOG|SETUP|LICENSE)\.md$/.test(rel) ||
-    /^apps\/[^/]+\/\.agents\/.*\.md$/.test(rel) ||
-    /^planning\/.*\.md$/.test(rel) ||
-    /^\.opencode\/.*\.md$/.test(rel) ||
-    /^packages\/[^/]+\/README\.md$/.test(rel) ||
-    /^\.github\/.*\.md$/.test(rel) ||
-    /^\.claude\/.*\.md$/.test(rel) ||
-    /^\.codex\/.*\.md$/.test(rel)
-  );
+function globToRegExp(pattern: string): RegExp {
+  let out = "^";
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i];
+    const next = pattern[i + 1];
+    const afterNext = pattern[i + 2];
+    if (char === "*" && next === "*" && afterNext === "/") {
+      out += "(?:.*/)?";
+      i += 2;
+      continue;
+    }
+    if (char === "*" && next === "*") {
+      out += ".*";
+      i += 1;
+      continue;
+    }
+    if (char === "*") {
+      out += "[^/]*";
+      continue;
+    }
+    if (char === "?") {
+      out += "[^/]";
+      continue;
+    }
+    out += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`${out}$`);
+}
+
+function matchesGuardrailPattern(rel: string, patterns: string[]): boolean {
+  return patterns.some((pattern) => globToRegExp(pattern).test(rel));
+}
+
+function markdownDrift(root: string): MarkdownDrift {
+  const patterns = parseGuardrailList(root, ["repo_markdown_allowlist", "markdown_allowlist"]);
+  if (patterns == null) {
+    return { items: [], source: ".wiki-guardrails.yml", skippedReason: ".wiki-guardrails.yml missing; project policy is unknown" };
+  }
+  if (patterns.length === 0) {
+    return { items: [], source: ".wiki-guardrails.yml", skippedReason: ".wiki-guardrails.yml has no repo_markdown_allowlist" };
+  }
+  const out = run("git", ["ls-files", "*.md"], root);
+  if (!out.ok || !out.out) return { items: [], source: ".wiki-guardrails.yml" };
+  return {
+    source: ".wiki-guardrails.yml allowlist",
+    items: out.out
+      .split("\n")
+      .filter(Boolean)
+      .filter((rel) => !matchesGuardrailPattern(rel, patterns)),
+  };
 }
 
 function applyActions(list: Action[], write: boolean): void {
