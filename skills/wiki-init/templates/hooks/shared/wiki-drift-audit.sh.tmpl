@@ -37,14 +37,70 @@ guardrail_match() {
   return 1
 }
 
+guardrail_scalar() {
+  local key="$1"
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key ":[[:space:]]*" {
+      line=$0
+      sub("^[[:space:]]*" key ":[[:space:]]*", "", line)
+      gsub(/^\"|\"$/, "", line)
+      gsub(/^'"'"'|'"'"'$/, "", line)
+      print line
+      exit
+    }
+  ' "$GUARDRAILS"
+}
+
+repo_relative_wiki_path() {
+  local path="$1"
+  local target=""
+  local abs=""
+  case "$path" in
+    ""|.|./|..|../*|*/../*) return 1 ;;
+    /*) target="$path" ;;
+    ./*) target="$ROOT/${path#./}" ;;
+    *) target="$ROOT/${path%/}" ;;
+  esac
+  abs="$(cd "$target" 2>/dev/null && pwd -P || true)"
+  if [ -n "$abs" ]; then
+    case "$abs" in
+      "$ROOT") return 1 ;;
+      "$ROOT"/*) printf '%s\n' "${abs#"$ROOT"/}"; return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
+  case "$target" in
+    "$ROOT") return 1 ;;
+    "$ROOT"/*) printf '%s\n' "${target#"$ROOT"/}" ;;
+    *) return 1 ;;
+  esac
+}
+
+WIKI_PATH="$(guardrail_scalar wiki_path || true)"
+[ -n "$WIKI_PATH" ] || WIKI_PATH="__WIKI_PATH__"
+WIKI_REL="$(repo_relative_wiki_path "$WIKI_PATH" || true)"
+
+is_wiki_markdown() {
+  local rel="$1"
+  [ -n "$WIKI_REL" ] || return 1
+  case "$rel" in "$WIKI_REL"/*) return 0 ;; esac
+  return 1
+}
+
 is_allowed_markdown() {
   local rel="$1"
   guardrail_match repo_markdown_allowlist "$rel" || guardrail_match markdown_allowlist "$rel"
 }
 
 DRIFT=""
+EXCLUDED_WIKI=0
 while IFS= read -r rel; do
   [ -n "$rel" ] || continue
+  [ -f "$rel" ] || continue
+  if is_wiki_markdown "$rel"; then
+    EXCLUDED_WIKI=$((EXCLUDED_WIKI + 1))
+    continue
+  fi
   is_allowed_markdown "$rel" && continue
   DRIFT="${DRIFT}${rel}"$'\n'
 done < <(git ls-files '*.md' 2>/dev/null || true)
@@ -53,9 +109,14 @@ COUNT="$(echo -n "$DRIFT" | grep -c . || true)"
 [ "$COUNT" -eq 0 ] && exit 0
 
 EXAMPLES="$(echo "$DRIFT" | head -10 | sed 's/^/  - /')"
+EXCLUDED_NOTE=""
+if [ "$EXCLUDED_WIKI" -gt 0 ] && [ -n "$WIKI_REL" ]; then
+  EXCLUDED_NOTE="
+Excluded wiki_path ${WIKI_REL}/ (${EXCLUDED_WIKI} tracked .md)."
+fi
 cat >&2 <<EOF_DRIFT
 wiki-drift-audit: ${COUNT} tracked markdown file(s) outside .wiki-guardrails.yml allowlist.
-These may be legacy docs that should migrate to __WIKI_PATH__:
+These may be legacy docs that should migrate to ${WIKI_PATH}:${EXCLUDED_NOTE}
 
 ${EXAMPLES}
 EOF_DRIFT

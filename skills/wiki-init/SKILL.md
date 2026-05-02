@@ -14,7 +14,7 @@ The user may use natural language. Route intent like this:
 - "como esta a estrutura?", "preciso migrar?", "doctor", "qmd esta ok?" -> run `doctor`.
 - "instala", "prepara esse repo", "configura hooks" -> run `install` as dry-run first, then ask the user to confirm the suggested wiki location and index before `--write`.
 - "migrar para o formato novo" -> run `migrate` as dry-run first, then ask the user to confirm the suggested wiki location and index before `--write`.
-- "corrigir qmd", "managed qmd", "patch qmd" -> run `doctor`, then explain or run QMD fix only with explicit write/network approval.
+- "corrigir qmd", "managed qmd", "patch qmd" -> run `doctor`, then use `install --write` or `update-hooks --write` with explicit approval to prepare the managed QMD checkout and wrappers.
 
 ## Workflow
 
@@ -24,8 +24,9 @@ The user may use natural language. Route intent like this:
 4. Ask the user in plain language to confirm where the wiki will live and what QMD index will be used. Do not require the user to know the preset name.
 5. Only run with `--write` after passing explicit `--wiki` and `--index`. The script blocks writes without those flags.
 6. Re-run `doctor` after writes.
-7. If the target project needs an index, initialize QMD with the generated wrapper: `<wrapper> collection add <wiki-path> --name knowledge-base --mask "**/*.md"`, then `<wrapper> update` and `<wrapper> embed`.
-8. Run `scripts/validate-wiki-init.ts` before changing reusable templates or scripts.
+7. `--write` prepares the managed QMD checkout under the skill cache (`~/.local/share/essential-skills/qmd/checkouts/qmd`) and points project wrappers at that checkout. It clones `https://github.com/tobi/qmd.git` when missing and installs dependencies there.
+8. If the target project needs an index, initialize QMD with the generated wrapper: `<wrapper> collection add <wiki-path> --name knowledge-base --mask "**/*.md"`, then `<wrapper> update` and `<wrapper> embed`.
+9. Run `scripts/validate-wiki-init.ts` before changing reusable templates or scripts.
 
 ## Script
 
@@ -60,6 +61,7 @@ Use `references/presets.md` for the supported project shapes: local wiki, centra
 ## Boundaries
 
 - Do not auto-ingest wiki content. Hooks only raise signal; the agent decides semantically.
-- Do not patch or install QMD globally without explicit user approval.
-- Prefer a managed project wrapper for QMD over shell aliases or `bunx`. The wrapper must be accompanied by a provenance manifest recording the wrapped binary, version, patch report, language, and embedding model. This is intentionally no-network and does not clone/update QMD automatically.
+- Do not patch or install QMD globally.
+- Prefer a managed project wrapper for QMD over shell aliases or `bunx`. The wrapper must be accompanied by a provenance manifest recording the managed checkout, upstream repo/ref, wrapped binary, version, patch report, language, and embedding model.
+- Keep reusable skill files free of user-specific absolute paths. Local absolute paths may appear only in generated per-machine wrappers/manifests/config after install.
 - Keep templates inside this skill directory.

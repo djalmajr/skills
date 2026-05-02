@@ -39,6 +39,8 @@ type Action = {
 
 const skillDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const templateDir = join(skillDir, "templates");
+const qmdRepoUrl = "https://github.com/tobi/qmd.git";
+const qmdRef = "main";
 
 function run(cmd: string, args: string[], cwd?: string): { ok: boolean; out: string } {
   try {
@@ -120,13 +122,24 @@ function template(name: string, vars: Record<string, string | boolean>): string 
 }
 
 function managedWrapperPath(index: string): string {
-  const home = process.env.HOME ?? "";
-  return join(home, ".local/share/essential-skills/qmd/wrappers", `${index}-qmd`);
+  return join(managedQmdCacheDir(), "wrappers", `${index}-qmd`);
 }
 
 function managedManifestPath(index: string): string {
+  return join(managedQmdCacheDir(), "manifests", `${index}.json`);
+}
+
+function managedQmdCacheDir(): string {
   const home = process.env.HOME ?? "";
-  return join(home, ".local/share/essential-skills/qmd/manifests", `${index}.json`);
+  return join(home, ".local/share/essential-skills/qmd");
+}
+
+function managedQmdCheckoutPath(): string {
+  return join(managedQmdCacheDir(), "checkouts", "qmd");
+}
+
+function managedQmdCommandPath(): string {
+  return join(managedQmdCheckoutPath(), "bin", "qmd");
 }
 
 function inferWikiPath(root: string, explicit?: string): string {
@@ -147,6 +160,11 @@ function recommendedPreset(root: string, wikiPath: string): string {
   if (normalized === "docs") return "docs-only-migration";
   if (existsSync(resolve(root, wikiPath))) return "multi-repo-org-wiki";
   return "custom-wiki";
+}
+
+function portableWikiPath(root: string, wikiPath: string): string {
+  if (!wikiPath.startsWith("/")) return wikiPath;
+  return relative(root, wikiPath).replace(/\\/g, "/") || ".";
 }
 
 function hasExplicitWriteTarget(opts: Options): boolean {
@@ -173,6 +191,8 @@ function inferIndex(root: string, explicit?: string): string {
 }
 
 function qmdBinary(): string | null {
+  const managed = managedQmdCommandPath();
+  if (existsSync(managed)) return managed;
   const which = run("which", ["qmd"]);
   if (!which.ok || !which.out) return null;
   try {
@@ -187,7 +207,6 @@ function findQmdPackageRoot(binary: string | null): string | null {
   const candidates = [
     resolve(dirname(binary), ".."),
     resolve(dirname(binary), "../.."),
-    "/Users/djalmajr/Developer/github/qmd",
   ];
   for (const candidate of candidates) {
     if (existsSync(join(candidate, "package.json")) && existsSync(join(candidate, "dist/cli/qmd.js"))) {
@@ -195,6 +214,86 @@ function findQmdPackageRoot(binary: string | null): string | null {
     }
   }
   return null;
+}
+
+function ensureManagedQmdCheckout(): void {
+  const checkout = managedQmdCheckoutPath();
+  if (!existsSync(join(checkout, ".git"))) {
+    mkdirSync(dirname(checkout), { recursive: true });
+    const cloned = run("git", ["clone", "--depth", "1", "--branch", qmdRef, qmdRepoUrl, checkout]);
+    if (!cloned.ok) throw new Error(`Failed to clone QMD from ${qmdRepoUrl}: ${cloned.out || "no output"}`);
+  }
+
+  if (!existsSync(join(checkout, "node_modules"))) {
+    const installed = run("bun", ["install", "--frozen-lockfile"], checkout);
+    if (!installed.ok) throw new Error(`Failed to install QMD dependencies in ${checkout}: ${installed.out || "no output"}`);
+  }
+
+  const patchesChanged = applyManagedQmdPatches(checkout);
+
+  if (patchesChanged || !existsSync(managedQmdCommandPath()) || !existsSync(join(checkout, "dist/cli/qmd.js"))) {
+    const built = run("bun", ["run", "build"], checkout);
+    if (!built.ok) throw new Error(`Failed to build QMD in ${checkout}: ${built.out || "no output"}`);
+  }
+}
+
+function patchFile(path: string, search: string, replace: string): boolean {
+  const content = readMaybe(path);
+  if (!content || content.includes(replace)) return false;
+  if (!content.includes(search)) return false;
+  writeFileSync(path, content.replace(search, replace), "utf8");
+  return true;
+}
+
+function applyManagedQmdPatches(checkout: string): boolean {
+  let changed = false;
+  changed = patchFile(
+    join(checkout, "src/store.ts"),
+    "const migrate = db.transaction(() => {",
+    "const migrate = (db as any).transaction(() => {",
+  ) || changed;
+  changed = patchFile(
+    join(checkout, "src/store.ts"),
+    "if (/-\\w/.test(query) || /-\"/.test(query)) {",
+    "if (/(^|\\s)-(?=\\S)/.test(query)) {",
+  ) || changed;
+  changed = patchFile(
+    join(checkout, "src/cli/qmd.ts"),
+    "function closeDb(): void {",
+    "function resolveEmbedModel(): string {\n  try {\n    const config = loadConfig();\n    if (config.models?.embed) return config.models.embed;\n  } catch {\n  }\n  return process.env.QMD_EMBED_MODEL || DEFAULT_EMBED_MODEL_URI;\n}\n\nfunction closeDb(): void {",
+  ) || changed;
+  changed = patchFile(
+    join(checkout, "src/cli/qmd.ts"),
+    "console.log(`  Embedding:   ${hfLink(DEFAULT_EMBED_MODEL_URI)}`);",
+    "console.log(`  Embedding:   ${hfLink(resolveEmbedModel())}`);",
+  ) || changed;
+  changed = patchFile(
+    join(checkout, "src/cli/qmd.ts"),
+    "await vectorIndex(DEFAULT_EMBED_MODEL_URI, !!cli.values.force, {",
+    "await vectorIndex(resolveEmbedModel(), !!cli.values.force, {",
+  ) || changed;
+  changed = patchFile(
+    join(checkout, "src/cli/qmd.ts"),
+    "await startMcpServer();",
+    "await startMcpServer({ dbPath: getDbPath() });",
+  ) || changed;
+  changed = patchFile(
+    join(checkout, "src/mcp/server.ts"),
+    "export async function startMcpServer(): Promise<void> {",
+    "export async function startMcpServer(opts: { dbPath?: string } = {}): Promise<void> {",
+  ) || changed;
+  changed = patchFile(
+    join(checkout, "src/mcp/server.ts"),
+    "dbPath: getDefaultDbPath(),",
+    "dbPath: opts.dbPath ?? getDefaultDbPath(),",
+  ) || changed;
+  return changed;
+}
+
+function managedQmdRevision(): string {
+  const checkout = managedQmdCheckoutPath();
+  const rev = run("git", ["rev-parse", "--short", "HEAD"], checkout);
+  return rev.ok ? rev.out : "unknown";
 }
 
 function qmdDoctor(index: string, command: string): string[] {
@@ -268,6 +367,7 @@ function qmdPatchReport(binary: string | null): Record<string, string> {
     embedModel: cli.includes("resolveEmbedModel") ? "ok" : "missing",
     mcpIndex: cli.includes("startMcpServer({ dbPath: getDbPath() })") || mcp.includes("opts?.dbPath") || srcMcp.includes("opts?.dbPath") ? "ok" : "missing",
     hyphenatedTerms: store.includes("(^|\\s)-(?=\\S)") || store.includes("(^|\\\\s)-(?=\\\\S)") ? "ok" : "missing",
+    buildTransactionType: (readMaybe(join(packageRoot, "src/store.ts")) ?? "").includes("(db as any).transaction") ? "ok" : "not-needed-or-missing",
   };
 }
 
@@ -279,11 +379,15 @@ function managedManifest(index: string, qmdCommand: string, language: string): s
       index,
       qmdCommand,
       qmdVersion: version.ok ? version.out : `failed: ${version.out || "no output"}`,
+      qmdRepo: qmdRepoUrl,
+      qmdRef,
+      qmdCheckout: managedQmdCheckoutPath(),
+      qmdRevision: managedQmdRevision(),
       language,
       embedModel: language.toLowerCase() === "en" ? "qmd default" : "hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf",
       patchReport,
       managedBy: "essential-skills/wiki-init",
-      note: "This manifest records the QMD binary wrapped for this index. It does not clone or update QMD automatically.",
+      note: "This manifest records the managed QMD checkout and wrapper for this index.",
     },
     null,
     2,
@@ -302,7 +406,7 @@ ${model}exec "${qmdCommand}" --index "${index}" "$@"
 }
 
 function buildVars(root: string, opts: Options): Record<string, string | boolean> {
-  const wikiPath = inferWikiPath(root, opts.wikiPath);
+  const wikiPath = portableWikiPath(root, inferWikiPath(root, opts.wikiPath));
   const index = inferIndex(root, opts.qmdIndex);
   const qmdCommand = opts.qmdCommand || managedWrapperPath(index);
   return {
@@ -477,8 +581,7 @@ function mergeCodexToml(target: string, vars: Record<string, string | boolean>):
 function actions(root: string, opts: Options): Action[] {
   const vars = buildVars(root, opts);
   const index = String(vars.QMD_INDEX);
-  const qmdCurrent = qmdBinary();
-  const qmdForWrapper = qmdCurrent || "qmd";
+  const qmdForWrapper = opts.qmdCommand || managedQmdCommandPath();
   const list: Action[] = [];
 
   const guardrailsTarget = join(root, ".wiki-guardrails.yml");
@@ -605,8 +708,13 @@ function printDoctor(root: string, opts: Options): void {
     console.log(`- ${drift.items.length} tracked .md outside ${drift.source}`);
     for (const item of drift.items.slice(0, 10)) console.log(`  - ${item}`);
   }
+  if (drift.excludedWikiPath && drift.excludedWikiItems && drift.excludedWikiItems > 0) {
+    console.log(`- excluded wiki_path: ${drift.excludedWikiPath} (${drift.excludedWikiItems} tracked .md)`);
+  }
   console.log("");
   console.log("qmd:");
+  console.log(`- managed checkout expected: ${managedQmdCheckoutPath()}`);
+  console.log(`- managed upstream: ${qmdRepoUrl}#${qmdRef}`);
   for (const line of qmdDoctor(String(vars.QMD_INDEX), String(vars.QMD_COMMAND))) {
     console.log(`- ${line}`);
   }
@@ -622,6 +730,8 @@ function printDoctor(root: string, opts: Options): void {
 type MarkdownDrift = {
   items: string[];
   source: string;
+  excludedWikiPath?: string;
+  excludedWikiItems?: number;
   skippedReason?: string;
 };
 
@@ -683,6 +793,17 @@ function matchesGuardrailPattern(rel: string, patterns: string[]): boolean {
   return patterns.some((pattern) => globToRegExp(pattern).test(rel));
 }
 
+function repoRelativeWikiPath(root: string): string | null {
+  const wikiPath = inferWikiPath(root);
+  const rel = relative(root, resolve(root, wikiPath)).replace(/\\/g, "/").replace(/\/+$/, "");
+  if (!rel || rel === "." || rel === ".." || rel.startsWith("../")) return null;
+  return rel;
+}
+
+function isInsideRelPath(rel: string, base: string): boolean {
+  return rel === base || rel.startsWith(`${base}/`);
+}
+
 function markdownDrift(root: string): MarkdownDrift {
   const patterns = parseGuardrailList(root, ["repo_markdown_allowlist", "markdown_allowlist"]);
   if (patterns == null) {
@@ -693,12 +814,24 @@ function markdownDrift(root: string): MarkdownDrift {
   }
   const out = run("git", ["ls-files", "*.md"], root);
   if (!out.ok || !out.out) return { items: [], source: ".wiki-guardrails.yml" };
+  const wikiRel = repoRelativeWikiPath(root);
+  let excludedWikiItems = 0;
+  const items = out.out
+    .split("\n")
+    .filter(Boolean)
+    .filter((rel) => existsSync(join(root, rel)))
+    .filter((rel) => {
+      if (wikiRel && isInsideRelPath(rel, wikiRel)) {
+        excludedWikiItems += 1;
+        return false;
+      }
+      return !matchesGuardrailPattern(rel, patterns);
+    });
   return {
     source: ".wiki-guardrails.yml allowlist",
-    items: out.out
-      .split("\n")
-      .filter(Boolean)
-      .filter((rel) => !matchesGuardrailPattern(rel, patterns)),
+    excludedWikiPath: wikiRel ? `${wikiRel}/` : undefined,
+    excludedWikiItems,
+    items,
   };
 }
 
@@ -735,6 +868,9 @@ function main(): void {
     printWriteConfirmationRequired(root, opts);
     process.exitCode = 2;
     return;
+  }
+  if (opts.write && !opts.qmdCommand) {
+    ensureManagedQmdCheckout();
   }
   console.log("");
   applyActions(actions(root, opts), opts.write);

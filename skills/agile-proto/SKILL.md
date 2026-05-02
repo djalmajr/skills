@@ -13,7 +13,7 @@ When product behavior or domain rules emerge during prototype work, document the
 
 ## Stack
 
-- **z-proto** — web component shell (responsive presets, zoom, resize handles, Figma export button)
+- **z-proto** — web component shell from the public GitHub repo https://github.com/djalmajr/z-proto (responsive presets, zoom, resize handles, Figma export button)
 - **Tailwind CSS v4** — `@tailwindcss/browser` + `@theme inline` mapping shadcn CSS variables
 - **shadcn components (55)** — one file per component in `components/ui/`, class strings copied verbatim from the original shadcn. Behavior delegated to native HTML5 (`<dialog>`, `<details>`, popover API, scroll-snap)
 - **Preact + htm + preact-iso** — rendering and client-side scene routing via importmap + esm.sh

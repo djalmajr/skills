@@ -2,7 +2,11 @@
 
 Skills for agile delivery management powered by AI agents.
 
+Repository: https://github.com/djalmajr/essential-skills
+
 ## Installing
+
+The `djalmajr/essential-skills` shorthand below refers to the public GitHub repository: https://github.com/djalmajr/essential-skills
 
 ```bash
 # All skills
@@ -55,6 +59,8 @@ intake → roadmap → epic → task → execution → status → retro
 ## Template convention
 
 Each skill owns its own templates under `skills/<skill-name>/templates/`. `SKILL.md` files should reference those templates with relative paths, for example `templates/story.md`. Do not rely on global template locations such as `~/.agents/templates`; skills must be self-contained when installed.
+
+External repo references should use full GitHub links in documentation when practical. Shorthands such as `djalmajr/essential-skills` are acceptable only where a CLI expects GitHub `owner/repo` syntax.
 
 ## Skill evolution loop
 

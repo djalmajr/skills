@@ -4,7 +4,6 @@ set -euo pipefail
 INPUT="$(cat)"
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 GUARDRAILS="$ROOT/.wiki-guardrails.yml"
-WIKI_DIR="$(cd "$ROOT/__WIKI_PATH__" 2>/dev/null && pwd -P || printf '%s\n' "$ROOT/__WIKI_PATH__")"
 TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')"
 
 case "$TOOL" in
@@ -44,6 +43,68 @@ guardrail_match() {
   return 1
 }
 
+guardrail_scalar() {
+  local key="$1"
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key ":[[:space:]]*" {
+      line=$0
+      sub("^[[:space:]]*" key ":[[:space:]]*", "", line)
+      gsub(/^\"|\"$/, "", line)
+      gsub(/^'"'"'|'"'"'$/, "", line)
+      print line
+      exit
+    }
+  ' "$GUARDRAILS"
+}
+
+repo_relative_wiki_path() {
+  local path="$1"
+  local target=""
+  local abs=""
+  case "$path" in
+    ""|.|./|..|../*|*/../*) return 1 ;;
+    /*) target="$path" ;;
+    ./*) target="$ROOT/${path#./}" ;;
+    *) target="$ROOT/${path%/}" ;;
+  esac
+  abs="$(cd "$target" 2>/dev/null && pwd -P || true)"
+  if [ -n "$abs" ]; then
+    case "$abs" in
+      "$ROOT") return 1 ;;
+      "$ROOT"/*) printf '%s\n' "${abs#"$ROOT"/}"; return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
+  case "$target" in
+    "$ROOT") return 1 ;;
+    "$ROOT"/*) printf '%s\n' "${target#"$ROOT"/}" ;;
+    *) return 1 ;;
+  esac
+}
+
+wiki_abs_path() {
+  local path="$1"
+  case "$path" in
+    /*) printf '%s\n' "$path" ;;
+    *) printf '%s\n' "$ROOT/$path" ;;
+  esac
+}
+
+WIKI_PATH="$(guardrail_scalar wiki_path || true)"
+[ -n "$WIKI_PATH" ] || WIKI_PATH="__WIKI_PATH__"
+WIKI_BASE="$(wiki_abs_path "$WIKI_PATH")"
+WIKI_DIR="$(cd "$WIKI_BASE" 2>/dev/null && pwd -P || printf '%s\n' "$WIKI_BASE")"
+WIKI_REL="$(repo_relative_wiki_path "$WIKI_PATH" || true)"
+
+is_wiki_file_path() {
+  local file="$1"
+  case "$file" in "$WIKI_DIR"/*) return 0 ;; esac
+  if [ -n "$WIKI_REL" ]; then
+    case "$file" in "$ROOT/$WIKI_REL"/*|"$WIKI_REL"/*) return 0 ;; esac
+  fi
+  return 1
+}
+
 payload_entries() {
   printf '%s' "$INPUT" | jq -r '
     [
@@ -58,7 +119,7 @@ payload_entries() {
 
 repo_relative_file() {
   local file="$1"
-  case "$file" in "$WIKI_DIR"/*|"$ROOT/__WIKI_PATH__/"*|__WIKI_PATH__/*) return 1 ;; esac
+  is_wiki_file_path "$file" && return 1
   case "$file" in "$ROOT"/*) printf '%s\n' "${file#"$ROOT"/}" ;; /*|../*) return 1 ;; *) printf '%s\n' "$file" ;; esac
 }
 
