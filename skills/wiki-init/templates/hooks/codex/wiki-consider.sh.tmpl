@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INPUT="$(cat)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')"
+
+case "$TOOL" in
+  apply_patch|Edit|Write|MultiEdit|NotebookEdit) ;;
+  *) exit 0 ;;
+esac
+
+sensitive_reason() {
+  case "$1" in
+    .mcp.json) printf 'MCP configuration changed' ;;
+    package.json|*/package.json|bun.lock) printf 'dependency/script surface changed' ;;
+    .github/workflows/*) printf 'CI/deploy workflow changed' ;;
+    wrangler.jsonc|apps/*/wrangler.jsonc) printf 'Workers runtime/deploy configuration changed' ;;
+    apps/*/src/server/db/*|apps/*/drizzle/*) printf 'database schema/migration changed' ;;
+    apps/*/src/server/auth/*) printf 'auth flow changed' ;;
+    packages/*/src/components/*) printf 'shared UI component changed' ;;
+    *) return 1 ;;
+  esac
+}
+
+changed="$(
+  {
+    printf '%s' "$INPUT" | jq -r '
+      [
+        .tool_input.file_path?,
+        .tool_response.filePath?,
+        (.tool_input.edits? // [] | .[]? | .file_path?),
+        ((.tool_input.command? // "") | split("\n")[] | capture("^\\*\\*\\* (?:Add|Update|Delete) File: (?<path>.+)$")? | .path)
+      ] | .[]? // empty
+    '
+    git -C "$ROOT" diff --name-only HEAD -- 2>/dev/null || true
+    git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null || true
+  } | sed "s#^$ROOT/##" | sort -u
+)"
+
+lines=""
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  reason="$(sensitive_reason "$file" || true)"
+  [ -n "$reason" ] || continue
+  lines="${lines}
+- ${file} (${reason})"
+done <<< "$changed"
+
+[ -n "$lines" ] || exit 0
+
+STAMP_FILE="${TMPDIR:-/tmp}/wiki-init-consider-__QMD_INDEX__.stamp"
+NOW="$(date +%s)"
+LAST="$(cat "$STAMP_FILE" 2>/dev/null || echo 0)"
+[ $((NOW - LAST)) -ge 30 ] || exit 0
+echo "$NOW" > "$STAMP_FILE"
+
+cat >&2 <<EOF
+Wiki ingest consideration: sensitive paths changed.${lines}
+Before final response, decide whether this creates or changes a canonical rule, contract, schema, gotcha, dependency quirk, cross-project convention, or operational/business constraint.
+If yes, update __WIKI_PATH__ and let wiki-reindex run.
+EOF
+
+exit 0

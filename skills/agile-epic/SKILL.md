@@ -53,6 +53,10 @@ Read the intake, roadmap, or provided material. Identify:
 - Which areas are impacted
 - Constraints and premises
 - Estimated scope and complexity
+- Existing prototypes under `planning/<initiative>/proto/`, when UI/product flows matter
+- Existing business rules under `planning/<initiative>/business/*.md`, when domain behavior matters
+
+If the initiative is UI-heavy and prototypes are an agreed gate, do not finalize epics until the relevant prototype routes/screens exist or the user explicitly waives the gate.
 
 ### 2. Decompose into stories
 
@@ -67,6 +71,8 @@ For each story, define:
 - Name and objective (1 line)
 - Estimated scope (small, medium, or large)
 - Dependencies (which stories it depends on)
+- Prototype routes/screens involved, when applicable
+- Business rule IDs/files involved, when applicable
 - Summarized acceptance criteria
 
 ### 3. Structure the epic overview
@@ -130,6 +136,13 @@ Each story file includes:
 **Origin:** `planning/<initiative>/epics/NN-<epic-name>/00-overview.md`
 ```
 
+When available, also include:
+
+```
+**Prototype refs:** `planning/<initiative>/proto` route/screen IDs
+**Business rules:** `planning/<initiative>/business/*.md` rule IDs
+```
+
 ## Chaining
 
 At the end of the epic, offer:
@@ -141,7 +154,7 @@ Ask the user which story they want to detail first.
 
 ## Reference template
 
-Use `~/.agents/templates/epic.md` as base for the overview artifact.
+Use `templates/epic.md` from this skill as base for the overview artifact.
 
 ## Rules
 
@@ -156,18 +169,20 @@ Use `~/.agents/templates/epic.md` as base for the overview artifact.
 ## Required sections for 00-overview.md
 
 1. **Context** (problem, AS-IS, TO-BE, out of scope)
-2. **Story backlog** (list with objective, size, dependency, status)
-3. **Roadmap** (phases, parallelism, critical path)
-4. **Epic acceptance criteria**
-5. **Risks**
+2. **Traceability** (prototype routes/screens and business rule IDs/files)
+3. **Story backlog** (list with objective, size, dependency, status)
+4. **Roadmap** (phases, parallelism, critical path)
+5. **Epic acceptance criteria**
+6. **Risks**
 
 ## Required sections for NN-story-name.md
 
 1. **Context** (problem, objective, value, constraints)
-2. **Files** (exact paths, action, reason)
-3. **Detail** (AS-IS, TO-BE, scope, acceptance criteria, dependencies)
-4. **Tasks** (verifiable checklist in vertical phases)
-5. **Verification** (commands, validations, evidence)
+2. **Traceability** (prototype routes/screens and business rule IDs/files)
+3. **Files** (exact paths, action, reason)
+4. **Detail** (AS-IS, TO-BE, scope, acceptance criteria, dependencies)
+5. **Tasks** (verifiable checklist in vertical phases)
+6. **Verification** (commands, validations, evidence)
 
 ## Relationship with the flow
 

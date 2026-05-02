@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INPUT="$(cat)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+WIKI_DIR="$(cd "$ROOT/__WIKI_PATH__" 2>/dev/null && pwd -P || printf '%s\n' "$ROOT/__WIKI_PATH__")"
+TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')"
+
+case "$TOOL" in
+  apply_patch|Edit|Write|MultiEdit|NotebookEdit) ;;
+  *) exit 0 ;;
+esac
+
+payload_entries() {
+  printf '%s' "$INPUT" | jq -r '
+    [
+      (.tool_input.file_path? | select(.) | "unknown\t" + .),
+      (.tool_input.notebook_path? | select(.) | "unknown\t" + .),
+      (.tool_response.filePath? | select(.) | "unknown\t" + .),
+      ((.tool_input.edits? // [])[]? | .file_path? | select(.) | "unknown\t" + .),
+      ((.tool_input.command? // "") | split("\n")[] | capture("^\\*\\*\\* (?<op>Add|Update|Delete) File: (?<path>.+)$")? | .op + "\t" + .path)
+    ] | .[]? // empty
+  '
+}
+
+repo_relative_file() {
+  local file="$1"
+  case "$file" in "$WIKI_DIR"/*|"$ROOT/__WIKI_PATH__/"*|__WIKI_PATH__/*) return 1 ;; esac
+  case "$file" in "$ROOT"/*) printf '%s\n' "${file#"$ROOT"/}" ;; /*|../*) return 1 ;; *) printf '%s\n' "$file" ;; esac
+}
+
+is_allowed_markdown() {
+  local rel="$1"
+  case "$rel" in
+    README.md|CLAUDE.md|AGENTS.md|MIGRATION.md|CHANGELOG.md|SETUP.md|LICENSE.md) return 0 ;;
+    apps/*/.agents/*.md|apps/*/.agents/**/*.md) return 0 ;;
+    planning/*.md|planning/**/*.md) return 0 ;;
+    .opencode/*.md|.opencode/**/*.md) return 0 ;;
+    packages/*/README.md) return 0 ;;
+    .github/*.md|.github/**/*.md) return 0 ;;
+    .claude/*.md|.claude/**/*.md) return 0 ;;
+    .codex/*.md|.codex/**/*.md) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_tracked() {
+  local rel="$1"
+  ( cd "$ROOT" && git ls-files --error-unmatch -- "$rel" >/dev/null 2>&1 )
+}
+
+blocked_new=""
+warned_existing=""
+while IFS=$'\t' read -r op file; do
+  [ -n "$file" ] || continue
+  [ "$op" != "Delete" ] || continue
+  rel="$(repo_relative_file "$file" || true)"
+  [ -n "$rel" ] || continue
+  case "$rel" in *.md) ;; *) continue ;; esac
+  is_allowed_markdown "$rel" && continue
+  if is_tracked "$rel"; then
+    warned_existing="${warned_existing}
+- ${rel}"
+  else
+    blocked_new="${blocked_new}
+- ${rel}"
+  fi
+done < <(payload_entries)
+
+if [ -n "$warned_existing" ]; then
+  cat >&2 <<EOF
+wiki-policy: edit in markdown outside allowlist (legacy drift, not blocked):${warned_existing}
+Consider moving canonical content to __WIKI_PATH__ via /wiki-ingest.
+EOF
+fi
+
+if [ -n "$blocked_new" ]; then
+  cat >&2 <<EOF
+wiki-policy: blocked markdown outside allowlist:${blocked_new}
+Canonical docs/rules belong in __WIKI_PATH__.
+EOF
+  exit 2
+fi
+
+exit 0

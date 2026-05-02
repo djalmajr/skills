@@ -25,6 +25,7 @@ This skill replaces both the planning router and the ceremonies router. It cover
 | What to create | What planning artifact fits this work? | `/agile-intake`, `/agile-roadmap`, `/agile-epic`, `/agile-story` |
 | What ceremony to run | Where are we in the sprint cycle? | `/agile-sprint`, `/agile-review`, `/agile-retro` |
 | What to track | How should I report progress? | `/agile-status` (checkpoint, consolidation, closure) |
+| What to improve in the process | Did real usage expose a skill/template gap or overlap? | `/agile-skill-feedback` |
 
 ## Decision tree
 
@@ -56,12 +57,14 @@ flowchart TD
 - **Sprint just ended?** → `/agile-review` (demo deliveries) then `/agile-retro` (reflect on process)
 - **Backlog items unclear?** → `/agile-epic` (decompose) or run `/agile-refinement` (validate)
 - **Need metrics?** → `/agile-metrics` (before review or retro)
+- **A skill/template caused friction or overlaps with another?** → `/agile-skill-feedback`
 
 ### Tracking: How do I report progress?
 
 - **Quick daily checkpoint?** → `/agile-status` (checkpoint mode)
 - **Period or milestone consolidation?** → `/agile-status` (consolidation mode)
 - **Delivery finished?** → `/agile-status` (closure mode)
+- **Skill library needs merge, split, deprecation, removal, or template refinement?** → `/agile-skill-feedback`
 
 ## Light sizing
 
@@ -124,6 +127,7 @@ Sizing alone is not enough to decide between roadmap and epic. Use this checklis
 | `/agile-retro` | Retrospective with improvement actions |
 | `/agile-proto` | Interactive UI prototypes |
 | `/agile-onboarding` | New team member onboarding |
+| `/agile-skill-feedback` | Improve, merge, split, deprecate, or remove skills from real usage evidence |
 | `/agile-router` | This skill — guidance on which skill to use |
 
 ## Relationship with the flow

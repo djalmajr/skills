@@ -12,9 +12,9 @@ npx skills add djalmajr/essential-skills --all
 npx skills add djalmajr/essential-skills --skill agile-epic --skill agile-story
 ```
 
-## Skills (18)
+## Skills (20)
 
-### Agile (14)
+### Agile (15)
 
 | Skill | Purpose |
 |-------|---------|
@@ -32,12 +32,14 @@ npx skills add djalmajr/essential-skills --skill agile-epic --skill agile-story
 | agile-onboarding | New member onboarding guide |
 | agile-proto | Interactive UI prototypes |
 | agile-tdd | TDD cycle + pragmatic testing strategy |
+| agile-skill-feedback | Improve, merge, split, deprecate, or remove skills from real usage evidence |
 
-### Wiki (4)
+### Wiki (5)
 
 | Skill | Purpose |
 |-------|---------|
 | wiki-ingest | Ingest new source into wiki (documents, notes, decisions) |
+| wiki-init | Initialize, diagnose, or migrate wiki + QMD + hooks infrastructure |
 | wiki-query | Ask about something in the wiki |
 | wiki-lint | Audit and organize the wiki |
 | wiki-policy-check | Audit a product/code repo for business rules that should live in the wiki |
@@ -49,6 +51,16 @@ intake → roadmap → epic → task → execution → status → retro
                     ↑                           ↑
                 refinement                  refinement
 ```
+
+## Template convention
+
+Each skill owns its own templates under `skills/<skill-name>/templates/`. `SKILL.md` files should reference those templates with relative paths, for example `templates/story.md`. Do not rely on global template locations such as `~/.agents/templates`; skills must be self-contained when installed.
+
+## Skill evolution loop
+
+Treat these skills as a living process library. Improvements should come from real usage evidence: confusing instructions, missing fields, weak templates, repeated manual fixes, or artifacts that fail refinement. Keep changes small and traceable, update the affected `SKILL.md` and its local `templates/` together, and validate the revised skill against at least one realistic artifact before considering the change ready.
+
+Use `/agile-skill-feedback` when the evidence suggests a skill should be refined, merged, split, deprecated, removed, or created. The goal is to keep the library useful and small enough to route reliably.
 
 ## Wiki (Karpathy Pattern)
 
@@ -77,6 +89,7 @@ raw/                 # Original sources (before ingestion)
 | Skill | When to use |
 |-------|-------------|
 | `/wiki-ingest` | Ingest new source into wiki (documents, notes, decisions) |
+| `/wiki-init` | Initialize, diagnose, or migrate wiki + QMD + hooks infrastructure |
 | `/wiki-query` | Ask about something in the wiki |
 | `/wiki-lint` | Audit and organize the wiki |
 | `/wiki-policy-check` | Audit a product/code repo for business rules that should be in the wiki |
@@ -116,7 +129,9 @@ Each skill is invoked with `/skill-name`:
 /agile-story
 /agile-refinement
 /agile-status
+/agile-skill-feedback
 /wiki-query
+/wiki-init
 ```
 
 Not sure which skill to use? Try `/agile-router`.

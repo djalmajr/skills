@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INPUT="$(cat)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+WIKI_DIR="$(cd "$ROOT/__WIKI_PATH__" 2>/dev/null && pwd -P || printf '%s\n' "$ROOT/__WIKI_PATH__")"
+QMD_COMMAND="__QMD_COMMAND__"
+
+TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')"
+case "$TOOL" in
+  apply_patch|Edit|Write|MultiEdit|NotebookEdit) ;;
+  *) exit 0 ;;
+esac
+
+changed_wiki_md=false
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  case "$file" in *.md) ;; *) continue ;; esac
+  case "$file" in
+    "$WIKI_DIR"/*|"$ROOT/__WIKI_PATH__/"*|__WIKI_PATH__/*|*"/$(basename "$WIKI_DIR")/"*)
+      changed_wiki_md=true
+      break
+      ;;
+  esac
+done < <(
+  printf '%s' "$INPUT" | jq -r '
+    [
+      .tool_input.file_path?,
+      .tool_input.notebook_path?,
+      .tool_response.filePath?,
+      (.tool_input.edits? // [] | .[]? | .file_path?),
+      ((.tool_input.command? // "") | split("\n")[] | capture("^\\*\\*\\* (?:Add|Update|Delete) File: (?<path>.+)$")? | .path)
+    ] | .[]? // empty
+  '
+)
+
+[ "$changed_wiki_md" = true ] || exit 0
+
+STAMP_FILE="${TMPDIR:-/tmp}/qmd-__QMD_INDEX__-reindex.stamp"
+LOG_FILE="${TMPDIR:-/tmp}/qmd-__QMD_INDEX__-reindex.log"
+STAMP="$(date +%s%N)"
+echo "$STAMP" > "$STAMP_FILE"
+
+(
+  sleep 3
+  CURRENT="$(cat "$STAMP_FILE" 2>/dev/null || echo '')"
+  if [ "$CURRENT" = "$STAMP" ]; then
+    {
+      printf '\n[%s] reindex triggered\n' "$(date -Iseconds)"
+      "$QMD_COMMAND" update 2>&1
+      status=$?
+      if [ "$status" -ne 0 ]; then
+        printf '[WARN] qmd update failed (exit %d)\n' "$status"
+      fi
+      "$QMD_COMMAND" embed 2>&1
+      status=$?
+      if [ "$status" -ne 0 ]; then
+        printf '[WARN] qmd embed failed (exit %d)\n' "$status"
+      fi
+    } >> "$LOG_FILE" 2>&1
+  fi
+) </dev/null >/dev/null 2>&1 &
+disown 2>/dev/null || true
+
+exit 0

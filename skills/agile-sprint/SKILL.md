@@ -57,6 +57,7 @@ Each item must have:
 - Scope and out of scope recorded
 - Files/areas mapped
 - Verifiable acceptance criteria
+- Test-first path for product behavior, especially validation, API contracts, permissions, offline/sync behavior, and critical flows
 
 If an item doesn't have DoR, it doesn't enter the sprint — needs decomposition via `/agile-epic` or validation via `/agile-refinement`.
 
@@ -90,10 +91,11 @@ When 2+ developers are available:
 - To detail the first item: suggest `/agile-story` for the first story in the backlog
 - For items that need decomposition: suggest `/agile-epic`
 - For items that need validation: suggest `/agile-refinement`
+- For process or skill friction discovered while planning: suggest `/agile-skill-feedback`
 
 ## Reference template
 
-Use `~/.agents/templates/sprint.md` as base.
+Use `templates/sprint.md` from this skill as base.
 
 ## Rules
 

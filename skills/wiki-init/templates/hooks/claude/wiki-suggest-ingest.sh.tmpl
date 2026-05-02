@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INPUT="$(cat)"
+SESSION_ID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty')"
+STOP_HOOK_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false')"
+[ "$STOP_HOOK_ACTIVE" = "true" ] && exit 0
+
+STATE_FILE="${TMPDIR:-/tmp}/wiki-suggest-${SESSION_ID:-unknown}.fired"
+[ -f "$STATE_FILE" ] && exit 0
+
+ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+cd "$ROOT" 2>/dev/null || exit 0
+
+changed="$(
+  {
+    git diff --name-only HEAD 2>/dev/null || true
+    git ls-files --others --exclude-standard 2>/dev/null || true
+  } | sort -u
+)"
+
+[ -n "$changed" ] || exit 0
+
+match=""
+count=0
+while IFS= read -r file; do
+  case "$file" in
+    .mcp.json|package.json|bun.lock|.github/workflows/*|wrangler.jsonc|apps/*/wrangler.jsonc|apps/*/src/server/db/*|apps/*/drizzle/*|apps/*/src/server/auth/*|packages/*/src/components/*)
+      match="${match}  - ${file}"$'\n'
+      count=$((count + 1))
+      ;;
+  esac
+done <<< "$changed"
+
+[ "$count" -gt 0 ] || exit 0
+touch "$STATE_FILE"
+
+reason="Touched ${count} sensitive path(s). Evaluate whether this deserves wiki ingest before finalizing:
+
+${match}
+If yes, update __WIKI_PATH__ and log it. If no, respond explicitly with \"sem ingest\"."
+
+jq -n --arg reason "$reason" '{ decision: "block", reason: $reason }'
+exit 0

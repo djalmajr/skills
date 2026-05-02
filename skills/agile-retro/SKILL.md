@@ -96,12 +96,12 @@ When running after a delivery closure:
 ## Chaining
 
 - If actions generate new tasks: suggest `/agile-story` or `/agile-epic`
-- If actions change process: suggest updating rules or skills
+- If actions change process or expose skill/template gaps: suggest `/agile-skill-feedback`
 - If the cycle restarts: suggest `/agile-sprint`
 
 ## Reference template
 
-Use `~/.agents/templates/retro.md` as base.
+Use `templates/retro.md` from this skill as base.
 
 ## Rules
 

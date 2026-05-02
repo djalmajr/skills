@@ -2,23 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
+    <base href="/">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Proto — AppName</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
     <script type="module" src="https://cdn.jsdelivr.net/gh/djalmajr/z-proto@main/src/z-proto.js"></script>
     <script type="importmap">
       {
         "imports": {
-          "~/": "/",
+          "~/": "./",
           "htm/preact": "https://esm.sh/htm@3/preact?external=preact",
+          "preact-iso": "https://esm.sh/preact-iso@2?external=preact",
           "preact": "https://esm.sh/preact@10",
           "preact/": "https://esm.sh/preact@10/"
         }
       }
     </script>
-    <link rel="stylesheet" href="/index.css">
+    <link rel="stylesheet" href="./index.css">
     <style type="text/tailwindcss">
       @theme inline {
         --font-sans: 'Inter', sans-serif;
@@ -69,6 +72,6 @@
         <div id="app" class="flex flex-1 overflow-hidden bg-background"></div>
       </z-proto-body>
     </z-proto>
-    <script type="module" src="/index.js"></script>
+    <script type="module" src="./index.js"></script>
   </body>
 </html>

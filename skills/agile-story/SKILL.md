@@ -49,6 +49,8 @@ If coming from an epic story file, read the story and extract:
 - Objective
 - Impacted files
 - Acceptance criteria
+- Prototype routes/screens involved
+- Business rule IDs/files involved
 
 If standalone, ask the user and explore the code to understand context.
 
@@ -57,8 +59,10 @@ If standalone, ask the user and explore the code to understand context.
 Fill in the required sections:
 
 - **Context:** problem, objective, constraints
+- **Traceability:** prototype routes/screens, business rule IDs/files, source docs
 - **Files:** exact paths with action (read/alter/create)
 - **Detail:** AS-IS, TO-BE, scope, approach
+- **Test-first plan:** behavior to prove, first failing test, test level, and low-value tests to avoid
 - **Tasks:** verifiable checklist
 - **Verification:** commands and validations
 
@@ -90,17 +94,19 @@ After plan confirmation:
 
 ## Reference template
 
-Use `~/.agents/templates/story.md` as base.
+Use `templates/story.md` from this skill as base.
 
 ## Required sections
 
 Every plan must contain:
 
 1. **Context** (problem, objective, constraints, references)
-2. **Files** (exact paths, action, reason)
-3. **Detail** (AS-IS, TO-BE, scope, approach, risks)
-4. **Tasks** (verifiable checklist)
-5. **Verification** (lint, typecheck, tests, manual validation, acceptance)
+2. **Traceability** (prototype routes/screens, business rule IDs/files, source docs)
+3. **Files** (exact paths, action, reason)
+4. **Detail** (AS-IS, TO-BE, scope, approach, risks)
+5. **Test-first plan** (behavior, first failing test, preferred level, and front-end value check when applicable)
+6. **Tasks** (verifiable checklist)
+7. **Verification** (lint, typecheck, tests, manual validation, acceptance)
 
 ## Rules
 
@@ -108,6 +114,8 @@ Every plan must contain:
 - Only implement after explicit user confirmation.
 - Don't create a task plan for work that needs an epic (large scope with several stories).
 - Files must have exact paths.
+- Reference business rule IDs when the story implements domain behavior, permissions, sync, conflict handling, AI approvals, or audit/versioning.
+- Front-end plans should cite the prototype route/screen when the change is user-facing.
 - Tasks must be verifiable, not vague.
 - When completed, update `[ ]` to `[x]` according to actual progress.
 

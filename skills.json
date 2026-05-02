@@ -18,6 +18,7 @@
         "agile-proto",
         "agile-tdd",
         "wiki-ingest",
+        "wiki-init",
         "wiki-lint",
         "wiki-policy-check",
         "wiki-query"

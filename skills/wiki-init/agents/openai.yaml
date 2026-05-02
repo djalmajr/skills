@@ -1,0 +1,16 @@
+name: wiki-init
+description: Initialize, diagnose, or migrate project wiki/QMD/hook infrastructure.
+version: 0.1.0
+entrypoint: ../SKILL.md
+triggers:
+  - wiki-init
+  - wiki bootstrap
+  - wiki migration
+  - qmd doctor
+  - setup project wiki
+capabilities:
+  - diagnose wiki structure
+  - install AGENTS and CLAUDE managed blocks
+  - install Claude and Codex wiki hooks
+  - configure QMD MCP through project wrappers
+  - audit markdown drift

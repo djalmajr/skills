@@ -1,18 +1,22 @@
 ---
 name: agile-proto
-description: Create interactive UI prototypes with a CDN-only stack (z-proto + Tailwind v4 + shadcn-style components + Preact). Use when asked to "prototype", "create proto", "mockup screens", "interactive prototype", or when exploring UI flows before implementation.
+description: Create interactive UI prototypes with a CDN-only stack (z-proto + Tailwind v4 + shadcn-style components + Preact/htm + preact-iso), including faithful send-to-Figma captures when requested. Use when asked to "prototype", "create proto", "mockup screens", "interactive prototype", "send to Figma", or when exploring UI flows before implementation.
 ---
 
 # Interactive UI Prototyping
 
 Build standalone interactive prototypes to validate UI flows before implementation. Zero build tools — everything runs from CDN. Visual and API mirror the org's shadcn experience 1:1 (live reference: `apps/messaging/client-proto/`).
 
+When the prototype is part of an agile planning initiative, keep it with the planning artifacts: `planning/<initiative>/proto/`. This makes `proto/` a sibling of `intake.md`, `roadmap.md`, notes, and future epic folders. Use `client-proto/` only when the project already follows that convention or when prototyping inside an application package.
+
+When product behavior or domain rules emerge during prototype work, document them beside the planning artifacts in `planning/<initiative>/business/*.md` with stable rule IDs. Keep the prototype close to the real product surface: do not add visible explanatory copy for internal architecture, business rules, testing strategy, provider details, or implementation notes unless that text would exist in the shipped UI.
+
 ## Stack
 
 - **z-proto** — web component shell (responsive presets, zoom, resize handles, Figma export button)
 - **Tailwind CSS v4** — `@tailwindcss/browser` + `@theme inline` mapping shadcn CSS variables
 - **shadcn components (55)** — one file per component in `components/ui/`, class strings copied verbatim from the original shadcn. Behavior delegated to native HTML5 (`<dialog>`, `<details>`, popover API, scroll-snap)
-- **Preact + htm** — rendering via importmap + esm.sh
+- **Preact + htm + preact-iso** — rendering and client-side scene routing via importmap + esm.sh
 - **iconify-icon** — web component, wrapped by `<Icon>` in `components/ui/icon.js`
 
 > No daisyUI, no Radix. The 55 components in `components/ui/` cover the shadcn catalog — **always import from there, never recreate**.
@@ -20,9 +24,10 @@ Build standalone interactive prototypes to validate UI flows before implementati
 ## Structure
 
 ```
-{app}/client-proto/
+planning/<initiative>/proto/   # preferred for planning initiatives
+# or {app}/client-proto/       # when prototyping inside an app package
 ├── index.html             # CDN imports, importmap, @theme inline, z-proto shell
-├── index.js               # SCENES + hash routing
+├── index.js               # SCENES + preact-iso routing + Figma capture route bridge
 ├── index.css              # z-proto overrides + shadcn variables (light)
 ├── components/
 │   ├── app-shell.js       # shadcn sidebar + topbar (breadcrumbs/actions)
@@ -101,12 +106,20 @@ When complex interactivity is unavoidable (Command with real filtering, Toast wi
 ## Bootstrapping
 
 ```bash
-cp -r ~/.claude/skills/agile-proto/templates/ my-app/client-proto/
+cp -r ~/.agents/skills/agile-proto/templates/ my-app/client-proto/
 cd my-app/client-proto
 bunx serve -s .
 ```
 
-Templates ship with the shadcn theme applied, a working sidebar, hash routing across scenes, and `routes/components.js` as a live reference.
+For planning initiatives:
+
+```bash
+cp -r ~/.agents/skills/agile-proto/templates planning/<initiative>/proto
+cd planning/<initiative>/proto
+bunx serve -s .
+```
+
+Templates ship with the shadcn theme applied, a working sidebar, preact-iso routing across scenes, and `routes/components.js` as a live reference.
 
 ## Testing the skill template
 
@@ -114,26 +127,40 @@ To iterate on the templates without polluting any project:
 
 ```bash
 # run directly from the skill
-cd ~/.claude/skills/agile-proto/templates
+cd ~/.agents/skills/agile-proto/templates
 bunx serve -s .
-# opens http://localhost:3000 — navigate via #dashboard, #tasks, #music, etc.
+# opens http://localhost:3000 — navigate via /dashboard, /tasks, /music, etc.
 
 # or in a sandbox
-cp -r ~/.claude/skills/agile-proto/templates /tmp/proto-test
+cp -r ~/.agents/skills/agile-proto/templates /tmp/proto-test
 cd /tmp/proto-test && bunx serve -s .
 ```
 
-The `-s` flag (SPA mode) ensures `/` resolves to `index.html`; routing between scenes uses the hash. To test Figma export, you must use `localhost` (the clipboard API requires a secure context).
+The `-s` flag (SPA mode) ensures client-side paths like `/dashboard` and `/tasks` resolve to `index.html`. To test Figma export, you must use `localhost` (the clipboard API requires a secure context).
 
 ## Important patterns
 
-### Hash routing (not wouter)
+### preact-iso routing
 
-`index.js` keeps a `SCENES` array and a `useHashScene()` hook reacting to `window.location.hash`. To add a scene: create a file under `routes/`, import it, and add an entry to `SCENES` with `id`, `Component`, `activeUrl`, optionally `pageLabel`/`breadcrumbs`/`actions`.
+Follow the pattern from `z-proto/examples/todo-app`: `index.js` wraps the app in `<LocationProvider>`, exposes a scene picker through `createPortal(..., z-proto-header)`, and routes scenes with `preact-iso` paths. To add a scene: create a file under `routes/`, import it, and add an entry to `SCENES` with `id`, `path`, `Component`, optionally `pageLabel`/`breadcrumbs`/`actions`.
+
+When the prototype may be sent to Figma, keep support for `?route=<scene-id>`. Figma's capture flow uses the URL hash for `#figmacapture=...`, so the template includes a small capture route bridge: it reads `?route=<scene-id>` or a legacy `#<scene-id>` hint, then calls `route(scene.path)` while preserving `#figmacapture` when present. This lets direct capture use root URLs such as `/?route=tasks#figmacapture=...&figmaselector=%23app` while normal prototype navigation uses preact-iso paths.
+
+Keep `<base href="/">` in `index.html` when the prototype is served from the proto folder root. If serving from a subpath, update the base href to that subpath and keep import paths relative (`"./index.js"`, `"./index.css"`, `"~/": "./"`).
 
 ### Scene with AppShell
 
 By default, every scene renders inside `<AppShell>` (sidebar + topbar). For a fullscreen scene with no chrome, mark the entry with `noShell: true`.
+
+### Prototype review loop
+
+Treat prototype review comments as one of three outcomes:
+
+1. UI change in `proto/` when the product surface is wrong.
+2. Business rule update in `business/*.md` when the behavior needs to be specified.
+3. Epic/story refinement when the implementation backlog needs to reference a screen, rule, or flow.
+
+Before moving from prototype to epics, verify that core flows have route/screen names, that important business rules live outside the UI copy, and that any future epic can cite both prototype routes and rule IDs.
 
 ### shadcn components — catalog
 
@@ -187,7 +214,7 @@ Legend: ⚠️ = visual-only (no runtime interactivity — purely for showing st
 | Select, SelectGroup, SelectItem | `~/components/ui/select.js` |
 | Separator | `~/components/ui/separator.js` |
 | Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter + `openSheet`/`closeSheet` | `~/components/ui/sheet.js` |
-| Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger ⚠️ (does not collapse — visual only), SidebarInset | `~/components/ui/sidebar.js` |
+| Sidebar, SidebarHeader, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarInset | `~/components/ui/sidebar.js` |
 | Skeleton | `~/components/ui/skeleton.js` |
 | Slider | `~/components/ui/slider.js` |
 | Toaster, Toast | `~/components/ui/sonner.js` |
@@ -202,7 +229,7 @@ Legend: ⚠️ = visual-only (no runtime interactivity — purely for showing st
 
 Variants follow shadcn naming: `default`, `secondary`, `destructive`, `outline`, `ghost`, `link`. Sizes: `default`, `sm`, `lg`, `icon`, `icon-sm`, `icon-lg`.
 
-**Live reference**: the `#components` route in the template renders all 55 with demos navigable from the sidebar. Use it as a smoke check when wiring up a new scene.
+**Live reference**: the `/components` route in the template renders all 55 with demos navigable from the sidebar. Use it as a smoke check when wiring up a new scene.
 
 ### When to create a new component
 
@@ -225,6 +252,25 @@ To rebrand: edit `--primary` and `--ring` in `index.css`. For dark mode: duplica
 ## Figma export
 
 z-proto integrates with Figma's official `capture.js`. No third-party plugin required — Figma desktop natively recognizes the pasted payload.
+
+If the user asks to create a prototype and send it to Figma, do not manually redraw an approximate Figma board as the primary deliverable. First build and verify the HTML prototype, then capture the running prototype into the target Figma file with `generate_figma_design` so the Figma reference matches the real prototype. A separate editable draft can be created only as secondary structure, and it must be clearly labeled as a draft/approximation.
+
+### Send-to-Figma workflow
+
+1. Serve the prototype locally and verify the route in the browser.
+2. Ensure `index.html` loads Figma's capture script:
+
+   ```html
+   <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+   ```
+
+3. Ensure `index.js` uses preact-iso routing and still supports `?route=<scene-id>` through the capture route bridge.
+4. Create or pick a dedicated Figma page named like `<Product> Source Prototype Captures`.
+5. Use `generate_figma_design` with `outputMode: "existingFile"` and the target `fileKey`/page `nodeId`.
+6. Open each local route with `?route=<scene-id>#figmacapture=<captureId>&figmaendpoint=<encoded-endpoint>&figmadelay=2000&figmaselector=%23app`.
+7. Poll the same capture ID until `completed`; do not generate a replacement ID while it is pending/processing.
+8. Rename captures to their source route/screen names and arrange them in a reviewable grid.
+9. If an earlier hand-built Figma approximation exists, rename it as outdated/approximation so reviewers do not treat it as the visual source of truth.
 
 ### How it works
 
@@ -253,22 +299,23 @@ Default is `body` (covers the entire rendered scene, including z-proto chrome if
 1. **Zero build tools.** Everything via CDN. No package.json, no bundler, no install step.
 2. **Always import components from `~/components/ui/<name>.js`.** The shadcn catalog (55 components) is already implemented — see the "shadcn components — catalog" table. **Never recreate** Button, Dialog, Card, etc. locally. Never import from `lucide-react`, `@radix-ui`, daisyUI. For icons: `<${Icon} icon="lucide:..." />`. To add a component that demonstrably does not exist in the catalog, follow the recipe.
 3. **Preact + htm.** `html` tagged templates, not JSX. `.js` files, not `.tsx`.
-4. **Hash routing.** Scenes registered in `SCENES` in `index.js`. Each scene lives in `routes/*.js`.
+4. **preact-iso routing.** Scenes are registered in `SCENES` in `index.js` with stable `path` values. Each scene lives in `routes/*.js`. Keep `?route=<scene-id>` support for Figma capture.
 5. **AppShell by default.** Every scene renders inside `<AppShell>` (sidebar + topbar) — except when `noShell: true`.
 6. **Inline mock data.** Forms pre-filled, lists hardcoded. No fetching.
 7. **One scene per file.** Feature-based: `routes/inbox/list.js`, etc.
 8. **Scroll containment.** Every scene root needs `flex-1 w-full h-full overflow-y-auto`.
 9. **Colors via shadcn variables.** Use `bg-primary`, `text-muted-foreground`, `border-sidebar-border`. Don't use raw colors (`bg-violet-500`).
-10. **For Figma export.** Set `figma-key` on `<z-proto>`. The reload is part of the official flow.
+10. **For Figma export.** Set `figma-key` on `<z-proto>` for manual desktop paste, or use `generate_figma_design` for direct send-to-Figma. For direct capture, use `?route=<scene-id>` and `figmaselector=#app` so the result reflects the real scene without z-proto chrome.
 
 ## Discovery
 
 Before creating a proto:
 
 1. Check whether `client-proto/` already exists in the project.
-2. If it does, read `client-proto/index.html`, `index.js`, and `components/app-shell.js` for context.
-3. Read `.agents/rules/` for project-specific conventions.
-4. If it doesn't exist, copy templates from the skill.
+2. If working from `planning/<initiative>/`, check whether `planning/<initiative>/proto/` already exists.
+3. If a proto exists, read its `index.html`, `index.js`, and `components/app-shell.js` for context.
+4. Read `.agents/rules/` for project-specific conventions.
+5. If it doesn't exist, copy templates from the skill into the appropriate target folder.
 
 Before implementing a scene:
 
@@ -285,8 +332,10 @@ Before implementing a scene:
 - [ ] `routes/components.js` lists every component in a navigable sidebar with short demos
 - [ ] **No scene recreates a component that already exists in `components/ui/`** (Button, Dialog, Card, Table, etc. are imported, not copy-pasted)
 - [ ] `components/app-shell.js` provides sidebar + topbar
-- [ ] Hash routing works and the scene picker appears in `<z-proto-header>`
+- [ ] preact-iso path routing works and the scene picker appears in `<z-proto-header>`
+- [ ] `?route=<scene-id>` works for Figma capture without breaking normal path routing
 - [ ] Every scene root has `flex-1 w-full h-full overflow-y-auto`
 - [ ] Icons via `<Icon icon="lucide:..." />` (not `lucide-react`)
 - [ ] Forms pre-filled with mock data
-- [ ] (Optional) `figma-key` set on `<z-proto>` when Figma export is desired; Cmd+V in Figma desktop pastes as editable frames
+- [ ] (Optional) `figma-key` set on `<z-proto>` when manual Figma export is desired; Cmd+V in Figma desktop pastes as editable frames
+- [ ] When asked to send to Figma, captures were produced from the running prototype with `generate_figma_design`, named by route/screen, and arranged on a dedicated source-captures page

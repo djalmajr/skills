@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$ROOT" 2>/dev/null || exit 0
+
+ALLOWED='^(README|AGENTS|CLAUDE|MIGRATION|CHANGELOG|SETUP|LICENSE)\.md$|^apps/[^/]+/\.agents/.*\.md$|^planning/.*\.md$|^\.opencode/.*\.md$|^packages/[^/]+/README\.md$|^\.github/.*\.md$|^\.claude/.*\.md$|^\.codex/.*\.md$'
+DRIFT="$(git ls-files '*.md' 2>/dev/null | grep -Ev "$ALLOWED" || true)"
+COUNT="$(echo -n "$DRIFT" | grep -c . || true)"
+[ "$COUNT" -eq 0 ] && exit 0
+
+EXAMPLES="$(echo "$DRIFT" | head -10 | sed 's/^/  - /')"
+cat >&2 <<EOF
+wiki-drift-audit: ${COUNT} tracked markdown file(s) outside wiki policy allowlist.
+These may be legacy docs that should migrate to __WIKI_PATH__:
+
+${EXAMPLES}
+EOF
+exit 0

@@ -6,14 +6,24 @@
 import { html } from "htm/preact";
 import { cn } from "./utils.js";
 
-export function Sidebar({ className = "", children, ...props }) {
+export function Sidebar({ collapsed = false, className = "", style = {}, children, ...props }) {
+  const sidebarWidth = collapsed ? "4rem" : "14rem";
+
   return html`
     <div
       data-slot="sidebar"
+      data-collapsed=${collapsed ? "true" : "false"}
       class=${cn(
-        "bg-sidebar text-sidebar-foreground flex h-full w-[14rem] flex-col border-r border-sidebar-border",
+        "bg-sidebar text-sidebar-foreground flex h-full flex-none flex-col border-r border-sidebar-border",
         className,
       )}
+      style=${{
+        width: sidebarWidth,
+        minWidth: sidebarWidth,
+        maxWidth: sidebarWidth,
+        transition: "width 200ms ease, min-width 200ms ease, max-width 200ms ease",
+        ...style,
+      }}
       ...${props}
     >
       ${children}

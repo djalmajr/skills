@@ -92,7 +92,7 @@ At the end of the roadmap, offer **only** `/agile-epic`:
 
 ## Template
 
-Use `~/.agents/templates/roadmap.md` as base.
+Use `templates/roadmap.md` from this skill as base.
 
 ## Relationship with the flow
 

@@ -1,0 +1,41 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/wiki-policy-check.sh\"",
+            "timeout": 5,
+            "statusMessage": "Checking markdown boundary"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/wiki-consider.sh\"",
+            "timeout": 5,
+            "statusMessage": "Checking wiki policy"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/wiki-reindex.sh\"",
+            "timeout": 5,
+            "statusMessage": "Checking wiki index"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/wiki-drift-audit.sh\"",
+            "timeout": 5,
+            "statusMessage": "Auditing wiki drift"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -104,7 +104,7 @@ Formal delivery closure — plan vs result, verification, remaining risks, hando
 
 ## Reference template
 
-Use `~/.agents/templates/status.md` as base.
+Use `templates/status.md` from this skill as base.
 
 ## Rules
 

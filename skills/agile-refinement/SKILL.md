@@ -63,6 +63,13 @@ Validates planning artifacts against the following checks:
 - [ ] Acceptance criteria are defined and verifiable
 - [ ] Tasks are specific and actionable (not vague)
 
+### Product traceability
+- [ ] UI-heavy epics/stories reference prototype routes/screens when prototypes exist
+- [ ] Domain behavior references `business/*.md` rule IDs/files when business rules exist
+- [ ] Prototypes do not carry internal implementation or business-rule explanations as visible product copy
+- [ ] Business rules discovered during prototype review were captured outside the prototype
+- [ ] No raw secrets, provider keys, tokens, or credentials appear in planning artifacts
+
 ### Consistency
 - [ ] Sizing is consistent across related artifacts (stories within an epic)
 - [ ] Status fields are up to date

@@ -1,0 +1,65 @@
+#!/usr/bin/env bun
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
+const skillDir = join(import.meta.dir, "..");
+const script = join(skillDir, "scripts/wiki-init.ts");
+const fixture = mkdtempSync(join(tmpdir(), "wiki-init-validate-"));
+const home = mkdtempSync(join(tmpdir(), "wiki-init-home-"));
+const project = join(fixture, "project");
+const wiki = join(fixture, "knowledge-base");
+
+function run(cmd: string, args: string[], cwd = project): string {
+  return execFileSync(cmd, args, { cwd, encoding: "utf8", env: { ...process.env, HOME: home } });
+}
+
+try {
+  mkdirSync(project, { recursive: true });
+  mkdirSync(wiki, { recursive: true });
+  run("git", ["init", "-q"]);
+  writeFileSync(join(wiki, "index.md"), "# Knowledge base\n", "utf8");
+  let blockedWrite = false;
+  try {
+    run("bun", [script, "install", "--project", project, "--write"]);
+  } catch (error: any) {
+    blockedWrite = String(error.stdout || error.stderr || error.message).includes("confirmation required before write");
+  }
+  if (!blockedWrite) throw new Error("write without explicit --wiki and --index was not blocked");
+
+  run("bun", [script, "install", "--project", project, "--wiki", "../knowledge-base", "--index", "fixture", "--write"]);
+
+  const expected = [
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".wiki-guardrails.yml",
+    ".mcp.json",
+    ".codex/config.toml",
+    ".codex/hooks.json",
+    ".claude/settings.json",
+  ];
+  for (const rel of expected) {
+    if (!existsSync(join(project, rel))) throw new Error(`missing generated file: ${rel}`);
+  }
+
+  const mcp = JSON.parse(readFileSync(join(project, ".mcp.json"), "utf8"));
+  if (!mcp.mcpServers?.qmd?.command?.includes("fixture-qmd")) throw new Error(".mcp.json does not point at managed wrapper");
+
+  const hooks = [
+    ".codex/hooks/wiki-policy-check.sh",
+    ".codex/hooks/wiki-reindex.sh",
+    ".codex/hooks/wiki-drift-audit.sh",
+    ".codex/hooks/wiki-consider.sh",
+    ".claude/hooks/wiki-policy-check.sh",
+    ".claude/hooks/wiki-reindex.sh",
+    ".claude/hooks/wiki-drift-audit.sh",
+    ".claude/hooks/wiki-suggest-ingest.sh",
+  ];
+  for (const rel of hooks) run("bash", ["-n", join(project, rel)]);
+
+  console.log("wiki-init validation ok");
+} finally {
+  rmSync(fixture, { recursive: true, force: true });
+  rmSync(home, { recursive: true, force: true });
+}

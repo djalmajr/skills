@@ -52,6 +52,10 @@ Present each step explicitly. Do not skip Red -- the test must fail first.
 
 Overall coverage target: 75%+.
 
+For front-end work, treat these percentages as risk guidance, not quotas. Prefer integration tests that exercise user behavior, validation, local state, API contracts, permissions, offline/sync behavior, and critical flows. Avoid tests that only assert static text, that a button rendered, or implementation details of a design-system component.
+
+When a project keeps business rules in `planning/<initiative>/business/*.md`, use those rule IDs to decide what deserves tests. Tests should prove behavior behind important rules, not restate the rule text.
+
 ## File structure
 
 - **Unit:** co-located with source (`foo.test.ts` beside `foo.ts`)
@@ -106,6 +110,7 @@ Explore the code to understand:
 - What module or feature needs tests
 - What behaviors are critical
 - What is already covered (check existing tests)
+- Which business rule IDs, acceptance criteria, or prototype flows the change must satisfy
 
 ### 2. Choose the right test type
 
@@ -113,6 +118,10 @@ Use the test pyramid as guide:
 - Pure function with no side effects? Unit test.
 - Service that talks to DB or external API? Integration test.
 - Critical user flow that spans multiple systems? E2E test.
+- Front-end behavior with validation, API contract, permission, optimistic update, or offline/sync state? Integration test.
+- Static copy, simple rendering, or visual-only detail with no rule? Usually no test unless it protects a known regression.
+
+For local-first products, give priority to tests that cover command validation, optimistic state, offline queue persistence, reconciliation, conflict handling, permissions, and audit events.
 
 ### 3. Execute the TDD cycle
 
@@ -121,6 +130,8 @@ For each behavior:
 2. Implement the minimum code (Green)
 3. Refactor if needed
 4. Verify the test still passes
+
+Record the business rule ID or acceptance criterion in the test description or surrounding story artifact when that mapping helps future refinement.
 
 ### 4. Verify coverage
 
@@ -131,6 +142,8 @@ Run coverage and check against targets. Fill gaps in critical areas first.
 - During feature implementation: work inside the `/agile-story` checklist
 - After implementation: `/agile-refinement` to review test quality
 - Before closing: ensure tests are part of `/agile-status` (closure mode) verification
+- If the TDD workflow exposes repeated friction, missing guidance, weak templates, or unclear verification, capture a concise skill feedback note with the affected skill/template, evidence, proposed change, and validation artifact.
+- If repeated TDD friction suggests a skill/template change, use `/agile-skill-feedback` before editing the process library.
 
 ## Relationship with the flow
 

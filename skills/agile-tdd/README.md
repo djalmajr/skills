@@ -8,6 +8,7 @@ Guides the TDD (Test-Driven Development) cycle and pragmatic testing strategy. F
 - Adding tests to existing code that lacks coverage
 - Deciding between unit, integration, or E2E tests for a module
 - Establishing a testing strategy for a codebase
+- Choosing valuable front-end integration tests for validations, API contracts, permissions, offline/sync behavior, or critical flows
 
 ## When NOT to use
 
@@ -69,9 +70,10 @@ flowchart LR
 - Do not mock your own code. Mock external dependencies (APIs, databases, third-party services).
 - One concept per test. If a test name has "and" in it, split it.
 - Run tests in watch mode during development for fast feedback.
+- For front-end, avoid tests that only confirm static text or a button exists unless that assertion protects a real rule or known regression.
 
 ## Chaining
 
 - **Before:** `/agile-story` (plan what to build), `/agile-epic` (for larger initiatives)
 - **During:** TDD cycle runs alongside implementation
-- **After:** `/agile-refinement` (review test quality), `/agile-status` (closure mode to verify coverage)
+- **After:** `/agile-refinement` (review test quality), `/agile-status` (closure mode to verify coverage), `/agile-skill-feedback` if TDD exposed a repeatable process gap

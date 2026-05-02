@@ -114,7 +114,7 @@ Before closing the intake, confirm:
 
 ## Template
 
-Use `~/.agents/templates/intake.md` as base for the artifact.
+Use `templates/intake.md` from this skill as base for the artifact.
 
 ## Relationship with the flow
 

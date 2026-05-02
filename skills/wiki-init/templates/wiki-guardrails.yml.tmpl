@@ -1,0 +1,35 @@
+wiki_path: "__WIKI_PATH__"
+qmd_index: "__QMD_INDEX__"
+wiki_collection: "__WIKI_COLLECTION__"
+language: "__LANGUAGE__"
+qmd_command: "__QMD_COMMAND__"
+harnesses:
+  claude: __CLAUDE_ENABLED__
+  codex: __CODEX_ENABLED__
+repo_markdown_allowlist:
+  - README.md
+  - AGENTS.md
+  - CLAUDE.md
+  - MIGRATION.md
+  - CHANGELOG.md
+  - SETUP.md
+  - LICENSE.md
+  - apps/*/.agents/**/*.md
+  - planning/**/*.md
+  - .opencode/**/*.md
+  - packages/*/README.md
+  - .github/**/*.md
+  - .claude/**/*.md
+  - .codex/**/*.md
+sensitive_paths:
+  - package.json
+  - bun.lock
+  - .mcp.json
+  - .github/workflows/**
+  - wrangler.jsonc
+  - apps/*/wrangler.jsonc
+  - apps/*/src/server/db/**
+  - apps/*/src/server/auth/**
+  - apps/*/drizzle/**
+  - apps/*/worker-configuration.d.ts
+  - packages/*/src/components/**

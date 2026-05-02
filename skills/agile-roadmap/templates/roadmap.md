@@ -1,26 +1,40 @@
-# Roadmap: <Periodo ou iniciativa>
+# Roadmap: <Period or initiative>
 
-## Contexto
-- Objetivo do roadmap:
-- Horizonte:
-- Restricoes e premissas:
+**Origin:** `planning/<initiative>/intake.md` or strategic context
 
-## Objetivos do periodo
+## Context
+- Roadmap objective:
+- Project/product:
+- Horizon:
+- Constraints and assumptions:
+
+## Period objectives
+- Objective 1:
+- Objective 2:
+
+## Initiatives / Epics
+| Initiative | Expected outcome | Status | Dependency |
+|---|---|---|---|
+| Epic 1 | outcome | not started | -- |
+| Epic 2 | outcome | not started | Epic 1 |
+
+## Suggested sequence
+1. Phase 1 --
+2. Phase 2 --
+3. Phase 3 --
+
+## Risks and dependencies
 -
 
-## Iniciativas / Epics
-- Epic ou iniciativa - resultado esperado - status - dependencia principal
-
-## Sequencia sugerida
-1. Fase 1 -
-2. Fase 2 -
-
-## Riscos e dependencias
+## Out of commitment
 -
 
-## Fora de compromisso
--
+## Verification
+- [ ] Period objectives are observable
+- [ ] Sequence makes sense given the dependencies
+- [ ] There is a clear link between roadmap, epics, and stories
 
-## Verificacao
-- [ ] Objetivos do periodo sao observaveis
-- [ ] O roadmap aponta para epics ou stories reais quando aplicavel
+## Recommended next step
+- `/agile-epic` for the first initiative
+
+<!-- Save to: planning/<initiative>/roadmap.md or planning/roadmaps/ -->

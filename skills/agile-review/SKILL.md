@@ -73,7 +73,7 @@ Use the template below to document the review.
 
 ## Template
 
-Use `~/.agents/templates/review.md` as base for the artifact.
+Use `templates/review.md` from this skill as base for the artifact.
 
 ## Rules
 

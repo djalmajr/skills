@@ -1,7 +1,7 @@
 import { html, render } from "htm/preact";
-import { Fragment } from "preact";
 import { createPortal } from "preact/compat";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect } from "preact/hooks";
+import { LocationProvider, Route, Router, useLocation } from "preact-iso";
 import { AppShell } from "./components/app-shell.js";
 import { Button } from "./components/ui/button.js";
 import { Icon } from "./components/ui/icon.js";
@@ -12,10 +12,21 @@ import { MusicPage } from "./routes/music.js";
 import { SettingsPage } from "./routes/settings.js";
 import { TasksPage } from "./routes/tasks.js";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Scenes — one per file in routes/. Each scene defines which sidebar item is
-// active (activeUrl), and optionally pageLabel/breadcrumbs/actions.
-// ─────────────────────────────────────────────────────────────────────────────
+const BASE = new URL(document.baseURI).pathname.replace(/\/$/, "");
+const ROOT_PATH = `${BASE}/` || "/";
+
+function withBase(path) {
+  const localPath = path.startsWith("/") ? path : `/${path}`;
+  return `${BASE}${localPath}` || "/";
+}
+
+function normalizePath(path = "/") {
+  const normalized = path.replace(/\/$/, "");
+  return normalized || "/";
+}
+
+// Scenes — one per file in routes/. Each scene defines the preact-iso path,
+// active sidebar URL, and optional pageLabel/breadcrumbs/actions.
 
 function DashboardActions() {
   return html`
@@ -29,78 +40,98 @@ function DashboardActions() {
 const SCENES = [
   {
     id: "dashboard",
+    path: withBase("/dashboard"),
     label: "Dashboard",
     Component: DashboardPage,
-    activeUrl: "#dashboard",
     pageLabel: "Dashboard",
     actions: DashboardActions(),
   },
   {
     id: "home",
+    path: withBase("/home"),
     label: "Home",
     Component: HomePage,
-    activeUrl: "#home",
     pageLabel: "Home",
   },
   {
     id: "tasks",
+    path: withBase("/tasks"),
     label: "Tasks (data table demo)",
     Component: TasksPage,
-    activeUrl: "#tasks",
     pageLabel: "Tasks",
   },
   {
     id: "music",
+    path: withBase("/music"),
     label: "Music (rich layout demo)",
     Component: MusicPage,
-    activeUrl: "#music",
     pageLabel: "Music",
   },
   {
     id: "settings",
+    path: withBase("/settings"),
     label: "Settings",
     Component: SettingsPage,
-    activeUrl: "#settings",
     pageLabel: "Settings",
   },
   {
     id: "components",
+    path: withBase("/components"),
     label: "Components reference",
     Component: ComponentsPage,
-    activeUrl: "#components",
     pageLabel: "Components",
   },
 ];
 
 const headerEl = document.querySelector("z-proto-header");
 
-function getSceneFromHash() {
-  const hash = window.location.hash.replace(/^#/, "");
-  return SCENES.find((s) => s.id === hash) || SCENES[0];
+function getSceneFromPath(path) {
+  const normalized = normalizePath(path);
+  if (normalized === normalizePath(ROOT_PATH)) return SCENES[0];
+  return SCENES.find((scene) => normalizePath(scene.path) === normalized) || SCENES[0];
 }
 
-function useHashScene() {
-  const [scene, setScene] = useState(getSceneFromHash);
-
-  useEffect(() => {
-    function onHashChange() {
-      setScene(getSceneFromHash());
-    }
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
-
-  function go(id) {
-    window.location.hash = id;
+function getSceneFromUrlHints() {
+  const routeParam = new URLSearchParams(window.location.search).get("route");
+  if (routeParam) {
+    const scene = SCENES.find((item) => item.id === routeParam);
+    if (scene) return scene;
   }
 
-  return [scene, go];
+  const legacyHashRoute = window.location.hash
+    .replace(/^#/, "")
+    .split("&")[0]
+    .split("?")[0];
+
+  if (legacyHashRoute && legacyHashRoute !== "figmacapture" && !legacyHashRoute.startsWith("figmacapture=")) {
+    return SCENES.find((item) => item.id === legacyHashRoute);
+  }
+
+  return null;
 }
 
-function SceneNav({ scene, go }) {
-  const idx = SCENES.findIndex((s) => s.id === scene.id);
-  const prev = () => go(SCENES[(idx - 1 + SCENES.length) % SCENES.length].id);
-  const next = () => go(SCENES[(idx + 1) % SCENES.length].id);
+function CaptureRouteBridge() {
+  const { path, route } = useLocation();
+
+  useEffect(() => {
+    const hintedScene = getSceneFromUrlHints();
+    if (!hintedScene) return;
+    if (normalizePath(path) === normalizePath(hintedScene.path)) return;
+
+    const captureHash = window.location.hash.startsWith("#figmacapture") ? window.location.hash : "";
+    route(`${hintedScene.path}${captureHash}`);
+  }, [path, route]);
+
+  return null;
+}
+
+function SceneNav() {
+  const { path, route } = useLocation();
+  const current = getSceneFromUrlHints() || getSceneFromPath(path);
+  const idx = SCENES.indexOf(current);
+
+  const prev = () => route(SCENES[(idx - 1 + SCENES.length) % SCENES.length].path);
+  const next = () => route(SCENES[(idx + 1) % SCENES.length].path);
 
   return html`
     <div class="flex items-center gap-1">
@@ -111,11 +142,11 @@ function SceneNav({ scene, go }) {
         title="Previous scene"
       >←</button>
       <select
-        value=${scene.id}
-        onChange=${(e) => go(e.target.value)}
+        value=${current.path}
+        onChange=${(event) => route(event.target.value)}
         class="zp-select"
       >
-        ${SCENES.map((s) => html`<option value=${s.id}>${s.label}</option>`)}
+        ${SCENES.map((scene) => html`<option value=${scene.path}>${scene.label}</option>`)}
       </select>
       <button
         type="button"
@@ -127,29 +158,53 @@ function SceneNav({ scene, go }) {
   `;
 }
 
-function App() {
-  const [scene, go] = useHashScene();
+function SceneFrame({ scene }) {
+  const { route } = useLocation();
   const Scene = scene.Component;
 
-  const body = scene.noShell
-    ? html`<${Scene} />`
-    : html`
-        <${AppShell}
-          activeUrl=${scene.activeUrl}
-          pageLabel=${scene.pageLabel}
-          title=${scene.title}
-          description=${scene.description}
-          breadcrumbs=${scene.breadcrumbs}
-          actions=${scene.actions}
-        >
-          <${Scene} />
-        <//>
-      `;
+  if (scene.noShell) {
+    return html`<${Scene} />`;
+  }
 
   return html`
-    <${Fragment}>
-      ${headerEl && createPortal(html`<${SceneNav} scene=${scene} go=${go} />`, headerEl)}
-      ${body}
+    <${AppShell}
+      activeUrl=${scene.path}
+      basePath=${BASE}
+      onNavigate=${route}
+      pageLabel=${scene.pageLabel}
+      title=${scene.title}
+      description=${scene.description}
+      breadcrumbs=${scene.breadcrumbs}
+      actions=${scene.actions}
+    >
+      <${Scene} />
+    <//>
+  `;
+}
+
+function AppRoutes() {
+  return html`
+    <${Router}>
+      <${Route} path=${ROOT_PATH} component=${() => html`<${SceneFrame} scene=${SCENES[0]} />`} />
+      ${SCENES.map(
+        (scene) => html`
+          <${Route}
+            key=${scene.id}
+            path=${scene.path}
+            component=${() => html`<${SceneFrame} scene=${scene} />`}
+          />
+        `,
+      )}
+    <//>
+  `;
+}
+
+function App() {
+  return html`
+    <${LocationProvider}>
+      <${CaptureRouteBridge} />
+      ${headerEl && createPortal(html`<${SceneNav} />`, headerEl)}
+      <${AppRoutes} />
     <//>
   `;
 }

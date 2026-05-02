@@ -21,8 +21,11 @@ flowchart TD
 
     M["/agile-refinement"] -.-> C
     M -.-> E
+    N["/agile-skill-feedback"] -.-> K
+    N -.-> M
 
     style M fill:#f9f,stroke:#333,stroke-width:2px
+    style N fill:#ffd,stroke:#333,stroke-width:2px
     style F fill:#bbf,stroke:#333,stroke-width:2px
     style G fill:#bbf,stroke:#333,stroke-width:2px
     style H fill:#bbf,stroke:#333,stroke-width:2px
@@ -58,6 +61,7 @@ Each skill README contains full documentation with examples, tips, and chaining 
 |-------|-------|
 | [refinement](../../skills/agile-refinement/README.md) | Validate planning artifacts + review code |
 | [tdd](../../skills/agile-tdd/README.md) | TDD cycle + pragmatic testing strategy |
+| [skill-feedback](../../skills/agile-skill-feedback/README.md) | Improve, merge, split, deprecate, or remove skills from real usage evidence |
 
 ### Delivery & Tracking
 

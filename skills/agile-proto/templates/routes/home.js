@@ -51,7 +51,8 @@ export function HomePage() {
               <li>Add scenes to <code class="text-foreground">SCENES</code></li>
               <li>Customize the sidebar in <code class="text-foreground">components/app-shell.js</code></li>
               <li>Adjust colors in <code class="text-foreground">index.css</code> (shadcn variables)</li>
-              <li>To export to Figma, set <code class="text-foreground">figma-key</code> in <code class="text-foreground">index.html</code></li>
+              <li>For Figma MCP capture, open scenes with <code class="text-foreground">?route=scene-id</code> and capture <code class="text-foreground">#app</code></li>
+              <li>For manual Figma paste, set <code class="text-foreground">figma-key</code> in <code class="text-foreground">index.html</code></li>
             </ul>
           <//>
         <//>
