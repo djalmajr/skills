@@ -1,6 +1,6 @@
 ---
 name: wiki-init
-description: "Initialize, diagnose, or migrate a project into the LLM wiki pattern with AGENTS/CLAUDE instructions, QMD MCP wiring, Claude/Codex hooks, guardrails, and QMD doctor checks. Use when the user asks to set up wiki infrastructure, check if a project needs migration, install wiki hooks, or validate QMD."
+description: "Initialize, diagnose, or migrate a project into the LLM wiki pattern with AGENTS/CLAUDE instructions, QMD MCP wiring, Claude/Codex/OpenCode hooks/plugins, guardrails, and QMD doctor checks. Use when the user asks to set up wiki infrastructure, check if a project needs migration, install wiki hooks, or validate QMD."
 metadata:
   short-description: Initialize and audit wiki infrastructure
 ---
@@ -51,7 +51,7 @@ bun skills/wiki-init/scripts/wiki-init.ts doctor --project /path/to/project
 bun test skills/wiki-init/scripts/wiki-init.test.ts
 bun skills/wiki-init/scripts/wiki-init.ts migrate --project /path/to/project --wiki ../knowledge-base --index my-index
 bun skills/wiki-init/scripts/wiki-init.ts install --project /path/to/project
-bun skills/wiki-init/scripts/wiki-init.ts install --project /path/to/project --wiki ../knowledge-base --index my-project --harness claude,codex --write
+bun skills/wiki-init/scripts/wiki-init.ts install --project /path/to/project --wiki ../knowledge-base --index my-project --harness claude,codex,opencode --write
 ```
 
 ## Presets

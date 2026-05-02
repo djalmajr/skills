@@ -10,6 +10,8 @@ Use the `skills` CLI. `bunx` is preferred in this environment; `npx` also works.
 
 The `djalmajr/essential-skills` shorthand below is GitHub `owner/repo` syntax for the public repository: https://github.com/djalmajr/essential-skills
 
+Detailed distribution and update notes live in [`docs/distribution.md`](docs/distribution.md).
+
 ```bash
 # All skills
 bunx skills add djalmajr/essential-skills --skill '*'
@@ -71,7 +73,7 @@ Keep frontmatter portable. Avoid agent-specific fields unless the skill truly ne
 | Skill | Purpose |
 |-------|---------|
 | wiki-ingest | Ingest new source into wiki (documents, notes, decisions) |
-| wiki-init | Initialize, diagnose, or migrate wiki + QMD + hooks infrastructure |
+| wiki-init | Initialize, diagnose, or migrate wiki + QMD + hooks/plugin infrastructure |
 | wiki-query | Ask about something in the wiki |
 | wiki-lint | Audit and organize the wiki |
 | wiki-policy-check | Audit a product/code repo for business rules that should live in the wiki |
@@ -110,6 +112,8 @@ Before publishing or asking users to update installed skills:
 - Reusable skill content does not depend on local absolute paths, private repos, or project-specific names.
 - Install smoke for the intended target agents is done with `bunx skills add ...` before release.
 
+See the full publishing and update checklist in [`docs/distribution.md`](docs/distribution.md).
+
 ## Wiki (Karpathy Pattern)
 
 This project uses the **LLM Wiki** pattern to maintain versioned, AI-consultable organizational knowledge.
@@ -137,7 +141,7 @@ raw/                 # Original sources (before ingestion)
 | Skill | When to use |
 |-------|-------------|
 | `/wiki-ingest` | Ingest new source into wiki (documents, notes, decisions) |
-| `/wiki-init` | Initialize, diagnose, or migrate wiki + QMD + hooks infrastructure |
+| `/wiki-init` | Initialize, diagnose, or migrate wiki + QMD + hooks/plugin infrastructure |
 | `/wiki-query` | Ask about something in the wiki |
 | `/wiki-lint` | Audit and organize the wiki |
 | `/wiki-policy-check` | Audit a product/code repo for business rules that should be in the wiki |
@@ -157,6 +161,8 @@ When installing in a new project, start with:
 ```
 
 `wiki-init` diagnoses the current project, suggests the wiki location and QMD index, and only writes changes after explicit `--wiki` and `--index` confirmation.
+
+For OpenCode projects, `wiki-init` generates `opencode.json` with the local QMD MCP server and `wiki-*` skill permission, plus `.opencode/plugins/wiki-guardrails.js` to run the wiki guardrails through OpenCode plugin events.
 
 > **Note on business rules placement.** When your project separates a wiki repo from product/code repos, the convention these skills follow is: **all business/product rules live in the central wiki**, never inside the product repos. Product repos hold only technical rules — stack, environment, gotchas, ADRs. The `wiki-ingest` skill enforces this split when deciding where to land a new source. Document the specific layout (which sibling repos exist, what each one is for) in your project's wiki — these skills stay agnostic to project specifics.
 

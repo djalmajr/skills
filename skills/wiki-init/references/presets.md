@@ -6,7 +6,7 @@ Use when a code repo has a sibling wiki, usually `../knowledge-base`. This is th
 
 - `wiki_path`: `../knowledge-base`
 - `qmd_index`: project or org index name
-- Harnesses: `claude,codex` unless the repo only supports one agent
+- Harnesses: `claude,codex,opencode` unless the repo only supports a smaller set of agents
 - Prefer a managed QMD wrapper per index/project
 
 ## local-wiki
@@ -40,7 +40,7 @@ Presets are internal labels for the agent. The user does not need to choose `cen
 
 - Suggested wiki location: `../knowledge-base`, `wiki/`, or another explicit path
 - Suggested QMD index: stable project/org index
-- Harnesses to configure: `claude`, `codex`, or both
+- Harnesses to configure: `claude`, `codex`, `opencode`, or a comma-separated subset
 
 `doctor` may infer and suggest. `install --write` and `migrate --write` must pass explicit `--wiki` and `--index` after confirmation.
 

@@ -12,7 +12,7 @@ import {
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-type Harness = "claude" | "codex";
+type Harness = "claude" | "codex" | "opencode";
 type Mode = "doctor" | "install" | "migrate" | "update-hooks";
 
 type Options = {
@@ -70,7 +70,7 @@ function parseArgs(argv: string[]): Options {
     mode,
     project: process.cwd(),
     language: "pt-BR",
-    harnesses: ["claude", "codex"],
+    harnesses: ["claude", "codex", "opencode"],
     write: false,
     explicitWiki: false,
     explicitIndex: false,
@@ -417,6 +417,7 @@ function buildVars(root: string, opts: Options): Record<string, string | boolean
     QMD_COMMAND: qmdCommand,
     CLAUDE_ENABLED: opts.harnesses.includes("claude"),
     CODEX_ENABLED: opts.harnesses.includes("codex"),
+    OPENCODE_ENABLED: opts.harnesses.includes("opencode"),
   };
 }
 
@@ -482,6 +483,48 @@ function mergeMcpJson(target: string, vars: Record<string, string | boolean>): M
   return {
     kind: exists ? "update" : "create",
     reason: exists ? "merge QMD MCP server while preserving existing servers" : "QMD MCP config",
+    content: formatJson(value),
+  };
+}
+
+function asObject(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
+}
+
+function mergeOpenCodeJson(target: string, vars: Record<string, string | boolean>): MergeResult {
+  const exists = existsSync(target);
+  const parsed = parseJsonObject(readMaybe(target), "opencode.json");
+  if ("error" in parsed) {
+    return {
+      kind: "manual",
+      reason: `${parsed.error}; refusing to overwrite existing OpenCode config`,
+      content: template("opencode-config.json.tmpl", vars),
+    };
+  }
+
+  const value = parsed.value;
+  if (!value.$schema) value.$schema = "https://opencode.ai/config.json";
+
+  const mcp = asObject(value.mcp);
+  value.mcp = mcp;
+  mcp.qmd = {
+    ...asObject(mcp.qmd),
+    type: "local",
+    command: [String(vars.QMD_COMMAND), "mcp"],
+    enabled: true,
+  };
+
+  const permission = asObject(value.permission);
+  value.permission = permission;
+  const skillPermission = asObject(permission.skill);
+  permission.skill = skillPermission;
+  if (skillPermission["wiki-*"] == null) {
+    skillPermission["wiki-*"] = "allow";
+  }
+
+  return {
+    kind: exists ? "update" : "create",
+    reason: exists ? "merge OpenCode QMD MCP and wiki skill permission" : "OpenCode QMD MCP and wiki skill permission",
     content: formatJson(value),
   };
 }
@@ -667,6 +710,27 @@ function actions(root: string, opts: Options): Action[] {
     addHook(list, root, ".claude/hooks/wiki-suggest-ingest.sh", "hooks/claude/wiki-suggest-ingest.sh.tmpl", vars);
   }
 
+  if (opts.harnesses.includes("opencode")) {
+    const openCodeConfigTarget = join(root, "opencode.json");
+    const openCodeConfig = mergeOpenCodeJson(openCodeConfigTarget, vars);
+    list.push({
+      path: openCodeConfigTarget,
+      kind: openCodeConfig.kind,
+      reason: openCodeConfig.reason,
+      content: openCodeConfig.content,
+    });
+    list.push({
+      path: join(root, ".opencode/plugins/wiki-guardrails.js"),
+      kind: existsSync(join(root, ".opencode/plugins/wiki-guardrails.js")) ? "update" : "create",
+      reason: "OpenCode wiki guardrails plugin",
+      content: template("opencode-plugin.js.tmpl", vars),
+    });
+    addHook(list, root, ".opencode/hooks/wiki-policy-check.sh", "hooks/shared/wiki-policy-check.sh.tmpl", vars);
+    addHook(list, root, ".opencode/hooks/wiki-reindex.sh", "hooks/shared/wiki-reindex.sh.tmpl", vars);
+    addHook(list, root, ".opencode/hooks/wiki-drift-audit.sh", "hooks/shared/wiki-drift-audit.sh.tmpl", vars);
+    addHook(list, root, ".opencode/hooks/wiki-consider.sh", "hooks/codex/wiki-consider.sh.tmpl", vars);
+  }
+
   return list;
 }
 
@@ -694,7 +758,7 @@ function printDoctor(root: string, opts: Options): void {
   console.log(`harnesses: ${opts.harnesses.join(", ")}`);
   console.log("");
   console.log("files:");
-  for (const file of ["AGENTS.md", "CLAUDE.md", ".wiki-guardrails.yml", ".mcp.json", ".claude/settings.json", ".codex/hooks.json", ".codex/config.toml"]) {
+  for (const file of ["AGENTS.md", "CLAUDE.md", ".wiki-guardrails.yml", ".mcp.json", ".claude/settings.json", ".codex/hooks.json", ".codex/config.toml", "opencode.json", ".opencode/plugins/wiki-guardrails.js"]) {
     console.log(`- ${file}: ${existsSync(join(root, file)) ? "present" : "missing"}`);
   }
   console.log("");

@@ -11,6 +11,6 @@ triggers:
 capabilities:
   - diagnose wiki structure
   - install AGENTS and CLAUDE managed blocks
-  - install Claude and Codex wiki hooks
+  - install Claude, Codex, and OpenCode wiki hooks/plugins
   - configure QMD MCP through project wrappers
   - audit markdown drift

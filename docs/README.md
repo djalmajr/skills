@@ -1,6 +1,12 @@
 # Essential Skills — Documentation
 
-Scenario-based guides organized by category. Each skill also has its own README with full documentation.
+Scenario-based guides organized by category. Each skill also has its own human guide under `docs/skills/`.
+
+## Distribution
+
+| Guide | What you'll learn |
+|-------|-------------------|
+| [Skill Distribution](distribution.md) | Install, update, compatibility, and publishing checklist |
 
 ## Agile Workflow
 
