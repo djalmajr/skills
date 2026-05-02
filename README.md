@@ -6,15 +6,43 @@ Repository: https://github.com/djalmajr/essential-skills
 
 ## Installing
 
-The `djalmajr/essential-skills` shorthand below refers to the public GitHub repository: https://github.com/djalmajr/essential-skills
+Use the `skills` CLI. `bunx` is preferred in this environment; `npx` also works.
+
+The `djalmajr/essential-skills` shorthand below is GitHub `owner/repo` syntax for the public repository: https://github.com/djalmajr/essential-skills
 
 ```bash
 # All skills
-npx skills add djalmajr/essential-skills --all
+bunx skills add djalmajr/essential-skills --skill '*'
 
 # Specific skills
-npx skills add djalmajr/essential-skills --skill agile-epic --skill agile-story
+bunx skills add djalmajr/essential-skills --skill agile-epic --skill agile-story
+
+# Explicit target agents
+bunx skills add djalmajr/essential-skills --agent claude-code --agent opencode --agent codex --skill '*'
 ```
+
+## Package layout
+
+This repo follows the shared Agent Skills convention:
+
+```text
+skills/<skill-name>/SKILL.md
+```
+
+`SKILL.md` is the source of truth for agent behavior, triggers, and execution procedure. `README.md` is still important for humans: the root README explains the package, and skill-specific human notes live under `docs/skills/`.
+
+`agents/openai.yaml` is optional Codex UI metadata. It is not the compatibility mechanism for Claude Code or OpenCode.
+
+## Compatibility
+
+These skills are written for the common `SKILL.md` format used by `skills.sh`, Claude Code, OpenCode, and Codex.
+
+- `skills.sh` discovers skills under `skills/` and installs them into selected agent paths.
+- Claude Code loads installed skills from `.claude/skills/<name>/SKILL.md` or `~/.claude/skills/<name>/SKILL.md`.
+- OpenCode loads skills from `.opencode/skills`, `.claude/skills`, or `.agents/skills` locations and requires `name` to match the directory name.
+- Codex reads the same `SKILL.md` metadata; `agents/openai.yaml` only improves UI presentation when present.
+
+Keep frontmatter portable. Avoid agent-specific fields unless the skill truly needs them and the behavior is documented in `SKILL.md`.
 
 ## Skills (20)
 
@@ -68,6 +96,20 @@ Treat these skills as a living process library. Improvements should come from re
 
 Use `/agile-skill-feedback` when the evidence suggests a skill should be refined, merged, split, deprecated, removed, or created. The goal is to keep the library useful and small enough to route reliably.
 
+## Checklist before publishing
+
+Before publishing or asking users to update installed skills:
+
+- Each skill directory under `skills/` has a `SKILL.md`.
+- Each `SKILL.md` starts with valid YAML frontmatter.
+- Frontmatter `name` matches the directory name.
+- Frontmatter `description` explains both what the skill does and when to use it.
+- `skills.json`, if kept, lists every skill directory and no missing/renamed skill.
+- Human docs under `docs/` link to `docs/skills/*.md`, not to removed `skills/*/README.md` files.
+- New templates or scripts live inside the owning skill directory.
+- Reusable skill content does not depend on local absolute paths, private repos, or project-specific names.
+- Install smoke for the intended target agents is done with `bunx skills add ...` before release.
+
 ## Wiki (Karpathy Pattern)
 
 This project uses the **LLM Wiki** pattern to maintain versioned, AI-consultable organizational knowledge.
@@ -104,18 +146,17 @@ raw/                 # Original sources (before ingestion)
 
 The wiki skills prefer **[QMD](https://github.com/tobi/qmd)** as the retrieval engine: a local hybrid search (BM25 + vector + LLM reranking) that runs entirely on-device and supports per-path context injection. The skills detect QMD per-session — when it is configured they use `mcp__qmd__query` (or the `qmd` CLI), and when it is not they fall back to `grep` / `Read` / `wiki/index.md`.
 
-Setup is one-time per repo and is documented in [`docs/wiki/qmd-setup.md`](docs/wiki/qmd-setup.md). For non-English wikis the guide also explains how to switch the embedding model to a multilingual one for proper recall.
+Start with `/wiki-init doctor`. Modern installs prepare a managed QMD checkout and per-project wrapper instead of depending on a global `qmd` binary or shell alias. The human troubleshooting guide is in [`docs/wiki/qmd-setup.md`](docs/wiki/qmd-setup.md).
 
 ### Project setup
 
-When installing in a new project, create the initial structure:
+When installing in a new project, start with:
 
-```bash
-mkdir -p wiki/sources raw
-touch wiki/CONVENTIONS.md wiki/index.md wiki/log.md
+```text
+/wiki-init doctor
 ```
 
-The project's AGENTS.md instructs the AI to consult the wiki before answering domain questions.
+`wiki-init` diagnoses the current project, suggests the wiki location and QMD index, and only writes changes after explicit `--wiki` and `--index` confirmation.
 
 > **Note on business rules placement.** When your project separates a wiki repo from product/code repos, the convention these skills follow is: **all business/product rules live in the central wiki**, never inside the product repos. Product repos hold only technical rules — stack, environment, gotchas, ADRs. The `wiki-ingest` skill enforces this split when deciding where to land a new source. Document the specific layout (which sibling repos exist, what each one is for) in your project's wiki — these skills stay agnostic to project specifics.
 
@@ -123,7 +164,7 @@ Inspired by [LLM Wiki — Karpathy](https://gist.github.com/karpathy/442a6bf5559
 
 ## Documentation
 
-[`docs/`](docs/) — usage guides organized by category. Workflow diagram in [`docs/agile/`](docs/agile/README.md).
+[`docs/`](docs/) — human usage guides organized by category. Workflow diagram in [`docs/agile/`](docs/agile/README.md). Skill-specific human notes moved from skill folders live under [`docs/skills/`](docs/skills/).
 
 ## How to use
 

@@ -23,4 +23,4 @@ AI-maintained organizational knowledge system.
 |-------|-------------------|
 | [Wiki Skills Guide](wiki/README.md) | Ingest, query, and lint with diverse real-world scenarios |
 
-Each wiki skill also has its own README: [wiki-ingest](../skills/wiki-ingest/README.md), [wiki-query](../skills/wiki-query/README.md), [wiki-lint](../skills/wiki-lint/README.md)
+Each wiki skill also has its own human guide: [wiki-ingest](skills/wiki-ingest.md), [wiki-query](skills/wiki-query.md), [wiki-lint](skills/wiki-lint.md)

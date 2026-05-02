@@ -5,7 +5,7 @@ description: Create interactive UI prototypes with a CDN-only stack (z-proto + T
 
 # Interactive UI Prototyping
 
-Build standalone interactive prototypes to validate UI flows before implementation. Zero build tools — everything runs from CDN. Visual and API mirror the org's shadcn experience 1:1 (live reference: `apps/messaging/client-proto/`).
+Build standalone interactive prototypes to validate UI flows before implementation. Zero build tools — everything runs from CDN. Visual and API should mirror the target project's component system. Use an existing local prototype as reference only when the project already has one.
 
 When the prototype is part of an agile planning initiative, keep it with the planning artifacts: `planning/<initiative>/proto/`. This makes `proto/` a sibling of `intake.md`, `roadmap.md`, notes, and future epic folders. Use `client-proto/` only when the project already follows that convention or when prototyping inside an application package.
 

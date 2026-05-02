@@ -50,43 +50,43 @@ Each skill README contains full documentation with examples, tips, and chaining 
 
 | Skill | Usage |
 |-------|-------|
-| [intake](../../skills/agile-intake/README.md) | Vague problems -> structured intake document |
-| [roadmap](../../skills/agile-roadmap/README.md) | Quarterly or initiative roadmap |
-| [epic](../../skills/agile-epic/README.md) | Large initiative -> story backlog + roadmap |
-| [task](../../skills/agile-story/README.md) | Small, localized change -> execution plan |
+| [intake](../skills/agile-intake.md) | Vague problems -> structured intake document |
+| [roadmap](../skills/agile-roadmap.md) | Quarterly or initiative roadmap |
+| [epic](../skills/agile-epic.md) | Large initiative -> story backlog + roadmap |
+| [task](../skills/agile-story.md) | Small, localized change -> execution plan |
 
 ### Validation & Review
 
 | Skill | Usage |
 |-------|-------|
-| [refinement](../../skills/agile-refinement/README.md) | Validate planning artifacts + review code |
-| [tdd](../../skills/agile-tdd/README.md) | TDD cycle + pragmatic testing strategy |
-| [skill-feedback](../../skills/agile-skill-feedback/README.md) | Improve, merge, split, deprecate, or remove skills from real usage evidence |
+| [refinement](../skills/agile-refinement.md) | Validate planning artifacts + review code |
+| [tdd](../skills/agile-tdd.md) | TDD cycle + pragmatic testing strategy |
+| [skill-feedback](../skills/agile-skill-feedback.md) | Improve, merge, split, deprecate, or remove skills from real usage evidence |
 
 ### Delivery & Tracking
 
 | Skill | Usage |
 |-------|-------|
-| [status](../../skills/agile-status/README.md) | Progress tracking: checkpoint, consolidation, closure |
+| [status](../skills/agile-status.md) | Progress tracking: checkpoint, consolidation, closure |
 
 ### Sprint Ceremonies
 
 | Skill | Usage |
 |-------|-------|
-| [planning](../../skills/agile-sprint/README.md) | Plan cycle: objective, items, capacity |
-| [review](../../skills/agile-review/README.md) | Review + demo for stakeholders |
-| [metrics](../../skills/agile-metrics/README.md) | Objective sprint metrics |
-| [retro](../../skills/agile-retro/README.md) | Retrospective with improvement actions |
+| [planning](../skills/agile-sprint.md) | Plan cycle: objective, items, capacity |
+| [review](../skills/agile-review.md) | Review + demo for stakeholders |
+| [metrics](../skills/agile-metrics.md) | Objective sprint metrics |
+| [retro](../skills/agile-retro.md) | Retrospective with improvement actions |
 
 ### Routing & Prototyping
 
 | Skill | Usage |
 |-------|-------|
-| [router](../../skills/agile-router/README.md) | Guidance on which skill to use |
-| [proto](../../skills/agile-proto/README.md) | Interactive UI prototypes |
+| [router](../skills/agile-router.md) | Guidance on which skill to use |
+| [proto](../skills/agile-proto.md) | Interactive UI prototypes |
 
 ### Onboarding
 
 | Skill | Usage |
 |-------|-------|
-| [onboarding](../../skills/agile-onboarding/README.md) | New member onboarding guide |
+| [onboarding](../skills/agile-onboarding.md) | New member onboarding guide |

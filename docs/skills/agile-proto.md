@@ -50,14 +50,14 @@ Validate a 4-step onboarding wizard before engineering builds it:
 3. All forms pre-filled with mock data.
 4. Each tab is rendered conditionally based on `useState`.
 
-### Example 3: Messaging inbox with Figma export
+### Example 3: Support inbox with Figma export
 
 Validate an inbox layout and hand it off to design:
 
-1. Invoke: `/agile-proto messaging inbox with list and thread views`.
+1. Invoke: `/agile-proto support inbox with list and detail views`.
 2. The skill creates:
-   - `routes/inbox/list.js` — conversation list using `<Card>`, `<Badge>`, `<Input>`, `<Avatar>`.
-   - `routes/inbox/thread.js` — message thread with `<Textarea>` composer.
+   - `routes/inbox/list.js` — item list using `<Card>`, `<Badge>`, `<Input>`, `<Avatar>`.
+   - `routes/inbox/detail.js` — detail view with `<Textarea>` composer.
 3. Verify the prototype locally and ensure each route also opens via `?route=<scene-id>`.
 4. For direct send-to-Figma, use Figma MCP `generate_figma_design` against the running prototype URL using `?route=<scene-id>#figmacapture=...&figmaselector=%23app`.
 5. Put captures on a dedicated `Source Prototype Captures` page, rename each frame by screen, and use those captures as the visual source of truth. Manual `figma-key` + Figma desktop paste remains acceptable for ad hoc export.

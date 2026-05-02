@@ -25,7 +25,7 @@ The user may use natural language. Route intent like this:
 5. Only run with `--write` after passing explicit `--wiki` and `--index`. The script blocks writes without those flags.
 6. Re-run `doctor` after writes.
 7. `--write` prepares the managed QMD checkout under the skill cache (`~/.local/share/essential-skills/qmd/checkouts/qmd`) and points project wrappers at that checkout. It clones `https://github.com/tobi/qmd.git` when missing and installs dependencies there.
-8. If the target project needs an index, initialize QMD with the generated wrapper: `<wrapper> collection add <wiki-path> --name knowledge-base --mask "**/*.md"`, then `<wrapper> update` and `<wrapper> embed`.
+8. If the target project needs an index, initialize QMD with the generated wrapper: `<wrapper> collection add <wiki-path> --name <index> --mask "**/*.md"`, then `<wrapper> update` and `<wrapper> embed`.
 9. Run `scripts/validate-wiki-init.ts` before changing reusable templates or scripts.
 
 ## Script

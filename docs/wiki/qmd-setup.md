@@ -2,7 +2,7 @@
 
 The wiki skills (`/wiki-ingest`, `/wiki-query`, `/wiki-lint`) prefer **[QMD](https://github.com/tobi/qmd)** (Query Markup Documents) as the retrieval engine when it is available. QMD is a local search engine for markdown that combines BM25, vector similarity, and LLM reranking — running entirely on-device via [node-llama-cpp](https://github.com/withcatai/node-llama-cpp).
 
-This document is the **owner-run setup guide**. The skills themselves never run `qmd embed` / `qmd update` / `qmd collection add` — those are deliberate human actions because they download large models and write to a shared SQLite index at `~/.cache/qmd/index.sqlite`.
+This document is the **human setup and troubleshooting guide**. For normal project onboarding, start with `/wiki-init doctor`: the skill diagnoses the project, suggests the wiki path and index, and can prepare a managed QMD checkout plus per-project wrappers after explicit confirmation. Manual commands below are still useful for owners who want to inspect or operate QMD directly.
 
 ---
 
@@ -30,13 +30,11 @@ The single biggest win is **context as a tree**: descriptions you attach per pat
   ```
 - ~2 GB of disk for the local GGUF models (cached in `~/.cache/qmd/models/` after first use)
 
-## Running QMD — `bunx` is recommended
+## Running QMD — managed wrapper first
 
-The recommended way to invoke QMD is via `bunx` (or `npx`) — no global install required, every invocation pulls the latest published version, and the local model cache (`~/.cache/qmd/models/`) is shared across invocations.
+For projects initialized by `wiki-init`, prefer the generated project wrapper instead of a global `qmd` binary or shell alias. The wrapper points at the skill-managed checkout under `~/.local/share/essential-skills/qmd/checkouts/qmd` and has a provenance manifest under the skill cache.
 
-The rest of this guide assumes you have an alias `qmd='bunx @tobilu/qmd'` in your shell. If you also need to set `QMD_EMBED_MODEL` for a non-English wiki (see next section), the snippet at the end of this document persists both in your shell rc in one shot.
-
-If you prefer a global install, `bun install -g @tobilu/qmd` (or `npm install -g`) works the same; you just trade auto-updates for slightly faster cold starts.
+Manual `bunx @tobilu/qmd` remains useful for experimentation or for projects that intentionally do not use `wiki-init`, but it is no longer the recommended default for this skill package. The rest of this guide uses `qmd` as a placeholder for either the generated wrapper or a manually installed QMD command.
 
 ### MCP integration — pick one
 
@@ -191,10 +189,12 @@ Then point clients at `http://localhost:8181/mcp` instead of spawning a new stdi
 
 ## What the skills will and will not do
 
-✅ The skills **call** `mcp__qmd__query` / `mcp__qmd__get` / `mcp__qmd__status` and the `qmd query` / `qmd get` / `qmd status` CLI commands to answer questions and find related pages.
+✅ `wiki-query`, `wiki-ingest`, and `wiki-lint` call QMD read/status commands when available and fall back to filesystem search when QMD is missing.
 
-✅ At the end of an ingest or lint, the skills will **tell you** to run `qmd update` / `qmd embed` if the index has drifted.
+✅ `wiki-init` may prepare a managed QMD checkout, wrappers, manifests, MCP config, and hooks after explicit user confirmation. It must not patch or install QMD globally.
 
-❌ The skills **never** run `qmd embed`, `qmd update`, `qmd collection add`, `qmd collection remove`, or any command that mutates the index. Those are owner-controlled.
+✅ Project hooks may run `qmd update` / `qmd embed` after wiki markdown edits when the project opts into that guardrail. Hook failures should be logged loudly and remain non-blocking unless the project policy says otherwise.
 
-❌ The skills **never** assume QMD is installed. They detect it per-session and fall back to `grep` / `Read` / `wiki/index.md` when it is not configured.
+❌ No wiki skill should silently create a collection, change the canonical wiki path, or choose a QMD index without the user confirming the project topology.
+
+❌ The skills must not assume QMD is installed globally. They should prefer the project wrapper when configured, then MCP/CLI discovery, then direct markdown search.
