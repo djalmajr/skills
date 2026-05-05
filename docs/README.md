@@ -1,4 +1,4 @@
-# Essential Skills — Documentation
+# Skills — Documentation
 
 Scenario-based guides organized by category. Each skill also has its own human guide under `docs/skills/`.
 

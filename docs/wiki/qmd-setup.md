@@ -32,7 +32,7 @@ The single biggest win is **context as a tree**: descriptions you attach per pat
 
 ## Running QMD — managed wrapper first
 
-For projects initialized by `wiki-init`, prefer the generated project wrapper instead of a global `qmd` binary or shell alias. The wrapper points at the skill-managed checkout under `~/.local/share/essential-skills/qmd/checkouts/qmd` and has a provenance manifest under the skill cache.
+For projects initialized by `wiki-init`, prefer the generated project wrapper instead of a global `qmd` binary or shell alias. The wrapper points at the skill-managed checkout under `~/.local/share/skills/qmd/checkouts/qmd` and has a provenance manifest under the skill cache.
 
 Manual `bunx @tobilu/qmd` remains useful for experimentation or for projects that intentionally do not use `wiki-init`, but it is no longer the recommended default for this skill package. The rest of this guide uses `qmd` as a placeholder for either the generated wrapper or a manually installed QMD command.
 

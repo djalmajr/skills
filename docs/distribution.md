@@ -1,10 +1,10 @@
 # Skill distribution
 
-This repository is the distribution source for the Essential Skills package.
+This repository is the distribution source for the Skills package.
 
 ## Distribution model
 
-- Source repository: https://github.com/djalmajr/essential-skills
+- Source repository: https://github.com/djalmajr/skills
 - Installation tool: `skills` CLI, normally invoked with `bunx skills ...`
 - Portable contract: `skills/<skill-name>/SKILL.md`
 - Human documentation: `README.md` and `docs/`
@@ -15,19 +15,19 @@ The GitHub repository is the release artifact. There is no custom installer scri
 ## Install all skills
 
 ```bash
-bunx skills add djalmajr/essential-skills --skill '*'
+bunx skills add djalmajr/skills --skill '*'
 ```
 
 ## Install selected skills
 
 ```bash
-bunx skills add djalmajr/essential-skills --skill wiki-init --skill wiki-query
+bunx skills add djalmajr/skills --skill wiki-init --skill wiki-query
 ```
 
 ## Install for explicit agents
 
 ```bash
-bunx skills add djalmajr/essential-skills --agent claude-code --agent opencode --agent codex --skill '*'
+bunx skills add djalmajr/skills --agent claude-code --agent opencode --agent codex --skill '*'
 ```
 
 Use explicit `--agent` flags when the target machine has multiple agents installed or when the install target must be deterministic.
@@ -117,13 +117,13 @@ The update path is reinstalling from the source repository with `bunx skills add
 Use a selected install when only one skill changed:
 
 ```bash
-bunx skills add djalmajr/essential-skills --skill wiki-init
+bunx skills add djalmajr/skills --skill wiki-init
 ```
 
 Use full install when shared docs/templates or several skills changed:
 
 ```bash
-bunx skills add djalmajr/essential-skills --skill '*'
+bunx skills add djalmajr/skills --skill '*'
 ```
 
 After updating `wiki-init`, existing projects do not automatically receive new hooks or plugins. Run `/wiki-init doctor` in the target project and then `install` or `update-hooks` with explicit `--wiki`, `--index`, and `--write` if project-local infrastructure needs to be refreshed.

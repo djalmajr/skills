@@ -131,7 +131,7 @@ function managedManifestPath(index: string): string {
 
 function managedQmdCacheDir(): string {
   const home = process.env.HOME ?? "";
-  return join(home, ".local/share/essential-skills/qmd");
+  return join(home, ".local/share/skills/qmd");
 }
 
 function managedQmdCheckoutPath(): string {
@@ -386,7 +386,7 @@ function managedManifest(index: string, qmdCommand: string, language: string): s
       language,
       embedModel: language.toLowerCase() === "en" ? "qmd default" : "hf:Qwen/Qwen3-Embedding-0.6B-GGUF/Qwen3-Embedding-0.6B-Q8_0.gguf",
       patchReport,
-      managedBy: "essential-skills/wiki-init",
+      managedBy: "skills/wiki-init",
       note: "This manifest records the managed QMD checkout and wrapper for this index.",
     },
     null,

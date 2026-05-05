@@ -1,26 +1,26 @@
-# Essential Skills
+# Skills
 
 Skills for agile delivery management powered by AI agents.
 
-Repository: https://github.com/djalmajr/essential-skills
+Repository: https://github.com/djalmajr/skills
 
 ## Installing
 
 Use the `skills` CLI. `bunx` is preferred in this environment; `npx` also works.
 
-The `djalmajr/essential-skills` shorthand below is GitHub `owner/repo` syntax for the public repository: https://github.com/djalmajr/essential-skills
+The `djalmajr/skills` shorthand below is GitHub `owner/repo` syntax for the public repository: https://github.com/djalmajr/skills
 
 Detailed distribution and update notes live in [`docs/distribution.md`](docs/distribution.md).
 
 ```bash
 # All skills
-bunx skills add djalmajr/essential-skills --skill '*'
+bunx skills add djalmajr/skills --skill '*'
 
 # Specific skills
-bunx skills add djalmajr/essential-skills --skill agile-epic --skill agile-story
+bunx skills add djalmajr/skills --skill agile-epic --skill agile-story
 
 # Explicit target agents
-bunx skills add djalmajr/essential-skills --agent claude-code --agent opencode --agent codex --skill '*'
+bunx skills add djalmajr/skills --agent claude-code --agent opencode --agent codex --skill '*'
 ```
 
 ## Package layout
@@ -90,7 +90,7 @@ intake → roadmap → epic → task → execution → status → retro
 
 Each skill owns its own templates under `skills/<skill-name>/templates/`. `SKILL.md` files should reference those templates with relative paths, for example `templates/story.md`. Do not rely on global template locations such as `~/.agents/templates`; skills must be self-contained when installed.
 
-External repo references should use full GitHub links in documentation when practical. Shorthands such as `djalmajr/essential-skills` are acceptable only where a CLI expects GitHub `owner/repo` syntax.
+External repo references should use full GitHub links in documentation when practical. Shorthands such as `djalmajr/skills` are acceptable only where a CLI expects GitHub `owner/repo` syntax.
 
 ## Skill evolution loop
 

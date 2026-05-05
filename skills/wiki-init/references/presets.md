@@ -48,7 +48,7 @@ Presets are internal labels for the agent. The user does not need to choose `cen
 
 The supported default is no-network managed wrapping, not automatic clone/build. `wiki-init` creates:
 
-- A stable wrapper at `~/.local/share/essential-skills/qmd/wrappers/<index>-qmd`
-- A provenance manifest at `~/.local/share/essential-skills/qmd/manifests/<index>.json`
+- A stable wrapper at `~/.local/share/skills/qmd/wrappers/<index>-qmd`
+- A provenance manifest at `~/.local/share/skills/qmd/manifests/<index>.json`
 
 The manifest records the wrapped QMD command, version, patch report, language, and embedding model. If a project needs a different QMD build, pass an explicit `--qmd-command` after confirming the target wiki and index.

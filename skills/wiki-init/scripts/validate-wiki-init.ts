@@ -16,7 +16,7 @@ function run(cmd: string, args: string[], cwd = project): string {
 }
 
 function prepareManagedQmdCheckout(): void {
-  const checkout = join(home, ".local/share/essential-skills/qmd/checkouts/qmd");
+  const checkout = join(home, ".local/share/skills/qmd/checkouts/qmd");
   const qmd = join(checkout, "bin/qmd");
 
   mkdirSync(join(checkout, ".git"), { recursive: true });

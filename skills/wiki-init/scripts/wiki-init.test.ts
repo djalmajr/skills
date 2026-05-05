@@ -22,7 +22,7 @@ function run(args: string[], cwd = project): string {
 }
 
 function prepareManagedQmdCheckout(): void {
-  const checkout = join(home, ".local/share/essential-skills/qmd/checkouts/qmd");
+  const checkout = join(home, ".local/share/skills/qmd/checkouts/qmd");
   const qmd = join(checkout, "bin/qmd");
 
   mkdirSync(join(checkout, ".git"), { recursive: true });
@@ -69,12 +69,12 @@ test("explicit write creates wrapper, manifest, configs, and hooks", () => {
   expect(existsSync(join(project, ".claude/settings.json"))).toBe(true);
   expect(existsSync(join(project, "opencode.json"))).toBe(true);
   expect(existsSync(join(project, ".opencode/plugins/wiki-guardrails.js"))).toBe(true);
-  expect(existsSync(join(home, ".local/share/essential-skills/qmd/wrappers/fixture-qmd"))).toBe(true);
-  const manifestPath = join(home, ".local/share/essential-skills/qmd/manifests/fixture.json");
+  expect(existsSync(join(home, ".local/share/skills/qmd/wrappers/fixture-qmd"))).toBe(true);
+  const manifestPath = join(home, ".local/share/skills/qmd/manifests/fixture.json");
   expect(existsSync(manifestPath)).toBe(true);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   expect(manifest.index).toBe("fixture");
-  expect(manifest.managedBy).toBe("essential-skills/wiki-init");
+  expect(manifest.managedBy).toBe("skills/wiki-init");
 });
 
 test("OpenCode plugin treats wiki consideration as a warning", async () => {
