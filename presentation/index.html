@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vibe Coding com Skills + Wiki · Essential Skills</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" id="theme" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css" />
+
+    <style>
+      :root {
+        --bg: #0b1220;
+        --fg: #e2e8f0;
+        --accent: #7dd3fc;
+        --accent-strong: #38bdf8;
+        --muted: #94a3b8;
+        --warn: #f97316;
+        --good: #34d399;
+        --border: rgba(148, 163, 184, 0.18);
+        --surface: rgba(148, 163, 184, 0.06);
+      }
+
+      .reveal {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        font-size: 30px;
+        color: var(--fg);
+      }
+
+      .reveal h1,
+      .reveal h2,
+      .reveal h3,
+      .reveal h4 {
+        font-weight: 600;
+        text-transform: none;
+        letter-spacing: -0.015em;
+        color: #f8fafc;
+        margin: 0 0 0.4em;
+      }
+      .reveal h1 {
+        font-size: 1.5em;
+        line-height: 1.15;
+      }
+      .reveal h2 {
+        font-size: 1.05em;
+        line-height: 1.2;
+        margin-bottom: 0.6em;
+      }
+      .reveal h3 {
+        font-size: 0.85em;
+        line-height: 1.3;
+      }
+      .reveal p {
+        font-size: 0.6em;
+        line-height: 1.5;
+        margin: 0.4em 0;
+        color: var(--fg);
+      }
+
+      /* Bullets — kill reveal's default and use a single, consistent style */
+      .reveal ul,
+      .reveal ol {
+        margin: 0.5em 0;
+        padding-left: 1.1em;
+      }
+      .reveal ul li,
+      .reveal ol li {
+        font-size: 0.6em;
+        line-height: 1.55;
+        margin: 0.3em 0;
+        color: var(--fg);
+      }
+      .reveal ul {
+        list-style: none;
+        padding-left: 0;
+      }
+      .reveal ul li {
+        position: relative;
+        padding-left: 1.1em;
+      }
+      .reveal ul li::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.65em;
+        width: 5px;
+        height: 5px;
+        border-radius: 999px;
+        background: var(--accent-strong);
+      }
+
+      /* Checklist override — no double bullets */
+      .reveal ul.checklist {
+        list-style: none;
+        padding-left: 0;
+      }
+      .reveal ul.checklist li {
+        padding-left: 1.4em;
+      }
+      .reveal ul.checklist li::before {
+        content: "✓";
+        background: transparent;
+        color: var(--good);
+        font-weight: 700;
+        font-size: 0.95em;
+        top: 0;
+        left: 0;
+        width: auto;
+        height: auto;
+      }
+      .reveal ul.checklist.x-list li::before {
+        content: "✗";
+        color: var(--warn);
+      }
+
+      .reveal .accent { color: var(--accent); }
+      .reveal .muted  { color: var(--muted); }
+      .reveal .warn   { color: var(--warn); }
+      .reveal .good   { color: var(--good); }
+
+      .reveal pre {
+        box-shadow: none;
+        font-size: 0.42em;
+        width: 100%;
+        margin: 0.6em 0;
+      }
+      .reveal pre code {
+        max-height: 520px;
+        padding: 16px 20px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+      }
+      .reveal section img {
+        border: none;
+        box-shadow: none;
+        background: transparent;
+      }
+      .reveal blockquote {
+        border-left: 3px solid var(--accent);
+        background: rgba(125, 211, 252, 0.06);
+        padding: 0.6em 1em;
+        font-style: normal;
+        margin: 0.7em 0 0;
+        font-size: 0.58em;
+        line-height: 1.5;
+        color: #cbd5e1;
+        box-shadow: none;
+      }
+      .reveal blockquote p {
+        font-size: 1em;
+        margin: 0;
+      }
+
+      /* Layout helpers */
+      .grid {
+        display: grid;
+        gap: 18px;
+        margin-top: 0.6em;
+      }
+      .grid.two   { grid-template-columns: 1fr 1fr; }
+      .grid.three { grid-template-columns: repeat(3, 1fr); }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 18px 20px;
+        text-align: left;
+      }
+      .card h3 {
+        margin: 0 0 12px;
+        color: var(--accent);
+        font-size: 0.78em;
+        font-weight: 600;
+        letter-spacing: 0;
+      }
+      .card p {
+        font-size: 0.55em;
+        margin: 4px 0;
+        line-height: 1.5;
+      }
+      .card ul {
+        margin: 0;
+      }
+      .card ul li {
+        font-size: 0.55em;
+        line-height: 1.5;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 3px 12px;
+        border-radius: 999px;
+        background: rgba(56, 189, 248, 0.12);
+        color: var(--accent);
+        font-size: 0.5em;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        font-weight: 600;
+      }
+
+      .flow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        align-items: center;
+        margin-top: 1em;
+      }
+      .flow .step {
+        background: rgba(56, 189, 248, 0.08);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        color: var(--fg);
+        padding: 7px 14px;
+        border-radius: 6px;
+        font-size: 0.55em;
+        font-weight: 500;
+      }
+      .flow .arrow {
+        color: var(--muted);
+        font-size: 0.7em;
+      }
+
+      .footer {
+        position: fixed;
+        bottom: 12px;
+        right: 18px;
+        font-size: 0.5em;
+        color: var(--muted);
+        opacity: 0.5;
+        letter-spacing: 0.03em;
+      }
+
+      .title-hero {
+        padding: 0;
+      }
+
+      code.inline {
+        background: rgba(125, 211, 252, 0.1);
+        color: var(--accent);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.88em;
+        font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+      }
+
+      .small {
+        font-size: 0.55em;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      /* Títulos SEMPRE centralizados, em todos os slides */
+      .reveal section > h1,
+      .reveal section > h2 {
+        text-align: center;
+      }
+      /* Slides com class="left" — body fica à esquerda, ocupando largura plena */
+      .reveal section.left > p,
+      .reveal section.left > ul,
+      .reveal section.left > ol,
+      .reveal section.left > pre,
+      .reveal section.left > blockquote,
+      .reveal section.left > div {
+        text-align: left;
+        width: 100%;
+      }
+      /* Cards: h3 interno sempre à esquerda */
+      .reveal section .card h3 {
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <!-- ===================== 1. CAPA ===================== -->
+        <section>
+          <div class="title-hero">
+            <h1>Vibe Coding com <span class="accent">Skills + Wiki</span></h1>
+            <h3 class="muted" style="margin-top: 8px">
+              Agile clássico operacionalizado em skills, com memória persistente para a IA
+            </h3>
+          </div>
+        </section>
+
+        <!-- ===================== 2. CONTEXTO ===================== -->
+        <section class="left">
+          <h2>O cenário típico</h2>
+          <p class="muted">
+            Sistemas legados que precisam evoluir, mas onde cada nova feature custa caro.
+          </p>
+          <div class="grid two" style="margin-top: 18px">
+            <div class="card">
+              <h3>O que se encontra</h3>
+              <ul>
+                <li>Regras de negócio espalhadas por formulários, fluxos e scripts</li>
+                <li>Arquivos com milhares de linhas, difíceis de manter</li>
+                <li>Implantações longas e arriscadas</li>
+                <li>Integrações novas custam semanas</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>O que se quer</h3>
+              <ul>
+                <li>Reconstruir com arquitetura modular</li>
+                <li>Acelerar entrega com IA, sem perder controle</li>
+                <li>Conhecimento do produto preservado entre ciclos</li>
+                <li>Time livre para focar no que é único</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================== 3. PROBLEMA REAL ===================== -->
+        <section class="left">
+          <h2>O problema real não é o código</h2>
+          <p class="muted">
+            Reescrever é fácil. Manter a IA <em>consciente</em> do produto enquanto ela reescreve é
+            que é difícil.
+          </p>
+          <ul class="checklist x-list" style="margin-top: 20px">
+            <li>CLAUDE.md / AGENTS.md crescem indefinidamente e estouram contexto</li>
+            <li>RAG ingênuo recupera trechos sem ranqueamento — vira ruído</li>
+            <li>Decisões arquiteturais e regras de negócio se perdem entre sessões</li>
+            <li>Cada novo módulo precisa ser <em>reapresentado</em> à IA</li>
+          </ul>
+          <blockquote style="margin-top: 24px; white-space: nowrap">
+            A IA não conhece o seu produto — toda sessão começa do zero.
+          </blockquote>
+        </section>
+
+        <!-- ===================== 4. DUAS PEÇAS ===================== -->
+        <section>
+          <h2>A proposta: <span class="accent">duas peças combinadas</span></h2>
+          <div class="grid two" style="margin-top: 28px">
+            <div class="card">
+              <span class="pill">Planejamento</span>
+              <h3 style="margin-top: 8px">Agile como skills</h3>
+              <p>
+                Scrum/Kanban/XP — sem reinventar nada. A novidade é que cada cerimônia vira uma
+                <strong>skill invocável</strong> que a IA encadeia com você.
+              </p>
+              <p class="small">
+                <code class="inline">/agile-intake</code> →
+                <code class="inline">/agile-roadmap</code> →
+                <code class="inline">/agile-epic</code> → ...
+              </p>
+            </div>
+            <div class="card">
+              <span class="pill">Memória</span>
+              <h3 style="margin-top: 8px">Wiki consultável pela IA</h3>
+              <p>
+                Markdown versionado no Git, indexado localmente. A IA consulta antes de agir e
+                grava decisões ao final. <strong>Persiste entre sessões.</strong>
+              </p>
+              <p class="small">
+                <code class="inline">/wiki-init</code> ·
+                <code class="inline">/wiki-ingest</code> ·
+                <code class="inline">/wiki-query</code>
+              </p>
+            </div>
+          </div>
+          <p class="small" style="margin-top: 28px">
+            Inspirado no
+            <a
+              href="https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f"
+              style="color: var(--accent)"
+              >gist do Karpathy sobre LLM Wiki</a
+            >
+            — quem cunhou o termo "vibe coding".
+          </p>
+        </section>
+
+        <!-- ===================== 5. AGILE COMO SKILLS ===================== -->
+        <section class="left">
+          <h2>Agile como skills</h2>
+          <p>
+            Mesmo Scrum/Kanban/XP que o time já conhece, com cada cerimônia virando uma skill
+            invocável. A IA encadeia o fluxo e sugere o próximo passo.
+          </p>
+          <div class="flow" style="margin-top: 28px">
+            <div class="step">intake</div>
+            <span class="arrow">→</span>
+            <div class="step">roadmap</div>
+            <span class="arrow">→</span>
+            <div class="step">epic</div>
+            <span class="arrow">→</span>
+            <div class="step">story</div>
+            <span class="arrow">→</span>
+            <div class="step">refinement</div>
+            <span class="arrow">→</span>
+            <div class="step">sprint</div>
+            <span class="arrow">→</span>
+            <div class="step">execução</div>
+            <span class="arrow">→</span>
+            <div class="step">status</div>
+            <span class="arrow">→</span>
+            <div class="step">retro</div>
+          </div>
+          <p class="small" style="margin-top: 32px">
+            Sem reinventar nomes. A novidade está em <em>como</em> o fluxo é executado, não no
+            fluxo em si.
+          </p>
+        </section>
+
+        <!-- ===================== 6. INTAKE EXEMPLO ===================== -->
+        <section class="left">
+          <h2>Como cada skill funciona</h2>
+          <p>Você entra com uma ideia vaga. A skill faz a IA virar entrevistadora.</p>
+          <div class="grid two" style="margin-top: 18px">
+            <div class="card">
+              <h3>Você diz</h3>
+              <p>"Quero adicionar capacidade X ao produto. Tenho restrições Y e Z."</p>
+            </div>
+            <div class="card">
+              <h3>A skill devolve</h3>
+              <ul>
+                <li>Documento estruturado, pronto para refinar</li>
+                <li>Pontos em aberto, transformados em perguntas</li>
+                <li>Próxima skill sugerida automaticamente</li>
+              </ul>
+            </div>
+          </div>
+          <p class="small" style="margin-top: 24px">
+            Itera-se até o documento estar coerente — ele vira insumo do passo seguinte.
+          </p>
+        </section>
+
+        <!-- ===================== 7. ROADMAP/EPIC/STORY ===================== -->
+        <section class="left">
+          <h2>Do roadmap até a sprint</h2>
+          <ul class="checklist">
+            <li>
+              <strong>roadmap</strong> — define stack, restrições, número de devs, divisão de
+              trabalho paralelizável
+            </li>
+            <li><strong>epic</strong> — cria pasta por épico, com histórias dentro</li>
+            <li><strong>story</strong> — quebra em tarefas executáveis</li>
+            <li>
+              <strong>refinement</strong> — verifica pontas soltas, premissas implícitas,
+              dependências escondidas
+            </li>
+            <li><strong>sprint</strong> — fecha 2 semanas com capacidade real do time</li>
+          </ul>
+          <blockquote style="margin-top: 24px; font-size: 0.7em">
+            "Implementação em si fica com o time. O agente faz o planejamento e acompanha."
+          </blockquote>
+        </section>
+
+        <!-- ===================== 8. POR QUE WIKI E NÃO RAG PURO ===================== -->
+        <section class="left">
+          <h2>Por que <span class="accent">wiki</span> e não só RAG</h2>
+          <blockquote style="margin: 14px 0 22px">
+            "O LLM redescobre o conhecimento do zero a cada pergunta. Nada se acumula." —
+            <span class="muted">Karpathy, sobre RAG stateless</span>
+          </blockquote>
+          <div class="grid two">
+            <div class="card">
+              <h3 class="warn">RAG puro</h3>
+              <ul>
+                <li>Recupera trechos por similaridade a cada query</li>
+                <li>Sem síntese, sem cross-reference</li>
+                <li>Mesma pergunta = mesmo trabalho do zero</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3 class="good">Wiki + RAG (o que fazemos)</h3>
+              <ul>
+                <li>A IA mantém um artefato persistente de conhecimento</li>
+                <li>Síntese e ligações já existem — não são re-derivadas</li>
+                <li>Cada nova pergunta pode <strong>compor</strong> sobre as anteriores</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================== 9. QMD ===================== -->
+        <section class="left">
+          <h2>QMD — o motor de busca</h2>
+          <p>
+            <a href="https://github.com/tobi/qmd" style="color: var(--accent)">QMD</a> indexa
+            Markdown localmente combinando BM25 (FTS5), embeddings e rerank por LLM. Criado por
+            Tobias Lütke (founder/CEO da Shopify) e recomendado pelo próprio Karpathy.
+          </p>
+          <div class="grid three" style="margin-top: 18px">
+            <div class="card">
+              <h3>100% local</h3>
+              <p>node-llama-cpp on-device. Sem chamada externa, sem dado vazando.</p>
+            </div>
+            <div class="card">
+              <h3>Busca híbrida</h3>
+              <p>BM25 + vetorial + rerank por LLM (qwen3). Filtro por score evita ruído.</p>
+            </div>
+            <div class="card">
+              <h3>Per-path context</h3>
+              <p>Você anexa instruções por caminho — viajam junto com cada hit.</p>
+            </div>
+          </div>
+          <p class="small" style="margin-top: 22px">
+            Para wikis em PT-BR, usamos <code class="inline">Qwen3-Embedding-0.6B</code> (cobre
+            119 idiomas). Pode-se apagar o índice e reindexar — a verdade são os Markdowns.
+          </p>
+        </section>
+
+        <!-- ===================== 10. ESSENTIAL SKILLS ===================== -->
+        <section class="left">
+          <h2>Essential Skills · 20 skills, 2 categorias</h2>
+          <div class="grid two" style="margin-top: 18px">
+            <div class="card">
+              <h3>Agile · 15</h3>
+              <p class="small">
+                intake · roadmap · epic · story · refinement · sprint · review · status · metrics ·
+                retro · router · onboarding · tdd · proto · skill-feedback
+              </p>
+            </div>
+            <div class="card">
+              <h3>Wiki · 5</h3>
+              <p class="small">
+                init · ingest · query · lint · policy-check
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================== 11. INSTALAÇÃO ===================== -->
+        <section class="left">
+          <h2>Instalação · skills.sh</h2>
+          <pre><code class="language-bash" data-trim data-noescape>
+# Modo interativo — detecta os agentes instalados e pergunta
+npx skills add djalmajr/essential-skills
+
+# Skill específica
+npx skills add djalmajr/essential-skills --skill agile-proto
+          </code></pre>
+          <p class="small" style="margin-top: 14px">
+            O CLI clona o repo, instala em <code class="inline">.agents/skills/</code> e cria
+            symlinks para <code class="inline">.claude/</code>,
+            <code class="inline">.opencode/</code>, <code class="inline">.codex/</code>.
+            <code class="inline">skills.json</code> lista todas as skills disponíveis.
+          </p>
+        </section>
+
+        <!-- ===================== 12. WIKI - ESTRUTURA ===================== -->
+        <section class="left">
+          <h2>Wiki · estrutura criada por <code class="inline">/wiki-init</code></h2>
+          <pre><code class="language-text" data-trim data-noescape>
+wiki/
+├── CONVENTIONS.md   # schema, frontmatter, operações
+├── index.md         # catálogo navegável
+├── log.md           # histórico append-only
+├── sources/         # resumos de fontes ingeridas
+├── business/        # regras de negócio    (audience: business)
+├── apps/            # docs técnicos do app  (audience: dev)
+├── ops/             # procedimentos          (audience: ops)
+└── data/            # modelos e schemas     (audience: dev)
+raw/                 # fontes originais — nunca modificadas
+          </code></pre>
+          <p class="small" style="margin-top: 12px">
+            <strong>Audience separation</strong> impede regras de negócio de vazarem para repos
+            de produto. <code class="inline">/wiki-policy-check</code> audita esse limite. As
+            três camadas (raw / wiki / AGENTS.md) seguem o gist do Karpathy — a separação por
+            audience é nossa extensão.
+          </p>
+        </section>
+
+        <!-- ===================== 13. SELF-FEEDING ===================== -->
+        <section class="left">
+          <h2>A wiki se retroalimenta</h2>
+          <p>
+            <code class="inline">/wiki-init</code> instala <strong>hooks</strong> nos três
+            agentes. Eles são guardrails de superfície — a decisão semântica continua com a IA.
+          </p>
+          <ul class="checklist" style="margin-top: 18px">
+            <li>
+              <code class="inline">wiki-reindex</code> — após editar páginas, reindexa o QMD
+              automaticamente
+            </li>
+            <li>
+              <code class="inline">wiki-suggest-ingest</code> — bloqueia o "stop" da sessão se
+              caminhos sensíveis foram tocados sem ingest
+            </li>
+            <li>
+              <code class="inline">wiki-drift-audit</code> — sinaliza divergência entre
+              afirmações da wiki e o estado real do código
+            </li>
+            <li>
+              <code class="inline">wiki-policy-check</code> — impede regras de negócio de
+              entrarem em repos de produto
+            </li>
+            <li>
+              <code class="inline">/wiki-lint</code> — periodicamente acha contradições, órfãos,
+              docs desatualizados
+            </li>
+          </ul>
+          <blockquote style="margin-top: 22px">
+            "Humanos abandonam wikis porque a manutenção cresce mais rápido que o valor. LLMs não
+            ficam entediados." — <span class="muted">Karpathy</span>
+          </blockquote>
+        </section>
+
+        <!-- ===================== 14. MULTI-AGENT ===================== -->
+        <section class="left">
+          <h2>Multi-agente · um truque simples</h2>
+          <p>
+            Claude lê <code class="inline">CLAUDE.md</code>; Codex e OpenCode leem
+            <code class="inline">AGENTS.md</code>. Para evitar manter dois arquivos:
+          </p>
+          <pre><code class="language-bash" data-trim data-noescape>
+# Um único arquivo de instruções para todos
+rm AGENTS.md
+ln -s CLAUDE.md AGENTS.md
+          </code></pre>
+          <ul class="checklist" style="margin-top: 16px">
+            <li>MCP do QMD configurado nos três pelo <code class="inline">/wiki-init</code></li>
+            <li>Mesmas skills, mesmas regras — qualquer dev usa o agente que prefere</li>
+            <li>Time pode misturar Claude + Codex + OpenCode sem divergência</li>
+          </ul>
+        </section>
+
+        <!-- ===================== 15. FLUXO DEMO ===================== -->
+        <section class="left">
+          <h2>Como roda na prática</h2>
+          <ol style="margin-top: 16px; font-size: 0.78em; line-height: 1.7">
+            <li>
+              <code class="inline">npx skills add djalmajr/essential-skills</code>
+            </li>
+            <li>
+              <code class="inline">/wiki-init</code> — diagnostica, propõe pasta, configura QMD,
+              instala hooks
+            </li>
+            <li>
+              <code class="inline">/wiki-ingest</code> — alimenta com transcrições, PDFs, código,
+              Notion, Slack
+            </li>
+            <li>
+              <code class="inline">/wiki-query</code> — pergunta: "Qual a viabilidade de adicionar
+              X?" → resposta com referências
+            </li>
+            <li>
+              <code class="inline">/agile-intake</code> → <code class="inline">/agile-roadmap</code>
+              → ... — planejamento já enriquecido pela wiki
+            </li>
+            <li>Time executa. Hooks atualizam a wiki ao final de cada sessão.</li>
+          </ol>
+        </section>
+
+        <!-- ===================== 16. WIKI-QUERY EXEMPLO ===================== -->
+        <section class="left">
+          <h2>Exemplo: <code class="inline">/wiki-query</code></h2>
+          <pre><code class="language-text" data-trim data-noescape>
+> /wiki-query Como funciona o fluxo de pagamento?
+
+→ MCP qmd (BM25 + vetorial + rerank por LLM)
+  ✓ 3 registros encontrados (score ≥ 0.42)
+
+O checkout inicia via PaymentService.createCharge().
+O webhook do gateway confirma ou falha. O registro
+fica em charges, vinculado a invoices/.
+
+Fontes: business/payment-flow.md · data/payment-schema.md
+          </code></pre>
+          <p class="small" style="margin-top: 14px">
+            Sem varrer o repositório, sem inflar contexto, com origem rastreável. Exemplo
+            ilustrativo — o conteúdo real depende da wiki do seu projeto.
+          </p>
+        </section>
+
+        <!-- ===================== 17. APLICAÇÃO ===================== -->
+        <section class="left">
+          <h2>O que muda no dia a dia</h2>
+          <div class="grid two" style="margin-top: 16px">
+            <div class="card">
+              <h3>Antes</h3>
+              <ul>
+                <li>Cada nova feature começa explicando o produto pra IA</li>
+                <li>Decisões importantes se perdem entre sessões</li>
+                <li>Planejamento manual, em planilhas e cabeças</li>
+                <li>Risco alto de retrabalho e divergência</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Depois</h3>
+              <ul>
+                <li>IA já conhece o produto — consulta a wiki sozinha</li>
+                <li>Cada decisão volta pra base de conhecimento</li>
+                <li>Planejamento guiado, do problema vago à sprint</li>
+                <li>Time foca em executar, não em recontextualizar</li>
+              </ul>
+            </div>
+          </div>
+          <p class="small" style="margin-top: 22px">
+            A próxima feature sempre nasce mais informada que a anterior.
+          </p>
+        </section>
+
+        <!-- ===================== 18. LIMITAÇÕES ===================== -->
+        <section class="left">
+          <h2>O que isso <span class="warn">não</span> resolve</h2>
+          <p class="muted">Nenhuma ferramenta substitui julgamento.</p>
+          <ul class="checklist x-list" style="margin-top: 18px">
+            <li>
+              <strong>QMD não é zero-config</strong> — precisa de ~2 GB de modelo local na
+              primeira instalação, e o índice precisa de setup por projeto
+            </li>
+            <li>
+              <strong>Hooks só funcionam se a wiki existir</strong> — sem disciplina inicial de
+              ingest, o sistema não tem nada pra retroalimentar
+            </li>
+            <li>
+              <strong>A IA continua errando</strong> — guardrails reduzem o erro, não eliminam.
+              Code review humano segue obrigatório
+            </li>
+            <li>
+              <strong>Tem curva de adoção</strong> — o time precisa entender o fluxo de skills
+              antes de extrair valor real
+            </li>
+            <li>
+              <strong>Não substitui arquitetura</strong> — decisões estruturais ainda precisam de
+              um humano com contexto e responsabilidade
+            </li>
+          </ul>
+        </section>
+
+        <!-- ===================== 19. PRÓXIMOS PASSOS ===================== -->
+        <section class="left">
+          <h2>Para onde isso pode ir</h2>
+          <ul class="checklist">
+            <li>
+              <strong>Serviço central de indexação</strong> — cron job que indexa fontes (Git,
+              Drive, Slack) periodicamente, sem disparo manual
+            </li>
+            <li>
+              <strong>Base unificada por organização</strong> — wiki por produto + wiki cross-org
+              compartilhada por times
+            </li>
+            <li>
+              <strong>policy-check</strong> impede regras de negócio de vazarem para repos de
+              produto — auditoria contínua
+            </li>
+            <li>
+              <strong>Skills evoluem por uso</strong> —
+              <code class="inline">/agile-skill-feedback</code> propõe melhorias baseadas em
+              evidência real de uso
+            </li>
+          </ul>
+        </section>
+
+        <!-- ===================== 20. COMO COMEÇAR ===================== -->
+        <section class="left">
+          <h2>Como começar amanhã</h2>
+          <p>
+            Piloto de um sprint num projeto real. Investimento baixo pra ter algo rodando.
+          </p>
+          <div class="grid two" style="margin-top: 20px">
+            <div class="card">
+              <h3>Setup</h3>
+              <ul>
+                <li><strong>~5 min</strong> — <code class="inline">npx skills add djalmajr/essential-skills</code></li>
+                <li><strong>até 10 min</strong> — <code class="inline">/wiki-init doctor</code> num projeto piloto</li>
+                <li><strong>variável</strong> — <code class="inline">/wiki-ingest</code> (5 min a 1 h, depende do tamanho da fonte)</li>
+                <li><strong>imediato</strong> — <code class="inline">/wiki-query</code> pra validar a busca</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Validação (1 sprint)</h3>
+              <ul>
+                <li>Rodar <code class="inline">/agile-intake</code> em uma demanda real</li>
+                <li>Acompanhar até a sprint planning com a wiki ativa</li>
+                <li>Revisar com o time: o que ajudou, o que atrapalhou</li>
+                <li>Decisão: expandir, ajustar ou parar — com evidência</li>
+              </ul>
+            </div>
+          </div>
+          <p class="small" style="margin-top: 22px">
+            Investimento baixo, reversível. O custo de não testar é continuar com cada nova
+            sessão começando do zero.
+          </p>
+        </section>
+
+        <!-- ===================== 21. RESUMO ===================== -->
+        <section>
+          <h2>O resumo</h2>
+          <div class="grid three" style="margin-top: 32px">
+            <div class="card">
+              <h3>Agile como skills</h3>
+              <p>
+                Sem reinventar metodologia. Cada cerimônia vira skill que a IA encadeia com o
+                time.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Wiki como memória</h3>
+              <p>
+                Markdown versionado, indexado localmente. Síntese acumula em vez de ser
+                redescoberta.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Multi-agente</h3>
+              <p>Mesmas skills no Claude, Codex ou OpenCode. Hooks garantem disciplina.</p>
+            </div>
+          </div>
+          <p class="small" style="margin-top: 36px">
+            Não é mágica. É processo conhecido + memória persistente, com a IA na cadeira certa.
+          </p>
+        </section>
+
+      </div>
+    </div>
+
+    <div class="footer">Vibe Coding · Skills + Wiki</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+    <script>
+      Reveal.initialize({
+        hash: true,
+        slideNumber: "c/t",
+        controls: true,
+        progress: true,
+        width: 1280,
+        height: 720,
+        margin: 0.06,
+        transition: "slide",
+        backgroundTransition: "fade",
+        plugins: [RevealHighlight, RevealNotes],
+      });
+    </script>
+  </body>
+</html>
