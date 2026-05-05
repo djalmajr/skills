@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vibe Coding com Skills + Wiki</title>
+    <title>IA que conhece o produto — Skills + Wiki</title>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
@@ -25,7 +25,7 @@
 
       .reveal {
         font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-        font-size: 30px;
+        font-size: 36px;
         color: var(--fg);
       }
 
@@ -53,7 +53,7 @@
         line-height: 1.3;
       }
       .reveal p {
-        font-size: 0.6em;
+        font-size: 0.72em;
         line-height: 1.5;
         margin: 0.4em 0;
         color: var(--fg);
@@ -67,7 +67,7 @@
       }
       .reveal ul li,
       .reveal ol li {
-        font-size: 0.6em;
+        font-size: 0.72em;
         line-height: 1.55;
         margin: 0.3em 0;
         color: var(--fg);
@@ -122,7 +122,7 @@
 
       .reveal pre {
         box-shadow: none;
-        font-size: 0.42em;
+        font-size: 0.55em;
         width: 100%;
         margin: 0.6em 0;
       }
@@ -143,7 +143,7 @@
         padding: 0.6em 1em;
         font-style: normal;
         margin: 0.7em 0 0;
-        font-size: 0.58em;
+        font-size: 0.7em;
         line-height: 1.5;
         color: #cbd5e1;
         box-shadow: none;
@@ -172,12 +172,12 @@
       .card h3 {
         margin: 0 0 12px;
         color: var(--accent);
-        font-size: 0.78em;
+        font-size: 0.85em;
         font-weight: 600;
         letter-spacing: 0;
       }
       .card p {
-        font-size: 0.55em;
+        font-size: 0.66em;
         margin: 4px 0;
         line-height: 1.5;
       }
@@ -185,7 +185,7 @@
         margin: 0;
       }
       .card ul li {
-        font-size: 0.55em;
+        font-size: 0.66em;
         line-height: 1.5;
       }
 
@@ -195,7 +195,7 @@
         border-radius: 999px;
         background: rgba(56, 189, 248, 0.12);
         color: var(--accent);
-        font-size: 0.5em;
+        font-size: 0.55em;
         letter-spacing: 0.06em;
         text-transform: uppercase;
         font-weight: 600;
@@ -215,12 +215,12 @@
         color: var(--fg);
         padding: 7px 14px;
         border-radius: 6px;
-        font-size: 0.55em;
+        font-size: 0.65em;
         font-weight: 500;
       }
       .flow .arrow {
         color: var(--muted);
-        font-size: 0.7em;
+        font-size: 0.8em;
       }
 
       .footer {
@@ -247,7 +247,7 @@
       }
 
       .small {
-        font-size: 0.55em;
+        font-size: 0.65em;
         color: var(--muted);
         line-height: 1.5;
       }
@@ -279,9 +279,9 @@
         <!-- ===================== 1. CAPA ===================== -->
         <section>
           <div class="title-hero">
-            <h1>Vibe Coding com <span class="accent">Skills + Wiki</span></h1>
+            <h1>IA que conhece o produto... <span class="accent">E não esquece!</span></h1>
             <h3 class="muted" style="margin-top: 8px">
-              Agile clássico operacionalizado em skills, com memória persistente para a IA
+              Agile clássico em skills invocáveis, com uma wiki que a IA atualiza sozinha
             </h3>
           </div>
         </section>
@@ -306,9 +306,9 @@
               <h3>O que se quer</h3>
               <ul>
                 <li>Reconstruir com arquitetura modular</li>
-                <li>Acelerar entrega com IA, sem perder controle</li>
-                <li>Conhecimento do produto preservado entre ciclos</li>
-                <li>Time livre para focar no que é único</li>
+                <li>Usar IA sem retrabalhar tudo a cada sessão</li>
+                <li>Decisões e regras documentadas onde a IA encontra</li>
+                <li>Time codifica em vez de re-explicar o produto</li>
               </ul>
             </div>
           </div>
@@ -571,7 +571,7 @@ raw/                 # fontes originais — nunca modificadas
           <h2>A wiki se retroalimenta</h2>
           <p>
             <code class="inline">/wiki-init</code> instala <strong>hooks</strong> nos três
-            agentes. Eles são guardrails de superfície — a decisão semântica continua com a IA.
+            agentes. Esses hooks pegam o que é visível em arquivo. O resto continua decisão da IA.
           </p>
           <ul class="checklist" style="margin-top: 18px">
             <li>
@@ -623,7 +623,7 @@ ln -s CLAUDE.md AGENTS.md
         <!-- ===================== 15. FLUXO DEMO ===================== -->
         <section class="left">
           <h2>Como roda na prática</h2>
-          <ol style="margin-top: 16px; font-size: 0.78em; line-height: 1.7">
+          <ol style="margin-top: 16px; line-height: 1.7">
             <li>
               <code class="inline">npx skills add djalmajr/skills</code>
             </li>
@@ -692,14 +692,14 @@ Fontes: business/payment-flow.md · data/payment-schema.md
             </div>
           </div>
           <p class="small" style="margin-top: 22px">
-            A próxima feature sempre nasce mais informada que a anterior.
+            Cada feature herda o que foi documentado nas anteriores.
           </p>
         </section>
 
         <!-- ===================== 18. LIMITAÇÕES ===================== -->
         <section class="left">
           <h2>O que isso <span class="warn">não</span> resolve</h2>
-          <p class="muted">Nenhuma ferramenta substitui julgamento.</p>
+          <p class="muted">A IA acelera o trabalho, não dispensa o time.</p>
           <ul class="checklist x-list" style="margin-top: 18px">
             <li>
               <strong>QMD não é zero-config</strong> — precisa de ~2 GB de modelo local na
@@ -787,8 +787,7 @@ Fontes: business/payment-flow.md · data/payment-schema.md
             <div class="card">
               <h3>Agile como skills</h3>
               <p>
-                Sem reinventar metodologia. Cada cerimônia vira skill que a IA encadeia com o
-                time.
+                Agile clássico, agora dirigido por skills que a IA encadeia com o time.
               </p>
             </div>
             <div class="card">
@@ -800,18 +799,19 @@ Fontes: business/payment-flow.md · data/payment-schema.md
             </div>
             <div class="card">
               <h3>Multi-agente</h3>
-              <p>Mesmas skills no Claude, Codex ou OpenCode. Hooks garantem disciplina.</p>
+              <p>Mesmas skills no Claude, Codex ou OpenCode. Hooks atualizam a wiki sem precisar lembrar.</p>
             </div>
           </div>
           <p class="small" style="margin-top: 36px">
-            Não é mágica. É processo conhecido + memória persistente, com a IA na cadeira certa.
+            A próxima feature já nasce com o contexto que a anterior gerou — e a depois dela,
+            com mais ainda.
           </p>
         </section>
 
       </div>
     </div>
 
-    <div class="footer">Vibe Coding · Skills + Wiki</div>
+    <div class="footer">Skills + Wiki</div>
 
     <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>

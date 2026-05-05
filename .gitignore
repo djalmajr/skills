@@ -34,3 +34,6 @@ skills-lock.json
 # Temp
 tmp/
 temp/
+
+# Build artifacts (generated, not committed)
+presentation/slides.pdf
