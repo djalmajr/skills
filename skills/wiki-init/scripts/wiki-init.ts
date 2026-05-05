@@ -2,6 +2,7 @@
 import { execFileSync } from "node:child_process";
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -132,6 +133,39 @@ function managedManifestPath(index: string): string {
 function managedQmdCacheDir(): string {
   const home = process.env.HOME ?? "";
   return join(home, ".local/share/skills/qmd");
+}
+
+function legacyQmdCacheDir(): string {
+  const home = process.env.HOME ?? "";
+  return join(home, ".local/share/essential-skills/qmd");
+}
+
+type CacheMigrationStatus = {
+  legacyPath: string;
+  currentPath: string;
+  legacyExists: boolean;
+  currentExists: boolean;
+  needsMigration: boolean;
+};
+
+function checkCacheMigration(): CacheMigrationStatus {
+  const legacyPath = legacyQmdCacheDir();
+  const currentPath = managedQmdCacheDir();
+  const legacyExists = existsSync(legacyPath);
+  const currentExists = existsSync(currentPath);
+  return {
+    legacyPath,
+    currentPath,
+    legacyExists,
+    currentExists,
+    needsMigration: legacyExists && !currentExists,
+  };
+}
+
+function migrateLegacyCache(status: CacheMigrationStatus): void {
+  if (!status.needsMigration) return;
+  mkdirSync(dirname(status.currentPath), { recursive: true });
+  cpSync(status.legacyPath, status.currentPath, { recursive: true });
 }
 
 function managedQmdCheckoutPath(): string {
@@ -783,8 +817,35 @@ function printDoctor(root: string, opts: Options): void {
     console.log(`- ${line}`);
   }
   console.log("");
+  console.log("cache migration:");
+  const cacheStatus = checkCacheMigration();
+  if (cacheStatus.needsMigration) {
+    console.log(`- legacy cache: ${cacheStatus.legacyPath} (will copy to current)`);
+    console.log(`- current cache: ${cacheStatus.currentPath} (missing)`);
+    console.log(`- action: copy-only on --write (legacy preserved, not deleted)`);
+  } else if (cacheStatus.legacyExists && cacheStatus.currentExists) {
+    console.log(`- both legacy and current present (no action)`);
+    console.log(`- legacy retained at ${cacheStatus.legacyPath} for safety`);
+  } else if (cacheStatus.currentExists) {
+    console.log(`- current cache present (no action): ${cacheStatus.currentPath}`);
+  } else {
+    console.log(`- no cache yet (will be created on first install --write)`);
+  }
+  console.log("");
+  const plannedActions = actions(root, opts);
+  console.log("installed drift:");
+  const installedDrift = checkInstalledDrift(root, plannedActions);
+  if (installedDrift.length === 0) {
+    console.log(`- none detected (installed templates match the latest)`);
+  } else {
+    for (const item of installedDrift) {
+      console.log(`- ${item.path}: ${item.reason}`);
+    }
+    console.log(`- run wiki-init update-hooks --write to refresh from current templates`);
+  }
+  console.log("");
   console.log("planned actions:");
-  for (const action of actions(root, opts)) {
+  for (const action of plannedActions) {
     console.log(`- ${action.kind}: ${action.path} (${action.reason})`);
   }
   console.log("");
@@ -899,6 +960,82 @@ function markdownDrift(root: string): MarkdownDrift {
   };
 }
 
+type DriftItem = {
+  path: string;
+  reason: string;
+};
+
+function extractManagedBlock(content: string): string | null {
+  const match = content.match(/<!-- wiki-init:start -->[\s\S]*?<!-- wiki-init:end -->/);
+  return match ? match[0] : null;
+}
+
+function checkInstalledDrift(root: string, list: Action[]): DriftItem[] {
+  const drift: DriftItem[] = [];
+
+  for (const action of list) {
+    if (action.kind !== "update") continue;
+    if (action.content == null) continue;
+    const existing = readMaybe(action.path);
+    if (existing == null) continue;
+
+    const filename = action.path.split("/").pop() ?? "";
+
+    if (filename === "AGENTS.md" || filename === "CLAUDE.md") {
+      const installedBlock = extractManagedBlock(existing);
+      const desiredBlock = extractManagedBlock(action.content);
+      if (installedBlock !== desiredBlock) {
+        drift.push({
+          path: relative(root, action.path) || action.path,
+          reason: "managed wiki-init block differs from current template",
+        });
+      }
+      continue;
+    }
+
+    if (existing.trim() !== action.content.trim()) {
+      drift.push({
+        path: relative(root, action.path) || action.path,
+        reason: "differs from current template",
+      });
+    }
+  }
+
+  const stalePathScan = [
+    ".mcp.json",
+    "opencode.json",
+    ".codex/config.toml",
+    ".claude/settings.json",
+    ".claude/hooks/wiki-policy-check.sh",
+    ".claude/hooks/wiki-reindex.sh",
+    ".claude/hooks/wiki-drift-audit.sh",
+    ".claude/hooks/wiki-suggest-ingest.sh",
+    ".codex/hooks/wiki-policy-check.sh",
+    ".codex/hooks/wiki-reindex.sh",
+    ".codex/hooks/wiki-drift-audit.sh",
+    ".codex/hooks/wiki-consider.sh",
+    ".opencode/hooks/wiki-policy-check.sh",
+    ".opencode/hooks/wiki-reindex.sh",
+    ".opencode/hooks/wiki-drift-audit.sh",
+    ".opencode/plugins/wiki-guardrails.js",
+  ];
+
+  for (const rel of stalePathScan) {
+    const content = readMaybe(join(root, rel));
+    if (content?.includes(".local/share/essential-skills")) {
+      const already = drift.find((item) => item.path === rel);
+      if (!already) {
+        drift.push({
+          path: rel,
+          reason: "references legacy ~/.local/share/essential-skills cache path",
+        });
+      }
+    }
+  }
+
+  return drift;
+}
+
 function applyActions(list: Action[], write: boolean): void {
   for (const action of list) {
     if (action.kind === "skip") continue;
@@ -932,6 +1069,13 @@ function main(): void {
     printWriteConfirmationRequired(root, opts);
     process.exitCode = 2;
     return;
+  }
+  if (opts.write) {
+    const cacheStatus = checkCacheMigration();
+    if (cacheStatus.needsMigration) {
+      console.log(`migrate cache: ${cacheStatus.legacyPath} -> ${cacheStatus.currentPath}`);
+      migrateLegacyCache(cacheStatus);
+    }
   }
   if (opts.write && !opts.qmdCommand) {
     ensureManagedQmdCheckout();

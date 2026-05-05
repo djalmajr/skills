@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -43,6 +43,19 @@ beforeEach(() => {
   mkdirSync(wiki, { recursive: true });
   execFileSync("git", ["init", "-q"], { cwd: project });
   writeFileSync(join(wiki, "index.md"), "# Knowledge base\n", "utf8");
+  // Clear shared TMPDIR stamps used by the consider/reindex hooks so the
+  // suite remains deterministic when tests share the system temp dir.
+  for (const stamp of [
+    "wiki-init-consider-fixture.stamp",
+    "qmd-fixture-reindex.stamp",
+  ]) {
+    const path = join(tmpdir(), stamp);
+    try {
+      unlinkSync(path);
+    } catch {
+      // ignore: file may not exist
+    }
+  }
 });
 
 afterEach(() => {
@@ -75,6 +88,61 @@ test("explicit write creates wrapper, manifest, configs, and hooks", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   expect(manifest.index).toBe("fixture");
   expect(manifest.managedBy).toBe("skills/wiki-init");
+});
+
+test("doctor reports cache migration when only legacy path exists", () => {
+  const legacy = join(home, ".local/share/essential-skills/qmd/checkouts/qmd");
+  mkdirSync(legacy, { recursive: true });
+  writeFileSync(join(legacy, "marker"), "legacy", "utf8");
+
+  const out = run(["doctor", "--project", project]);
+  expect(out).toContain("cache migration:");
+  expect(out).toContain("legacy cache:");
+  expect(out).toContain("will copy to current");
+  // Doctor never writes; legacy copy must not happen on read-only run
+  expect(existsSync(join(home, ".local/share/skills/qmd/checkouts/qmd"))).toBe(false);
+});
+
+test("install --write copies legacy cache to current path without deleting legacy", () => {
+  const legacy = join(home, ".local/share/essential-skills/qmd/checkouts/qmd");
+  mkdirSync(legacy, { recursive: true });
+  writeFileSync(join(legacy, "marker"), "legacy", "utf8");
+
+  // No prepareManagedQmdCheckout: we want migration to fire because current doesn't exist yet.
+  // Pass an explicit --qmd-command so install --write does not try to clone QMD.
+  run([
+    "install",
+    "--project",
+    project,
+    "--wiki",
+    "../knowledge-base",
+    "--index",
+    "fixture",
+    "--qmd-command",
+    "/bin/true",
+    "--write",
+  ]);
+
+  const copied = join(home, ".local/share/skills/qmd/checkouts/qmd/marker");
+  expect(existsSync(copied)).toBe(true);
+  expect(readFileSync(copied, "utf8")).toBe("legacy");
+  // Legacy must be retained
+  expect(existsSync(join(legacy, "marker"))).toBe(true);
+});
+
+test("doctor flags installed drift when a hook references the legacy cache path", () => {
+  prepareManagedQmdCheckout();
+  run(["install", "--project", project, "--wiki", "../knowledge-base", "--index", "fixture", "--write"]);
+
+  const hookPath = join(project, ".claude/hooks/wiki-reindex.sh");
+  const original = readFileSync(hookPath, "utf8");
+  const tampered = original.replace(/\.local\/share\/skills/g, ".local/share/essential-skills");
+  writeFileSync(hookPath, tampered, "utf8");
+
+  const out = run(["doctor", "--project", project, "--wiki", "../knowledge-base", "--index", "fixture"]);
+  expect(out).toContain("installed drift:");
+  expect(out).toContain(".claude/hooks/wiki-reindex.sh");
+  expect(out).toContain("update-hooks --write");
 });
 
 test("OpenCode plugin treats wiki consideration as a warning", async () => {
