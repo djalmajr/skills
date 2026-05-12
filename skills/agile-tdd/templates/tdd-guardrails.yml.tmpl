@@ -1,0 +1,53 @@
+# TDD enforcement config — read by .claude/.codex/.opencode hook scripts.
+#
+# Source files matching `source_paths` (and not in `exemptions`) must have a
+# corresponding test file (same path with `.test.<ext>` instead of `.<ext>`).
+# If not, the PreToolUse hook on Write|Edit|MultiEdit warns (mode: warn) or
+# blocks (mode: block). The Stop hook produces a session-level violation
+# report regardless of mode.
+#
+# Patterns use **bash case globs**, not extended globstar. In bash case
+# patterns, `*` matches any sequence of characters including `/`. There is
+# no `**`. Examples:
+#   apps/*/src/*.ts  matches apps/server/src/handler.ts AND apps/server/src/auth/handler.ts
+#
+# Disable globally: enabled: false
+# Bypass a specific path: add it to `exemptions`
+# Switch to hard enforcement: mode: block
+
+enabled: true
+mode: warn   # warn | block
+
+source_paths:
+  - "apps/*/src/*.ts"
+  - "apps/*/src/*.tsx"
+  - "packages/*/src/*.ts"
+  - "packages/*/src/*.tsx"
+
+# How to derive a test path from a source path.
+# Supported strategies (first match wins):
+#   sibling     — apps/x/src/foo.ts        → apps/x/src/foo.test.ts
+#   sibling_dir — apps/x/src/foo.ts        → apps/x/src/__tests__/foo.test.ts
+#   tests_root  — apps/x/src/foo.ts        → apps/x/tests/integration/foo.test.ts
+test_strategy: sibling
+
+# Files exempt from the rule (no companion test required).
+# Patterns are bash case globs — `*` includes `/`.
+exemptions:
+  # Bootstrap and entry files
+  - "apps/*/src/main.tsx"
+  - "apps/*/src/main.ts"
+  - "apps/*/src/index.tsx"
+
+  # Type-only declarations (any depth)
+  - "apps/*/src/*.d.ts"
+
+  # TanStack Router conventions (file-based)
+  - "apps/*/src/routes/__root.tsx"
+  - "apps/*/src/routeTree.gen.ts"
+
+  # Design-system primitives (shadcn-style — tested via integration of the screens that use them)
+  - "apps/*/src/components/ui/*"
+
+  # Config files inside src (any depth)
+  - "apps/*/src/*config.ts"

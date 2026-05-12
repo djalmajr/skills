@@ -11,6 +11,22 @@ metadata:
 
 Use this skill to guide new team members through the agile + AI flow, in a practical and progressive way.
 
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Role | Shapes the depth and skill set | Engineer · PM · Designer · Mixed |
+| Skill-flow depth | Affects scope | Quick (intake → story) · Full (all skills) · Wiki-only |
+
+Free-form prompts (no structured tool):
+
+- Onboardee name
+- Tenure / background notes
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## Objective
 
 - Provide context about the operational model (Light Scrum + AI as pair)

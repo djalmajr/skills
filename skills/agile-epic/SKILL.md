@@ -20,6 +20,31 @@ If empty, ask which initiative will be structured.
 
 Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output. Templates are in English — translate headers and content to match.
 
+## Project root
+
+This skill writes artifacts at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory (e.g., a sibling repo, or when the project lives elsewhere), prepend `<project-root>/` to every artifact path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Save path when user-passed path conflicts with convention | Hard-to-undo write | Use convention · Honor user path · Ask |
+| Roadmap diagram type | Affects template fit | Mermaid flowchart · Mermaid gantt |
+| Which story to detail first via /agile-story | Branches the next skill | first by dependency · pick |
+
+Free-form prompts (no structured tool):
+
+- Story names (kebab-case)
+- Epic title and outcome wording
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## Objective
 
 - Decompose large initiatives into proportional, executable stories
@@ -121,6 +146,14 @@ planning/<initiative>/epics/NN-<epic-name>/
 
 - Epic folder: `planning/<initiative>/epics/NN-<epic-name>/`
 - If the initiative doesn't have a folder in `planning/`, ask the user for the name
+- **Path-conflict gate:** if the user passes a save path that does not match the convention above (e.g., `planning/<initiative>/<epic-name>/` instead of the `epics/NN-<epic-name>/` shape), surface the conflict before writing. Honor the user's path only after explicit confirmation; otherwise apply the convention and tell the user why. Use the harness's question tool (see `## Prompting`) to disambiguate.
+
+## Roadmap diagram
+
+Pick the Mermaid type that fits the work:
+
+- **`flowchart`** — preferred for trajectory roadmaps with dependencies but no fixed schedule (the common case for solo dev or long-running initiatives).
+- **`gantt`** — use only when real team scheduling exists (concrete start dates, capacity per track). For solo dev or no-deadline work, gantt produces fake precision; pick flowchart instead.
 
 ## Cross-reference
 

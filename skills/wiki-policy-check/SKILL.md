@@ -7,6 +7,29 @@ description: "Audits this repo for business rules that should live in the centra
 
 Convention this skill enforces: **technical rules live in the project repo; business and product rules live in the central wiki.** This skill audits all markdown in the current repo for content that crossed the line and reports what should migrate.
 
+## Project root
+
+This skill reads files at paths relative to the **project root** (the repo where the audit runs), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory, prepend `<project-root>/` to every path; or pass the project root explicitly when calling the script form.
+- When the project root is ambiguous, confirm with the user via the harness question tool before running.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Mode | Affects how leaks are surfaced | Report-only · Block (CI-style) · Suggest-migrate |
+| Scope (multi-select) | Affects coverage | All markdown · Specific path · Diff only |
+
+Free-form prompts (no structured tool):
+
+- Custom business-rule definitions
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## Project guardrails
 
 If `.wiki-guardrails.yml` exists, treat it as the local policy source for wiki path, markdown allowlist, and sensitive paths. Do not infer a different allowlist from the skill. If it is missing, read `CLAUDE.md`/`AGENTS.md` and report that guardrails are missing.

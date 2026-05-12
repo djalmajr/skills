@@ -20,6 +20,30 @@ If empty, start by asking for a short description of the problem.
 
 Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output. Templates are in English — translate headers and content to match.
 
+## Project root
+
+This skill writes artifacts at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill (e.g., `planning/<initiative>/intake.md`).
+- If invoked from another directory (e.g., a sibling repo, or when the project lives elsewhere), prepend `<project-root>/` to every artifact path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Next artifact in the flow | Branches the chain | /agile-roadmap · /agile-epic · /agile-story |
+| Save the intake | Hard-to-undo write | Save · Present inline only |
+
+Free-form prompts (no structured tool):
+
+- Initiative name (kebab-case slug)
+- Problem description and constraints
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## Objective
 
 - Make the problem or opportunity explicit before planning
@@ -62,6 +86,10 @@ Fill in the template with collected information:
 - Inputs and references: stakeholders, documents, technical context
 - Open questions: everything that doesn't have an answer yet
 
+**Value signal — exploratory/sample projects:** if the project is exploratory, a sample, or a learning exercise, mark *Expected value signal* as **N/A — exploratory** rather than inventing aspirational numbers. Real product metrics belong to real product work; sample projects do not need KPIs.
+
+**Assumption vs Open question:** an *assumption* is a decision logged for review (the agent took it, the user can override later). An *open question* is a pending decision that would block the next artifact if not resolved. Use the slots accordingly.
+
 ### 3. Define next step
 
 Based on trajectory complexity (not duration):
@@ -85,7 +113,7 @@ Register the recommendation in the intake and confirm with the user.
 
 ### 4. Save the intake
 
-- Ask for the initiative name (e.g., "component-tests", "auth-refactor")
+- Ask for the initiative name (e.g., `component-tests`, `auth-refactor`, `mvp-reserva`). Pick a **kebab-case slug** describing the initiative (not the artifact). Avoid sequential numbers, dates, or labels like `intake-1`; pick a slug stable enough to survive scope evolution.
 - Save at `planning/<initiative>/intake.md`
 - If the user prefers not to save, present inline
 

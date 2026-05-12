@@ -16,6 +16,20 @@ Initial context received via slash: $ARGUMENTS
 If `$ARGUMENTS` is filled, use as context to determine the right skill.
 If empty, ask the user what they need help with.
 
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Suggested skill when ambiguous | Routes the work | list the 2–4 candidates with the recommendation flagged |
+
+Free-form prompts (no structured tool):
+
+- Problem description (so the router can decide)
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, pick the highest-confidence recommendation and proceed; surface the decision and reasoning rather than asking.
+
 ## Scope
 
 This skill replaces both the planning router and the ceremonies router. It covers three areas:

@@ -11,6 +11,32 @@ When the prototype is part of an agile planning initiative, keep it with the pla
 
 When product behavior or domain rules emerge during prototype work, document them beside the planning artifacts in `planning/<initiative>/business/*.md` with stable rule IDs. Keep the prototype close to the real product surface: do not add visible explanatory copy for internal architecture, business rules, testing strategy, provider details, or implementation notes unless that text would exist in the shipped UI.
 
+## Project root
+
+This skill writes artifacts at paths relative to the **project root** (the repo where the prototype lives), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill (e.g., `planning/<initiative>/proto/`).
+- If invoked from another directory (e.g., a sibling repo, or when the project lives elsewhere), prepend `<project-root>/` to every artifact path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Fidelity | Affects effort and template | Sketch · Wireframe · Hi-fi |
+| Send to Figma | External integration | Yes · No |
+| Reference (existing local proto?) | Branches the bootstrap | Use existing · Start fresh |
+
+Free-form prompts (no structured tool):
+
+- Component names
+- Copy text
+- Interaction notes
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## Stack
 
 - **z-proto** — web component shell from the public GitHub repo https://github.com/djalmajr/z-proto (responsive presets, zoom, resize handles, Figma export button)

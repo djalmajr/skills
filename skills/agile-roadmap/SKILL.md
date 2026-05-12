@@ -20,6 +20,30 @@ If empty, ask for the roadmap objective.
 
 Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output. Templates are in English — translate headers and content to match.
 
+## Project root
+
+This skill writes artifacts at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory (e.g., a sibling repo, or when the project lives elsewhere), prepend `<project-root>/` to every artifact path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Roadmap type | Affects template variant | Trajectory · Quarterly |
+| Next initiative to decompose | Branches the next skill | first initiative · pick from list |
+
+Free-form prompts (no structured tool):
+
+- Period bounds (if quarterly)
+- Initiative descriptions
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## When to use
 
 Roadmap is defined by **trajectory complexity**, not by duration. Use this skill when 2+ apply:
@@ -82,6 +106,10 @@ When the team has 2+ developers, the roadmap should:
 - Define interface contracts between tracks to minimize blocking
 - Show which stories/phases can run in parallel in the timeline
 - Ask about team size and composition during roadmap creation
+
+### Solo dev
+
+For solo-dev work, parallelism does not apply at execution time. The parallel-track structure still helps for future-proofing — annotate tracks that *could* split if a second dev joins later, but pick a serial sequence for actual delivery. Mermaid `flowchart` (dependencies) fits solo work better than `gantt` (schedules).
 
 ## Chaining
 

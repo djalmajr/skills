@@ -4,6 +4,16 @@
 **Date:** YYYY-MM-DD
 **Reporter:** human/agent
 
+## Auditability
+<!--
+These slots make AI-generated patches traceable. Fill what is known; leave
+blank what is not.
+-->
+- Source skill version/commit:
+- Model/provider (if AI-generated):
+- Originating session/journal:
+- Related findings/proposals:
+
 ## Context
 - Workflow being executed:
 - Artifact or code involved:
@@ -41,8 +51,13 @@
 - Verification command/check:
 
 ## Approval
-- Status: proposed/approved/rejected/applied
+- Status: proposed / approved / rejected / applied / partially-applied / withdrawn
 - Approver:
+- Partial application notes:
+  <!-- If status is `partially-applied`, list what landed before approval and what remains pending. -->
 - Notes:
 
-<!-- Save to: planning/<initiative>/skill-feedback/<YYYY-MM-DD>-<slug>.md or a project-specific process folder -->
+<!-- Save to:
+  - Feedback about a project's process artifact → `planning/<initiative>/skill-feedback/<YYYY-MM-DD>-<slug>.md`
+  - Feedback about a skill in *this skills repo* → `<skills-repo>/feedback/<YYYY-MM-DD>-<skill>.md` (or, while no dedicated folder exists, `samples/<sample>/proposals/skill-feedback-<YYYY-MM-DD>-<slug>.md`)
+-->

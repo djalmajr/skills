@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# agile-tdd SessionStart hook — announces TDD enforcement is active.
+# Honors .tdd-guardrails.yml (announces only when enabled: true).
+
+set -euo pipefail
+
+ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+GUARDRAILS="$ROOT/.tdd-guardrails.yml"
+[ -f "$GUARDRAILS" ] || exit 0
+
+ENABLED="$(awk '
+  /^[[:space:]]*enabled:[[:space:]]*/ {
+    line=$0
+    sub("^[[:space:]]*enabled:[[:space:]]*", "", line)
+    sub("[[:space:]]*#.*$", "", line)
+    print line
+    exit
+  }
+' "$GUARDRAILS")"
+[ "$ENABLED" = "true" ] || exit 0
+
+MODE="$(awk '
+  /^[[:space:]]*mode:[[:space:]]*/ {
+    line=$0
+    sub("^[[:space:]]*mode:[[:space:]]*", "", line)
+    sub("[[:space:]]*#.*$", "", line)
+    print line
+    exit
+  }
+' "$GUARDRAILS")"
+[ -n "$MODE" ] || MODE="warn"
+
+printf 'agile-tdd: enforcement active (mode: %s). Source files require companion tests; see .tdd-guardrails.yml for paths and exemptions.\n' "$MODE" >&2
+exit 0

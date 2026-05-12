@@ -1,0 +1,19 @@
+<!-- agile-tdd:start -->
+## TDD enforcement
+
+This project has `.tdd-guardrails.yml` configured. Hooks check that source files have companion tests around Write/Edit/MultiEdit tool calls.
+
+Order at implementation time:
+
+1. Read `.tdd-guardrails.yml` to see covered paths, exemptions, and `mode` (`warn` or `block`).
+2. Apply Red → Green → Refactor: write the failing test first, then the minimum code, then refactor.
+3. When a path genuinely does not warrant a test (entry points, generated files, UI primitives), add it to `exemptions` rather than disabling enforcement.
+
+Hooks (Claude Code, Codex, OpenCode):
+
+- `tdd-pre-write` — `PreToolUse` on Write/Edit/MultiEdit. Warns when a target source file has no companion test; in `block` mode it rejects the tool call.
+- `tdd-session-audit` — `Stop`. Scans the session diff and reports source files touched without a companion test.
+- `tdd-announce` — `SessionStart`. Logs that enforcement is active.
+
+Hooks are guardrails, not a guarantee. They check file-pair existence, not the quality of the test. Semantic discipline (one behavior per test, descriptive names, factories over hardcoded data) still belongs to the agent.
+<!-- agile-tdd:end -->

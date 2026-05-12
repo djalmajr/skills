@@ -54,6 +54,12 @@
 - **What was delivered:**
 - **What remained pending:**
 - **Relevant scope changes:**
+<!--
+Before drafting this section, run `git diff` against the story's acceptance
+criteria. Explicitly list any change that does not map to an acceptance bullet
+and record the rationale per change. Surfaces scope drift at write-time, not
+retrospectively.
+-->
 
 ### Verification performed
 | Verification | Result |
@@ -81,6 +87,6 @@
 ## Recommended next step
 - Checkpoint -> continue execution or escalate blockers
 - Consolidation -> `/agile-status` (closure) if delivery finished, `/agile-review` if sprint ended
-- Closure -> `/agile-retro` for cycle reflection
+- Closure -> for a **single story** closure: next `/agile-story` or none. For a **cycle-end** closure (epic complete, sprint ended): `/agile-retro` and `/agile-metrics`.
 
-<!-- Save to: planning/<initiative>/status/YYYY-MM-DD.md or present inline -->
+<!-- Save to: planning/<initiative>/status/<mode>-YYYY-MM-DD-<slug>.md (slug disambiguates multi-delivery days, e.g. closure-2026-05-12-story-01.md) -->
