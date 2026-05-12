@@ -5,34 +5,34 @@ first_observed: YYYY-MM-DD
 last_observed: YYYY-MM-DD
 ---
 
-# {{padrão observado em uma frase}}
+# {{observed pattern in one sentence}}
 
-## Evidências
+## Evidence
 
-- [YYYY-MM-DD slug](../journal/YYYY-MM-DD-slug.md) — trecho relevante
-- [YYYY-MM-DD slug](../journal/YYYY-MM-DD-slug.md) — trecho relevante
+- [YYYY-MM-DD slug](../journal/YYYY-MM-DD-slug.md) — relevant excerpt
+- [YYYY-MM-DD slug](../journal/YYYY-MM-DD-slug.md) — relevant excerpt
 
-(Mínimo 2 evidências antes de considerar `mature`.)
+(Minimum two evidences before considering `mature`.)
 
-## Padrão detectado
+## Pattern observed
 
-O que se repete entre as evidências? Descrição neutra.
+What repeats across the evidences? Neutral description.
 
-## Por que importa
+## Why it matters
 
-Que custo, fricção ou risco esse padrão gera para o usuário da skill?
+What cost, friction, or risk does this pattern create for the skill user?
 
-## Hipótese de refinamento
+## Refinement hypothesis
 
-Mudança proposta na skill (SKILL.md, template, fluxo). Específica e verificável.
+Proposed change to the skill (SKILL.md, template, workflow). Specific and verifiable.
 
-## Validação esperada
+## Expected validation
 
-Como saberíamos que a mudança resolveu? Que sinal observar nas próximas sessões?
+How would we know the change worked? What signal should we watch for in upcoming sessions?
 
 ## Status
 
-- [ ] Coletei 2+ evidências
-- [ ] Hipótese descrita
-- [ ] Pronto para virar `proposals/<slug>.md`
-- [ ] Encaminhado via `/agile-skill-feedback`
+- [ ] Collected 2+ evidences
+- [ ] Hypothesis described
+- [ ] Ready to become `proposals/<slug>.md`
+- [ ] Forwarded via `/agile-skill-feedback`

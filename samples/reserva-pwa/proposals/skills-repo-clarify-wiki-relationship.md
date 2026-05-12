@@ -1,46 +1,46 @@
 ---
-title: "Corrigir referência ao wiki no skills/CLAUDE.md"
+title: "Correct the wiki reference in skills/CLAUDE.md"
 finding: findings/skills-repo-dogfooding.md
 status: ready (Option B)
 target_files: [CLAUDE.md]
 ---
 
-# Proposta: reescrever a seção "LLM-Maintained Wiki" do `skills/CLAUDE.md`
+# Proposal: rewrite the "LLM-Maintained Wiki" section in `skills/CLAUDE.md`
 
-## Problema
+## Problem
 
-O `CLAUDE.md` instrui ler `wiki/index.md`, `wiki/CONVENTIONS.md`, `wiki/log.md` como passos 1–3 antes de responder, mas esses arquivos não existem neste repo. Detalhado em [`findings/skills-repo-dogfooding.md`](../findings/skills-repo-dogfooding.md).
+`CLAUDE.md` instructs the reader to consult `wiki/index.md`, `wiki/CONVENTIONS.md`, `wiki/log.md` as the first three steps before answering, but these files do not exist in this repo. Detailed in [`findings/skills-repo-dogfooding.md`](../findings/skills-repo-dogfooding.md).
 
-## Mudança escolhida — Opção B (corrigir o texto)
+## Chosen change — Option B (fix the text)
 
-Reescrever a seção para refletir realidade: este repo **produz** as skills wiki; projetos que **usam** essas skills mantêm sua própria wiki. Sem promessa quebrada.
+Rewrite the section to reflect reality: this repo **produces** the wiki skills; projects that **use** these skills maintain their own wikis. No broken promise.
 
-A Opção A (dogfood criando `wiki/` aqui) ficou descartada por agora — custo de manutenção sem benefício claro num repo cuja função é produzir as skills, não acumular conhecimento de domínio. Se essa decisão mudar, basta reverter este patch e rodar `/wiki-init` no próprio repo.
+Option A (dogfood by creating `wiki/` here) is deferred for now — maintenance cost without a clear payoff in a repo whose purpose is to produce skills, not to accumulate domain knowledge. If that calculus changes, revert this patch and run `/wiki-init` against the repo itself.
 
-## Texto proposto
+## Proposed text
 
-Substitui a seção atual `## LLM-Maintained Wiki (wiki/)` por:
+Replaces the current `## LLM-Maintained Wiki (wiki/)` section with:
 
 ```markdown
-## LLM Wiki — relação com este repo
+## LLM Wiki — relation to this repo
 
-Este repo **produz** as skills wiki (`wiki-init`, `wiki-ingest`, `wiki-query`, `wiki-lint`, `wiki-policy-check`). Ele **não** mantém uma wiki própria — não há `wiki/` neste diretório, e não há domínio de produto/processo aqui que justifique uma.
+This repo **produces** the wiki skills (`wiki-init`, `wiki-ingest`, `wiki-query`, `wiki-lint`, `wiki-policy-check`). It does **not** maintain a wiki of its own — there is no `wiki/` directory here, and no product/process domain that would justify one.
 
-Projetos que **usam** essas skills mantêm sua própria wiki local conforme convenção em `skills/wiki-init/` e `skills/wiki-ingest/SKILL.md`. Exemplos de projetos cobaia que exercitam o padrão vivem em diretórios irmãos (ver `samples/`).
+Projects that **use** these skills maintain their own local wiki per the convention in `skills/wiki-init/` and `skills/wiki-ingest/SKILL.md`. Sample projects exercising the pattern are tracked under `samples/`.
 
-Padrão inspirado em [LLM Wiki — Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+Pattern inspired by [LLM Wiki — Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 ```
 
-## Risco
+## Risk
 
-- **Mínimo.** Documentação apenas, não afeta comportamento das skills.
-- Pequena chance de confusão histórica: alguém pode lembrar do texto antigo e procurar a wiki. Mitigação: link claro para `samples/` que tem o contexto vivo.
+- **Minimal.** Documentation only, no behavior change.
+- Slim chance of historical confusion: the old text may still be remembered, prompting a search for the wiki. Mitigation: link clearly to `samples/` which holds the live context.
 
-## Validação
+## Validation
 
-- Agente lendo o `CLAUDE.md` não bate em arquivo inexistente.
-- Texto reflete o que está no disco.
+- Agents reading `CLAUDE.md` no longer hit a missing-file reference.
+- Text reflects what is on disk.
 
-## Próximo passo
+## Next step
 
-Aplicar agora.
+Apply now.

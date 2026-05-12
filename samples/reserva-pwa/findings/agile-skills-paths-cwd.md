@@ -1,36 +1,36 @@
 ---
-skill: agile-intake, wiki-init (transversal)
+skill: agile-intake, wiki-init (cross-cutting)
 status: mature
 first_observed: 2026-05-12
 last_observed: 2026-05-12
 ---
 
-# Skills com paths relativos não declaram o CWD esperado
+# Skills with relative paths do not declare the expected CWD
 
-## Evidências
+## Evidence
 
-- [2026-05-12-intake-reserva](../journal/2026-05-12-intake-reserva.md) — `agile-intake/SKILL.md` instrui "Save at `planning/<initiative>/intake.md`" sem dizer relativo a quê. Quando o repo de skills é o CWD e o projeto-cobaia é um sibling, o agente tem que conscientemente trocar para path absoluto.
-- [2026-05-12-wiki-init](../journal/2026-05-12-wiki-init.md) — comando QMD `<wrapper> collection add <wiki-path>` aceita path absoluto sem dizer que isso é a forma segura. Mesmo padrão em outros pontos do `wiki-init/SKILL.md`.
+- [2026-05-12-intake-reserva](../journal/2026-05-12-intake-reserva.md) — `agile-intake/SKILL.md` says "Save at `planning/<initiative>/intake.md`" without specifying what the path is relative to. When the skills repo is the CWD and the sample project lives elsewhere, the agent has to deliberately switch to an absolute path.
+- [2026-05-12-wiki-init](../journal/2026-05-12-wiki-init.md) — the QMD wrapper command `<wrapper> collection add <wiki-path>` accepts absolute paths without flagging this as the safe form. The same pattern surfaces at several points in `wiki-init/SKILL.md`.
 
-## Padrão detectado
+## Pattern observed
 
-SKILL.md de várias skills usa paths **relativos** ao project root (ex.: `planning/<initiative>/intake.md`, `wiki/CONVENTIONS.md`) sem declarar:
+Several skills' SKILL.md files use paths **relative** to the project root (e.g., `planning/<initiative>/intake.md`, `wiki/CONVENTIONS.md`) without declaring:
 
-1. **O que é "project root"** quando o CWD do agente pode ser outro repo.
-2. **Quando passar paths absolutos** (regra prática segura).
-3. **Como confirmar `<project-root>`** com o usuário quando há ambiguidade.
+1. **What "project root" is** when the agent's CWD may be a different repo.
+2. **When to pass absolute paths** as a safe rule of thumb.
+3. **How to confirm `<project-root>`** when ambiguous.
 
-O comportamento "correto" exige que o agente infira do contexto. Em sessões multi-repo (como esta validação, onde `skills/` é meta-repo e `reserva-pwa/` é projeto), o risco de salvar artefato no lugar errado é real.
+The "correct" behavior requires the agent to infer it from context. In multi-repo sessions (such as a sample project living next to the skills repo), the risk of writing the artifact in the wrong place is real.
 
-## Por que importa
+## Why it matters
 
-- **Risco de artefato em local errado.** Um intake salvo em `skills/planning/...` em vez de `reserva-pwa/planning/...` polui o repo errado e some do contexto do projeto cobaia.
-- **Carga cognitiva extra.** Em cada invocação de skill, o agente precisa **reconfirmar mentalmente** qual é o root — fricção desnecessária.
-- **Inconsistência entre skills.** Algumas skills mencionam paths absolutos nos exemplos (`wiki-init` mostra `--project /path/to/project`), outras assumem CWD (`agile-intake`). A inconsistência aumenta a chance de erro.
+- **Artifact-in-wrong-place risk.** An intake saved in the wrong repo pollutes that repo and disappears from the sample project's context.
+- **Extra cognitive load.** Every skill invocation forces the agent to **re-confirm mentally** what the root is — unnecessary friction.
+- **Inconsistency across skills.** Some skills mention absolute paths in their examples (`wiki-init` shows `--project /path/to/project`), others assume CWD (`agile-intake`). The inconsistency raises the chance of mistakes.
 
-## Hipótese de refinamento
+## Refinement hypothesis
 
-Adicionar uma **seção curta padronizada** no `SKILL.md` de cada skill que escreve artefato, no formato:
+Add a **short standardized section** in the SKILL.md of every skill that writes artifacts, formatted as:
 
 ```markdown
 ## Project root
@@ -42,16 +42,16 @@ This skill writes artifacts at paths relative to the **project root** (the repo 
 - When ambiguous, confirm `<project-root>` with the user via the harness's question tool before writing.
 ```
 
-Aplicar inicialmente em `agile-intake/SKILL.md` e `wiki-init/SKILL.md`; expandir para outras skills agile (`agile-epic`, `agile-story`, `agile-roadmap`, etc.) em sessões seguintes conforme forem invocadas.
+Apply initially to `agile-intake/SKILL.md` and `wiki-init/SKILL.md`; extend to the remaining agile skills (`agile-epic`, `agile-story`, `agile-roadmap`, etc.) in upcoming sessions as they are invoked.
 
-## Validação esperada
+## Expected validation
 
-- Próxima invocação de `/agile-roadmap` no `reserva-pwa` deve salvar em `reserva-pwa/planning/...` sem que o agente precise "lembrar" — a instrução estará explícita no SKILL.md.
-- Outro sinal: se em 3 sessões seguintes não houver `[[finding-candidate]]` sobre path/CWD, a hipótese se sustenta.
+- The next `/agile-roadmap` invocation against the sample project should save under the project root without the agent having to "remember" — the instruction will be explicit in the SKILL.md.
+- Another signal: if three consecutive sessions go by without a `[[finding-candidate]]` about path/CWD, the hypothesis holds.
 
 ## Status
 
-- [x] Coletei 2+ evidências
-- [x] Hipótese descrita
-- [x] Pronto para virar `proposals/<slug>.md`
-- [ ] Encaminhado via `/agile-skill-feedback`
+- [x] Collected 2+ evidences
+- [x] Hypothesis described
+- [x] Ready to become `proposals/<slug>.md`
+- [ ] Forwarded via `/agile-skill-feedback`

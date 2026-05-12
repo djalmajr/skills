@@ -5,15 +5,15 @@ first_observed: 2026-05-12
 last_observed: 2026-05-12
 ---
 
-# Repo `skills/` referencia próprio wiki que não existe
+# The skills repo references its own wiki, which does not exist
 
-## Evidências
+## Evidence
 
-- [2026-05-12-wiki-init](../journal/2026-05-12-wiki-init.md) — durante seed da wiki do `reserva-pwa`, consultei `skills/` esperando achar o `wiki/` como referência canônica. Não existe (`ls skills/wiki/ → No such file or directory`). Porém o `skills/CLAUDE.md` instrui ler `wiki/index.md`, `wiki/CONVENTIONS.md`, `wiki/log.md` como passos 1–3 antes de responder.
+- [2026-05-12-wiki-init](../journal/2026-05-12-wiki-init.md) — while seeding the sample project's wiki, the skills repo was checked for a `wiki/` folder as a canonical reference. It does not exist (`ls skills/wiki/` returns "No such file or directory"). Yet the repo's `CLAUDE.md` instructs the reader to consult `wiki/index.md`, `wiki/CONVENTIONS.md`, `wiki/log.md` as the first three steps before answering.
 
-## Padrão detectado
+## Pattern observed
 
-O `CLAUDE.md` do repo das skills referencia uma wiki que não existe:
+The `CLAUDE.md` in the skills repo references a wiki that does not exist:
 
 ```
 Before answering questions about the domain or delivery process,
@@ -23,36 +23,36 @@ consult the wiki first at wiki/:
 3. wiki/log.md
 ```
 
-Resultado: qualquer agente que **siga as instruções** vai bater em "arquivo não existe" no primeiro passo. Em prática, o agente percebe a inexistência e prossegue, mas:
+Result: any agent that **follows the instructions** hits "file does not exist" on the very first step. In practice the agent notices and moves on, but:
 
-1. As instruções perdem credibilidade (instrução incorreta = instrução questionável).
-2. O padrão wiki "vendido" pelas skills não é dogfoodado pelo repo que produz as skills.
-3. Novos contribuidores podem ficar confusos sobre o estado do repo.
+1. The instructions lose credibility (incorrect instruction = questionable instructions).
+2. The wiki pattern the skills sell is not dogfooded by the repo that produces them.
+3. New contributors may get confused about the repo's state.
 
-## Por que importa
+## Why it matters
 
-- **Credibilidade do padrão.** Se as próprias skills wiki não são usadas pelo repo das skills, o argumento "use isso, é bom" enfraquece.
-- **Risco de drift.** Um repo que prega o padrão mas não o usa tende a divergir do padrão real ao longo do tempo — porque ninguém testa a própria convenção em uso interno.
-- **Inconsistência semântica.** O CLAUDE.md afirma como fato algo que não é verdade.
+- **Credibility of the pattern.** If the wiki skills are not used by their own repo, the "use this, it's good" argument weakens.
+- **Drift risk.** A repo that preaches the pattern but does not use it tends to drift away from the actual pattern over time — nobody is testing the convention through internal use.
+- **Semantic inconsistency.** The `CLAUDE.md` states as fact something that is not true.
 
-## Hipótese de refinamento
+## Refinement hypothesis
 
-Duas opções, escolher uma:
+Two options, pick one:
 
-**Opção A — Dogfood (preferida se houver intenção real).** Rodar `wiki-init --write` neste próprio repo, criar `wiki/` mínimo com conteúdo relevante (escopo: convenções do projeto skills, decisões de design, padrões internos), e tornar a referência factualmente verdadeira. Isso também valida `wiki-init` num repo já maduro (caso edge interessante).
+**Option A — Dogfood (preferred if there is real intent).** Run `wiki-init --write` in this repo itself, create a minimum `wiki/` with relevant content (scope: skills project conventions, design decisions, internal patterns), and make the reference factually correct. This also validates `wiki-init` on a mature repo (interesting edge case).
 
-**Opção B — Corrigir o texto (preferida se não houver intenção de wiki aqui).** Reescrever a seção do `CLAUDE.md` para refletir realidade: "Este repo produz as skills wiki. Projetos que **usam** essas skills mantêm sua própria wiki conforme convenção em `skills/wiki-init/templates/`. Este repo não mantém wiki própria." Sem promessa quebrada.
+**Option B — Fix the text (preferred if there is no intent to keep a wiki here).** Rewrite the `CLAUDE.md` section to reflect reality: "This repo produces the wiki skills. Projects that **use** these skills maintain their own wikis per the convention in `skills/wiki-init/templates/`. This repo does not maintain its own wiki." No broken promise.
 
-A escolha depende do que o owner do repo entende como verdade. Opção A é mais consistente; Opção B é mais honesta com o estado atual.
+The choice depends on what the repo owner considers the truth. Option A is more consistent; Option B is more honest about the current state.
 
-## Validação esperada
+## Expected validation
 
-- Se Opção A: `wiki/` existe, `doctor` no skills/ retorna verde, novas contribuições populam a wiki.
-- Se Opção B: `CLAUDE.md` reflete o estado real e qualquer agente lendo entende imediatamente o relacionamento.
+- If Option A: `wiki/` exists, `doctor` in the skills repo returns green, future contributions add to the wiki.
+- If Option B: `CLAUDE.md` reflects the real state and any agent reading it understands the relationship immediately.
 
 ## Status
 
-- [x] Coletei 1 evidência forte (única necessária — é fato verificável)
-- [x] Hipótese descrita
-- [x] Pronto para virar `proposals/<slug>.md`
-- [ ] Encaminhado via `/agile-skill-feedback`
+- [x] Collected 1 strong evidence (the only one needed — it is a verifiable fact)
+- [x] Hypothesis described
+- [x] Ready to become `proposals/<slug>.md`
+- [ ] Forwarded via `/agile-skill-feedback`

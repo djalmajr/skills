@@ -5,50 +5,50 @@ first_observed: 2026-05-12
 last_observed: 2026-05-12
 ---
 
-# wiki-init configura infra mas não semeia conteúdo do wiki
+# wiki-init configures infra but does not seed wiki content
 
-## Evidências
+## Evidence
 
-- [2026-05-12-wiki-init](../journal/2026-05-12-wiki-init.md) — após `install --write` completo (22 arquivos), `doctor` continuou reportando `wiki_path: wiki (missing)`. Tive que inferir a estrutura mínima (`index.md`, `CONVENTIONS.md`, `log.md`, subpastas `business/`, `apps/`, `ops/`, `data/`, `sources/`, `raw/index.md`) lendo `wiki-ingest/SKILL.md`, que assume essa convenção sem que `wiki-init` documente.
+- [2026-05-12-wiki-init](../journal/2026-05-12-wiki-init.md) — after a complete `install --write` (22 files), `doctor` kept reporting `wiki_path: wiki (missing)`. The minimum structure (`index.md`, `CONVENTIONS.md`, `log.md`, audience subfolders `business/`, `apps/`, `ops/`, `data/`, `sources/`, `raw/index.md`) had to be inferred by reading `wiki-ingest/SKILL.md`, which assumes the convention without `wiki-init` documenting it.
 
-(Apenas 1 evidência forte por ora — status fica `draft` até observação repetida. Mas a evidência é nítida e o gap é estrutural.)
+(Only one strong evidence so far — status stays `draft` until the observation repeats. But the evidence is clear and the gap is structural.)
 
-## Padrão detectado
+## Pattern observed
 
-A skill `wiki-init`:
+`wiki-init`:
 
-1. ✅ Configura infraestrutura ao redor da wiki (AGENTS.md, CLAUDE.md, hooks, MCP, wrapper QMD, manifest).
-2. ✅ Cria a estrutura `wiki/` ... **não, não cria**. Cria todos os arquivos de config mas o diretório `wiki/` em si pode ficar inexistente.
-3. ❌ Não documenta nem instrui que o conteúdo mínimo do wiki (`index.md`, `CONVENTIONS.md`, `log.md`, subpastas por audiência) precisa ser criado em passo separado.
-4. ❌ Não tem template do conteúdo mínimo do wiki em `wiki-init/templates/` — só templates para os configs de harness.
+1. ✅ Configures the infrastructure around the wiki (AGENTS.md, CLAUDE.md, hooks, MCP, QMD wrapper, manifest).
+2. ✅ Creates the `wiki/` directory structure... actually, no, it does not. It creates every config file but the `wiki/` directory itself can stay missing.
+3. ❌ Does not document or instruct that the minimum wiki content (`index.md`, `CONVENTIONS.md`, `log.md`, audience subfolders) needs to be created in a separate step.
+4. ❌ Has no template for the minimum wiki content in `wiki-init/templates/` — only templates for the per-harness configs.
 
-O `SKILL.md` salta direto do install para `qmd collection add <wiki-path>` — mas se `<wiki-path>` não existe, o comando deveria falhar (ou funciona com diretório vazio, sem indexar nada útil).
+The `SKILL.md` jumps straight from install to `qmd collection add <wiki-path>` — but if `<wiki-path>` does not exist, the command should fail (or works with an empty directory, indexing nothing useful).
 
-## Por que importa
+## Why it matters
 
-- **Lacuna silenciosa entre infra e uso.** Usuário roda `wiki-init`, tudo verde no doctor (exceto `wiki (missing)` no doctor final), e depois quando tenta `/wiki-ingest` a skill espera convenção que não existe.
-- **Convenção do wiki não está em um lugar canônico.** `wiki-ingest` assume `business/`, `apps/`, `ops/`, `data/`, `sources/`, `raw/` — mas isso só fica claro lendo o SKILL.md daquela skill. `wiki-init` (a porta de entrada) não menciona.
-- **Risco de divergência entre projetos.** Cada projeto que rodar `wiki-init` pode acabar com estrutura ligeiramente diferente porque ninguém é a fonte canônica da convenção.
+- **Silent gap between infra and use.** Running `wiki-init`, everything is green on `doctor` (except `wiki (missing)` at the end), and then `/wiki-ingest` expects a convention that does not exist.
+- **The wiki convention has no canonical home.** `wiki-ingest` assumes `business/`, `apps/`, `ops/`, `data/`, `sources/`, `raw/` — but this is only obvious when reading that skill's SKILL.md. `wiki-init` (the entry point) does not mention it.
+- **Risk of cross-project drift.** Each project that runs `wiki-init` could end up with a slightly different structure because nobody is the canonical source of the convention.
 
-## Hipótese de refinamento
+## Refinement hypothesis
 
-Duas opções não-excludentes:
+Two non-exclusive options:
 
-**Opção A (mínima):** adicionar uma seção "Wiki content scaffolding" no `wiki-init/SKILL.md` listando explicitamente os arquivos/diretórios mínimos esperados e instruindo o agente a criá-los (ou perguntar ao usuário). Linkar para `wiki-ingest/SKILL.md` como referência da convenção.
+**Option A (minimal):** add a "Wiki content scaffolding" section to `wiki-init/SKILL.md` listing the expected minimum files/directories and instructing the agent to create them (or ask). Link to `wiki-ingest/SKILL.md` as the authoritative source of the convention.
 
-**Opção B (mais ambiciosa):** adicionar templates em `wiki-init/templates/wiki/` (index.md.tmpl, CONVENTIONS.md.tmpl, log.md.tmpl) e fazer o `--write` semear o conteúdo mínimo se o `wiki/` estiver vazio. Adicionar flag `--no-seed-wiki` para opt-out.
+**Option B (more ambitious):** add templates under `wiki-init/templates/wiki/` (index.md.tmpl, CONVENTIONS.md.tmpl, log.md.tmpl) and have `--write` seed the minimum content if `wiki/` is empty. Add a `--no-seed-wiki` flag for opt-out.
 
-Recomendo A primeiro (custo baixo, resolve a opacidade). B é melhoria opcional depois.
+Recommend A first (low cost, fixes the opacity). B is an optional later improvement.
 
-## Validação esperada
+## Expected validation
 
-- Próxima vez que alguém rodar `wiki-init` em projeto novo, deve conseguir chegar a `/wiki-ingest` funcional sem precisar ler `wiki-ingest/SKILL.md` antes só para entender a convenção.
-- `doctor` poderia também detectar wiki `present mas sem index.md` e sugerir `seed-wiki` como ação.
+- The next time `wiki-init` runs on a new project, the operator should reach a working `/wiki-ingest` without having to read `wiki-ingest/SKILL.md` first just to understand the convention.
+- `doctor` could also flag "wiki present but no index.md" and suggest `seed-wiki` as an action.
 
 ## Status
 
-- [x] Coletei 1 evidência forte
-- [ ] Coletei 2+ evidências (em aberto)
-- [x] Hipótese descrita
-- [ ] Pronto para virar `proposals/<slug>.md` (apesar de 1 evidência, gap é estrutural — proposta vai ser rascunhada)
-- [ ] Encaminhado via `/agile-skill-feedback`
+- [x] Collected 1 strong evidence
+- [ ] Collected 2+ evidences (open)
+- [x] Hypothesis described
+- [ ] Ready to become `proposals/<slug>.md` (despite single evidence, the gap is structural — the proposal will be drafted anyway)
+- [ ] Forwarded via `/agile-skill-feedback`

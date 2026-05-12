@@ -5,53 +5,52 @@ project: reserva-pwa
 session_type: intake
 ---
 
-# /agile-intake para o MVP do reserva-pwa
+# /agile-intake for the reserva-pwa MVP
 
-## Contexto
+## Context
 
-Logo após o kickoff ([2026-05-12-kickoff](./2026-05-12-kickoff.md)), invocação inaugural de uma skill no projeto cobaia. Usuário em modo "siga sem pausar para clarificação" — implica que premissas tinham que ser explicitadas no próprio artefato e não em diálogo.
+Right after the kickoff ([2026-05-12-kickoff](./2026-05-12-kickoff.md)), this is the first skill invocation against the sample project. The session ran in "do not pause for clarification" mode, so assumptions had to be spelled out in the artifact itself rather than resolved through dialogue.
 
-## O que tentei
+## What was tried
 
 ```
-/agile-intake "PWA tipo OpenTable para reserva de mesa em restaurantes.
- Projeto fica em /Users/djalmajr/Developer/zommehq/reserva-pwa/.
- Cobaia para validar fluxo das skills agile + wiki.
- Atores: cliente final (descobre, reserva, cancela) e dono/operador de restaurante
- (gerencia capacidade, política de no-show, blackout dates, janela de reserva).
- PWA instalável + offline mínimo."
+/agile-intake "OpenTable-style PWA for restaurant table reservation.
+ Sample project for validating the agile + wiki skill flow.
+ Actors: end customer (discover, reserve, cancel) and restaurant owner/operator
+ (manage capacity, no-show policy, blackout dates, reservation window).
+ PWA installable + minimal offline."
 ```
 
-## O que aconteceu
+## What happened
 
-1. Skill foi carregada com o `$ARGUMENTS` preenchido.
-2. Skill apresentou o processo em 6 passos (listen → structure → next step → save → chain → validate) e os critérios para decidir entre roadmap/epic/story.
-3. Skill **não fez perguntas** porque o `$ARGUMENTS` já trazia bastante contexto — comportamento correto dado o input rico. Em modo "sem pausar pra clarificação" do usuário, segui sem pedir mais.
-4. Li o template em `templates/intake.md` (template simples e bem estruturado).
-5. Preenchi `planning/mvp-reserva/intake.md` com contexto, escopo, stakeholders, 10 open questions, recomendação fundamentada (`/agile-roadmap` com 2+ indicadores explícitos) e checklist de verificação.
+1. The skill loaded with `$ARGUMENTS` populated.
+2. It exposed its six-step workflow (listen → structure → next step → save → chain → validate) and the criteria for picking roadmap/epic/story.
+3. The skill **did not ask clarifying questions** because `$ARGUMENTS` already carried enough context — correct behavior given the rich input. In no-pause mode the session continued without requesting more.
+4. The template at `templates/intake.md` was read (simple, well-structured).
+5. `planning/mvp-reserva/intake.md` was filled with context, scope, stakeholders, 10 open questions, a justified recommendation (`/agile-roadmap` with 2+ explicit indicators), and the verification checklist.
 
-## O que funcionou
+## What worked
 
-- **Critérios para decidir o próximo artefato** estão claros e mecânicos: contei indicadores (1 ✓, 2 ✓, 3 ⚠️) e a recomendação saiu naturalmente. Isso evita debate subjetivo sobre "roadmap ou epic".
-- **Template enxuto** — sem campos opcionais ou redundantes. Cabe na cabeça.
-- **Slot "Open questions"** funcionou bem para acomodar o modo "sem pausar pra clarificação": tudo que normalmente eu perguntaria virou item explícito. O artefato deixa o usuário corrigir depois sem ambiguidade.
-- **Recomendação foi clara e fundamentada** — `/agile-roadmap` saiu com justificativa por critério, não por intuição.
+- **The next-artifact decision rule is clear and mechanical.** Indicators were counted (1 ✓, 2 ✓, 3 ⚠️) and the recommendation surfaced naturally. No subjective debate about "roadmap or epic".
+- **The template is lean** — no optional or redundant fields. Easy to hold in working memory.
+- **The "Open questions" slot fit the no-pause mode perfectly:** anything that would normally be asked became an explicit item. The artifact lets corrections happen later without ambiguity.
+- **The recommendation came out clear and justified** — `/agile-roadmap` with per-criterion reasoning, not intuition.
 
-## O que travou ou ficou ambíguo
+## What got stuck or felt ambiguous
 
-- **`[[finding-candidate]]` — Path relativo sem instrução de CWD.** O `SKILL.md` diz "Save at `planning/<initiative>/intake.md`" mas não declara explicitamente em relação a quê. Em modo agente, isso é ambíguo: o CWD do shell continuou apontando para o repo `skills/`, então eu tive que **conscientemente** usar path absoluto pro projeto irmão. Hipótese de refinamento: a skill poderia declarar "Save at `<project-root>/planning/<initiative>/intake.md`" e instruir o agente a confirmar `<project-root>` com o usuário se houver ambiguidade.
-- **`[[finding-candidate]]` — "Initiative name" não tem critério de nomenclatura.** Escolhi `mvp-reserva` por reflexo, mas não há orientação no `SKILL.md` sobre convenção de nome (kebab-case? feature-based? versão?). Hipótese: incluir 1–2 exemplos de bom/mau nome no `SKILL.md` ou no template.
-- **Modo "sem clarificar" expôs uma lacuna sutil:** a skill instrui "ask the user" em vários passos. Quando o usuário não quer ser perguntado, a skill funciona — mas o agente carrega o ônus de transformar pergunta em premissa registrada. Não é defeito da skill, mas vale considerar uma nota explícita no `SKILL.md` sobre o modo "registrar como premissa quando o usuário não pode/quer responder agora".
-- **Premissas vs open questions:** algumas das "Constraints and assumptions" que registrei poderiam estar em "Open questions" (ex.: ausência de orçamento). O template não orienta a fronteira. Hipótese: deixar mais claro que "assumption = decisão minha registrada pra revisão; open question = decisão pendente bloqueia o próximo artefato se não resolvida".
+- **`[[finding-candidate]]` — Relative path with no CWD declaration.** The `SKILL.md` says "Save at `planning/<initiative>/intake.md`" but does not declare what that path is relative to. In agent mode this is ambiguous: the shell CWD kept pointing at the skills repo, so an absolute path for the sample project had to be used deliberately. Refinement hypothesis: the skill could declare "Save at `<project-root>/planning/<initiative>/intake.md`" and instruct the agent to confirm `<project-root>` when ambiguous.
+- **`[[finding-candidate]]` — "Initiative name" has no naming criterion.** `mvp-reserva` was picked reflexively, but `SKILL.md` does not guide naming (kebab-case? feature-based? versioned?). Hypothesis: include one or two good/bad examples in `SKILL.md` or the template.
+- **The no-clarify mode exposed a subtle gap:** the skill instructs "ask the user" in several steps. When that mode is off, the skill still works — but the agent carries the burden of turning a question into a registered assumption. Not a defect per se, but worth noting an explicit "register as assumption when no-pause mode is active" note in the SKILL.md.
+- **Assumptions vs. open questions:** some "Constraints and assumptions" entries could just as well be "Open questions" (e.g., no budget). The template does not draw that boundary. Hypothesis: make it clearer that "assumption = a decision logged for review; open question = pending decision that would block the next artifact if not resolved".
 
-## Artefatos gerados
+## Artifacts produced
 
-- [reserva-pwa/planning/mvp-reserva/intake.md](../../../../reserva-pwa/planning/mvp-reserva/intake.md) — intake completo, 10 open questions, recomendação para `/agile-roadmap`.
+- An intake under `planning/mvp-reserva/intake.md` in the sample project — full intake, 10 open questions, recommendation for `/agile-roadmap`.
 
-## Hipóteses de refinamento
+## Refinement hypotheses
 
-Três candidatos a finding (marcados acima). Vou aguardar a próxima invocação de skill agile para ver se "path relativo sem CWD declarado" se repete. Se sim, promovo para `findings/agile-intake.md` (ou `findings/agile-skills-paths.md` se for transversal a várias skills).
+Three candidates flagged above. Wait for the next agile-skill invocation to see if "relative path with no CWD declaration" repeats. If it does, promote to `findings/agile-intake.md` (or `findings/agile-skills-paths.md` if it generalizes).
 
-## Próximo passo
+## Next step
 
-A recomendação do intake é `/agile-roadmap`, mas o usuário pediu originalmente `/wiki-init` como sequência. Vou seguir o pedido do usuário primeiro (`/wiki-init`) — afinal, faz sentido preparar a wiki **antes** de começar a quebrar o trabalho em roadmap/épicos, porque várias decisões do roadmap vão depender de regras de domínio que vão pra wiki. Em seguida, `/agile-roadmap`.
+The intake recommends `/agile-roadmap`, but `/wiki-init` was requested as the next step. Honoring that order — it makes sense to prepare the wiki **before** breaking work into roadmap/epics, because several roadmap decisions depend on domain rules that belong in the wiki. After that, `/agile-roadmap`.
