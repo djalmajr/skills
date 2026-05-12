@@ -1,0 +1,176 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
+const mutationTools = new Set([
+  "apply_patch",
+  "bash",
+  "edit",
+  "multiedit",
+  "notebookedit",
+  "patch",
+  "shell",
+  "write",
+]);
+
+function text(value) {
+  return typeof value === "string" ? value : "";
+}
+
+function object(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function lowerTool(input) {
+  return text(input?.tool || input?.name || input?.id).toLowerCase();
+}
+
+function argsFrom(input, output) {
+  return {
+    ...object(input?.args),
+    ...object(input?.parameters),
+    ...object(output?.args),
+    ...object(output?.parameters),
+  };
+}
+
+function mapToolName(tool, args) {
+  const command = text(args.command || args.cmd || args.script);
+  if (tool.includes("multi")) return "MultiEdit";
+  if (tool.includes("notebook")) return "NotebookEdit";
+  if (tool.includes("write")) return "Write";
+  if (tool.includes("edit")) return "Edit";
+  if (tool.includes("patch") || tool.includes("bash") || tool.includes("shell") || command.includes("*** Begin Patch")) return "apply_patch";
+  return tool || "unknown";
+}
+
+function filePathFrom(args, output) {
+  return text(
+    args.file_path ||
+      args.filePath ||
+      args.path ||
+      args.filename ||
+      output?.file_path ||
+      output?.filePath ||
+      output?.path,
+  );
+}
+
+function payload(input, output) {
+  const tool = lowerTool(input);
+  const args = argsFrom(input, output);
+  const command = text(args.command || args.cmd || args.script);
+  return {
+    tool_name: mapToolName(tool, args),
+    tool_input: {
+      file_path: filePathFrom(args, output),
+      notebook_path: text(args.notebook_path || args.notebookPath),
+      edits: Array.isArray(args.edits) ? args.edits : [],
+      command,
+    },
+    tool_response: {
+      filePath: filePathFrom(args, output),
+    },
+  };
+}
+
+function shouldRun(input, output) {
+  const tool = lowerTool(input);
+  const args = argsFrom(input, output);
+  if (mutationTools.has(tool)) return true;
+  if ([...mutationTools].some((name) => tool.includes(name))) return true;
+  const command = text(args.command || args.cmd || args.script);
+  return command.includes("*** Begin Patch") || command.includes("apply_patch");
+}
+
+async function streamText(stream) {
+  if (!stream) return "";
+  return new Response(stream).text();
+}
+
+async function runHook(root, rel, hookPayload) {
+  const script = join(root, rel);
+  if (!existsSync(script)) return { code: 0, stdout: "", stderr: "" };
+  const proc = Bun.spawn(["bash", script], {
+    cwd: root,
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  proc.stdin.write(JSON.stringify(hookPayload));
+  proc.stdin.end();
+  const [stdout, stderr, code] = await Promise.all([
+    streamText(proc.stdout),
+    streamText(proc.stderr),
+    proc.exited,
+  ]);
+  return { code, stdout: stdout.trim(), stderr: stderr.trim() };
+}
+
+function hookMessage(result) {
+  return [result.stderr, result.stdout].filter(Boolean).join("\n").trim();
+}
+
+async function log(client, level, message) {
+  if (!message) return;
+  try {
+    await client?.app?.log?.({
+      body: {
+        service: "tdd-guardrails",
+        level,
+        message,
+      },
+    });
+  } catch {
+  }
+  if (level === "error") console.error(message);
+  else console.warn(message);
+}
+
+export const TddGuardrails = async ({ client, directory, worktree }) => {
+  const root = worktree || directory || process.cwd();
+
+  return {
+    // PreToolUse equivalent: check that source files about to be written have a
+    // companion test. Per .tdd-guardrails.yml, the shell exits 0 in `warn` mode
+    // (only stderr) and exits 2 in `block` mode (we throw to cancel the call).
+    "tool.execute.before": async (input, output) => {
+      if (!shouldRun(input, output)) return;
+      const body = payload(input, output);
+
+      const check = await runHook(root, ".opencode/hooks/tdd-pre-write.sh", body);
+      if (check.code !== 0) {
+        // Block mode: hook exited non-zero (2 by convention)
+        throw new Error(hookMessage(check) || `tdd-pre-write rejected the call (exit ${check.code})`);
+      }
+      if (check.stderr) {
+        // Warn mode: surface the message but allow the call
+        await log(client, "warn", hookMessage(check));
+      }
+    },
+
+    event: async ({ event }) => {
+      // SessionStart equivalent
+      if (event?.type === "session.created") {
+        const announce = await runHook(root, ".opencode/hooks/tdd-announce.sh", {
+          tool_name: "session.created",
+          tool_input: {},
+          tool_response: {},
+        });
+        await log(client, announce.code === 0 ? "warn" : "error", hookMessage(announce));
+        return;
+      }
+
+      // Stop equivalent: OpenCode does not have a direct Stop event. The closest
+      // signal is `session.idle` (the user has paused). The audit shell uses a
+      // tmp state file so repeated firings only act once per session.
+      if (event?.type === "session.idle") {
+        const audit = await runHook(root, ".opencode/hooks/tdd-session-audit.sh", {
+          session_id: event?.sessionId || event?.id || "",
+          stop_hook_active: false,
+        });
+        if (audit.code !== 0 && !hookMessage(audit)) return;
+        await log(client, audit.code === 0 ? "warn" : "error", hookMessage(audit));
+      }
+    },
+  };
+};

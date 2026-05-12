@@ -9,11 +9,14 @@ Order at implementation time:
 2. Apply Red → Green → Refactor: write the failing test first, then the minimum code, then refactor.
 3. When a path genuinely does not warrant a test (entry points, generated files, UI primitives), add it to `exemptions` rather than disabling enforcement.
 
-Hooks (Claude Code, Codex, OpenCode):
+Hooks per harness:
 
-- `tdd-pre-write` — `PreToolUse` on Write/Edit/MultiEdit. Warns when a target source file has no companion test; in `block` mode it rejects the tool call.
-- `tdd-session-audit` — `Stop`. Scans the session diff and reports source files touched without a companion test.
-- `tdd-announce` — `SessionStart`. Logs that enforcement is active.
+- **Claude Code** (shell, via `.claude/settings.json`):
+  - `tdd-pre-write.sh` — `PreToolUse` on Write/Edit/MultiEdit. Warns when a target source file has no companion test; in `block` mode it rejects the tool call.
+  - `tdd-session-audit.sh` — `Stop`. Scans the session diff and reports source files touched without a companion test.
+  - `tdd-announce.sh` — `SessionStart`. Logs that enforcement is active.
+- **Codex** (shell, via `.codex/hooks.json`): same three scripts, matchers include `apply_patch`, command form `bash "$(git rev-parse --show-toplevel)/.codex/hooks/<script>.sh"`.
+- **OpenCode** (JS plugin, via `.opencode/plugins/tdd-guardrails.js`): subscribes to `tool.execute.before`, `session.created`, and `session.idle`; spawns the same `.opencode/hooks/tdd-*.sh` scripts via `Bun.spawn`. OpenCode does not invoke shell scripts directly; the plugin is the entry point.
 
 Hooks are guardrails, not a guarantee. They check file-pair existence, not the quality of the test. Semantic discipline (one behavior per test, descriptive names, factories over hardcoded data) still belongs to the agent.
 <!-- agile-tdd:end -->
