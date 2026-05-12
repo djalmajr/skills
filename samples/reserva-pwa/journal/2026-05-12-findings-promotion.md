@@ -5,61 +5,61 @@ project: skills (this repo)
 session_type: other
 ---
 
-# Promoção de findings e aplicação de mudanças
+# Promoting findings and applying changes
 
-## Contexto
+## Context
 
-Após `/wiki-init` ([2026-05-12-wiki-init](./2026-05-12-wiki-init.md)), o usuário pediu "implemente os findings antes" — ou seja, exercitar o ciclo journal → finding → proposal → mudança real **antes** de seguir para `/agile-roadmap`. Esta sessão promove os 4 candidates do journal a findings formais, rascunha propostas e aplica as mudanças nos SKILL.md afetados.
+After `/wiki-init` ([2026-05-12-wiki-init](./2026-05-12-wiki-init.md)), the next step was to "implement the findings first" — exercise the journal → finding → proposal → real change loop **before** moving on to `/agile-roadmap`. This session promotes the four journal candidates to formal findings, drafts proposals, and applies changes to the affected SKILL.md files.
 
-## O que tentei
+## What was tried
 
-Sem invocar skill — execução manual do fluxo de refinamento descrito em `CLAUDE.md` → "Skill Evolution".
+No skill invocation — manual execution of the refinement flow described in `CLAUDE.md` → "Skill Evolution".
 
-## O que aconteceu
+## What happened
 
-1. **4 findings criados** em [`findings/`](../findings/):
-   - `agile-skills-paths-cwd.md` — status `mature` (2 evidências)
-   - `wiki-init-content-seeding.md` — status `draft` (1 evidência, mas gap estrutural)
-   - `skills-repo-dogfooding.md` — status `draft` (1 evidência factual)
-   - `qmd-embed-output-noise.md` — status `draft` (upstream, baixa prioridade)
+1. **Four findings created** in [`findings/`](../findings/):
+   - `agile-skills-paths-cwd.md` — status `mature` (2 evidences)
+   - `wiki-init-content-seeding.md` — status `draft` (1 evidence, but structural gap)
+   - `skills-repo-dogfooding.md` — status `draft` (1 factual evidence)
+   - `qmd-embed-output-noise.md` — status `draft` (upstream, low priority)
 
-2. **3 propostas rascunhadas** em [`proposals/`](../proposals/):
-   - `skills-path-cwd-ambiguity.md` — declarar project root nos SKILL.md
-   - `wiki-init-content-seeding.md` — documentar seed do wiki na skill (versão mínima)
-   - `skills-repo-clarify-wiki-relationship.md` — corrigir texto do `CLAUDE.md` (Opção B do finding)
-   - (não rascunhei para o #4 — é upstream do QMD)
+2. **Three proposals drafted** in [`proposals/`](../proposals/):
+   - `skills-path-cwd-ambiguity.md` — declare project root in SKILL.md
+   - `wiki-init-content-seeding.md` — document the wiki seed in the skill (minimal version)
+   - `skills-repo-clarify-wiki-relationship.md` — correct the `CLAUDE.md` text (finding #3 Option B)
+   - (No proposal for #4 — upstream QMD)
 
-3. **Mudanças aplicadas:**
-   - [`skills/agile-intake/SKILL.md`](../../../skills/agile-intake/SKILL.md) — nova seção `## Project root` após `## Language`.
-   - [`skills/wiki-init/SKILL.md`](../../../skills/wiki-init/SKILL.md) — nova seção `## Project root` antes do `## Workflow`, e nova seção `## Wiki content scaffolding` antes do `## Boundaries`.
-   - [`CLAUDE.md`](../../../CLAUDE.md) deste repo — seção "LLM-Maintained Wiki" reescrita para refletir realidade (este repo produz as skills, não mantém wiki própria).
+3. **Changes applied:**
+   - `skills/agile-intake/SKILL.md` — new `## Project root` section after `## Language`.
+   - `skills/wiki-init/SKILL.md` — new `## Project root` section before `## Workflow`, plus a new `## Wiki content scaffolding` section before `## Boundaries`.
+   - `CLAUDE.md` for this repo — "LLM-Maintained Wiki" section rewritten to reflect reality (this repo produces the wiki skills, it does not maintain a wiki of its own).
 
-## O que funcionou
+## What worked
 
-- **O ciclo journal → finding → proposal → mudança real fechou em uma sessão.** Foi o primeiro exercício completo do loop de refinamento. Quatro candidates virou três mudanças aplicadas + um item adiado.
-- **O critério de "2+ evidências para mature" funcionou como filtro.** Finding #1 (path/CWD) tinha 2 evidências sólidas; foi a mais segura de promover.
-- **Aplicar a Opção B do finding #3 (corrigir o texto) ganhou de Opção A (criar wiki) por custo/benefício claro.** O finding tinha as duas opções documentadas — facilitou a decisão.
+- **The journal → finding → proposal → real change loop closed in a single session.** First end-to-end exercise of the refinement loop. Four candidates became three applied changes plus one deferred item.
+- **The 2+ evidences criterion for `mature` worked as a filter.** Finding #1 (path/CWD) had two solid evidences and was the safest to promote.
+- **Picking finding #3 Option B (rewrite the text) over Option A (build a wiki) on cost/benefit was clear.** The finding documented both options, which made the decision easy.
 
-## O que travou ou ficou ambíguo
+## What got stuck or felt ambiguous
 
-- **Promover finding com 1 evidência só.** Eu promovi `wiki-init-content-seeding` para proposta apesar de ter só 1 evidência, porque o gap é estrutural e fácil de mitigar. A convenção do diário diz "2+ para mature" mas não diz o que fazer quando uma evidência única é forte e o custo de esperar é alto. Hipótese: incluir nota no `samples/README.md` diferenciando "evidência única forte" de "evidência única fraca".
-- **Falta um índice consolidado por skill.** Conforme `findings/` cresce, será difícil cruzar "quantos findings existem para a skill X". Hipótese: adicionar `findings/README.md` ou um script que liste findings agrupados por `skill:` do frontmatter.
+- **Promoting a finding with only one evidence.** `wiki-init-content-seeding` was promoted to a proposal despite having a single evidence, because the gap is structural and cheap to mitigate. The diary convention says "2+ to be mature" but does not explain what to do when a single evidence is strong and the cost of waiting is high. Hypothesis: add a note to `samples/README.md` separating "single strong evidence" from "single weak evidence".
+- **No skill-grouped index.** As `findings/` grows it will be hard to cross-reference "how many findings does skill X have". Hypothesis: add a `findings/README.md` or a small script that groups findings by their frontmatter `skill:`.
 
-## Artefatos gerados
+## Artifacts produced
 
-- 4 findings em `findings/`
-- 3 proposals em `proposals/`
-- 3 mudanças aplicadas (2 SKILL.md + 1 CLAUDE.md)
+- 4 findings in `findings/`
+- 3 proposals in `proposals/`
+- 3 applied changes (2 SKILL.md + 1 CLAUDE.md)
 
-## Hipóteses de refinamento
+## Refinement hypotheses
 
-Dois novos `[[finding-candidate]]` sobre o próprio diário (recursão saudável):
+Two new `[[finding-candidate]]` items about the diary itself (a healthy recursion):
 
-1. Critério de promoção para findings com 1 evidência forte vs. fraca não está claro no `README.md`.
-2. Falta índice consolidado por skill em `findings/`.
+1. The promotion criterion for "single strong evidence vs. single weak evidence" is not in `README.md`.
+2. A skill-grouped index in `findings/` is missing.
 
-Não vou promover agora — observar se aparece de novo.
+Not promoting now — wait for another occurrence.
 
-## Próximo passo
+## Next step
 
-Commitar tudo no repo `skills/` e voltar ao fluxo do projeto: rodar `/agile-roadmap` para o `reserva-pwa` conforme recomendação do intake. As mudanças aplicadas devem ser validadas implicitamente nessa próxima invocação (path/CWD declarado, etc.).
+Resume the project flow: run `/agile-roadmap` for the sample per the intake recommendation. The applied changes should be implicitly validated on the next invocation (project root declared, etc.).

@@ -1,46 +1,46 @@
 ---
 date: YYYY-MM-DD
 skills: [skill-name-1, skill-name-2]
-project: reserva-pwa
+project: <sample-project>
 session_type: intake | planning | implementation | retro | other
 ---
 
-# {{título curto da sessão}}
+# {{short session title}}
 
-## Contexto
+## Context
 
-O que estava sendo feito antes desta sessão? Que pergunta ou problema motivou invocar a skill?
+What was happening before this session? What question or problem triggered the skill invocation?
 
-## O que tentei
+## What was tried
 
-Comando exato invocado e contexto passado. Exemplo:
+The exact command invoked and the context passed in. Example:
 
 ```
-/agile-intake "PWA tipo OpenTable para reserva de mesas"
+/agile-intake "OpenTable-style PWA for table reservations"
 ```
 
-Inputs adicionais relevantes (arquivos referenciados, decisões prévias, restrições).
+Additional relevant inputs (referenced files, prior decisions, constraints).
 
-## O que aconteceu
+## What happened
 
-Descrição factual: que perguntas a skill fez, que artefato gerou, onde salvou, que decisões pediu.
+Factual description: what questions the skill asked, what artifact it produced, where it was saved, what decisions it requested.
 
-## O que funcionou
+## What worked
 
 - ...
 
-## O que travou ou ficou ambíguo
+## What got stuck or felt ambiguous
 
 - ...
 
-## Artefatos gerados
+## Artifacts produced
 
-- [path/para/artefato](path/para/artefato) — descrição curta
+- [path/to/artifact](path/to/artifact) — short description
 
-## Hipóteses de refinamento
+## Refinement hypotheses
 
-Observações que podem virar finding/proposal. Marque com `[[finding-candidate]]` quando achar que vale promover.
+Observations that could turn into a finding or proposal. Mark with `[[finding-candidate]]` when promotion seems warranted.
 
-## Próximo passo
+## Next step
 
-O que vem depois desta sessão (próxima skill, espera por input, etc.).
+What comes after this session (next skill, waiting for input, etc.).

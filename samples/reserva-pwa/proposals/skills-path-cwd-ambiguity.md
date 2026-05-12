@@ -1,19 +1,19 @@
 ---
-title: "Declarar project root nas skills que escrevem artefato"
+title: "Declare project root in skills that write artifacts"
 finding: findings/agile-skills-paths-cwd.md
 status: ready
 target_skills: [agile-intake, wiki-init]
 ---
 
-# Proposta: declarar project root explicitamente nas skills
+# Proposal: declare project root explicitly in skills
 
-## Problema
+## Problem
 
-Várias skills usam paths relativos sem dizer relativos a quê. Em sessões multi-repo (ex.: meta-repo `skills/` + projeto-cobaia `reserva-pwa/`), o agente carrega o ônus de inferir o root correto. Detalhado em [`findings/agile-skills-paths-cwd.md`](../findings/agile-skills-paths-cwd.md).
+Several skills use relative paths without saying what they are relative to. In multi-repo sessions (e.g., meta-repo plus a sibling sample project), the agent carries the burden of inferring the correct root. Detailed in [`findings/agile-skills-paths-cwd.md`](../findings/agile-skills-paths-cwd.md).
 
-## Mudança proposta
+## Proposed change
 
-Adicionar uma seção **`## Project root`** padronizada nos SKILL.md que escrevem artefato, posicionada após `## Language`:
+Add a standardized **`## Project root`** section to the SKILL.md files that write artifacts, placed after `## Language`:
 
 ```markdown
 ## Project root
@@ -25,26 +25,26 @@ This skill writes artifacts at paths relative to the **project root** (the repo 
 - When the project root is ambiguous, confirm with the user via the harness question tool before writing.
 ```
 
-## Skills afetadas neste round
+## Skills affected in this round
 
-- `skills/agile-intake/SKILL.md` — escreve `planning/<initiative>/intake.md`
-- `skills/wiki-init/SKILL.md` — referência a `wiki/`, `AGENTS.md`, `CLAUDE.md`, etc. (já parcialmente coberto via `--project` flag, mas vale explicitar)
+- `skills/agile-intake/SKILL.md` — writes `planning/<initiative>/intake.md`
+- `skills/wiki-init/SKILL.md` — references `wiki/`, `AGENTS.md`, `CLAUDE.md`, etc. (already partly covered via `--project` flag, but worth making explicit)
 
-## Skills a aplicar em sessões seguintes (mesma proposta)
+## Skills to apply in upcoming sessions (same proposal)
 
 - `agile-roadmap`, `agile-epic`, `agile-story`, `agile-sprint`, `agile-review`, `agile-retro`, `agile-metrics`, `agile-status`, `agile-refinement`, `agile-tdd`
 - `wiki-ingest`, `wiki-lint`, `wiki-query`, `wiki-policy-check`
 
-## Risco
+## Risk
 
-- **Baixo.** Adição de seção descritiva, não muda comportamento.
-- Possível ruído visual no SKILL.md se a seção for muito longa — manter ≤ 4 linhas.
+- **Low.** A descriptive section is added, no behavior changes.
+- Possible visual noise in SKILL.md if the section grows — keep ≤ 4 lines.
 
-## Validação
+## Validation
 
-- Próxima invocação de `/agile-roadmap` no `reserva-pwa` deve salvar no diretório certo sem ambiguidade.
-- Inspeção visual: a seção fica legível e sem repetir conteúdo.
+- The next `/agile-roadmap` invocation against a sample project should save under the right directory unambiguously.
+- Visual inspection: section reads cleanly without repeating content.
 
-## Próximo passo
+## Next step
 
-Aplicar agora em `agile-intake` e `wiki-init`. Para as demais, aplicar conforme forem invocadas (rolling refactor) ou via PR único — depende da preferência do owner do repo.
+Apply now to `agile-intake` and `wiki-init`. For the rest, apply as they are invoked (rolling refactor) or via a single PR — depends on the owner's preference.
