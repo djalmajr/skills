@@ -20,6 +20,31 @@ If empty, ask what will be tested.
 
 Write artifacts and test descriptions in the user's language. When in doubt, ask. Test code itself (function names, assertions) stays in English.
 
+## Project root
+
+This skill writes artifacts at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory (e.g., a sibling repo, or when the project lives elsewhere), prepend `<project-root>/` to every artifact path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Enforcement mode (when installing) | Hard-to-undo policy choice | warn · block · keep current |
+| Test strategy (when ambiguous) | Affects file layout | sibling · sibling_dir · tests_root |
+| Exempt a specific path | Edits guardrails config | yes · no · review later |
+
+Free-form prompts (no structured tool):
+
+- Test descriptions
+- Exemption rationale
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## When to use
 
 - Starting a new feature with TDD
@@ -145,6 +170,57 @@ Run coverage and check against targets. Fill gaps in critical areas first.
 - If the TDD workflow exposes repeated friction, missing guidance, weak templates, or unclear verification, capture a concise skill feedback note with the affected skill/template, evidence, proposed change, and validation artifact.
 - If repeated TDD friction suggests a skill/template change, use `/agile-skill-feedback` before editing the process library.
 
+## Enforcement (optional, opt-in per project)
+
+Beyond advisory guidance, this skill ships hook templates that turn the TDD rule into a project-level guardrail. When a project enables them, every implementation session is checked at the file-write level — without the agent having to remember to invoke this skill.
+
+### What gets enforced
+
+- **PreToolUse on `Write|Edit|MultiEdit`** — if the target file matches `source_paths` in `.tdd-guardrails.yml` and a companion test does not exist, the hook warns (`mode: warn`) or blocks the tool call (`mode: block`).
+- **Stop hook** — at session end, scans the git diff and reports source files touched without a companion test.
+- **SessionStart hook** — announces "TDD enforcement active" so the agent knows the rule is in force.
+
+The hook templates live at `skills/agile-tdd/templates/hooks/*.sh.tmpl` and the config schema at `skills/agile-tdd/templates/tdd-guardrails.yml.tmpl`.
+
+### Config (`.tdd-guardrails.yml`)
+
+| Key | Meaning |
+|---|---|
+| `enabled` | Global on/off |
+| `mode` | `warn` (stderr only) or `block` (PreToolUse rejects the call) |
+| `source_paths` | Globs that require a companion test |
+| `test_strategy` | `sibling` (`foo.ts` → `foo.test.ts`), `sibling_dir` (`__tests__/foo.test.ts`), or `tests_root` (`<app>/tests/integration/foo.test.ts`) |
+| `exemptions` | Globs allowed without a test (entry points, generated files, UI primitives) |
+
+**Pattern semantics:** the hook scripts use **bash `case` globs**, not extended globstar. In bash `case` patterns, `*` matches any sequence of characters including `/`; there is **no** `**`. So `apps/*/src/*.ts` matches both `apps/server/src/handler.ts` and `apps/server/src/auth/handler.ts`. Do not use `**` in `source_paths` or `exemptions`.
+
+### Enforcement caveats
+
+The hook checks file-pair existence — it does not, and cannot, verify:
+
+- That the test was written **before** the source (no Red-before-Green order check).
+- That the test actually exercises the source (no semantic match).
+- That the test currently passes (no test execution).
+
+Semantic discipline (one behavior per test, factories over hardcoded data, descriptive names, AAA) still belongs to the agent. The hooks are guardrails, not a guarantee.
+
+### Manual install (until a `tdd-init` script exists)
+
+1. Copy `templates/tdd-guardrails.yml.tmpl` to `<project-root>/.tdd-guardrails.yml` and edit `source_paths` and `exemptions` to match the repo layout.
+2. Copy the three hook templates from `templates/hooks/` to `<project-root>/.claude/hooks/` (and `.codex/hooks/`, `.opencode/hooks/` to cover other harnesses), dropping the `.tmpl` suffix and `chmod +x`.
+3. Register the hooks in each harness config:
+   - `.claude/settings.json` — add a `PreToolUse` entry matching `Write|Edit|MultiEdit` calling `tdd-pre-write.sh`, a `Stop` entry calling `tdd-session-audit.sh`, and a `SessionStart` entry calling `tdd-announce.sh`.
+   - `.codex/hooks.json` and `.opencode/plugins/` — mirror the equivalent events.
+4. Append the contents of `templates/agents-block.md.tmpl` to `AGENTS.md` and `CLAUDE.md` so the agent is told the project has TDD enforcement.
+
+The hooks are guardrails, not a guarantee — they check file-pair existence, not test quality. Semantic discipline (one behavior per test, factories over hardcoded data) still belongs to the agent.
+
+### Bypassing intentionally
+
+- For one path: add it to `.tdd-guardrails.yml → exemptions`.
+- For one session: temporarily set `enabled: false` (and revert before commit).
+- Never delete the test file just to silence the hook — that defeats the point.
+
 ## Relationship with the flow
 
 ```mermaid
@@ -158,4 +234,4 @@ flowchart LR
     F -->|No| G["/agile-refinement"]
 ```
 
-This skill operates during execution. It pairs with `/agile-story` (which defines what to build) and feeds into `/agile-refinement` (which validates the result).
+This skill operates during execution. It pairs with `/agile-story` (which defines what to build) and feeds into `/agile-refinement` (which validates the result). When the optional enforcement is installed, the rule is also applied automatically at every `Write/Edit/MultiEdit` tool call.

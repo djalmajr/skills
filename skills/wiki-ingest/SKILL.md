@@ -11,6 +11,32 @@ Follow `wiki/CONVENTIONS.md` for format conventions, frontmatter, naming, and la
 
 Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output.
 
+## Project root
+
+This skill writes artifacts at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory (e.g., a sibling repo, or when the project lives elsewhere), prepend `<project-root>/` to every artifact path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Existing page to absorb the new content (or create new) | Affects wiki layout | match list · create new |
+| Audience folders to split the source across (multi-select) | Maintains separation | business · apps · ops · data |
+| Emphasize or skip individual points (multi-select) | Affects what lands | select from points found |
+
+Free-form prompts (no structured tool):
+
+- Page titles
+- Summary text
+- Tag values
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## Query language alignment
 
 When matching a source against existing wiki pages, search in the wiki language, not necessarily in the user's or source's language. Determine the wiki language from `.wiki-guardrails.yml` (`query_language` or `language`), then from wiki frontmatter/index if guardrails are absent. Keep product names, filenames, APIs, schema names, and code identifiers unchanged.

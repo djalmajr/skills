@@ -20,6 +20,31 @@ If empty, ask what will be planned.
 
 Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output. Templates are in English — translate headers and content to match.
 
+## Project root
+
+This skill writes artifacts at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory (e.g., a sibling repo, or when the project lives elsewhere), prepend `<project-root>/` to every artifact path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Implementation mode | Branches the closing flow | Plan-only (stop after artifact) · Plan-then-implement (continue in this session) |
+| Test strategy (when adding companion tests) | Affects file layout | sibling · sibling_dir · tests_root |
+
+Free-form prompts (no structured tool):
+
+- Story name
+- Task descriptions
+- Stack choices (when not yet locked at epic-time)
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## Objective
 
 - Create a clear and proportionally simple execution plan
@@ -68,7 +93,22 @@ Fill in the required sections:
 
 ### 3. Present and wait for confirmation
 
-Use ExitPlanMode to present the plan. Wait for explicit confirmation before implementing.
+Use the harness's plan-mode tool to present the plan (e.g., `ExitPlanMode` in Claude Code). Wait for explicit confirmation before implementing.
+
+**Implementation mode (decide at this step):**
+
+- **Plan-then-implement (same session):** present the plan, get confirmation, then proceed to write code following the checklist. The default when the user asked for a "story" expecting a code change to follow.
+- **Plan-only:** stop after the plan artifact is saved. The default when the story belongs to a planning loop (e.g., decomposing an epic ahead of execution, or running this skill as a sample exercise).
+
+Pick the mode by asking the user via the harness's question tool when the workflow is ambiguous (see `## Prompting`).
+
+### Epic ↔ story boundary
+
+When the story file already exists from `/agile-epic`, this skill **adds execution detail**, it does not rewrite epic-time content:
+
+- Epic-time produces vertical-phase **outlines** in `Tasks`.
+- Story-time adds **per-task `Done when:` criteria**, the **`Test-first plan`**, and concrete **verification commands**.
+- Story-time may also introduce a **`Story-time decisions`** table inside `Approach` if 2+ implementation choices need to be locked.
 
 ## Where to save
 
@@ -89,8 +129,8 @@ If the plan comes from an epic, include at the top:
 ## Chaining
 
 After plan confirmation:
-- Implement following the checklist
-- At the end, suggest `/agile-status` (closure mode) to close the delivery
+- **Plan-then-implement:** implement following the checklist; at the end, suggest `/agile-status` (closure mode) to close the delivery.
+- **Plan-only:** stop after the plan artifact; suggest invoking this skill again (or `/agile-status` closure) when implementation actually happens.
 
 ## Reference template
 

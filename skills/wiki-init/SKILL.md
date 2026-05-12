@@ -16,6 +16,14 @@ The user may use natural language. Route intent like this:
 - "migrar para o formato novo" -> run `migrate` as dry-run first, then ask the user to confirm the suggested wiki location and index before `--write`.
 - "corrigir qmd", "managed qmd", "patch qmd" -> run `doctor`, then use `install --write` or `update-hooks --write` with explicit approval to prepare the managed QMD checkout and wrappers.
 
+## Project root
+
+All paths in this skill (`wiki/`, `AGENTS.md`, `CLAUDE.md`, `.mcp.json`, hook scripts, etc.) are relative to the **project root** passed via `--project <path>`, not the agent's current working directory.
+
+- Always pass `--project <absolute-or-relative-path>` to the script — it does not fall back to CWD silently.
+- The QMD wrapper commands (`<wrapper> collection add <wiki-path>`) accept absolute paths; prefer absolute paths when the agent CWD might differ from the project root.
+- When invoked from a sibling repo (e.g., meta/skills repo while the target project lives elsewhere), confirm the `--project` value with the user before `--write`.
+
 ## Workflow
 
 1. Run `scripts/wiki-init.ts doctor --project <path>` first.
@@ -92,6 +100,28 @@ bun skills/wiki-init/scripts/wiki-init.ts install --project /path/to/project --w
 ## Presets
 
 Use `references/presets.md` for the supported project shapes: local wiki, central sibling wiki, multi-repo org wiki, and docs-only migration.
+
+## Wiki content scaffolding
+
+`wiki-init` configures **infrastructure** (configs, hooks, MCP, QMD wrapper) but does **not** create the wiki content. After `install --write`, the agent must create the minimum wiki scaffolding the other wiki skills assume:
+
+```
+<project-root>/wiki/
+├── index.md          # navigable catalog
+├── CONVENTIONS.md    # schema, frontmatter, naming, audience separation
+├── log.md            # append-only operation log
+├── business/         # business/product rules (audience: business)
+├── apps/             # app-level technical docs (audience: dev)
+├── ops/              # operational procedures (audience: ops)
+├── data/             # data models and schemas (audience: dev)
+└── sources/          # ingested source summaries (one per slug)
+<project-root>/raw/
+└── index.md          # raw source materials inventory
+```
+
+The audience separation and frontmatter conventions are defined by `wiki-ingest/SKILL.md`. Treat that as the source of truth for naming, frontmatter, and content layout when scaffolding.
+
+After scaffolding, initialize the QMD index per step 9 of the workflow.
 
 ## Boundaries
 

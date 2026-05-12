@@ -19,6 +19,31 @@ If `$ARGUMENTS` is filled, use it as the observed case, artifact path, diff, or 
 
 Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters.
 
+## Project root
+
+This skill writes artifacts at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory (e.g., a sibling repo, or when the project lives elsewhere), prepend `<project-root>/` to every artifact path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Action class | Drives the decision rule | Refine · Merge · Split · Deprecate · Remove · Create |
+| Approval status (when finalizing) | Hard-to-undo step | Proposed · Approved · Rejected · Applied · Partially-applied · Withdrawn |
+
+Free-form prompts (no structured tool):
+
+- Evidence narration
+- Proposed change text
+- Rationale and trade-offs
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## Objective
 
 - Capture what happened during real use of a skill
@@ -93,9 +118,19 @@ Use only when a recurring workflow has no good home in existing skills and has c
 - Preserve auditability: record source skill version or commit when available.
 - For AI-generated patches, include the model/provider and the approval status in the feedback artifact when known.
 
+## Where to save
+
+The save location depends on what the feedback is *about*:
+
+- **About a project's process artifact** → `planning/<initiative>/skill-feedback/<YYYY-MM-DD>-<slug>.md`.
+- **About a skill in *this skills repo*** → `<skills-repo>/feedback/<YYYY-MM-DD>-<skill>.md`. Until a dedicated `feedback/` folder exists at the root, use `samples/<sample>/proposals/skill-feedback-<YYYY-MM-DD>-<slug>.md` and keep the related evidence (journals, findings) next to it.
+
 ## Template
 
-Use `templates/skill-feedback.md` as the base artifact.
+Use `templates/skill-feedback.md` as the base artifact. The template includes:
+
+- An `## Auditability` block (source skill version/commit, model/provider, originating session, related findings) — fill what is known.
+- An extended approval `Status` enum: `proposed / approved / rejected / applied / partially-applied / withdrawn`. Use `partially-applied` honestly when patches landed before formal approval, and fill the `Partial application notes:` sub-field.
 
 ## Relationship with the flow
 

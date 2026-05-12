@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# agile-tdd Stop hook — scans the session diff and reports source files
+# created/modified without a companion test. Honors .tdd-guardrails.yml.
+#
+# Always reports; only blocks the session end when mode: block AND there are
+# violations.
+
+set -euo pipefail
+
+INPUT="$(cat)"
+SESSION_ID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty')"
+STOP_HOOK_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false')"
+[ "$STOP_HOOK_ACTIVE" = "true" ] && exit 0
+
+STATE_FILE="${TMPDIR:-/tmp}/agile-tdd-audit-${SESSION_ID:-unknown}.fired"
+[ -f "$STATE_FILE" ] && exit 0
+
+ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+GUARDRAILS="$ROOT/.tdd-guardrails.yml"
+cd "$ROOT" 2>/dev/null || exit 0
+[ -f "$GUARDRAILS" ] || exit 0
+
+guardrail_scalar() {
+  local key="$1"
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key ":[[:space:]]*" {
+      line=$0
+      sub("^[[:space:]]*" key ":[[:space:]]*", "", line)
+      sub("[[:space:]]*#.*$", "", line)
+      gsub(/^\"|\"$/, "", line)
+      gsub(/^'"'"'|'"'"'$/, "", line)
+      print line
+      exit
+    }
+  ' "$GUARDRAILS"
+}
+
+guardrail_list() {
+  local key="$1"
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key ":[[:space:]]*$" { in_list=1; next }
+    in_list && /^[[:space:]]*-[[:space:]]*/ {
+      line=$0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+      sub("[[:space:]]*#.*$", "", line)
+      gsub(/^\"|\"$/, "", line)
+      gsub(/^'"'"'|'"'"'$/, "", line)
+      print line
+      next
+    }
+    in_list && /^[^[:space:]]/ { exit }
+  ' "$GUARDRAILS"
+}
+
+match_any() {
+  local rel="$1" key="$2" pattern=""
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    case "$rel" in $pattern) return 0 ;; esac
+  done < <(guardrail_list "$key")
+  return 1
+}
+
+ENABLED="$(guardrail_scalar enabled || echo true)"
+[ "$ENABLED" = "true" ] || exit 0
+MODE="$(guardrail_scalar mode || echo warn)"
+STRATEGY="$(guardrail_scalar test_strategy || echo sibling)"
+
+derive_test_path() {
+  local rel="$1"
+  case "$STRATEGY" in
+    sibling) printf '%s\n' "${rel%.*}.test.${rel##*.}" ;;
+    sibling_dir)
+      local dir="${rel%/*}"
+      local base="${rel##*/}"
+      printf '%s\n' "$dir/__tests__/${base%.*}.test.${base##*.}"
+      ;;
+    tests_root)
+      printf '%s\n' "$(echo "$rel" | sed -E 's#^(apps/[^/]+)/src/(.+)\.([^.]+)$#\1/tests/integration/\2.test.\3#')"
+      ;;
+    *) printf '%s\n' "${rel%.*}.test.${rel##*.}" ;;
+  esac
+}
+
+changed="$(
+  {
+    git diff --name-only HEAD 2>/dev/null || true
+    git ls-files --others --exclude-standard 2>/dev/null || true
+  } | sort -u
+)"
+
+[ -n "$changed" ] && touch "$STATE_FILE"
+
+violations=""
+count=0
+while IFS= read -r rel; do
+  [ -n "$rel" ] || continue
+  case "$rel" in *.test.ts|*.test.tsx|*.spec.ts|*.spec.tsx) continue ;; esac
+  match_any "$rel" source_paths || continue
+  match_any "$rel" exemptions && continue
+  test_rel="$(derive_test_path "$rel")"
+  [ -f "$ROOT/$test_rel" ] && continue
+  violations="${violations}
+- ${rel}  (expected: ${test_rel})"
+  count=$((count + 1))
+done <<< "$changed"
+
+[ "$count" -eq 0 ] && exit 0
+
+reason="agile-tdd session audit: ${count} source file(s) touched without a companion test.${violations}
+
+Write the missing tests before closing the session, or add the paths to .tdd-guardrails.yml → exemptions if they genuinely do not warrant a test."
+
+if [ "$MODE" = "block" ]; then
+  jq -n --arg reason "$reason" '{ decision: "block", reason: $reason }'
+  exit 0
+fi
+
+printf '%s\n' "$reason" >&2
+exit 0

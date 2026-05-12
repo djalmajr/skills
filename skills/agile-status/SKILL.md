@@ -20,6 +20,31 @@ If empty, ask the user what they need: a checkpoint, a consolidation, or a closu
 
 Write the artifact in the user's language. Apply correct grammar and any required diacritics or script-specific characters. If the user's language is unclear, ask before generating output. Templates are in English — translate headers and content to match.
 
+## Project root
+
+This skill writes artifacts at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory (e.g., a sibling repo, or when the project lives elsewhere), prepend `<project-root>/` to every artifact path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Mode | Picks template + flow | Checkpoint · Consolidation · Closure |
+| Chaining next step (per-story closure) | Branches the next action | Next /agile-story · Consolidation later · None |
+| Chaining next step (cycle-end closure) | Branches the next action | /agile-retro · /agile-metrics · /agile-review |
+
+Free-form prompts (no structured tool):
+
+- Blocker descriptions
+- Progress narration
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+
 ## Objective
 
 - Track real progress against a plan, story, or epic
@@ -80,13 +105,18 @@ Formal delivery closure — plan vs result, verification, remaining risks, hando
 
 **Process:**
 1. Identify the delivery being closed (plan, story, epic).
-2. Compare plan vs result: what was delivered, what remained pending, scope changes.
-3. Execute verifications: lint, typecheck, tests, manual validation. Record actual results.
-4. Record remaining risks and next steps.
-5. Define handoff (who needs to know).
+2. **Surface scope drift before drafting.** Run `git diff` (or equivalent) against the story's acceptance criteria. Explicitly list any change that does not map to an acceptance bullet, with the rationale per change. Catches drift at write-time, not retrospectively.
+3. Compare plan vs result: what was delivered, what remained pending, scope changes.
+4. Execute verifications: lint, typecheck, tests, manual validation. Record actual results.
+5. Record remaining risks and next steps.
+6. Define handoff (who needs to know).
+
+**Scope of closure (affects chaining):**
+- **Per-story closure** — single story complete inside an ongoing epic/sprint. Do **not** trigger `/agile-retro`; recommend the next `/agile-story` or a consolidation later.
+- **Cycle-end closure** — epic complete, sprint ended, or initiative finished. Recommend `/agile-retro` and `/agile-metrics`.
 
 **Where to save:**
-- `planning/<initiative>/status/closure-YYYY-MM-DD.md`
+- `planning/<initiative>/status/<mode>-YYYY-MM-DD-<slug>.md` — `<slug>` disambiguates multiple closures on the same day (e.g., `closure-2026-05-12-story-01.md`).
 - If standalone plan: present inline
 
 ## How to decide the mode
@@ -100,7 +130,8 @@ Formal delivery closure — plan vs result, verification, remaining risks, hando
 
 - Checkpoint: if critical blocker → escalate or adjust the plan. If delivery closing → switch to closure mode.
 - Consolidation: if period closed a delivery → suggest closure mode. If sprint ended → suggest `/agile-review` or `/agile-retro`.
-- Closure: if next steps become new tasks → suggest `/agile-story`. If cycle ended → suggest `/agile-retro`. If part of an epic → update story status.
+- Closure (per-story): suggest the next `/agile-story` or a consolidation later. Do **not** trigger `/agile-retro` for a single story.
+- Closure (cycle-end): suggest `/agile-retro` and `/agile-metrics`. If part of an epic, also update the story status in the epic overview.
 
 ## Reference template
 

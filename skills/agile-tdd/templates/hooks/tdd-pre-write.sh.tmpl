@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# agile-tdd PreToolUse hook — checks that a source file being Written/Edited
+# has a companion test. Configured by .tdd-guardrails.yml at the project root.
+#
+# Exit codes:
+#   0 — allowed (test exists, or path exempt, or guardrails disabled/missing)
+#   0 + stderr — warn mode: companion test missing
+#   2 — block mode: companion test missing (Claude Code rejects the tool call)
+
+set -euo pipefail
+
+INPUT="$(cat)"
+ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+GUARDRAILS="$ROOT/.tdd-guardrails.yml"
+
+TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty')"
+case "$TOOL" in
+  Write|Edit|MultiEdit) ;;
+  *) exit 0 ;;
+esac
+
+[ -f "$GUARDRAILS" ] || exit 0
+
+guardrail_scalar() {
+  local key="$1"
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key ":[[:space:]]*" {
+      line=$0
+      sub("^[[:space:]]*" key ":[[:space:]]*", "", line)
+      sub("[[:space:]]*#.*$", "", line)
+      gsub(/^\"|\"$/, "", line)
+      gsub(/^'"'"'|'"'"'$/, "", line)
+      print line
+      exit
+    }
+  ' "$GUARDRAILS"
+}
+
+guardrail_list() {
+  local key="$1"
+  awk -v key="$key" '
+    $0 ~ "^[[:space:]]*" key ":[[:space:]]*$" { in_list=1; next }
+    in_list && /^[[:space:]]*-[[:space:]]*/ {
+      line=$0
+      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+      sub("[[:space:]]*#.*$", "", line)
+      gsub(/^\"|\"$/, "", line)
+      gsub(/^'"'"'|'"'"'$/, "", line)
+      print line
+      next
+    }
+    in_list && /^[^[:space:]]/ { exit }
+  ' "$GUARDRAILS"
+}
+
+match_any() {
+  local rel="$1" key="$2" pattern=""
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    case "$rel" in $pattern) return 0 ;; esac
+  done < <(guardrail_list "$key")
+  return 1
+}
+
+ENABLED="$(guardrail_scalar enabled || echo true)"
+[ "$ENABLED" = "true" ] || exit 0
+MODE="$(guardrail_scalar mode || echo warn)"
+STRATEGY="$(guardrail_scalar test_strategy || echo sibling)"
+
+repo_rel() {
+  local file="$1"
+  case "$file" in
+    "$ROOT"/*) printf '%s\n' "${file#"$ROOT"/}" ;;
+    /*) return 1 ;;
+    *) printf '%s\n' "$file" ;;
+  esac
+}
+
+derive_test_path() {
+  local rel="$1"
+  case "$STRATEGY" in
+    sibling)
+      printf '%s\n' "${rel%.*}.test.${rel##*.}"
+      ;;
+    sibling_dir)
+      local dir="${rel%/*}"
+      local base="${rel##*/}"
+      printf '%s\n' "$dir/__tests__/${base%.*}.test.${base##*.}"
+      ;;
+    tests_root)
+      # apps/<app>/src/<x> → apps/<app>/tests/integration/<x>
+      printf '%s\n' "$(echo "$rel" | sed -E 's#^(apps/[^/]+)/src/(.+)\.([^.]+)$#\1/tests/integration/\2.test.\3#')"
+      ;;
+    *)
+      printf '%s\n' "${rel%.*}.test.${rel##*.}"
+      ;;
+  esac
+}
+
+# Collect target file paths from the tool input payload.
+payload_files() {
+  printf '%s' "$INPUT" | jq -r '
+    [
+      (.tool_input.file_path? | select(.)),
+      (.tool_input.notebook_path? | select(.)),
+      ((.tool_input.edits? // [])[]? | .file_path? | select(.))
+    ] | .[]? // empty
+  ' | sort -u
+}
+
+missing=""
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  rel="$(repo_rel "$file" || true)"
+  [ -n "$rel" ] || continue
+
+  # Skip test files themselves
+  case "$rel" in
+    *.test.ts|*.test.tsx|*.spec.ts|*.spec.tsx) continue ;;
+  esac
+
+  # Must match a source_path
+  match_any "$rel" source_paths || continue
+
+  # Skip exemptions
+  match_any "$rel" exemptions && continue
+
+  # Derive expected test path and check existence
+  test_rel="$(derive_test_path "$rel")"
+  test_abs="$ROOT/$test_rel"
+  [ -f "$test_abs" ] && continue
+
+  missing="${missing}
+- source: ${rel}
+  expected test: ${test_rel}"
+done < <(payload_files)
+
+[ -n "$missing" ] || exit 0
+
+cat >&2 <<EOF_MSG
+agile-tdd: companion test missing for source file(s).${missing}
+
+Apply Red→Green→Refactor:
+  1. Write the failing test at the expected path above.
+  2. Run it (red).
+  3. Then implement the source file (green).
+
+To intentionally exempt this path, add it to .tdd-guardrails.yml → exemptions.
+To disable temporarily, set enabled: false in .tdd-guardrails.yml.
+EOF_MSG
+
+case "$MODE" in
+  block) exit 2 ;;
+  *)     exit 0 ;;
+esac
