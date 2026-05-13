@@ -18,6 +18,14 @@
 enabled: true
 mode: warn   # warn | block
 
+# Project types active. Each enabled type loads its own partial block
+# (e.g. `tauri:` below) and an audit fragment that runs in addition to
+# the base companion-test check. Auto-populated at install via the
+# `project-types/<type>/detect.sh` scripts; manual edits are honored on
+# re-install.
+project_types: []
+#   - tauri    # uncomment when you want the Tauri MCP gate
+
 source_paths:
   - "apps/*/src/*.ts"
   - "apps/*/src/*.tsx"

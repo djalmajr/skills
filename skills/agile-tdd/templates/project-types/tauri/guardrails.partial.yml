@@ -1,0 +1,52 @@
+# --- agile-tdd · project type: tauri --------------------------------------
+# Appended to .tdd-guardrails.yml when the `tauri` template is enabled.
+# Re-runnable: edit values here, not the schema. Remove `tauri:` to
+# disable the gate.
+tauri:
+  # Independent of the top-level `mode`. Use `block` to reject Stop
+  # when validation evidence is missing; `warn` only logs to stderr.
+  mode: warn
+
+  # Tauri app roots, relative to the repo root. Auto-populated at
+  # install via `filesystem_discover_tauri_apps`. In a single-repo
+  # project this is `[{ root: . }]`. In a monorepo, one entry per
+  # discovered `src-tauri/Cargo.toml`.
+  apps:
+    - root: .
+
+  # Globs evaluated RELATIVE to each app root above. Same list applies
+  # to all apps; per-app overrides are not supported yet (keep the
+  # repo layout uniform).
+  affected_paths:
+    - src-tauri/src/**
+    - src/routes/**
+    - src/components/**
+    - src/hooks/**
+
+  exemptions:
+    - "**/*.test.*"
+    - "**/*.spec.*"
+    - "**/*.md"
+    - src-tauri/tests/**
+
+  required_evidence:
+    # `cargo check` produced fresh artifacts after the last Rust write.
+    cargo_check: true
+    # `bun run typecheck` (or `tsc --noEmit`) produced a fresh
+    # tsbuildinfo after the last UI write.
+    typecheck: true
+    # At least one `mcp__tauri__webview_screenshot` call AFTER the
+    # last edit under `affected_paths`. The canonical "I opened the
+    # screen" signal.
+    webview_screenshot: true
+    # Should `mcp__tauri__webview_execute_js` alone satisfy the visual
+    # gate? Default false — a script can run without the agent
+    # looking at anything. Set true only for headless/CI flows.
+    webview_execute_js_as_evidence: false
+    # In monorepo, require a screenshot per affected app. Heuristic:
+    # the screenshot's `filePath` or `windowId` contains the app root
+    # segment. Ignored when there's a single app.
+    per_app_screenshot: true
+
+  # Where to persist per-session evidence files. Relative to repo root.
+  log_dir: .claude/state/tdd-tauri

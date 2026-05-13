@@ -210,7 +210,40 @@ Per-harness mechanics differ — Claude Code and Codex run shell hooks directly;
 
 1. Copy `templates/tdd-guardrails.yml.tmpl` to `<project-root>/.tdd-guardrails.yml` and edit `source_paths` and `exemptions` to match the repo layout.
 
-2. Copy the three hook templates from `templates/hooks/` to `<project-root>/.claude/hooks/`, `<project-root>/.codex/hooks/`, **and** `<project-root>/.opencode/hooks/` (the OpenCode plugin invokes the same scripts via `Bun.spawn`). Drop the `.tmpl` suffix and `chmod +x`.
+   **Then run the project-type detectors** to populate `project_types`:
+
+   ```bash
+   for type in .claude/skills/agile-tdd/templates/project-types/*/; do
+     name="$(basename "$type")"
+     [ -f "$type/detect.sh" ] || continue
+     bash "$type/detect.sh" "$PWD" && echo "detected: $name"
+   done
+   ```
+
+   For each detected type, append its `guardrails.partial.yml` to the
+   newly-created `.tdd-guardrails.yml` (or merge if the block already
+   exists) and add the type slug to the `project_types` list.
+
+2. Copy the hook templates. From `templates/hooks/` to
+   `<project-root>/.claude/hooks/`, `<project-root>/.codex/hooks/`, **and**
+   `<project-root>/.opencode/hooks/` (the OpenCode plugin invokes the
+   same scripts via `Bun.spawn`). Drop the `.tmpl` suffix and
+   `chmod +x`.
+
+   **Also copy** the shared helpers:
+
+   ```
+   templates/lib/audit-helpers.sh.tmpl → .claude/hooks/lib/audit-helpers.sh
+   ```
+
+   and the project-types directory:
+
+   ```
+   templates/project-types/ → .claude/hooks/project-types/
+   ```
+
+   The session-audit script searches both locations. Codex/OpenCode
+   should mirror under `.codex/hooks/` and `.opencode/hooks/`.
 
 3. Register the hooks in each harness config:
 
@@ -219,6 +252,21 @@ Per-harness mechanics differ — Claude Code and Codex run shell hooks directly;
    - **OpenCode**: copy `templates/opencode-plugin.js.tmpl` to `<project-root>/.opencode/plugins/tdd-guardrails.js`. The plugin subscribes to `tool.execute.before` (PreToolUse equivalent), `session.created` (SessionStart equivalent), and `session.idle` (closest to Stop — the audit shell is idempotent via a tmp state file so multi-firing is safe). The plugin spawns the same `.opencode/hooks/tdd-*.sh` scripts via `Bun.spawn`. OpenCode does **not** invoke shell scripts directly; the plugin is the entry point.
 
 4. Append the contents of `templates/agents-block.md.tmpl` to `AGENTS.md` and `CLAUDE.md` so the agent is told the project has TDD enforcement.
+
+   **For each detected project-type**, also append its
+   `templates/project-types/<type>/agents-block.partial.md` to the same
+   files (preserving the `<!-- agile-tdd:<type>:start --> / :end`
+   markers so re-installs can update in place).
+
+5. **Register the type-specific matchers** in `.claude/settings.json`:
+
+   - For `tauri`: a `PostToolUse` entry matching
+     `mcp__tauri__webview_screenshot|mcp__tauri__webview_execute_js|mcp__tauri__webview_dom_snapshot|mcp__tauri__manage_window`
+     calling `$CLAUDE_PROJECT_DIR/.claude/hooks/tdd-record-mcp.sh`.
+
+   The Codex equivalent goes in `.codex/hooks.json`; for OpenCode,
+   subscribe to `tool.execute.after` filtered by tool name and spawn
+   the same shell via `Bun.spawn`.
 
 The hooks are guardrails, not a guarantee — they check file-pair existence, not test quality. Semantic discipline (one behavior per test, factories over hardcoded data) still belongs to the agent.
 
@@ -235,6 +283,209 @@ The hooks are guardrails, not a guarantee — they check file-pair existence, no
 - For one path: add it to `.tdd-guardrails.yml → exemptions`.
 - For one session: temporarily set `enabled: false` (and revert before commit).
 - Never delete the test file just to silence the hook — that defeats the point.
+
+## Project-type templates
+
+Beyond the base companion-test rule, `agile-tdd` ships **project-type
+templates** under `templates/project-types/<type>/`. Each template
+opts into project-specific evidence that the Stop hook checks in
+addition to companion tests. The session-audit script composes the
+base check with one fragment per active type — modes are independent
+per type, so you can run TDD in `warn` and a stricter type in `block`.
+
+### Available types
+
+| Type | Detects | Enforces (in addition to companion tests) |
+|---|---|---|
+| `tauri` | `src-tauri/Cargo.toml` (single-repo or monorepo) | `cargo check` fresh + `bun run typecheck` fresh + ≥1 `mcp__tauri__webview_screenshot` per affected app after the last edit |
+| `pwa` | (planejado) `manifest.webmanifest` + service worker | service worker rebuilt + offline smoke test |
+| `mobile` | (planejado) `app.json` (Expo) / `Podfile` / `android/build.gradle` | platform build green + simulator screenshot |
+| `desktop` | (planejado) electron/forge config | electron-builder validate + window screenshot |
+
+Active types are listed in `.tdd-guardrails.yml → project_types`. At
+install, each `templates/project-types/<type>/detect.sh` runs against
+the repo; types that succeed get appended to the config along with
+their `guardrails.partial.yml` block.
+
+### Anatomy of a type
+
+A type is a folder with:
+
+- `detect.sh` — exits 0 when the type applies to the repo.
+- `guardrails.partial.yml` — block appended to `.tdd-guardrails.yml`.
+- `agents-block.partial.md` — section appended to `CLAUDE.md`/`AGENTS.md`
+  inside `<!-- agile-tdd:<type>:start -->` markers.
+- `audit.partial.sh` — sourced by `tdd-session-audit.sh`. Exports
+  `check_<type>_evidence "$ROOT"` returning textual violations. Sets
+  `<TYPE>_MODE` (uppercase) so the framework can decide block vs warn.
+- `hooks/*.sh.tmpl` — optional extra hooks the type registers (e.g.
+  PostToolUse evidence recorder).
+- `README.md` — human description of the type.
+
+The framework calls helpers from `templates/lib/audit-helpers.sh` for
+yml parsing, glob matching, app-root discovery, and freshness checks.
+Adding a new type does not require touching the framework script.
+
+### Installing types
+
+The base `agile-tdd` install already follows the "Manual install" steps
+above. For each detected type:
+
+1. Append `templates/project-types/<type>/guardrails.partial.yml` to
+   `.tdd-guardrails.yml` (or merge if the block already exists).
+2. Append `agents-block.partial.md` to `CLAUDE.md`/`AGENTS.md` between
+   the marker pair.
+3. Copy `hooks/*.sh.tmpl` to `.claude/hooks/`, `.codex/hooks/`, and
+   `.opencode/hooks/`, dropping the `.tmpl` suffix and `chmod +x`-ing.
+4. Add the type's matcher to each harness config:
+   - **Claude Code** (`.claude/settings.json` → `PostToolUse`): add a
+     matcher entry for the type's PostToolUse hooks. For `tauri`:
+     `mcp__tauri__webview_screenshot|mcp__tauri__webview_execute_js|mcp__tauri__webview_dom_snapshot|mcp__tauri__manage_window`
+     calling `$CLAUDE_PROJECT_DIR/.claude/hooks/tdd-record-mcp.sh`.
+   - **Codex** (`.codex/hooks.json`): same matcher pattern; command
+     uses `bash "$(git rev-parse --show-toplevel)/.codex/hooks/tdd-record-mcp.sh"`.
+   - **OpenCode**: extend `.opencode/plugins/tdd-guardrails.js` to
+     subscribe to `tool.execute.after` with a filter on tool name,
+     spawning the same shell script via `Bun.spawn`.
+5. Append the type slug (e.g. `tauri`) to `project_types` in
+   `.tdd-guardrails.yml`. The session-audit reads this list at run.
+
+## Tauri MCP validation (project type)
+
+Knowhow consolidated from real Tauri debug/test sessions. Read this
+before touching `src-tauri/src/**` or any `src/{routes,components,hooks}/**`
+in a Tauri-detected repo.
+
+### Toolbox (canonical references)
+
+- `mcp__tauri__driver_session(start)` — always invoke first; subsequent
+  webview tools assume an active session.
+- `mcp__tauri__webview_screenshot` — the canonical "I opened the
+  screen" signal. Pass `windowId="main"` (Tauri apps usually have
+  `main` + `tray-panel`).
+- `mcp__tauri__webview_execute_js` — for invokes that take longer than
+  the JS executor timeout (≈seconds), fire-and-forget via
+  `window.__TAURI_INTERNALS__.invoke(cmd, args).then(r => window.__last = r)`;
+  poll DB or screenshot instead of `await`-ing.
+- `mcp__tauri__webview_interact` / `webview_find_element` / refs in
+  `webview_dom_snapshot` — these depend on `window.__MCP__.resolveRef`
+  which is **undefined after dev-server HMR reload**. Prefer
+  `document.querySelector(...).click()` via `webview_execute_js`.
+
+### Rebuild flow
+
+- Rust change → `touch src-tauri/src/<file.rs>` forces `tauri-dev` to
+  rebuild (cargo's mtime watcher).
+- Monitor the dev process output for `Finished` + `MCP Bridge plugin
+  initialized` before re-running MCP calls; HMR only covers the
+  frontend.
+- In Claude Code, prefer `Monitor` with the filter
+  `tail -f tauri.log | grep --line-buffered -E "Finished|error\\[|MCP Bridge plugin initialized"`.
+
+### Validation patterns
+
+- **DB direct read** — cheaper than `invoke()` for state assertions:
+  `sqlite3 <workspace>/<app>.db "SELECT ..."`.
+- **GPU offload check** — `ps -p $(pgrep -x <app-name>) -o pcpu,etime`.
+  Apps using Metal/CUDA show low CPU (5-15%) when the GPU is doing the
+  work; CPU-only fallback shows 200-400%.
+- **Visual check** — `location.assign('/route/...')` via
+  `webview_execute_js`, wait ~500ms, then `webview_screenshot`.
+
+### Known gotchas (cross-project patterns)
+
+Each project keeps its own list of in-tree fixes (e.g. in a
+`wiki/technical/tauri-gotchas.md` for projects that follow the LLM
+wiki pattern). The items below describe the **patterns** — the actual
+file paths vary per project.
+
+- **whisper-rs 0.14.x `set_abort_callback_safe` type confusion** — in
+  v0.14.4 the trampoline is instantiated with the original closure
+  type, while `user_data` is actually written as
+  `Box<dyn FnMut() -> bool>`. The callback dereferences the wrong
+  memory layout and returns garbage bools, aborting whisper at 0–5%
+  with error `-6`. Workaround: use the `unsafe` variant
+  `set_abort_callback` + `set_abort_callback_user_data` with a
+  hand-written trampoline that matches the stored type:
+
+  ```rust
+  unsafe extern "C" fn abort_trampoline(ud: *mut std::ffi::c_void) -> bool {
+      let f = &mut *(ud as *mut Box<dyn FnMut() -> bool>);
+      f()
+  }
+  let closure: Box<dyn FnMut() -> bool> = Box::new({
+      let cancel = cancel.clone();
+      move || cancel.load(Ordering::Relaxed)
+  });
+  let ud = Box::into_raw(Box::new(closure)) as *mut std::ffi::c_void;
+  unsafe {
+      params.set_abort_callback(Some(abort_trampoline));
+      params.set_abort_callback_user_data(ud);
+  }
+  ```
+
+- **Background jobs stuck `running` after binary kill** — a tokio task
+  that dies mid-flight (cargo restart, app crash) never updates its
+  DB row to a terminal state. Add a reconcile pass at pool-open:
+
+  ```rust
+  // db::open_pool, after schema migration
+  sqlx::query(
+      "UPDATE jobs SET status='cancelled',
+           error_message=COALESCE(error_message,'interrupted by app restart'),
+           finished_at=?
+       WHERE status IN ('running','pending')"
+  ).bind(now_iso()).execute(&pool).await?;
+  ```
+
+- **Modal libraries that couple `open` to data state** (e.g. Base UI
+  Dialog, some Radix patterns) — when the data prop goes `null` in
+  the same render that `open` flips false, the modal unmounts before
+  the close animation finishes; pointer-events stay trapped on
+  `document.body` and the page becomes unclickable. Decouple `open`
+  (boolean) from the data, then defer the data clear with
+  `setTimeout(..., 200)` (or use an `onCloseComplete` callback when
+  the library exposes one).
+
+- **`CREATE TABLE IF NOT EXISTS` is a no-op on existing tables** —
+  reused workspaces / DBs do NOT pick up new columns added in the
+  schema file. Symptom: runtime `no such column` after upgrade. Fix
+  options: explicit `ALTER TABLE … ADD COLUMN IF NOT EXISTS` per
+  drift; OR, if the DB has no production data, drop and re-bootstrap.
+
+- **`hound::WavReader` only decodes WAV** — for `.mp3`/`.mp4`/`.m4a`/
+  `.webm`, pipe through ffmpeg to `f32le @ 16 kHz mono` before
+  feeding Whisper:
+
+  ```rust
+  // ffmpeg -hide_banner -loglevel error -nostdin -i <input>
+  //   -ac 1 -ar 16000 -f f32le -
+  let mut child = Command::new(ffmpeg)
+      .args(["-hide_banner","-loglevel","error","-nostdin","-i"])
+      .arg(input)
+      .args(["-ac","1","-ar","16000","-f","f32le","-"])
+      .stdout(Stdio::piped()).spawn()?;
+  // read stdout, reinterpret bytes as &[f32]
+  ```
+
+### Definition of Done (Tauri)
+
+For each change that touches `affected_paths` in **every affected
+app** (monorepo: per-app):
+
+1. `cargo check --manifest-path <app>/src-tauri/Cargo.toml --lib` green.
+2. `bun run typecheck` (or `tsc --noEmit`) green.
+3. `tauri-dev` showed `Finished` after the last `touch` in
+   `<app>/src-tauri/src/**`.
+4. Companion test exists (base TDD rule, if applicable).
+5. **≥1 `mcp__tauri__webview_screenshot`** call after the last edit
+   under `<app>/{src-tauri,src}/**`.
+6. Post-operation state confirmed: DB query, DOM snapshot, or
+   evidence visible in the screenshot.
+
+The `tdd-session-audit.sh` Stop hook checks (1), (2), and (5)
+automatically via the `tauri` template. Steps (3), (4), and (6) remain
+agent responsibility.
 
 ## Relationship with the flow
 

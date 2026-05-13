@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# agile-tdd Stop hook — scans the session diff and reports source files
-# created/modified without a companion test. Honors .tdd-guardrails.yml.
+# agile-tdd Stop hook — scans the session diff and reports violations.
+# Honors `.tdd-guardrails.yml`. Composes a base check (companion tests)
+# with per-project-type checks declared under `project_types:`.
 #
-# Always reports; only blocks the session end when mode: block AND there are
-# violations.
+# Always reports; blocks the session end only when mode: block AND
+# there are violations.
 
 set -euo pipefail
 
@@ -20,50 +21,82 @@ GUARDRAILS="$ROOT/.tdd-guardrails.yml"
 cd "$ROOT" 2>/dev/null || exit 0
 [ -f "$GUARDRAILS" ] || exit 0
 
-guardrail_scalar() {
-  local key="$1"
-  awk -v key="$key" '
-    $0 ~ "^[[:space:]]*" key ":[[:space:]]*" {
-      line=$0
-      sub("^[[:space:]]*" key ":[[:space:]]*", "", line)
-      sub("[[:space:]]*#.*$", "", line)
-      gsub(/^\"|\"$/, "", line)
-      gsub(/^'"'"'|'"'"'$/, "", line)
-      print line
-      exit
-    }
-  ' "$GUARDRAILS"
-}
+# Locate the shared helpers + project-type fragments. Search order:
+#   1. Project copy under .claude/hooks/lib (preferred — kept in sync
+#      with the skill install).
+#   2. The agile-tdd skill install under .claude/skills/agile-tdd/templates/lib.
+HELPERS=""
+for cand in \
+  "$ROOT/.claude/hooks/lib/audit-helpers.sh" \
+  "$ROOT/.claude/skills/agile-tdd/templates/lib/audit-helpers.sh" \
+  "$ROOT/.claude/skills/agile-tdd/templates/lib/audit-helpers.sh.tmpl"; do
+  [ -f "$cand" ] && HELPERS="$cand" && break
+done
 
-guardrail_list() {
-  local key="$1"
-  awk -v key="$key" '
-    $0 ~ "^[[:space:]]*" key ":[[:space:]]*$" { in_list=1; next }
-    in_list && /^[[:space:]]*-[[:space:]]*/ {
-      line=$0
-      sub(/^[[:space:]]*-[[:space:]]*/, "", line)
-      sub("[[:space:]]*#.*$", "", line)
-      gsub(/^\"|\"$/, "", line)
-      gsub(/^'"'"'|'"'"'$/, "", line)
-      print line
-      next
-    }
-    in_list && /^[^[:space:]]/ { exit }
-  ' "$GUARDRAILS"
-}
+if [ -z "$HELPERS" ]; then
+  # Helpers missing → fall back to the legacy companion-test-only check
+  # using inline awk. This preserves the pre-templates behavior.
+  HELPERS=""
+fi
 
-match_any() {
-  local rel="$1" key="$2" pattern=""
-  while IFS= read -r pattern; do
-    [ -n "$pattern" ] || continue
-    case "$rel" in $pattern) return 0 ;; esac
-  done < <(guardrail_list "$key")
-  return 1
-}
+if [ -n "$HELPERS" ]; then
+  # shellcheck disable=SC1090
+  source "$HELPERS"
+fi
+
+# Fallback inline implementations if helpers are absent. These mirror
+# the legacy single-file script behavior.
+if [ -z "$HELPERS" ]; then
+  guardrail_scalar() {
+    local key="$1"
+    awk -v key="$key" '
+      $0 ~ "^[[:space:]]*" key ":[[:space:]]*" {
+        line=$0
+        sub("^[[:space:]]*" key ":[[:space:]]*", "", line)
+        sub("[[:space:]]*#.*$", "", line)
+        gsub(/^\"|\"$/, "", line)
+        gsub(/^'\''|'\''$/, "", line)
+        print line
+        exit
+      }
+    ' "$GUARDRAILS"
+  }
+  guardrail_list() {
+    local key="$1"
+    awk -v key="$key" '
+      $0 ~ "^[[:space:]]*" key ":[[:space:]]*$" { in_list=1; next }
+      in_list && /^[[:space:]]*-[[:space:]]*/ {
+        line=$0
+        sub(/^[[:space:]]*-[[:space:]]*/, "", line)
+        sub("[[:space:]]*#.*$", "", line)
+        gsub(/^\"|\"$/, "", line)
+        gsub(/^'\''|'\''$/, "", line)
+        print line
+        next
+      }
+      in_list && /^[^[:space:]]/ { exit }
+    ' "$GUARDRAILS"
+  }
+  match_any() {
+    local rel="$1" key="$2" pattern=""
+    while IFS= read -r pattern; do
+      [ -n "$pattern" ] || continue
+      case "$rel" in $pattern) return 0 ;; esac
+    done < <(guardrail_list "$key")
+    return 1
+  }
+  session_changed_files() {
+    (
+      cd "$ROOT" 2>/dev/null || return 0
+      git diff --name-only HEAD 2>/dev/null || true
+      git ls-files --others --exclude-standard 2>/dev/null || true
+    ) | sort -u
+  }
+fi
 
 ENABLED="$(guardrail_scalar enabled || echo true)"
 [ "$ENABLED" = "true" ] || exit 0
-MODE="$(guardrail_scalar mode || echo warn)"
+MODE_TOP="$(guardrail_scalar mode || echo warn)"
 STRATEGY="$(guardrail_scalar test_strategy || echo sibling)"
 
 derive_test_path() {
@@ -82,17 +115,14 @@ derive_test_path() {
   esac
 }
 
-changed="$(
-  {
-    git diff --name-only HEAD 2>/dev/null || true
-    git ls-files --others --exclude-standard 2>/dev/null || true
-  } | sort -u
-)"
-
+# ---------------------------------------------------------------------
+# Base check: companion tests
+# ---------------------------------------------------------------------
+changed="$(session_changed_files "$ROOT")"
 [ -n "$changed" ] && touch "$STATE_FILE"
 
-violations=""
-count=0
+base_violations=""
+base_count=0
 while IFS= read -r rel; do
   [ -n "$rel" ] || continue
   case "$rel" in *.test.ts|*.test.tsx|*.spec.ts|*.spec.tsx) continue ;; esac
@@ -100,21 +130,96 @@ while IFS= read -r rel; do
   match_any "$rel" exemptions && continue
   test_rel="$(derive_test_path "$rel")"
   [ -f "$ROOT/$test_rel" ] && continue
-  violations="${violations}
+  base_violations="${base_violations}
 - ${rel}  (expected: ${test_rel})"
-  count=$((count + 1))
+  base_count=$((base_count + 1))
 done <<< "$changed"
 
-[ "$count" -eq 0 ] && exit 0
-
-reason="agile-tdd session audit: ${count} source file(s) touched without a companion test.${violations}
+base_block_reason=""
+if [ "$base_count" -gt 0 ]; then
+  base_block_reason="agile-tdd session audit: ${base_count} source file(s) touched without a companion test.${base_violations}
 
 Write the missing tests before closing the session, or add the paths to .tdd-guardrails.yml → exemptions if they genuinely do not warrant a test."
+fi
 
-if [ "$MODE" = "block" ]; then
+# ---------------------------------------------------------------------
+# Type-specific checks (project-types/<type>/audit.partial.sh)
+# ---------------------------------------------------------------------
+type_block_reason=""
+type_warn_reason=""
+TYPES="$(guardrail_list project_types 2>/dev/null || true)"
+# Resolve types base dir same way as helpers.
+TYPES_DIR=""
+for cand in \
+  "$ROOT/.claude/hooks/project-types" \
+  "$ROOT/.claude/skills/agile-tdd/templates/project-types"; do
+  [ -d "$cand" ] && TYPES_DIR="$cand" && break
+done
+
+if [ -n "$TYPES" ] && [ -n "$TYPES_DIR" ]; then
+  while IFS= read -r type; do
+    [ -n "$type" ] || continue
+    partial="$TYPES_DIR/$type/audit.partial.sh"
+    [ -f "$partial" ] || continue
+    # shellcheck disable=SC1090
+    source "$partial"
+    fn="check_${type}_evidence"
+    if declare -F "$fn" >/dev/null 2>&1; then
+      out="$("$fn" "$ROOT" || true)"
+      [ -z "$out" ] && continue
+      # Decide block vs warn based on per-type mode env var the partial
+      # set after sourcing (e.g. TAURI_MODE). Convention: uppercase
+      # type name + _MODE.
+      upper_type="$(printf '%s' "$type" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
+      mode_var="${upper_type}_MODE"
+      type_mode="${!mode_var:-warn}"
+      if [ "$type_mode" = "block" ]; then
+        type_block_reason="${type_block_reason}${out}"
+      else
+        type_warn_reason="${type_warn_reason}${out}"
+      fi
+    fi
+  done <<EOF
+$TYPES
+EOF
+fi
+
+# ---------------------------------------------------------------------
+# Compose decision
+# ---------------------------------------------------------------------
+combined_block=""
+combined_warn=""
+
+if [ "$MODE_TOP" = "block" ] && [ -n "$base_block_reason" ]; then
+  combined_block="$base_block_reason"
+elif [ -n "$base_block_reason" ]; then
+  combined_warn="$base_block_reason"
+fi
+
+if [ -n "$type_block_reason" ]; then
+  combined_block="${combined_block:+$combined_block
+
+}$type_block_reason"
+fi
+if [ -n "$type_warn_reason" ]; then
+  combined_warn="${combined_warn:+$combined_warn
+
+}$type_warn_reason"
+fi
+
+# If both empty → all clear.
+[ -z "$combined_block" ] && [ -z "$combined_warn" ] && exit 0
+
+if [ -n "$combined_block" ]; then
+  reason="$combined_block"
+  [ -n "$combined_warn" ] && reason="${reason}
+
+(warn-only)
+${combined_warn}"
   jq -n --arg reason "$reason" '{ decision: "block", reason: $reason }'
   exit 0
 fi
 
-printf '%s\n' "$reason" >&2
+# Warn-only: stderr.
+printf '%s\n' "$combined_warn" >&2
 exit 0
