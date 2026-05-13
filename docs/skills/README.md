@@ -2,28 +2,34 @@
 
 Human-facing notes moved out of individual skill folders.
 
-`SKILL.md` remains the agent entrypoint and source of truth for invocation behavior. These pages are for humans who want to understand the workflow before using or changing a skill.
+`SKILL.md` remains the agent entrypoint and source of truth for invocation behavior. These pages are for humans who want to understand the workflow before using or changing a skill. Conventions that span every skill (Project root, Prompting, samples) are documented once at [`../conventions.md`](../conventions.md) — not duplicated here.
 
-## Agile
+## Agile (15)
 
-- [agile-epic](agile-epic.md)
-- [agile-intake](agile-intake.md)
-- [agile-metrics](agile-metrics.md)
-- [agile-onboarding](agile-onboarding.md)
-- [agile-proto](agile-proto.md)
-- [agile-refinement](agile-refinement.md)
-- [agile-retro](agile-retro.md)
-- [agile-review](agile-review.md)
-- [agile-roadmap](agile-roadmap.md)
-- [agile-router](agile-router.md)
-- [agile-skill-feedback](agile-skill-feedback.md)
-- [agile-sprint](agile-sprint.md)
-- [agile-status](agile-status.md)
-- [agile-story](agile-story.md)
-- [agile-tdd](agile-tdd.md)
+| Skill | One-liner |
+|---|---|
+| [agile-intake](agile-intake.md) | Vague problem → structured intake + recommended next artifact |
+| [agile-roadmap](agile-roadmap.md) | Multi-phase initiative → sequenced roadmap with dependencies |
+| [agile-epic](agile-epic.md) | Initiative → epic overview + N story files |
+| [agile-story](agile-story.md) | Drafted story → execution plan with Test-first plan |
+| [agile-tdd](agile-tdd.md) | Red-Green-Refactor coaching + optional enforcement layer |
+| [agile-refinement](agile-refinement.md) | Validate planning artifacts + review code |
+| [agile-status](agile-status.md) | Checkpoint / consolidation / closure modes |
+| [agile-sprint](agile-sprint.md) | Plan a sprint: objective, items, capacity |
+| [agile-review](agile-review.md) | Sprint review and demo for stakeholders |
+| [agile-metrics](agile-metrics.md) | Objective sprint metrics |
+| [agile-retro](agile-retro.md) | Retrospective with improvement actions |
+| [agile-skill-feedback](agile-skill-feedback.md) | Refine, merge, split, deprecate, remove, or create skills from evidence |
+| [agile-router](agile-router.md) | Decide which skill to invoke |
+| [agile-onboarding](agile-onboarding.md) | Onboard a new team member |
+| [agile-proto](agile-proto.md) | Interactive UI prototypes |
 
-## Wiki
+## Wiki (5)
 
-- [wiki-ingest](wiki-ingest.md)
-- [wiki-lint](wiki-lint.md)
-- [wiki-query](wiki-query.md)
+| Skill | One-liner |
+|---|---|
+| [wiki-init](wiki-init.md) | Initialize, diagnose, or migrate wiki + QMD + hooks infrastructure |
+| [wiki-ingest](wiki-ingest.md) | Process a source from `raw/` into the wiki |
+| [wiki-query](wiki-query.md) | Answer a question using the wiki as canonical source |
+| [wiki-lint](wiki-lint.md) | Audit wiki health (links, frontmatter, drift) |
+| [wiki-policy-check](wiki-policy-check.md) | Audit a product/code repo for business rules that should live in the wiki |

@@ -1,10 +1,18 @@
 # Wiki Skills Guide
 
-AI-maintained organizational knowledge system based on the [LLM Wiki pattern (Karpathy)](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). Three skills manage the lifecycle: ingest sources, query knowledge, and audit health.
+AI-maintained organizational knowledge system based on the [LLM Wiki pattern (Karpathy)](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). Five skills cover the full lifecycle: initialize the infrastructure, ingest sources, query knowledge, audit health, and check that business rules in nearby repos have not leaked away from the wiki.
 
-**Skills covered:** wiki-ingest, wiki-query, wiki-lint
+**Skills covered:**
 
-> **Retrieval engine.** The skills work without setup, but they perform much better when [QMD](https://github.com/tobi/qmd) is installed and the wiki is indexed. QMD provides BM25 + vector + LLM reranking locally, plus per-path context injection that the skills rely on for audience separation (e.g. teaching agents that `raw/` is preserved-but-not-canonical). See [`qmd-setup.md`](./qmd-setup.md) for the one-time owner setup, including the `Qwen3-Embedding-0.6B` model recommendation for non-English wikis.
+- [`wiki-init`](../skills/wiki-init.md) — initialize, diagnose, or migrate the wiki + QMD + per-harness hooks/plugin infrastructure.
+- [`wiki-ingest`](../skills/wiki-ingest.md) — process a source from `raw/` into structured wiki pages.
+- [`wiki-query`](../skills/wiki-query.md) — answer questions using the wiki as the canonical source.
+- [`wiki-lint`](../skills/wiki-lint.md) — audit wiki health (links, frontmatter, drift).
+- [`wiki-policy-check`](../skills/wiki-policy-check.md) — audit a product/code repo for business rules that should live in the wiki.
+
+The scenarios below focus on the **content lifecycle** (ingest → query → lint). For the infrastructure setup that precedes them, see [`wiki-init`](../skills/wiki-init.md); for the cross-repo audit, see [`wiki-policy-check`](../skills/wiki-policy-check.md).
+
+> **Retrieval engine.** The skills work without setup, but they perform much better when [QMD](https://github.com/tobi/qmd) is installed and the wiki is indexed. QMD provides BM25 + vector + LLM reranking locally, plus per-path context injection that the skills rely on for audience separation (e.g. teaching agents that `raw/` is preserved-but-not-canonical). See [`qmd-setup.md`](./qmd-setup.md) for the one-time owner setup, including the `Qwen3-Embedding-0.6B` model recommendation for non-English wikis. `wiki-init` automates much of this setup; `qmd-setup.md` covers the manual fallback.
 
 ---
 
