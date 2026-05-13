@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# agile-tdd · Tauri · PostToolUse hook.
+#
+# Registers MCP tauri tool calls as evidence for the session audit.
+# Matcher (in .claude/settings.json):
+#   mcp__tauri__webview_screenshot|mcp__tauri__webview_execute_js|mcp__tauri__webview_dom_snapshot|mcp__tauri__manage_window
+#
+# Output format (per line, tab-separated):
+#   <ISO_TS>\t<tool_name>\t<windowId|->\t<filePath|->\t<epoch>
+#
+# Never blocks. Always exits 0.
+
+set -euo pipefail
+
+INPUT="$(cat 2>/dev/null || true)"
+SESSION_ID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || echo unknown)"
+TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || echo unknown)"
+
+ROOT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+GUARDRAILS="$ROOT/.tdd-guardrails.yml"
+[ -f "$GUARDRAILS" ] || exit 0
+
+# Read log_dir from yml (falls back to .claude/state/tdd-tauri).
+LOG_DIR_REL="$(
+  awk '
+    BEGIN { depth = 0; want_log_dir = 0 }
+    function leading_spaces(s,    i) {
+      for (i = 1; i <= length(s); i++) {
+        if (substr(s, i, 1) != " ") return i - 1
+      }
+      return length(s)
+    }
+    {
+      raw = $0
+      if (raw ~ /^[[:space:]]*$/) next
+      if (raw ~ /^[[:space:]]*#/) next
+      indent = leading_spaces(raw)
+      stripped = raw
+      sub(/^[[:space:]]+/, "", stripped)
+      sub(/[[:space:]]*#.*$/, "", stripped)
+      if (depth == 0 && stripped == "tauri:") { depth = 1; tauri_indent = indent; next }
+      if (depth == 1) {
+        if (indent <= tauri_indent) { depth = 0; next }
+        if (match(stripped, /^log_dir:[[:space:]]*/) > 0) {
+          val = substr(stripped, RLENGTH + 1)
+          sub(/^[[:space:]]+/, "", val)
+          gsub(/^"|"$/, "", val)
+          gsub(/^'\''|'\''$/, "", val)
+          print val
+          exit
+        }
+      }
+    }
+  ' "$GUARDRAILS"
+)"
+LOG_DIR_REL="${LOG_DIR_REL:-.claude/state/tdd-tauri}"
+LOG_DIR="$ROOT/$LOG_DIR_REL"
+mkdir -p "$LOG_DIR" 2>/dev/null || exit 0
+
+# Extract windowId + filePath from tool_input when present (Claude Code
+# passes the full call JSON). They're optional — emit "-" when absent.
+WINDOW="$(printf '%s' "$INPUT" | jq -r '.tool_input.windowId // "-"' 2>/dev/null || echo "-")"
+FILEPATH="$(printf '%s' "$INPUT" | jq -r '.tool_input.filePath // "-"' 2>/dev/null || echo "-")"
+TS_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+EPOCH="$(date -u +%s)"
+
+printf '%s\t%s\t%s\t%s\t%s\n' "$TS_ISO" "$TOOL" "$WINDOW" "$FILEPATH" "$EPOCH" \
+  >> "$LOG_DIR/${SESSION_ID}.evidence" 2>/dev/null || true
+
+exit 0

@@ -1,0 +1,324 @@
+#!/usr/bin/env bash
+# agile-tdd shared helpers — sourced by tdd-session-audit.sh and by
+# project-type audit.partial.sh scripts. Keeps the yml parser, glob
+# matcher and diff collector in one place so types can compose.
+#
+# All functions are pure-bash + awk (no jq for yml). Read the
+# `.tdd-guardrails.yml` once via env vars — callers set GUARDRAILS to
+# the absolute path before sourcing.
+
+# Read a scalar value from the yml. Supports dotted keys (e.g.
+# `tauri.mode`) by following nested blocks. Returns empty when missing.
+guardrail_scalar() {
+  local key="$1" file="${GUARDRAILS}"
+  [ -f "$file" ] || return 0
+  awk -v dotted="$key" '
+    BEGIN {
+      n = split(dotted, parts, ".")
+      depth = 0
+    }
+    function leading_spaces(s,    i) {
+      for (i = 1; i <= length(s); i++) {
+        if (substr(s, i, 1) != " ") return i - 1
+      }
+      return length(s)
+    }
+    {
+      # Skip blank / comment-only lines.
+      raw = $0
+      if (raw ~ /^[[:space:]]*$/) next
+      if (raw ~ /^[[:space:]]*#/) next
+      indent = leading_spaces(raw)
+      # Pop scopes when indentation decreases.
+      while (depth > 0 && indent <= scope_indent[depth]) {
+        depth--
+      }
+      stripped = raw
+      sub(/^[[:space:]]+/, "", stripped)
+      sub(/[[:space:]]*#.*$/, "", stripped)
+      # Match `key:` (opens a scope) or `key: value` (scalar).
+      if (match(stripped, /^[A-Za-z_][A-Za-z0-9_-]*:/) > 0) {
+        k = substr(stripped, 1, RLENGTH - 1)
+        rest = substr(stripped, RLENGTH + 1)
+        sub(/^[[:space:]]+/, "", rest)
+        # Expected key for current depth = parts[depth + 1].
+        expected = parts[depth + 1]
+        if (k == expected) {
+          if (depth + 1 == n) {
+            # Final segment. Scalar must have a value here.
+            if (rest != "") {
+              gsub(/^"|"$/, "", rest)
+              gsub(/^'\''|'\''$/, "", rest)
+              print rest
+              exit
+            }
+            # Otherwise empty scalar / opens block (unsupported here).
+            exit
+          } else {
+            depth++
+            scope_indent[depth] = indent
+            next
+          }
+        }
+      }
+    }
+  ' "$file"
+}
+
+# Read a list value (`key:` followed by `- item` lines). Supports
+# dotted keys. Returns one item per line.
+guardrail_list() {
+  local key="$1" file="${GUARDRAILS}"
+  [ -f "$file" ] || return 0
+  awk -v dotted="$key" '
+    BEGIN {
+      n = split(dotted, parts, ".")
+      depth = 0
+      in_list = 0
+    }
+    function leading_spaces(s,    i) {
+      for (i = 1; i <= length(s); i++) {
+        if (substr(s, i, 1) != " ") return i - 1
+      }
+      return length(s)
+    }
+    {
+      raw = $0
+      if (raw ~ /^[[:space:]]*$/) next
+      if (raw ~ /^[[:space:]]*#/) next
+      indent = leading_spaces(raw)
+      # Pop scopes (and close the active list) on dedent.
+      while (depth > 0 && indent <= scope_indent[depth]) {
+        depth--
+        in_list = 0
+      }
+      stripped = raw
+      sub(/^[[:space:]]+/, "", stripped)
+      sub(/[[:space:]]*#.*$/, "", stripped)
+      if (in_list) {
+        if (substr(stripped, 1, 2) == "- ") {
+          item = substr(stripped, 3)
+          gsub(/^"|"$/, "", item)
+          gsub(/^'\''|'\''$/, "", item)
+          print item
+          next
+        } else if (substr(stripped, 1, 1) == "-") {
+          item = substr(stripped, 2)
+          sub(/^[[:space:]]+/, "", item)
+          gsub(/^"|"$/, "", item)
+          gsub(/^'\''|'\''$/, "", item)
+          print item
+          next
+        }
+        # Non-list line under the same indent → exit list.
+        in_list = 0
+      }
+      if (match(stripped, /^[A-Za-z_][A-Za-z0-9_-]*:/) > 0) {
+        k = substr(stripped, 1, RLENGTH - 1)
+        rest = substr(stripped, RLENGTH + 1)
+        sub(/^[[:space:]]+/, "", rest)
+        expected = parts[depth + 1]
+        if (k == expected) {
+          if (depth + 1 == n) {
+            # Final segment. Open the list (must be empty-value).
+            in_list = 1
+            list_indent = indent
+            next
+          } else {
+            depth++
+            scope_indent[depth] = indent
+            next
+          }
+        }
+      }
+    }
+  ' "$file"
+}
+
+# Test if a relative path matches ANY of the patterns in `key`. Patterns
+# use bash `case` glob semantics (no `**` globstar, but `*` crosses `/`).
+match_any() {
+  local rel="$1" key="$2" pattern=""
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    # shellcheck disable=SC2254
+    case "$rel" in $pattern) return 0 ;; esac
+  done < <(guardrail_list "$key")
+  return 1
+}
+
+# Test if `rel` matches ANY pattern in a newline-separated string
+# (instead of reading from yml). Useful for already-resolved lists.
+match_globs() {
+  local rel="$1" patterns="$2" pattern=""
+  while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    case "$rel" in $pattern) return 0 ;; esac
+  done <<EOF
+$patterns
+EOF
+  return 1
+}
+
+# Collect changed files in the current session (tracked + untracked).
+# Path is relative to the repo root. Output sorted, unique.
+session_changed_files() {
+  local root="${1:-$ROOT}"
+  (
+    cd "$root" 2>/dev/null || return 0
+    git diff --name-only HEAD 2>/dev/null || true
+    git ls-files --others --exclude-standard 2>/dev/null || true
+  ) | sort -u
+}
+
+# Discover Tauri app roots in a repo. Looks for `src-tauri/Cargo.toml`.
+# Outputs app root paths relative to $ROOT, one per line. "." for the
+# single-repo case (where `src-tauri/Cargo.toml` is at the root).
+filesystem_discover_tauri_apps() {
+  local root="${1:-$ROOT}"
+  (
+    cd "$root" 2>/dev/null || return 0
+    find . -maxdepth 5 \
+      \( -name node_modules -o -name target -o -name dist -o -name .git \) -prune \
+      -o -type f -name 'Cargo.toml' -path '*/src-tauri/Cargo.toml' -print 2>/dev/null \
+    | awk '
+      {
+        sub(/^\.\//, "")
+        # Strip trailing "src-tauri/Cargo.toml" — leaves the app root.
+        sub(/src-tauri\/Cargo\.toml$/, "")
+        sub(/\/$/, "")
+        if (length($0) == 0) print "."
+        else print
+      }
+    '
+  )
+}
+
+# Match a path against a list of app root prefixes and echo the first
+# one that matches (longest-prefix wins). Empty when no match.
+match_first_prefix() {
+  local file="$1" apps="$2" best="" best_len=0 app len
+  while IFS= read -r app; do
+    [ -n "$app" ] || continue
+    if [ "$app" = "." ]; then
+      best="."
+      best_len=0
+      continue
+    fi
+    case "$file" in
+      "$app"/*)
+        len=${#app}
+        if [ "$len" -gt "$best_len" ]; then
+          best="$app"
+          best_len=$len
+        fi
+        ;;
+    esac
+  done <<EOF
+$apps
+EOF
+  printf '%s' "$best"
+}
+
+# Prepend the app root to each glob, unless the app root is "." (single
+# repo). Globs that begin with "**" are kept as-is (already absolute in
+# semantic). One pattern per input line.
+rebase_globs() {
+  local app="$1" patterns="$2" line
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    case "$app" in
+      .|"") printf '%s\n' "$line" ;;
+      *) printf '%s/%s\n' "$app" "$line" ;;
+    esac
+  done <<EOF
+$patterns
+EOF
+}
+
+# Return "fresh" or "stale" based on whether the cargo build incremental
+# dir has any file newer than the most recent source write under
+# `<app>/src-tauri/src/`. Best-effort: missing target dir = stale.
+check_cargo_fresh() {
+  local app_root="$1"
+  local src_dir target_dir latest_src latest_target
+  src_dir="$app_root/src-tauri/src"
+  target_dir="$app_root/src-tauri/target/debug"
+  [ -d "$src_dir" ] || { echo "n/a"; return; }
+  [ -d "$target_dir" ] || { echo "stale"; return; }
+  latest_src="$(find "$src_dir" -type f -name '*.rs' -print0 2>/dev/null | xargs -0 stat -f '%m' 2>/dev/null | sort -nr | head -1)"
+  latest_target="$(find "$target_dir" -type f -name '*.json' -print0 2>/dev/null | xargs -0 stat -f '%m' 2>/dev/null | sort -nr | head -1)"
+  [ -z "$latest_src" ] && { echo "fresh"; return; }
+  [ -z "$latest_target" ] && { echo "stale"; return; }
+  if [ "$latest_target" -ge "$latest_src" ]; then
+    echo "fresh"
+  else
+    echo "stale"
+  fi
+}
+
+# Same idea for TS: tsconfig.tsbuildinfo (Bun emits) compared to the
+# most recent UI source write.
+check_tsc_fresh() {
+  local app_root="$1"
+  local src_dirs latest_src latest_info
+  src_dirs="$app_root/src"
+  [ -d "$src_dirs" ] || { echo "n/a"; return; }
+  latest_src="$(find "$src_dirs" -type f \( -name '*.ts' -o -name '*.tsx' \) -print0 2>/dev/null | xargs -0 stat -f '%m' 2>/dev/null | sort -nr | head -1)"
+  # Look for any tsbuildinfo near the app root.
+  latest_info="$(find "$app_root" -maxdepth 3 -name 'tsconfig*.tsbuildinfo' -print0 2>/dev/null | xargs -0 stat -f '%m' 2>/dev/null | sort -nr | head -1)"
+  [ -z "$latest_src" ] && { echo "fresh"; return; }
+  [ -z "$latest_info" ] && { echo "stale"; return; }
+  if [ "$latest_info" -ge "$latest_src" ]; then
+    echo "fresh"
+  else
+    echo "stale"
+  fi
+}
+
+# Inspect the per-session evidence log written by tdd-record-mcp.sh.
+# Returns "ok" if the file contains at least one line for the requested
+# tool with a timestamp >= the most recent source write under the app's
+# affected paths. Otherwise "missing".
+#
+# Args:
+#   $1 — evidence file ($LOG_DIR/<session_id>.evidence).
+#   $2 — tool name (e.g. mcp__tauri__webview_screenshot).
+#   $3 — newest source write epoch (from session_changed_files / stat).
+#   $4 — optional app root for per-app screenshot scoping (empty = any).
+check_evidence_line() {
+  local file="$1" tool="$2" since="$3" app="$4"
+  [ -f "$file" ] || { echo "missing"; return; }
+  awk -v tool="$tool" -v since="$since" -v app="$app" '
+    BEGIN { found = 0 }
+    {
+      # Format: <ISO_TS>\t<tool>\t<windowId|->\t<filePath|->\t<epoch>
+      n = split($0, f, "\t")
+      if (n < 5) next
+      if (f[2] != tool) next
+      if (f[5] + 0 < since + 0) next
+      if (app != "" && f[4] != "-") {
+        # Per-app scoping when filePath given. Heuristic: app substring
+        # in the path or windowId.
+        if (index(f[4], app) == 0 && index(f[3], app) == 0) next
+      }
+      found = 1
+      exit
+    }
+    END { print (found ? "ok" : "missing") }
+  ' "$file"
+}
+
+# Convert a list of files into the epoch of the most recent mtime.
+# Returns 0 when the list is empty.
+latest_mtime_of_list() {
+  local files="$1" max=0 line mt
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    mt="$(stat -f '%m' "$line" 2>/dev/null || echo 0)"
+    [ "$mt" -gt "$max" ] && max="$mt"
+  done <<EOF
+$files
+EOF
+  printf '%s' "$max"
+}
