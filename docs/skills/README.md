@@ -33,3 +33,9 @@ Human-facing notes moved out of individual skill folders.
 | [wiki-query](wiki-query.md) | Answer a question using the wiki as canonical source |
 | [wiki-lint](wiki-lint.md) | Audit wiki health (links, frontmatter, drift) |
 | [wiki-policy-check](wiki-policy-check.md) | Audit a product/code repo for business rules that should live in the wiki |
+
+## Design (1)
+
+| Skill | One-liner |
+|---|---|
+| [figma-capture](figma-capture.md) | Rendered page → clipboard capture for Figma paste |

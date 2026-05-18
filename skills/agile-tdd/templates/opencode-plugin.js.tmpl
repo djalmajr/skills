@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 
 const mutationTools = new Set([
   "apply_patch",
@@ -82,27 +83,28 @@ function shouldRun(input, output) {
   return command.includes("*** Begin Patch") || command.includes("apply_patch");
 }
 
-async function streamText(stream) {
-  if (!stream) return "";
-  return new Response(stream).text();
-}
-
 async function runHook(root, rel, hookPayload) {
   const script = join(root, rel);
   if (!existsSync(script)) return { code: 0, stdout: "", stderr: "" };
-  const proc = Bun.spawn(["bash", script], {
+
+  const proc = spawn("bash", [script], {
     cwd: root,
-    stdin: "pipe",
-    stdout: "pipe",
-    stderr: "pipe",
+    stdio: ["pipe", "pipe", "pipe"],
   });
-  proc.stdin.write(JSON.stringify(hookPayload));
-  proc.stdin.end();
-  const [stdout, stderr, code] = await Promise.all([
-    streamText(proc.stdout),
-    streamText(proc.stderr),
-    proc.exited,
-  ]);
+
+  const stdoutChunks = [];
+  const stderrChunks = [];
+  proc.stdout?.on("data", (chunk) => stdoutChunks.push(chunk));
+  proc.stderr?.on("data", (chunk) => stderrChunks.push(chunk));
+  proc.stdin.end(JSON.stringify(hookPayload));
+
+  const code = await new Promise((resolve, reject) => {
+    proc.on("error", reject);
+    proc.on("close", (exitCode) => resolve(exitCode ?? 0));
+  });
+
+  const stdout = Buffer.concat(stdoutChunks).toString("utf8");
+  const stderr = Buffer.concat(stderrChunks).toString("utf8");
   return { code, stdout: stdout.trim(), stderr: stderr.trim() };
 }
 

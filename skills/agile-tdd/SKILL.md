@@ -227,7 +227,7 @@ Per-harness mechanics differ — Claude Code and Codex run shell hooks directly;
 2. Copy the hook templates. From `templates/hooks/` to
    `<project-root>/.claude/hooks/`, `<project-root>/.codex/hooks/`, **and**
    `<project-root>/.opencode/hooks/` (the OpenCode plugin invokes the
-   same scripts via `Bun.spawn`). Drop the `.tmpl` suffix and
+   same scripts via `node:child_process.spawn`). Drop the `.tmpl` suffix and
    `chmod +x`.
 
    **Also copy** the shared helpers:
@@ -249,7 +249,7 @@ Per-harness mechanics differ — Claude Code and Codex run shell hooks directly;
 
    - **Claude Code** (`.claude/settings.json`): add a `PreToolUse` entry matching `Write|Edit|MultiEdit` calling `$CLAUDE_PROJECT_DIR/.claude/hooks/tdd-pre-write.sh`, a `Stop` entry calling `tdd-session-audit.sh`, and a `SessionStart` entry calling `tdd-announce.sh`. Merge with existing hooks (e.g. wiki-init) — do not replace.
    - **Codex** (`.codex/hooks.json`): add `PreToolUse` matching `apply_patch|Edit|Write|MultiEdit`, `Stop`, and `SessionStart` entries. Use `bash "$(git rev-parse --show-toplevel)/.codex/hooks/<script>.sh"` as the command form (Codex pattern). Include `statusMessage` field for each.
-   - **OpenCode**: copy `templates/opencode-plugin.js.tmpl` to `<project-root>/.opencode/plugins/tdd-guardrails.js`. The plugin subscribes to `tool.execute.before` (PreToolUse equivalent), `session.created` (SessionStart equivalent), and `session.idle` (closest to Stop — the audit shell is idempotent via a tmp state file so multi-firing is safe). The plugin spawns the same `.opencode/hooks/tdd-*.sh` scripts via `Bun.spawn`. OpenCode does **not** invoke shell scripts directly; the plugin is the entry point.
+   - **OpenCode**: copy `templates/opencode-plugin.js.tmpl` to `<project-root>/.opencode/plugins/tdd-guardrails.js`. The plugin subscribes to `tool.execute.before` (PreToolUse equivalent), `session.created` (SessionStart equivalent), and `session.idle` (closest to Stop — the audit shell is idempotent via a tmp state file so multi-firing is safe). The plugin spawns the same `.opencode/hooks/tdd-*.sh` scripts via `node:child_process.spawn`. OpenCode does **not** invoke shell scripts directly; the plugin is the entry point.
 
 4. Append the contents of `templates/agents-block.md.tmpl` to `AGENTS.md` and `CLAUDE.md` so the agent is told the project has TDD enforcement.
 
@@ -266,7 +266,7 @@ Per-harness mechanics differ — Claude Code and Codex run shell hooks directly;
 
    The Codex equivalent goes in `.codex/hooks.json`; for OpenCode,
    subscribe to `tool.execute.after` filtered by tool name and spawn
-   the same shell via `Bun.spawn`.
+   the same shell via `node:child_process.spawn`.
 
 The hooks are guardrails, not a guarantee — they check file-pair existence, not test quality. Semantic discipline (one behavior per test, factories over hardcoded data) still belongs to the agent.
 
@@ -346,7 +346,7 @@ above. For each detected type:
      uses `bash "$(git rev-parse --show-toplevel)/.codex/hooks/tdd-record-mcp.sh"`.
    - **OpenCode**: extend `.opencode/plugins/tdd-guardrails.js` to
      subscribe to `tool.execute.after` with a filter on tool name,
-     spawning the same shell script via `Bun.spawn`.
+     spawning the same shell script via `node:child_process.spawn`.
 5. Append the type slug (e.g. `tauri`) to `project_types` in
    `.tdd-guardrails.yml`. The session-audit reads this list at run.
 

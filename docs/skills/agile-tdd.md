@@ -93,7 +93,7 @@ Patterns use **bash `case` globs**, not extended globstar. `*` matches any seque
 | Codex | `.codex/hooks.json` shell hooks | `PreToolUse` (matcher `apply_patch\|Edit\|Write\|MultiEdit`) | `Stop` | `SessionStart` |
 | OpenCode | `.opencode/plugins/tdd-guardrails.js` JS plugin | `tool.execute.before` | `session.idle` (closest available; audit shell is idempotent) | `session.created` |
 
-OpenCode does **not** invoke shell scripts directly — its plugin orchestrates the same `.opencode/hooks/tdd-*.sh` scripts via `Bun.spawn`. Same policy logic, three entry points.
+OpenCode does **not** invoke shell scripts directly — its plugin orchestrates the same `.opencode/hooks/tdd-*.sh` scripts via `node:child_process.spawn`. Same policy logic, three entry points.
 
 ### Enforcement caveats
 

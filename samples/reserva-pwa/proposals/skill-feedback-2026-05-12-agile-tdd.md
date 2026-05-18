@@ -72,7 +72,7 @@
 
 ## Approval
 
-- **Status:** partially-applied (2026-05-12) — templates + Enforcement section + `Enforcement caveats` + bash-glob documentation all landed in `agile-tdd/SKILL.md` and `templates/`. Post-audit on the same day surfaced a critical gap: shell scripts in `.opencode/hooks/` are not invoked by OpenCode directly — OpenCode uses a JS plugin API. Added `templates/opencode-plugin.js.tmpl` mirroring `wiki-init`'s pattern (plugin subscribes to `tool.execute.before` / `session.created` / `session.idle` and orchestrates the same shell scripts via `Bun.spawn`). Updated SKILL.md with a Harness compatibility matrix and the install steps now cover all three harnesses correctly. The `agile-tdd-init` split and the stronger Red-before-Green tracking remain deferred.
+- **Status:** partially-applied (2026-05-12) — templates + Enforcement section + `Enforcement caveats` + bash-glob documentation all landed in `agile-tdd/SKILL.md` and `templates/`. Post-audit on the same day surfaced a critical gap: shell scripts in `.opencode/hooks/` are not invoked by OpenCode directly — OpenCode uses a JS plugin API. Added `templates/opencode-plugin.js.tmpl` mirroring `wiki-init`'s pattern (plugin subscribes to `tool.execute.before` / `session.created` / `session.idle` and orchestrates the same shell scripts via `node:child_process.spawn`). Updated SKILL.md with a Harness compatibility matrix and the install steps now cover all three harnesses correctly. The `agile-tdd-init` split and the stronger Red-before-Green tracking remain deferred.
 - **Approver:** human owner of the skills repo.
 - **Notes:**
   - The five sub-findings are tightly coupled; review them as a unit.

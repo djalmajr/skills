@@ -1,0 +1,4 @@
+interface:
+  display_name: "Figma Capture"
+  short_description: "Capture local HTML to paste into Figma"
+  default_prompt: "Capture the current page for Figma using clipboard mode."
