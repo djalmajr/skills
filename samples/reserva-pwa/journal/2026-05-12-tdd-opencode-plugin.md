@@ -42,7 +42,7 @@ Fix applied:
 3. Updated `skills/agile-tdd/SKILL.md` with a "Harness compatibility matrix" table and revised the Manual install steps to explain that OpenCode uses a JS plugin (not direct shell hooks) and copies the shell scripts so the plugin can spawn them.
 4. Updated `skills/agile-tdd/templates/agents-block.md.tmpl` to list per-harness mechanics.
 
-What did **not** need to be removed: the shell scripts at `.opencode/hooks/tdd-*.sh` are valid utilities orchestrated by the plugin via `Bun.spawn`. They're not dead code once the plugin exists. The initial worry that they were "useless" was wrong — they're just not the entry point.
+What did **not** need to be removed: the shell scripts at `.opencode/hooks/tdd-*.sh` are valid utilities orchestrated by the plugin via `node:child_process.spawn`. They're not dead code once the plugin exists. The initial worry that they were "useless" was wrong — they're just not the entry point.
 
 Smoke test: piped a fake `Write` payload through `.opencode/hooks/tdd-pre-write.sh` directly and confirmed the script still emits the expected warning. The plugin uses the same invocation path.
 

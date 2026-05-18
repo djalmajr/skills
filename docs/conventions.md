@@ -59,7 +59,7 @@ Per-harness mechanics:
 | Codex | `.codex/hooks.json` shell hooks | `PreToolUse` (matcher `apply_patch\|Edit\|Write\|MultiEdit`) | `Stop` | `SessionStart` |
 | OpenCode | `.opencode/plugins/tdd-guardrails.js` JS plugin | `tool.execute.before` | `session.idle` (closest available; audit shell is idempotent) | `session.created` |
 
-OpenCode does **not** invoke shell scripts directly. The JS plugin orchestrates the same `.opencode/hooks/tdd-*.sh` scripts via `Bun.spawn`, so policy logic lives once (shell) with three entry points. See [`agile-tdd`](skills/agile-tdd.md) for install steps and bypass options.
+OpenCode does **not** invoke shell scripts directly. The JS plugin orchestrates the same `.opencode/hooks/tdd-*.sh` scripts via `node:child_process.spawn`, so policy logic lives once (shell) with three entry points. See [`agile-tdd`](skills/agile-tdd.md) for install steps and bypass options.
 
 The same pattern can be mirrored for other skills that prescribe behavior at implementation time (e.g., future `agile-refinement-init`), once two projects' worth of evidence justifies the install side.
 
@@ -93,6 +93,7 @@ A few patterns recur across real sessions:
 | Audit wiki health | `/wiki-lint` |
 | Audit business-rule leaks into code | `/wiki-policy-check` |
 | Sketch UI before implementation | `/agile-proto` |
+| Copy a rendered local page into Figma | `/figma-capture` |
 | Onboard a new team member | `/agile-onboarding` |
 
 The detailed end-to-end flows live in [`agile/guides/`](agile/) and [`wiki/`](wiki/).

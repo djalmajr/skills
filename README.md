@@ -46,7 +46,7 @@ These skills are written for the common `SKILL.md` format used by `skills.sh`, C
 
 Keep frontmatter portable. Avoid agent-specific fields unless the skill truly needs them and the behavior is documented in `SKILL.md`.
 
-## Skills (20)
+## Skills (21)
 
 ### Agile (15)
 
@@ -77,6 +77,12 @@ Keep frontmatter portable. Avoid agent-specific fields unless the skill truly ne
 | wiki-query | Ask about something in the wiki |
 | wiki-lint | Audit and organize the wiki |
 | wiki-policy-check | Audit a product/code repo for business rules that should live in the wiki |
+
+### Design (1)
+
+| Skill | Purpose |
+|-------|---------|
+| figma-capture | Copy a rendered local page to the clipboard for pasting into Figma |
 
 ## Flow
 
@@ -183,6 +189,7 @@ Each skill is invoked with `/skill-name`:
 /agile-refinement
 /agile-status
 /agile-skill-feedback
+/figma-capture
 /wiki-query
 /wiki-init
 ```
