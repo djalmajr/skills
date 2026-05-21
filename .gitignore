@@ -22,6 +22,8 @@ node_modules/
 .kiro/
 .continue/
 .agents/
+.antigravitycli
+
 
 # Logs
 *.log
