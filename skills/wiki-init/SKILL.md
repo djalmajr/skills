@@ -1,6 +1,6 @@
 ---
 name: wiki-init
-description: "Initialize, diagnose, or migrate a project into the LLM wiki pattern with AGENTS/CLAUDE instructions, QMD MCP wiring, Claude/Codex/OpenCode hooks/plugins, guardrails, and QMD doctor checks. Use when the user asks to set up wiki infrastructure, check if a project needs migration, install wiki hooks, or validate QMD."
+description: "Initialize, diagnose, or migrate a project into the LLM wiki pattern with AGENTS/CLAUDE/ANTIGRAVITY instructions, QMD MCP wiring, Claude/Codex/OpenCode/Antigravity hooks/plugins, guardrails, and QMD doctor checks. Use when the user asks to set up wiki infrastructure, check if a project needs migration, install wiki hooks, or validate QMD."
 metadata:
   short-description: Initialize and audit wiki infrastructure
 ---
@@ -48,7 +48,7 @@ Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Promptin
 | Wiki location | Branches the whole install: paths, hooks, presets | Local (in-repo `wiki/`) · Shared (separate path) |
 | Cache migration when legacy detected | Hard-to-undo copy operation | Copy now (preserve legacy) · Skip migration |
 | Drift remediation when installed files diverge | Triggers `update-hooks --write` | Update all · Show diffs first · Ignore |
-| Harness selection (multi-select) when more than one is detected | Avoids configuring agents the user doesn't want | claude · codex · opencode |
+| Harness selection (multi-select) when more than one is detected | Avoids configuring agents the user doesn't want | claude · codex · opencode · antigravity |
 
 After the answer, restate the choice in your own words before running `--write`.
 
@@ -94,7 +94,7 @@ bun skills/wiki-init/scripts/wiki-init.ts doctor --project /path/to/project
 bun test skills/wiki-init/scripts/wiki-init.test.ts
 bun skills/wiki-init/scripts/wiki-init.ts migrate --project /path/to/project --wiki ../knowledge-base --index my-index
 bun skills/wiki-init/scripts/wiki-init.ts install --project /path/to/project
-bun skills/wiki-init/scripts/wiki-init.ts install --project /path/to/project --wiki ../knowledge-base --index my-project --harness claude,codex,opencode --write
+bun skills/wiki-init/scripts/wiki-init.ts install --project /path/to/project --wiki ../knowledge-base --index my-project --harness claude,codex,opencode,antigravity --write
 ```
 
 ## Presets
