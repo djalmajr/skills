@@ -1,6 +1,6 @@
 # wiki-init
 
-Initializes a repo into the **wiki + QMD + agent-hook pattern**: scaffolds the per-harness configs (Claude / Codex / OpenCode), wires the QMD MCP server, installs guardrail hooks, and runs a doctor that surfaces drift and missing pieces. Pairs with `/wiki-ingest`, `/wiki-query`, `/wiki-lint`, and `/wiki-policy-check`.
+Initializes a repo into the **wiki + QMD + agent-hook pattern**: scaffolds the per-harness configs (Claude / Codex / OpenCode / Antigravity), wires the QMD MCP server, installs guardrail hooks, and runs a doctor that surfaces drift and missing pieces. Pairs with `/wiki-ingest`, `/wiki-query`, `/wiki-lint`, and `/wiki-policy-check`.
 
 ## When to use
 
@@ -38,7 +38,7 @@ A new sample project `reserva-pwa` sits as a sibling of the skills repo.
 2. Doctor reports `wiki_path: wiki (missing)`, suggests `local-wiki` topology and an index name derived from the project basename.
 3. Skill asks the user (via the harness question tool — see [Prompting](../conventions.md#how-a-skill-asks-you-a-question--prompting)) to confirm:
    - **Wiki location** — local (`wiki/` in this repo) vs shared (external path).
-   - **Harnesses to configure** — claude / codex / opencode.
+   - **Harnesses to configure** — claude / codex / opencode / antigravity.
 4. `install --write` creates 22 files: `AGENTS.md`, `CLAUDE.md`, `.wiki-guardrails.yml`, `.mcp.json`, per-harness configs and hooks, QMD wrapper + manifest.
 5. Final step is content scaffolding — the skill creates the minimum `wiki/index.md`, `wiki/CONVENTIONS.md`, `wiki/log.md`, audience subfolders (`business/`, `apps/`, `ops/`, `data/`, `sources/`), and `raw/index.md`. (Documented in `wiki-ingest/SKILL.md`; some installs also rely on `--seed-wiki` if available.)
 6. `<wrapper> collection add wiki --name <index> --mask "**/*.md"`, `<wrapper> update`, `<wrapper> embed` — index ready.
@@ -51,7 +51,7 @@ Re-running `/wiki-init` later in `doctor` mode produces a report:
 wiki_path: wiki (exists)
 qmd_index: reserva-pwa
 recommended_topology: local-wiki
-harnesses: claude, codex, opencode
+harnesses: claude, codex, opencode, antigravity
 
 files:
 - AGENTS.md: present
