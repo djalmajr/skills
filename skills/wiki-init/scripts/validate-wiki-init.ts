@@ -54,6 +54,7 @@ try {
     ".claude/settings.json",
     "opencode.json",
     ".opencode/plugins/wiki-guardrails.js",
+    ".agents/hooks.json",
   ];
   for (const rel of expected) {
     if (!existsSync(join(project, rel))) throw new Error(`missing generated file: ${rel}`);
@@ -75,6 +76,11 @@ try {
     ".opencode/hooks/wiki-reindex.sh",
     ".opencode/hooks/wiki-drift-audit.sh",
     ".opencode/hooks/wiki-consider.sh",
+    ".agents/hooks/wiki-policy-check.sh",
+    ".agents/hooks/wiki-reindex.sh",
+    ".agents/hooks/wiki-drift-audit.sh",
+    ".agents/hooks/wiki-consider.sh",
+    ".agents/hooks/wiki-suggest-ingest.sh",
   ];
   for (const rel of hooks) run("bash", ["-n", join(project, rel)]);
 

@@ -82,6 +82,12 @@ test("explicit write creates wrapper, manifest, configs, and hooks", () => {
   expect(existsSync(join(project, ".claude/settings.json"))).toBe(true);
   expect(existsSync(join(project, "opencode.json"))).toBe(true);
   expect(existsSync(join(project, ".opencode/plugins/wiki-guardrails.js"))).toBe(true);
+  expect(existsSync(join(project, ".agents/hooks.json"))).toBe(true);
+  expect(existsSync(join(project, ".agents/hooks/wiki-policy-check.sh"))).toBe(true);
+  expect(existsSync(join(project, ".agents/hooks/wiki-reindex.sh"))).toBe(true);
+  expect(existsSync(join(project, ".agents/hooks/wiki-drift-audit.sh"))).toBe(true);
+  expect(existsSync(join(project, ".agents/hooks/wiki-consider.sh"))).toBe(true);
+  expect(existsSync(join(project, ".agents/hooks/wiki-suggest-ingest.sh"))).toBe(true);
   expect(existsSync(join(home, ".local/share/skills/qmd/wrappers/fixture-qmd"))).toBe(true);
   const manifestPath = join(home, ".local/share/skills/qmd/manifests/fixture.json");
   expect(existsSync(manifestPath)).toBe(true);

@@ -13,7 +13,7 @@ import {
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-type Harness = "claude" | "codex" | "opencode";
+type Harness = "claude" | "codex" | "opencode" | "antigravity";
 type Mode = "doctor" | "install" | "migrate" | "update-hooks";
 
 type Options = {
@@ -71,7 +71,7 @@ function parseArgs(argv: string[]): Options {
     mode,
     project: process.cwd(),
     language: "pt-BR",
-    harnesses: ["claude", "codex", "opencode"],
+    harnesses: ["claude", "codex", "opencode", "antigravity"],
     write: false,
     explicitWiki: false,
     explicitIndex: false,
@@ -452,6 +452,7 @@ function buildVars(root: string, opts: Options): Record<string, string | boolean
     CLAUDE_ENABLED: opts.harnesses.includes("claude"),
     CODEX_ENABLED: opts.harnesses.includes("codex"),
     OPENCODE_ENABLED: opts.harnesses.includes("opencode"),
+    ANTIGRAVITY_ENABLED: opts.harnesses.includes("antigravity"),
   };
 }
 
@@ -610,6 +611,48 @@ function containsWikiHookCommand(value: unknown): boolean {
   return false;
 }
 
+function mergeAntigravityHookJson(target: string, tmpl: string, vars: Record<string, string | boolean>): MergeResult {
+  const exists = existsSync(target);
+  const parsed = parseJsonObject(readMaybe(target), ".agents/hooks.json");
+  if ("error" in parsed) {
+    return {
+      kind: "manual",
+      reason: `${parsed.error}; refusing to overwrite existing hooks`,
+      content: template(tmpl, vars),
+    };
+  }
+
+  let desired: Record<string, any>;
+  try {
+    desired = JSON.parse(template(tmpl, vars));
+  } catch (error: any) {
+    return {
+      kind: "manual",
+      reason: `template ${tmpl} has invalid JSON: ${error.message}`,
+      content: template(tmpl, vars),
+    };
+  }
+
+  const value = parsed.value;
+  for (const [hookName, desiredEvents] of Object.entries(desired)) {
+    if (desiredEvents && typeof desiredEvents === "object") {
+      const currentEvents = value[hookName] && typeof value[hookName] === "object" ? value[hookName] : {};
+      value[hookName] = currentEvents;
+      for (const [event, desiredEntries] of Object.entries(desiredEvents)) {
+        const currentEntries = Array.isArray(currentEvents[event]) ? currentEvents[event] : [];
+        const keptEntries = currentEntries.filter((entry: unknown) => !containsWikiHookCommand(entry));
+        currentEvents[event] = [...keptEntries, ...(Array.isArray(desiredEntries) ? desiredEntries : [])];
+      }
+    }
+  }
+
+  return {
+    kind: exists ? "update" : "create",
+    reason: exists ? "merge wiki hook registrations while preserving other hooks" : ".agents/hooks.json hook registration",
+    content: formatJson(value),
+  };
+}
+
 function mergeCodexToml(target: string, vars: Record<string, string | boolean>): MergeResult {
   const exists = existsSync(target);
   const generated = template("codex-config.toml.tmpl", vars).trim();
@@ -765,6 +808,22 @@ function actions(root: string, opts: Options): Action[] {
     addHook(list, root, ".opencode/hooks/wiki-consider.sh", "hooks/codex/wiki-consider.sh.tmpl", vars);
   }
 
+  if (opts.harnesses.includes("antigravity")) {
+    const antigravityHooksTarget = join(root, ".agents/hooks.json");
+    const antigravityHooks = mergeAntigravityHookJson(antigravityHooksTarget, "antigravity-hooks.json.tmpl", vars);
+    list.push({
+      path: antigravityHooksTarget,
+      kind: antigravityHooks.kind,
+      reason: antigravityHooks.reason,
+      content: antigravityHooks.content,
+    });
+    addHook(list, root, ".agents/hooks/wiki-policy-check.sh", "hooks/shared/wiki-policy-check.sh.tmpl", vars);
+    addHook(list, root, ".agents/hooks/wiki-reindex.sh", "hooks/shared/wiki-reindex.sh.tmpl", vars);
+    addHook(list, root, ".agents/hooks/wiki-drift-audit.sh", "hooks/shared/wiki-drift-audit.sh.tmpl", vars);
+    addHook(list, root, ".agents/hooks/wiki-consider.sh", "hooks/codex/wiki-consider.sh.tmpl", vars);
+    addHook(list, root, ".agents/hooks/wiki-suggest-ingest.sh", "hooks/claude/wiki-suggest-ingest.sh.tmpl", vars);
+  }
+
   return list;
 }
 
@@ -792,7 +851,7 @@ function printDoctor(root: string, opts: Options): void {
   console.log(`harnesses: ${opts.harnesses.join(", ")}`);
   console.log("");
   console.log("files:");
-  for (const file of ["AGENTS.md", "CLAUDE.md", ".wiki-guardrails.yml", ".mcp.json", ".claude/settings.json", ".codex/hooks.json", ".codex/config.toml", "opencode.json", ".opencode/plugins/wiki-guardrails.js"]) {
+  for (const file of ["AGENTS.md", "CLAUDE.md", ".wiki-guardrails.yml", ".mcp.json", ".claude/settings.json", ".codex/hooks.json", ".codex/config.toml", "opencode.json", ".opencode/plugins/wiki-guardrails.js", ".agents/hooks.json"]) {
     console.log(`- ${file}: ${existsSync(join(root, file)) ? "present" : "missing"}`);
   }
   console.log("");
@@ -1018,6 +1077,12 @@ function checkInstalledDrift(root: string, list: Action[]): DriftItem[] {
     ".opencode/hooks/wiki-reindex.sh",
     ".opencode/hooks/wiki-drift-audit.sh",
     ".opencode/plugins/wiki-guardrails.js",
+    ".agents/hooks.json",
+    ".agents/hooks/wiki-policy-check.sh",
+    ".agents/hooks/wiki-reindex.sh",
+    ".agents/hooks/wiki-drift-audit.sh",
+    ".agents/hooks/wiki-consider.sh",
+    ".agents/hooks/wiki-suggest-ingest.sh",
   ];
 
   for (const rel of stalePathScan) {

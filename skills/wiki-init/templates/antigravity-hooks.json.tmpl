@@ -1,0 +1,70 @@
+{
+  "wiki-policy-check": {
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.agents/hooks/wiki-policy-check.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "wiki-consider": {
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.agents/hooks/wiki-consider.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "wiki-reindex": {
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.agents/hooks/wiki-reindex.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "wiki-suggest-ingest": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.agents/hooks/wiki-suggest-ingest.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "wiki-drift-audit": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.agents/hooks/wiki-drift-audit.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
