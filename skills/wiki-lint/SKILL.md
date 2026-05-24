@@ -133,3 +133,73 @@ Update `wiki/log.md` (insert **at the top**, after the header):
 ### QMD reindex needed
 - qmd update / qmd embed (only if applicable)
 ```
+
+## Typed-schema validation (opt-in)
+
+When the wiki target follows the **typed-schema** pattern (ADRs, Rules, Events validated against a central `wiki/_schemas/typed-schema.yaml`), the lint can optionally include a schema check by invoking the [`wiki-policy-check`](../wiki-policy-check/) skill in `validate-schema` mode.
+
+### Modes
+
+Read `lint.includeSchema` from the wiki's `.wiki-guardrails.yml`:
+
+| Mode | Behavior | When to use |
+|---|---|---|
+| `off` (default) | Schema validation skipped entirely. Zero overhead. No mention in report. | Wiki without typed-schema; safe global default to avoid regressions in projects that don't use the pattern. |
+| `warning` | Run `validate-schema`; report schema warnings as a structured field; **do NOT block** (`LINT_RESULT: PASS` even if there are schema issues). | Initial rollout — surfaces drift without breaking the ETL or block ingest. |
+| `block` | Run `validate-schema`; **fail the lint** (`LINT_RESULT: FAIL`) if there are any schema errors, duplicate IDs, or orphan refs. | After 1-2 sprints of stable `warning` mode + ≥80% of projects have ≥1 valid ADR/Rule — see promotion criteria below. |
+
+### Activation
+
+1. Check if `<wiki-path>/_schemas/typed-schema.yaml` exists.
+2. Read `.wiki-guardrails.yml` → `lint.includeSchema` (default `off` if missing).
+3. If mode != `off`, invoke:
+   ```bash
+   bun ~/.claude/skills/wiki-policy-check/scripts/validate-schema.ts \
+     --wiki-path <wiki-path> \
+     --format json
+   ```
+4. Parse the JSON output:
+   - `summary.invalid + summary.duplicate_ids + summary.orphan_refs` → total schema issues.
+   - Each `validations.decisions[i].errors`, `validations.rules[i].errors`, `validations.events[i].errors` → individual issues.
+
+### Lint report integration
+
+Add to the lint report (in `wiki/log.md` if running automated, or in the conversation response):
+
+```
+## [YYYY-MM-DD] lint | health check
+
+### Schema validation (mode: warning|block)
+- schema-warnings: <N>   (or schema-errors if mode=block)
+- valid: <ADRs>+<Rules>+<events>
+- invalid: <N> (with file+field+message details for each)
+- duplicate_ids: <N>
+- orphan_refs: <N>
+
+### Automatic fixes
+- ...
+```
+
+When mode is `off`, omit this entire section.
+
+### Promotion criteria (warning → block)
+
+Promote a wiki from `warning` to `block` when **all** are true:
+
+1. ≥3 projects in the wiki have ≥1 valid ADR or Rule (proves the pattern landed).
+2. 2 consecutive sprints with `warning` mode + zero blocking schema errors retroactively (proves the schema fits real data).
+3. Owner explicitly confirms (one-line PR comment or commit message acknowledging the promotion).
+
+Document the promotion in the wiki's `wiki/log.md` and bump the schema's `version` field if any schema constraint was relaxed for the promotion (rare).
+
+### Boundaries
+
+- This is **opt-in per-wiki** (via `.wiki-guardrails.yml`), not global. Wikis without the typed-schema pattern see zero behavior change.
+- The skill `wiki-policy-check --mode validate-schema` is the **authoritative source** for what's valid. This skill (wiki-lint) just orchestrates the call and integrates output.
+- Mode `block` should never be the global default — wikis without `typed-schema.yaml` would error.
+
+### References
+
+- [`wiki-policy-check` §Mode 2](../wiki-policy-check/SKILL.md) — script-driven validator (epic #4 Story 02 do wiki-service).
+- ADR-0009 typed-schema (no `knowledge-center` repo) — schema spec + 13 locked decisions.
+- Epic #4 Story 05 (`wiki-lint-integration-gradual`) — esta integração.
