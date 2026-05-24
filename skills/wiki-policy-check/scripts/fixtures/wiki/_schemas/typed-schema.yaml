@@ -1,0 +1,138 @@
+# Typed schemas para Decisões, Regras e Eventos no wiki-content.
+#
+# Schema central consumido por skills (wiki-policy-check, wiki-lint) para
+# validar frontmatter de ADRs/Rules e linhas de events.jsonl.
+#
+# Definido por ADR-0009 (no repo knowledge-center, planning/wiki-service/decisions/).
+# Versionado via campo `version` (semver). Major bump = breaking change.
+
+$schema: http://json-schema.org/draft-07/schema#
+$id: urn:wiki-content:schemas:typed-schema:1
+title: Typed schemas para Decisões, Regras e Eventos
+version: 1.0.0
+
+definitions:
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Decisão (ADR-like)
+  #
+  # Path: wiki/<projeto>/decisions/ADR-NNNN-<slug>.md
+  # ID per-projeto (smart-city/ADR-0001 e front-manager/ADR-0001 coexistem).
+  # additionalProperties: false → strict. Campo novo = bump version.
+  # ──────────────────────────────────────────────────────────────────────
+  decision:
+    type: object
+    required: [id, title, status, date, project, kind]
+    additionalProperties: false
+    properties:
+      id:
+        type: string
+        pattern: '^ADR-\d{4}$'
+      title:
+        type: string
+        minLength: 5
+      status:
+        enum: [proposed, accepted, superseded, deprecated]
+      date:
+        type: string
+        # ISO date (YYYY-MM-DD). pattern em vez de format: date para portabilidade
+        # com ajv-cli strict mode (ver Decision #11 do ADR-0009).
+        pattern: '^\d{4}-\d{2}-\d{2}$'
+      project:
+        type: string
+      kind:
+        const: decision
+      supersedes:
+        type: [string, "null"]
+      superseded_by:
+        type: [string, "null"]
+      tags:
+        type: array
+        items: { type: string }
+      references:
+        type: array
+        items: { type: string }
+      audience:
+        enum: [dev, business, ops, mixed]
+      language:
+        type: string
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Regra (política tipada)
+  #
+  # Path: wiki/<projeto>/rules/RULE-<slug>.md
+  # ID descritivo (RULE-pii-tokenization, RULE-billing-rounding).
+  # additionalProperties: false → strict.
+  # ──────────────────────────────────────────────────────────────────────
+  rule:
+    type: object
+    required: [id, title, project, type, status, kind]
+    additionalProperties: false
+    properties:
+      id:
+        type: string
+        pattern: '^RULE-[a-z0-9-]+$'
+      title:
+        type: string
+        minLength: 5
+      project:
+        type: string
+      type:
+        enum: [business-rule, technical-policy, naming, security]
+      status:
+        enum: [active, deprecated]
+      kind:
+        const: rule
+      applies_to:
+        type: array
+        items: { type: string }
+      references:
+        type: array
+        items: { type: string }
+      tags:
+        type: array
+        items: { type: string }
+      audience:
+        enum: [dev, business, ops, mixed]
+      language:
+        type: string
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Evento (linha do events.jsonl)
+  #
+  # Path: wiki/<projeto>/history/events.jsonl (1 linha por evento).
+  # additionalProperties: true → tolerância para eventos legados gerados
+  # pelo ETL anterior. Required strict só em ts + kind.
+  # ──────────────────────────────────────────────────────────────────────
+  event:
+    type: object
+    required: [ts, kind]
+    additionalProperties: true
+    properties:
+      ts:
+        type: string
+        # ISO 8601 UTC (YYYY-MM-DDTHH:MM:SSZ ou com fração de segundos).
+        pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$'
+      kind:
+        enum:
+          - etl-run
+          - etl-failed
+          - decision-created
+          - decision-superseded
+          - rule-created
+          - rule-modified
+          - rule-deprecated
+          - retro-action
+          - manual-edit
+      source:
+        type: string
+      ref:
+        type: string
+      actor:
+        type: string
+      files:
+        type: integer
+      duration_s:
+        type: number
+      message:
+        type: string

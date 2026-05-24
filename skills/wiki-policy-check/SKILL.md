@@ -3,7 +3,18 @@ name: wiki-policy-check
 description: "Audits this repo for business rules that should live in the central wiki, not here. Activates when the user asks to check for leaks, audit business rules, or validate the wiki/repo boundary."
 ---
 
-# wiki-policy-check — Audit business-rule leaks in this repo
+# wiki-policy-check — Audit business-rule leaks + validate typed-schema
+
+This skill has **two modes**:
+
+| Mode | When to use | How it works |
+|---|---|---|
+| `audit` | Default. User asks "is anything leaking?", "audit the docs", "check for business rules in this repo". | Prompt-driven: agent reads all markdown in this repo and reports leaks (see §Steps below). |
+| `validate-schema` | User asks to validate typed Decisions/Rules/Events in a wiki target. Or invoked by `wiki-lint` (epic #4 Story 05). Or after publishing a new ADR/Rule. | Script-driven: `scripts/validate-schema.ts` reads `<wiki>/_schemas/typed-schema.yaml` and validates frontmatter + events.jsonl lines per [ADR-0009](https://gitlab.client-org.io/client-org/knowledge-center/wiki-service/-/blob/main/planning/wiki-service/decisions/ADR-0009-typed-schema.md). |
+
+The two modes are independent — `audit` is the original prompt-based skill; `validate-schema` is a programmatic add-on (epic #4 Story 02 of wiki-service).
+
+## Mode 1: `audit` (prompt-driven)
 
 Convention this skill enforces: **technical rules live in the project repo; business and product rules live in the central wiki.** This skill audits all markdown in the current repo for content that crossed the line and reports what should migrate.
 
@@ -108,3 +119,95 @@ If the project has no policy spelled out, fall back to the generic definition be
 - **Marketing-copy special case**: if the project ships a public site, the **copy itself** lives there (it has to render), but the **rule the copy encodes** belongs in the wiki and the copy should reference the rule rather than restate it.
 - **Skip auto-generated content** (build output, lockfiles, generated types, test-results).
 - **Be specific in the excerpt**: pull the actual quote, not a paraphrase. The user's decision depends on seeing the exact wording.
+
+---
+
+## Mode 2: `validate-schema` (script-driven)
+
+Validates frontmatter of Decisions (`<wiki>/<project>/decisions/ADR-*.md`), Rules (`<wiki>/<project>/rules/RULE-*.md`), and lines of Events (`<wiki>/<project>/history/events.jsonl`) against the central typed-schema at `<wiki>/_schemas/typed-schema.yaml`.
+
+The schema spec lives in [ADR-0009 (wiki-service)](https://gitlab.client-org.io/client-org/knowledge-center/wiki-service/-/blob/main/planning/wiki-service/decisions/ADR-0009-typed-schema.md) and the canonical schema file is at `wiki/_schemas/typed-schema.yaml` in the `wiki-content` repo.
+
+### When to use
+
+- After publishing a new ADR or Rule via PR to `wiki-content` (smoke).
+- Periodically against the whole `wiki-content` (regression check).
+- Invoked by `wiki-lint` skill (epic #4 Story 05) in `warning` or `block` modes.
+- Manual validation in CI gates (future).
+
+### How to invoke
+
+```bash
+# Default: JSON output, exit 0 if all valid, exit 1 if invalid
+bun ~/.claude/skills/wiki-policy-check/scripts/validate-schema.ts --wiki-path /path/to/wiki
+
+# Human-readable output
+bun ~/.claude/skills/wiki-policy-check/scripts/validate-schema.ts --wiki-path /path/to/wiki --format table
+
+# Custom schema path (e.g. for tests)
+bun ~/.claude/skills/wiki-policy-check/scripts/validate-schema.ts --wiki-path /path/to/wiki --schema-path /path/to/typed-schema.yaml
+```
+
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--wiki-path <path>` | (required) | Root of the wiki target (e.g. `/tmp/wc-clone/wiki`). Globs `*/decisions/`, `*/rules/`, `*/history/` underneath. |
+| `--format json\|table` | `json` | `json` for machine-readable (jq-able); `table` for human inspection. |
+| `--schema-path <path>` | `<wiki>/_schemas/typed-schema.yaml` | Override schema location (mostly for tests). |
+| `--help` / `-h` | — | Print usage. |
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | All docs valid; no duplicate IDs; no orphan refs. |
+| `1` | At least one of: invalid schema, duplicate IDs, orphan refs. |
+| `2` | Execution error (schema file missing, glob failed, etc.). |
+
+### Output (JSON schema)
+
+```json
+{
+  "schema_version": "1.0.0",
+  "summary": { "valid": 3, "invalid": 1, "duplicate_ids": 0, "orphan_refs": 1 },
+  "validations": {
+    "decisions": [
+      { "path": "<project>/decisions/ADR-0001.md", "valid": true, "id": "ADR-0001", "project": "<project>" },
+      { "path": "...", "valid": false, "errors": [{ "field": "status", "message": "must have required property 'status'" }], ... }
+    ],
+    "rules": [...],
+    "events": [{ "path": "...events.jsonl", "line": 2, "valid": true, "kind": "etl-run" }]
+  },
+  "duplicate_ids": [
+    { "project": "<project>", "id": "ADR-0001", "paths": ["path1.md", "path2.md"] }
+  ],
+  "orphan_refs": [
+    { "in": "<path>", "ref": "ADR-9999", "reason": "ADR-9999 not found in same project (<project>)" }
+  ]
+}
+```
+
+### Rules
+
+- **`additionalProperties: false`** for Decisions and Rules (strict); `additionalProperties: true` for Events (tolerates legacy ETL events).
+- **Cross-ref validation is per-project** (per ADR-0009 Decision #6). `supersedes: ADR-NNNN` is only validated against ADRs in the same project; cross-project references are skipped.
+- **Duplicate IDs are per-project + per-type** (`smart-city/ADR-0001` and `front-manager/ADR-0001` coexist; two `ADR-0001` in `smart-city/decisions/` collide).
+- **Dates and timestamps use `pattern` regex** in the schema (not `format: date`), per ADR-0009 Decision #11 — `ajv-cli` strict mode doesn't recognize `format` without the `ajv-formats` plugin.
+- **YAML frontmatter dates parsed as strings** via `js-yaml` `JSON_SCHEMA` engine (default `DEFAULT_SCHEMA` would coerce `2026-05-22` to `Date` object).
+
+### Tests
+
+```bash
+cd ~/.claude/skills/wiki-policy-check
+bun test scripts/validate-schema.test.ts
+# → 8 pass, 0 fail
+```
+
+8 unit tests covering: valid ADR, invalid ADR (missing status), duplicate IDs, orphan refs, valid Rule, valid Event (multiple kinds), invalid Event (missing ts), summary aggregation. Fixtures in `scripts/fixtures/wiki/`.
+
+### Boundaries
+
+- The script is **read-only** — it never modifies wiki files.
+- The skill is global (lives outside any single project). The script is portable — only requires `bun` + deps in `package.json`.
+- For audit mode of business-rule leaks (the original skill purpose), use Mode 1 above.
