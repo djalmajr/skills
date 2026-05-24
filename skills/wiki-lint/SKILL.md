@@ -72,6 +72,16 @@ All wiki pages must have:
 | `tags` | yes | Non-empty list |
 | `status` | yes | One of: `draft`, `stable`, `stale` |
 
+> **Typed pages exception (`kind: decision` / `kind: rule`):** ADRs and Rules are
+> governed by the typed-schema (`wiki/_schemas/typed-schema.yaml`), **not** this
+> general table. Their `status` uses the typed enums (`proposed | accepted |
+> superseded | deprecated` for decisions; `active | deprecated` for rules), and
+> their frontmatter is validated by `wiki-policy-check` (validate-schema mode).
+> When a page has `kind: decision` or `kind: rule`, do **not** flag its `status`
+> against `draft|stable|stale`, and do not treat the general table's requirements
+> as blocking for it — defer to the typed-schema. (`sources`/`updated` are still
+> welcome on typed pages and are now allowed by the typed-schema ≥ v1.1.0.)
+
 ### 4. raw/ ↔ wiki/sources/ consistency
 Cross-reference `raw/index.md` with `wiki/sources/`:
 - **Sources without summary** — referenced in `raw/index.md` as ingested but missing `<slug>.md`.
