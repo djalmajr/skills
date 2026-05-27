@@ -81,15 +81,29 @@ Run **doctor** first; then, with the user's confirmation:
    server entry with the ai-memory entry.
 3. **CLAUDE.md / AGENTS.md** — replace the "Wiki (`wiki/`)" / qmd-MCP block with the routing
    snippet. Drop instructions that tell the agent to query `qmd` or maintain `wiki/`.
-4. **Per-repo hooks** — remove qmd-era hook scripts (`.claude/hooks/wiki-reindex.sh`,
-   `.codex/hooks/wiki-reindex.sh`, `.opencode/hooks/wiki-reindex.sh`, and any `wiki-*` hook
-   wiring in `lefthook.yml`/settings). Auto-capture now comes from the global hooks.
-5. **`wiki/` content** — leave it in place as history by default. If the user wants it in
+4. **Remove ALL qmd-era artifacts.** `wiki-init` installs more than hooks — enumerate against
+   [wiki-init](../wiki-init/SKILL.md) and remove every one:
+   - **`.wiki-guardrails.yml`** (guardrails config).
+   - **Hooks** — `.claude/hooks/wiki-*.sh` (policy-check, reindex, drift-audit, suggest-ingest);
+     `.codex/hooks/wiki-*.sh` (policy-check, reindex, drift-audit, consider) **+ `.codex/hooks.json`**;
+     `.opencode/hooks/wiki-*.sh` **+ `.opencode/plugins/wiki-guardrails.js`**. Remove the matching
+     hook entries from `.claude/settings.json`, and `[features] codex_hooks = true` from
+     `.codex/config.toml` (it only existed to enable the codex wiki hooks).
+   - **`opencode.json`** `permission.skill."wiki-*"` (swap to `"aim-*"` or drop).
+   - **ANTIGRAVITY** (if the repo uses it) — the managed instruction block + any `.antigravity*`
+     hooks/config.
+   - Auto-capture now comes from the **global** ai-memory hooks — no per-repo hook scripts needed.
+5. **Global QMD checkout/wrapper** (operator-level, outside the repo) — the per-project wrapper
+   (`~/.local/share/skills/qmd/wrappers/<project>-qmd`, or the legacy
+   `~/.local/share/essential-skills/qmd/...`) and the managed `qmd` checkout/cache are now
+   orphaned. Remove the wrapper; remove the shared checkout only if no other repo still uses qmd.
+6. **`wiki/` content** — leave it in place as history by default. If the user wants it in
    ai-memory, ingest the markdown into the chosen workspace/project (one page per file,
    redact any literal secrets) and then they can remove `wiki/`. Do **not** delete `wiki/`
    without explicit confirmation.
-6. Re-run **doctor** to confirm: marker present + git-ignored, snippet in CLAUDE/AGENTS,
-   ai-memory MCP wired, no qmd remnants.
+7. Re-run **doctor** to confirm: marker present + git-ignored, snippet in CLAUDE/AGENTS,
+   ai-memory MCP wired, and **no qmd remnants** (no `.wiki-guardrails.yml`, no `wiki-*` hooks/
+   plugins, no qmd MCP entry, no `codex_hooks`/`wiki-*` permission leftovers).
 
 ## Verify
 
