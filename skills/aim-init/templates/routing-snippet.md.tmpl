@@ -1,0 +1,16 @@
+<!-- ai-memory:start -->
+## LLM Memory (ai-memory)
+
+Before answering or acting on durable project knowledge, recall from the ai-memory MCP
+(server `{{SERVER_NAME}}`, workspace `{{WORKSPACE}}`, project `{{PROJECT}}`).
+
+1. Read the project's agent rules.
+2. `memory_query` (semantic recall) via the ai-memory MCP, for the relevant workspace/project.
+3. Read the page markdown directly (or `/api/v1`) when the target path is known.
+4. If a task discovers a canonical rule, gotcha, schema/contract, operational constraint, or
+   product decision, persist it via `memory_write_page` and link related pages with `[[path.md]]`
+   (page paths carry the `.md` suffix; links resolve by exact path).
+
+Semantic decisions from conversation and debugging belong to the agent — recall before acting,
+write back when you learn something canonical.
+<!-- ai-memory:end -->
