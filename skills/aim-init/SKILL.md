@@ -48,6 +48,12 @@ The endpoint chosen here is what `aim-query` / `aim-write` will target later (by
    the `memory_install_self_routing` tool.
 3. **MCP server entry** in `.mcp.json` (Claude), `opencode.json` (OpenCode), `.codex/config.toml`
    (Codex) — points at the ai-memory instance (template: [templates/mcp-entry.json](templates/mcp-entry.json)).
+   This is **operator-local routing** (the endpoint is per-operator — your instance, your auth),
+   so keep it out of git the same way as the marker: add **`.mcp.json`** to the global gitignore.
+   (`.mcp.json` is pure MCP config — safe to ignore wholesale. `opencode.json`/`.codex/config.toml`
+   hold other settings too, so handle per your existing convention.) If the file is already tracked,
+   `git rm --cached .mcp.json` to untrack it (keeps the file). Committing it forces collaborators
+   onto your instance and leaks the endpoint in shared/public repos.
 4. **Auto-capture hooks** are **global** (`~/.claude/settings.json` + `~/.config/ai-memory/hooks/`),
    marker-gated: they fire in any repo that has `.ai-memory.toml`. So a repo needs **no
    per-repo hook scripts** — just the marker. (Legacy qmd repos have per-repo `wiki-reindex`
@@ -58,7 +64,8 @@ The endpoint chosen here is what `aim-query` / `aim-write` will target later (by
 Report, without writing:
 - Is there a `.ai-memory.toml`? What workspace/project? Is it git-ignored?
 - Is the routing snippet present in CLAUDE.md / AGENTS.md?
-- Is an ai-memory MCP entry present in `.mcp.json` / `opencode.json` / `.codex/config.toml`?
+- Is an ai-memory MCP entry present in `.mcp.json` / `opencode.json` / `.codex/config.toml`? Is
+  `.mcp.json` git-ignored (operator-local) rather than tracked?
 - **Legacy qmd?** Flag any of: a `qmd` MCP entry, a `wiki/` dir with `CONVENTIONS.md`, per-repo
   `*/hooks/wiki-reindex.sh`, a "Wiki (`wiki/`)" block in CLAUDE.md/AGENTS.md, `.wiki-guardrails.yml`.
 
@@ -68,7 +75,8 @@ Report, without writing:
 2. Ensure `.ai-memory.toml` is git-ignored globally (see step 1 above), then write the marker.
 3. Insert the routing snippet into `CLAUDE.md` and `AGENTS.md` (idempotent — between the
    `<!-- ai-memory:start -->`/`<!-- ai-memory:end -->` markers; replace if already present).
-4. Add the ai-memory MCP entry to the agent configs the repo uses.
+4. Add the ai-memory MCP entry to the agent configs the repo uses, and ensure `.mcp.json` is
+   git-ignored (operator-local — see item 3 above); `git rm --cached .mcp.json` if already tracked.
 5. Tell the user auto-capture is now live (global hooks + the new marker); recall is via the
    session-start handoff + the routing snippet.
 
@@ -78,7 +86,8 @@ Run **doctor** first; then, with the user's confirmation:
 
 1. **Marker** — write `.ai-memory.toml` (workspace/project), git-ignored.
 2. **MCP** — in `.mcp.json` / `opencode.json` / `.codex/config.toml`, **replace** the `qmd`
-   server entry with the ai-memory entry.
+   server entry with the ai-memory entry. Ensure `.mcp.json` is git-ignored (operator-local);
+   `git rm --cached .mcp.json` if it was tracked.
 3. **CLAUDE.md / AGENTS.md** — replace the "Wiki (`wiki/`)" / qmd-MCP block with the routing
    snippet. Drop instructions that tell the agent to query `qmd` or maintain `wiki/`.
 4. **Remove ALL qmd-era artifacts.** `wiki-init` installs more than hooks — enumerate against
