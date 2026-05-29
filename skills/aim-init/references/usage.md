@@ -77,6 +77,14 @@ repo B injects B's. Switching projects switches context. (There is also a worksp
 - **Scope** — reads can target one project, a partial scope, or multiple `scopes` (multi-project
   recall). Page paths use folders (`runbooks/…`, `decisions/ADR-…`, `gotchas/…`).
 
+> **Broaden when the current project misses.** `memory_query` searches only the current project —
+> there is **no global "search everything"** mode. Cross-cutting knowledge often lives in a
+> **sibling project** (a shared `infra` / `ops` project, or a related app), so when recall is empty
+> or thin, re-run with explicit `scopes: [{workspace, project}]` naming the likely projects rather
+> than concluding it was never recorded. Also: query returns **snippets, not full bodies** — an
+> empty/short snippet on a hit usually means a large page matched outside the snippet window; read
+> the page directly (the `/web` browser or `/api/v1`) to get the full text.
+
 ## MCP tools (what the agent calls)
 
 | Tool | When |
