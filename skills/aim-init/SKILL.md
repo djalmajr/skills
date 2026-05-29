@@ -64,6 +64,12 @@ The endpoint chosen here is what `aim-query` / `aim-write` will target later (by
 Report, without writing:
 - Is there a `.ai-memory.toml`? What workspace/project? Is it git-ignored?
 - Is the routing snippet present in CLAUDE.md / AGENTS.md?
+- **Does the snippet teach the search strategy?** Flag a stale snippet that lacks the
+  "broaden when the current project misses" guidance — i.e. no mention of `scopes` /
+  sibling projects, or no warning that `memory_query` returns snippets (not full page
+  bodies). Re-installing the current template (below) backfills it. This matters because
+  `memory_query` has **no global search**: an agent that searches only the current project
+  and stops will miss cross-cutting knowledge that lives in a sibling (`infra`/`ops`) project.
 - Is an ai-memory MCP entry present in `.mcp.json` / `opencode.json` / `.codex/config.toml`? Is
   `.mcp.json` git-ignored (operator-local) rather than tracked?
 - **Legacy qmd?** Flag any of: a `qmd` MCP entry, a `wiki/` dir with `CONVENTIONS.md`, per-repo
