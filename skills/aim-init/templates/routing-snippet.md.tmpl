@@ -1,23 +1,29 @@
 <!-- ai-memory:start -->
 ## LLM Memory (ai-memory)
 
-Before answering or acting on durable project knowledge, recall from the ai-memory MCP
-(server `{{SERVER_NAME}}`, workspace `{{WORKSPACE}}`, project `{{PROJECT}}`).
+Durable project knowledge and the agent operating rules live in **ai-memory**,
+recalled through the ai-memory MCP, scoped to this project by the operator-local
+`.ai-memory.toml` marker (git-ignored). Recall before acting on durable
+knowledge; write canonical findings back.
 
-1. Read the project's agent rules.
-2. `memory_query` (semantic recall) via the ai-memory MCP, for the relevant workspace/project.
-3. Read the page markdown directly (or `/api/v1`) when the target path is known — a query hit's
-   snippet is **not** the full body (large pages match outside the snippet window).
-4. If a task discovers a canonical rule, gotcha, schema/contract, operational constraint, or
-   product decision, persist it via `memory_write_page` and link related pages with `[[path.md]]`
-   (page paths carry the `.md` suffix; links resolve by exact path).
+1. **Recall** the project's rules, decisions, and gotchas (`memory_query` /
+   `memory_recent`) before proposing designs or explaining why something works
+   a certain way.
+2. **Read** a page directly (or `/api/v1`) when you already know its topic — a
+   query hit's snippet is **not** the full body (large pages match outside the
+   snippet window).
+3. **Write back** — when you discover a canonical rule, gotcha, schema/contract,
+   operational constraint, or product decision, persist it via
+   `memory_write_page` and link related pages with `[[path.md]]` (paths carry
+   the `.md` suffix; links resolve by exact path).
 
-**Search strategy — broaden when the current project misses.** `memory_query` searches only the
-current project; there is **no global "search everything"**. If recall comes back empty or thin,
-the knowledge may live in a **sibling project** (shared `infra`, `ops`, or a related app) — re-run
-with explicit `scopes: [{workspace, project}]`. Don't conclude "we never recorded it" after one
-project misses.
+**Broaden when the current project misses.** `memory_query` searches only the
+current project; there is no implicit global search. If recall comes back empty
+or thin, the knowledge may live in a **sibling / shared project** (e.g. shared
+`infra`, `ops`, or engineering rules) — re-run with explicit
+`scopes: [{workspace, project}]`. Don't conclude "we never recorded it" after
+one project misses.
 
-Semantic decisions from conversation and debugging belong to the agent — recall before acting,
-write back when you learn something canonical.
+Semantic decisions from conversation and debugging belong to the agent — recall
+before acting, write back when you learn something canonical.
 <!-- ai-memory:end -->

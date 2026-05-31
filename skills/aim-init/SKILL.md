@@ -46,6 +46,14 @@ The endpoint chosen here is what `aim-query` / `aim-write` will target later (by
    block (template: [templates/routing-snippet.md](templates/routing-snippet.md)). Drives
    proactive recall mid-session. The canonical block can also be fetched from the MCP via
    the `memory_install_self_routing` tool.
+   **Privacy — keep it generic (it's committed, the repo may be public).** The
+   snippet is intentionally **path-free and scope-name-free**: it does not name the
+   workspace/project/server or enumerate page paths — the git-ignored
+   `.ai-memory.toml` marker scopes recall, and the MCP auto-scopes to the current
+   project. Never expand the committed block into a "where things live" map that
+   enumerates the knowledge base — that leaks the project's internal information
+   architecture into a public repo. Operator-global config (`~/.claude/CLAUDE.md`)
+   is the place for any cross-scope/shared-rules wiring, not the per-repo block.
 3. **MCP server entry** in `.mcp.json` (Claude), `opencode.json` (OpenCode), `.codex/config.toml`
    (Codex) — points at the ai-memory instance (template: [templates/mcp-entry.json](templates/mcp-entry.json)).
    This is **operator-local routing** (the endpoint is per-operator — your instance, your auth),
