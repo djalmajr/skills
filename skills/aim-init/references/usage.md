@@ -99,6 +99,19 @@ repo B injects B's. Switching projects switches context. (There is also a worksp
 | `memory_lint` / `memory_forget_sweep` | audit / prune |
 | `memory_install_self_routing` | emit the routing snippet for CLAUDE.md/AGENTS.md |
 
+## Page path conventions (what gets surfaced)
+
+- **`_rules/<slug>.md`** (underscore) — highest-signal tier; surfaced **verbatim** in
+  `memory_briefing` / `memory_explore`. Durable rules go here, never a plain `rules/`
+  (no underscore = ordinary page, not auto-surfaced). `_slots/` is the pinned-context tier.
+- **Shared / cross-project rules** (global agent conventions reused across repos) live in a
+  dedicated scope — e.g. a shared project `default`/`development`, under `_rules/`. ai-memory's
+  auto-recall (briefing/handoff) is **per-(workspace, project)** — the marker carries a single
+  workspace/project, with no "inherit scopes" field. So a repo session does **not** auto-pull a
+  shared project's rules; reach them **cross-scope** via `memory_query scopes:[{workspace,
+  project}]` / `global:true` / `memory_read_page`. Bake that fetch into the operator's
+  CLAUDE.md/AGENTS.md so it happens before each task. See `aim-write` / `aim-query`.
+
 ## The `aim-*` skills (manual entry points)
 
 - **`aim-init`** — wire/migrate a repo (marker + snippet + MCP endpoint).
