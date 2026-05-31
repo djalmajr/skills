@@ -16,6 +16,14 @@ Explicit recall from an ai-memory instance (complements the automatic session-st
    ask the user which endpoint to query. (Wired by `aim-init`.)
 2. **Pick the scope.** Default to the repo's `.ai-memory.toml` workspace/project. The user may
    widen it: a different project, a partial scope, or multi-`scopes` for cross-project recall.
+   `scopes` carries `{ workspace, project }` per entry, so recall can span **other workspaces**
+   too (e.g. a shared rules project); `global: true` searches every project at once.
+   - **Shared / global rules** live in a dedicated scope (commonly `default`/`development`,
+     under `_rules/`), separate from the repo's own project. ai-memory's auto-recall is
+     per-(workspace, project) and will **not** surface them — pull them explicitly:
+     `memory_read_page` with that workspace/project/path, or `memory_query` with
+     `scopes:[{ workspace, project }]`. Do this when the task needs the agent's standing
+     conventions (code-style, testing gates, workflow), not just repo-local knowledge.
 3. **Choose the tool** for the question:
    - `memory_query` — targeted semantic recall ("have we decided X", before proposing design).
    - `memory_recent` — "what's been going on lately" (N most-recent pages).
