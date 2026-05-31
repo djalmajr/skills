@@ -23,6 +23,21 @@ those, and do not use a handoff for a permanent annotation.
    - `gotchas/<slug>.md` → gotcha
    - otherwise a topical path (e.g. `runbooks/<slug>.md`, `<area>/<slug>.md`).
    You can also set `kind` explicitly via frontmatter `node_type` / the tool arg.
+
+   **The `_rules/` prefix matters — use the underscore.** Pages under
+   `_rules/` (and pinned `_slots/`) are ai-memory's **highest-signal tier**:
+   they're surfaced **verbatim** in `memory_briefing` / `memory_explore` /
+   the dashboard, keyed by `path GLOB '_rules/*'`. A plain `rules/` folder
+   (no underscore) is just a normal page — it gets **none** of that and is
+   only found by explicit query/read. So write durable rules to `_rules/`,
+   never `rules/`.
+
+   **Shared / cross-project rules** (e.g. global agent conventions reused
+   across every repo) belong in a dedicated scope — a shared project such
+   as `default`/`development` — under `_rules/` there. Recall is
+   per-(workspace, project), so other projects reach them **cross-scope**
+   via `memory_query scopes:[…]` / `memory_read_page` (see `aim-query`),
+   not automatically.
 4. **Write the body** as markdown with frontmatter (`title`, `node_type`, `tags`, optional
    `source:`). Link related pages with `[[path.md]]` (paths carry `.md`; links resolve by exact
    path). **Never put live secrets/credentials in a page** — redact (`<see secret manager>`).
