@@ -43,17 +43,19 @@ The endpoint chosen here is what `aim-query` / `aim-write` will target later (by
    project   = "<repo-name>"
    ```
 2. **Routing snippet** in `CLAUDE.md` and `AGENTS.md` — the `<!-- ai-memory:start -->…end -->`
-   block (template: [templates/routing-snippet.md](templates/routing-snippet.md)). Drives
-   proactive recall mid-session. The canonical block can also be fetched from the MCP via
-   the `memory_install_self_routing` tool.
-   **Privacy — keep it generic (it's committed, the repo may be public).** The
-   snippet is intentionally **path-free and scope-name-free**: it does not name the
-   workspace/project/server or enumerate page paths — the git-ignored
-   `.ai-memory.toml` marker scopes recall, and the MCP auto-scopes to the current
-   project. Never expand the committed block into a "where things live" map that
-   enumerates the knowledge base — that leaks the project's internal information
-   architecture into a public repo. Operator-global config (`~/.claude/CLAUDE.md`)
-   is the place for any cross-scope/shared-rules wiring, not the per-repo block.
+   block. It drives proactive recall mid-session. **The block's text is owned by the
+   ai-memory binary, not by this skill** — obtain the current canonical block from the
+   source and write it between the markers; do **not** hand-maintain a copy here (a copy
+   drifts from the binary):
+   - **Agent:** `memory_install_self_routing` (returns the block for your Write/Edit tool).
+   - **CLI:** `ai-memory install-instructions` (writes `CLAUDE.md`; `--target AGENTS.md`).
+
+   The canonical block is already **generic** (no workspace/project/server names, no page
+   paths — the git-ignored `.ai-memory.toml` marker scopes recall and the MCP auto-scopes),
+   so it is safe to commit even in a public repo. Whatever you do, never expand the committed
+   block into a "where things live" map that enumerates the knowledge base — that leaks the
+   project's internal information architecture. Cross-scope / shared-rules wiring belongs in
+   operator-global config (`~/.claude/CLAUDE.md`), not the per-repo block.
 3. **MCP server entry** in `.mcp.json` (Claude), `opencode.json` (OpenCode), `.codex/config.toml`
    (Codex) — points at the ai-memory instance (template: [templates/mcp-entry.json](templates/mcp-entry.json)).
    This is **operator-local routing** (the endpoint is per-operator — your instance, your auth),
@@ -87,8 +89,10 @@ Report, without writing:
 
 1. Confirm workspace + project with the user.
 2. Ensure `.ai-memory.toml` is git-ignored globally (see step 1 above), then write the marker.
-3. Insert the routing snippet into `CLAUDE.md` and `AGENTS.md` (idempotent — between the
-   `<!-- ai-memory:start -->`/`<!-- ai-memory:end -->` markers; replace if already present).
+3. Obtain the canonical routing block from the binary (`memory_install_self_routing`, or
+   `ai-memory install-instructions`) and write it into `CLAUDE.md` and `AGENTS.md` (idempotent
+   — between the `<!-- ai-memory:start -->`/`<!-- ai-memory:end -->` markers; replace if
+   present). Don't paste a hand-maintained copy.
 4. Add the ai-memory MCP entry to the agent configs the repo uses, and ensure `.mcp.json` is
    git-ignored (operator-local — see item 3 above); `git rm --cached .mcp.json` if already tracked.
 5. Tell the user auto-capture is now live (global hooks + the new marker); recall is via the

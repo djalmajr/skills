@@ -1,29 +1,15 @@
-<!-- ai-memory:start -->
-## LLM Memory (ai-memory)
+This skill does NOT hand-maintain the ai-memory routing block.
 
-Durable project knowledge and the agent operating rules live in **ai-memory**,
-recalled through the ai-memory MCP, scoped to this project by the operator-local
-`.ai-memory.toml` marker (git-ignored). Recall before acting on durable
-knowledge; write canonical findings back.
+Its canonical text is owned by the ai-memory binary (the `SNIPPET_BODY`
+constant in `ai-memory-core`'s `routing_snippet.rs`). Keeping a copy here
+would drift from the binary, so there isn't one.
 
-1. **Recall** the project's rules, decisions, and gotchas (`memory_query` /
-   `memory_recent`) before proposing designs or explaining why something works
-   a certain way.
-2. **Read** a page directly (or `/api/v1`) when you already know its topic — a
-   query hit's snippet is **not** the full body (large pages match outside the
-   snippet window).
-3. **Write back** — when you discover a canonical rule, gotcha, schema/contract,
-   operational constraint, or product decision, persist it via
-   `memory_write_page` and link related pages with `[[path.md]]` (paths carry
-   the `.md` suffix; links resolve by exact path).
+Obtain the current block from the source and write it between the
+`<!-- ai-memory:start -->` / `<!-- ai-memory:end -->` markers:
 
-**Broaden when the current project misses.** `memory_query` searches only the
-current project; there is no implicit global search. If recall comes back empty
-or thin, the knowledge may live in a **sibling / shared project** (e.g. shared
-`infra`, `ops`, or engineering rules) — re-run with explicit
-`scopes: [{workspace, project}]`. Don't conclude "we never recorded it" after
-one project misses.
+- Agent: call `memory_install_self_routing` (returns the block to Write/Edit).
+- CLI:   `ai-memory install-instructions` (writes CLAUDE.md; `--target AGENTS.md`).
 
-Semantic decisions from conversation and debugging belong to the agent — recall
-before acting, write back when you learn something canonical.
-<!-- ai-memory:end -->
+Both are idempotent (they replace whatever is between the markers). The
+canonical block is generic — no workspace/project/server names, no page paths —
+so it is safe to commit, including in a public repo.
