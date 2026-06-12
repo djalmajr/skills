@@ -58,16 +58,33 @@ The endpoint chosen here is what `aim-query` / `aim-write` will target later (by
    operator-global config (`~/.claude/CLAUDE.md`), not the per-repo block.
 3. **MCP server entry** in `.mcp.json` (Claude), `opencode.json` (OpenCode), `.codex/config.toml`
    (Codex) — points at the ai-memory instance (template: [templates/mcp-entry.json](templates/mcp-entry.json)).
+   Prefer the CLI installer so each agent gets its native global config:
+   ```bash
+   ai-memory install-mcp --client codex --server-url https://memory.example.dev/mcp --name memory-personal --apply
+   ai-memory install-mcp --client open-code --server-url https://memory.example.dev/mcp --name memory-personal --apply
+   ai-memory install-mcp --client claude-code --server-url https://memory.example.dev/mcp --name memory-personal --apply
+   ```
    This is **operator-local routing** (the endpoint is per-operator — your instance, your auth),
    so keep it out of git the same way as the marker: add **`.mcp.json`** to the global gitignore.
    (`.mcp.json` is pure MCP config — safe to ignore wholesale. `opencode.json`/`.codex/config.toml`
    hold other settings too, so handle per your existing convention.) If the file is already tracked,
    `git rm --cached .mcp.json` to untrack it (keeps the file). Committing it forces collaborators
    onto your instance and leaks the endpoint in shared/public repos.
-4. **Auto-capture hooks** are **global** (`~/.claude/settings.json` + `~/.config/ai-memory/hooks/`),
-   marker-gated: they fire in any repo that has `.ai-memory.toml`. So a repo needs **no
-   per-repo hook scripts** — just the marker. (Legacy qmd repos have per-repo `wiki-reindex`
-   hooks; migration removes them.)
+4. **Auto-capture hooks** are **global** (Claude settings, Codex `~/.codex/hooks.json`,
+   OpenCode plugin config, plus staged hook scripts under the platform data dir:
+   `~/.local/share/ai-memory/hooks/` on Linux,
+   `~/Library/Application Support/ai-memory/hooks/` on macOS, and
+   `%LOCALAPPDATA%\ai-memory\hooks\` on Windows). They are marker-gated: they fire in any
+   repo that has `.ai-memory.toml`. A repo needs **no per-repo hook scripts** — just the marker.
+   Install or refresh them per agent with the capture base URL, not the `/mcp` URL:
+   ```bash
+   ai-memory install-hooks --agent codex --server-url https://memory.example.dev --apply
+   ai-memory install-hooks --agent open-code --server-url https://memory.example.dev --apply
+   ai-memory install-hooks --agent claude-code --server-url https://memory.example.dev --apply
+   ```
+   On Codex, confirm `~/.codex/hooks.json` contains the ai-memory lifecycle hooks and trust the
+   new hook commands when Codex prompts on the next start. (Legacy qmd repos have per-repo
+   `wiki-reindex` hooks; migration removes them.)
 
 ## doctor (read-only)
 
@@ -82,6 +99,9 @@ Report, without writing:
   and stops will miss cross-cutting knowledge that lives in a sibling (`infra`/`ops`) project.
 - Is an ai-memory MCP entry present in `.mcp.json` / `opencode.json` / `.codex/config.toml`? Is
   `.mcp.json` git-ignored (operator-local) rather than tracked?
+- For Codex, are global ai-memory hooks present in `~/.codex/hooks.json` (`SessionStart`,
+  `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `Stop`) and do the staged
+  scripts exist under the platform ai-memory hooks dir?
 - **Legacy qmd?** Flag any of: a `qmd` MCP entry, a `wiki/` dir with `CONVENTIONS.md`, per-repo
   `*/hooks/wiki-reindex.sh`, a "Wiki (`wiki/`)" block in CLAUDE.md/AGENTS.md, `.wiki-guardrails.yml`.
 
@@ -95,7 +115,12 @@ Report, without writing:
    present). Don't paste a hand-maintained copy.
 4. Add the ai-memory MCP entry to the agent configs the repo uses, and ensure `.mcp.json` is
    git-ignored (operator-local — see item 3 above); `git rm --cached .mcp.json` if already tracked.
-5. Tell the user auto-capture is now live (global hooks + the new marker); recall is via the
+   For Codex, prefer `ai-memory install-mcp --client codex ... --apply` so the server lands in
+   `~/.codex/config.toml`.
+5. Ensure global auto-capture hooks are installed for the active agents. For Codex, run
+   `ai-memory install-hooks --agent codex --server-url https://memory.example.dev --apply` and verify
+   `~/.codex/hooks.json` plus the staged `ai-memory/hooks/codex` scripts.
+6. Tell the user auto-capture is now live (global hooks + the new marker); recall is via the
    session-start handoff + the routing snippet.
 
 ## migrate (brownfield: qmd → ai-memory)
@@ -166,12 +191,14 @@ mode and onboard each user explicitly. The ai-memory CLI already ships the workf
    `openclaw`, `antigravity-cli`):
    ```bash
    ai-memory install-hooks --apply \
-     --agent claude-code \
+     --agent codex \
      --as-user alice \
      --auth-token <alice-token>
    ```
+   Use `--agent claude-code` or `--agent open-code` for those harnesses.
    `--apply` mutates the agent config in place (idempotent; writes a timestamped backup).
-   Defaults to the global config (`~/.claude/settings.json`, `~/.codex/config.toml`, …).
+   Defaults to the global hook config (`~/.claude/settings.json`, `~/.codex/hooks.json`,
+   OpenCode plugin config, …).
    Pass `--config-file ./.claude/settings.json` to target project-level config instead
    (see "tokens per context" below).
 
@@ -259,7 +286,8 @@ report:
 
 - `[auth].token_pepper` is set on the engine
 - `ai-memory user list` returns the expected users
-- `~/.claude/settings.json` (or project-level) MCP entry has `Authorization: Bearer …`
+- The agent MCP config (`~/.claude/settings.json`, `~/.codex/config.toml`, OpenCode config,
+  or project-level equivalent) has `Authorization: Bearer …`
 - The active hook config is stamped with `--as-user` (every hook call carries the user's
   bearer, not the root token)
 - If autoscope is `per_session` and the MCP client doesn't forward `session_id`, warn

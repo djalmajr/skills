@@ -38,9 +38,10 @@ You can always force recall manually (`aim-query`, or ask "check the memory for 
 
 ## Auto-capture (the feedback loop)
 
-Lifecycle hooks are **global** (`~/.claude/settings.json` + `~/.config/ai-memory/hooks/`;
-plus Codex and OpenCode equivalents) and **marker-gated** — they fire only in repos with a
-`.ai-memory.toml`. Events:
+Lifecycle hooks are **global** (Claude settings, Codex `~/.codex/hooks.json`, OpenCode plugin
+config, plus staged scripts under the platform ai-memory hooks dir such as
+`%LOCALAPPDATA%\ai-memory\hooks\` on Windows) and **marker-gated** — they fire only in repos
+with a `.ai-memory.toml`. Events:
 
 | Hook | Role |
 |------|------|
