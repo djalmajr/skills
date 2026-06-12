@@ -33,6 +33,35 @@ instance), so never hardcode the endpoint:
 
 The endpoint chosen here is what `aim-query` / `aim-write` will target later (by server name).
 
+## CLI prerequisite (no Docker wrapper by default)
+
+`aim-init` needs the `ai-memory` CLI to install MCP entries, install hooks, and refresh the
+routing snippet. Prefer a **native CLI binary** over the Docker wrapper:
+
+1. If `ai-memory` is already on `PATH`, run `ai-memory --version` and keep using it when it can
+   talk to the target server.
+2. If it is missing or stale, check the latest upstream release first:
+   `https://github.com/akitaonrails/ai-memory/releases/latest`.
+   - Linux: download the matching `ai-memory-linux-<arch>.tar.gz` asset, verify its `.sha256`,
+     and install the binary into `~/.local/bin/ai-memory` (or another user-owned PATH dir).
+   - Windows: download `ai-memory-windows-x86_64.zip`, verify its `.sha256`, and follow the
+     bundled Windows docs.
+   - macOS/Darwin: as of the current upstream release format, there may be no Darwin asset.
+     In that case use the native Rust install/build path instead:
+     `cargo install --git https://github.com/akitaonrails/ai-memory --tag <latest-tag>`
+     or build the local source and install `target/release/ai-memory` into `~/.local/bin`.
+3. Use the Docker wrapper (`bin/ai-memory` or the quick-start wrapper from GitHub) only when the
+   user explicitly wants Docker. Do not suggest it as the default local CLI on macOS or when the
+   user asks for a non-Docker setup.
+
+After installing, verify:
+
+```bash
+command -v ai-memory
+ai-memory --version
+AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-env> ai-memory status --json
+```
+
 ## What a wired repo has
 
 1. **`.ai-memory.toml`** at the repo root — routes captures + recall to a workspace/project.
@@ -89,6 +118,11 @@ The endpoint chosen here is what `aim-query` / `aim-write` will target later (by
 ## doctor (read-only)
 
 Report, without writing:
+- Is the `ai-memory` CLI available on `PATH`? What version? If missing/stale, report the native
+  install path from the latest upstream release (or `cargo install` on macOS when no Darwin asset
+  exists). Do **not** fall back to the Docker wrapper unless the user wants Docker.
+- Can the CLI reach the chosen server (`ai-memory status --json` with the right
+  `AI_MEMORY_SERVER_URL` / auth env or flags)?
 - Is there a `.ai-memory.toml`? What workspace/project? Is it git-ignored?
 - Is the routing snippet present in CLAUDE.md / AGENTS.md?
 - **Does the snippet teach the search strategy?** Flag a stale snippet that lacks the
@@ -108,19 +142,23 @@ Report, without writing:
 ## install (greenfield)
 
 1. Confirm workspace + project with the user.
-2. Ensure `.ai-memory.toml` is git-ignored globally (see step 1 above), then write the marker.
-3. Obtain the canonical routing block from the binary (`memory_install_self_routing`, or
+2. Ensure the native `ai-memory` CLI is installed and functional (see "CLI prerequisite" above).
+   Install/upgrade from upstream release assets when available; on macOS use native
+   `cargo install`/source build if there is no Darwin release asset. Avoid the Docker wrapper unless
+   explicitly requested.
+3. Ensure `.ai-memory.toml` is git-ignored globally (see step 1 above), then write the marker.
+4. Obtain the canonical routing block from the binary (`memory_install_self_routing`, or
    `ai-memory install-instructions`) and write it into `CLAUDE.md` and `AGENTS.md` (idempotent
    — between the `<!-- ai-memory:start -->`/`<!-- ai-memory:end -->` markers; replace if
    present). Don't paste a hand-maintained copy.
-4. Add the ai-memory MCP entry to the agent configs the repo uses, and ensure `.mcp.json` is
+5. Add the ai-memory MCP entry to the agent configs the repo uses, and ensure `.mcp.json` is
    git-ignored (operator-local — see item 3 above); `git rm --cached .mcp.json` if already tracked.
    For Codex, prefer `ai-memory install-mcp --client codex ... --apply` so the server lands in
    `~/.codex/config.toml`.
-5. Ensure global auto-capture hooks are installed for the active agents. For Codex, run
+6. Ensure global auto-capture hooks are installed for the active agents. For Codex, run
    `ai-memory install-hooks --agent codex --server-url https://memory.example.dev --apply` and verify
    `~/.codex/hooks.json` plus the staged `ai-memory/hooks/codex` scripts.
-6. Tell the user auto-capture is now live (global hooks + the new marker); recall is via the
+7. Tell the user auto-capture is now live (global hooks + the new marker); recall is via the
    session-start handoff + the routing snippet.
 
 ## migrate (brownfield: qmd → ai-memory)
