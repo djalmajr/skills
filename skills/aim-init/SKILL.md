@@ -105,15 +105,31 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
    `~/Library/Application Support/ai-memory/hooks/` on macOS, and
    `%LOCALAPPDATA%\ai-memory\hooks\` on Windows). They are marker-gated: they fire in any
    repo that has `.ai-memory.toml`. A repo needs **no per-repo hook scripts** — just the marker.
-   Install or refresh them per agent with the capture base URL, not the `/mcp` URL:
+   Install or refresh them per agent with the capture base URL, not the `/mcp` URL.
+   **If the server authenticates the hook routes** (e.g. an `mcp-auth` gateway with a static
+   `HOOK_AUTH_TOKEN` accepted only on `/hook` and `/handoff`), pass that bearer via
+   `--auth-token` so the hooks authenticate — it is embedded in each agent's hook config, so
+   treat that file as sensitive (`chmod 600`). Add `--hooks-dir <ai-memory/hooks>` when the
+   binary can't locate its vendored scripts (e.g. a `cargo install` build):
    ```bash
-   ai-memory install-hooks --agent codex --server-url https://memory.example.dev --apply
-   ai-memory install-hooks --agent open-code --server-url https://memory.example.dev --apply
-   ai-memory install-hooks --agent claude-code --server-url https://memory.example.dev --apply
+   TOKEN=<HOOK_AUTH_TOKEN>   # omit --auth-token entirely if the server's hook routes are open
+   ai-memory install-hooks --apply --agent claude-code     --server-url https://memory.example.dev --auth-token "$TOKEN"
+   ai-memory install-hooks --apply --agent codex           --server-url https://memory.example.dev --auth-token "$TOKEN"
+   ai-memory install-hooks --apply --agent open-code       --server-url https://memory.example.dev --auth-token "$TOKEN"
+   ai-memory install-hooks --apply --agent antigravity-cli --server-url https://memory.example.dev --auth-token "$TOKEN"
    ```
+   Modern `install-hooks` wires **native** hooks (`ai-memory hook --event …` calling the binary
+   directly) instead of shell scripts — the binary emits the correct per-agent stdout contract
+   (e.g. Claude Code's `hookSpecificOutput.additionalContext` JSON wrapper for handoff
+   injection), so there are **no hand-patched hook scripts to drift**. Do **not** hand-maintain a
+   custom `_lib.sh` overlay for auth (e.g. a Keycloak token-mint prepend) — `--auth-token` is the
+   supported path; a static hook bearer scoped to `/hook`+`/handoff` is lower-risk than a
+   short-lived JWT minted on every event.
    On Codex, confirm `~/.codex/hooks.json` contains the ai-memory lifecycle hooks and trust the
-   new hook commands when Codex prompts on the next start. (Legacy qmd repos have per-repo
-   `wiki-reindex` hooks; migration removes them.)
+   new hook commands when Codex prompts on the next start. **Grok Build CLI** (`~/.grok/hooks/*.json`)
+   is not yet a supported `--agent` — integrate manually, and note that its `SessionStart` ignores
+   hook stdout (no handoff injection; use the MCP `memory_handoff_accept` instead). (Legacy qmd
+   repos have per-repo `wiki-reindex` hooks; migration removes them.)
 
 ## doctor (read-only)
 
@@ -136,6 +152,17 @@ Report, without writing:
 - For Codex, are global ai-memory hooks present in `~/.codex/hooks.json` (`SessionStart`,
   `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `Stop`) and do the staged
   scripts exist under the platform ai-memory hooks dir?
+- **Are the hooks native + authenticated?** Flag any agent still calling hand-patched shell
+  scripts under a custom overlay (e.g. `~/.config/ai-memory/hooks/` sourcing a Keycloak-mint
+  `_lib.sh`) instead of the binary's `ai-memory hook --event …` form — those drift and miss
+  upstream fixes (e.g. the `hookSpecificOutput` JSON wrapper + tab-escape fix that handoff
+  injection depends on). If the server gates `/hook`/`/handoff`, confirm each hook carries
+  `--auth-token` (otherwise captures 401 silently). Re-running
+  `install-hooks --apply --auth-token <token>` migrates them and removes the overlay dependency.
+- **MCP auth (DCR):** if an agent's MCP login shows Keycloak **"Client not found"**, its cached
+  Dynamic-Client-Registration id was orphaned (realm recreated/migrated). Clear the stale entry
+  from the agent's MCP-auth cache (e.g. OpenCode's `~/.local/share/opencode/mcp-auth.json`) and
+  re-auth to force a fresh DCR.
 - **Legacy qmd?** Flag any of: a `qmd` MCP entry, a `wiki/` dir with `CONVENTIONS.md`, per-repo
   `*/hooks/wiki-reindex.sh`, a "Wiki (`wiki/`)" block in CLAUDE.md/AGENTS.md, `.wiki-guardrails.yml`.
 
