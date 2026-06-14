@@ -21,7 +21,16 @@
     "figma-capture",
     "aim-init",
     "aim-query",
-    "aim-write"
+    "aim-write",
+    "workflow",
+    "wf-refute",
+    "wf-judge",
+    "wf-sweep",
+    "wf-exhaust",
+    "wf-gaps",
+    "wf-tournament",
+    "wf-check",
+    "wf-review"
    ]
   }
  ]

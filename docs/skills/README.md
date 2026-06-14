@@ -29,3 +29,20 @@ Human-facing notes moved out of individual skill folders.
 | Skill | One-liner |
 |---|---|
 | [figma-capture](figma-capture.md) | Rendered page → clipboard capture for Figma paste |
+
+## Workflow / Quality (9)
+
+Ultracode-style multi-agent quality system — overview in [workflow.md](workflow.md).
+`SKILL.md` is the source of truth for each.
+
+| Skill | One-liner |
+|---|---|
+| workflow | Entry-point orchestrator (aliases `/ultracode`, `/quality-orchestrator`) |
+| wf-refute | Adversarial verification — evidence-weighted refuters, perspective-diverse lenses |
+| wf-judge | Generative judge-panel over N candidate approaches |
+| wf-sweep | Multi-modal blind discovery; dedup against a persistent seen-set |
+| wf-exhaust | Loop-until-dry exhaustive discovery |
+| wf-gaps | Completeness critic with a fail-closed gate |
+| wf-tournament | best-of-n implementation tournament in worktrees |
+| wf-check | Oracle-first code verifier (PASS/FAIL); delegates to wf-review |
+| wf-review | Maintainability/structural review specialist (invoke-by-name) |

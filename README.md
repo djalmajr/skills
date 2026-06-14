@@ -46,7 +46,7 @@ These skills are written for the common `SKILL.md` format used by `skills.sh`, C
 
 Keep frontmatter portable. Avoid agent-specific fields unless the skill truly needs them and the behavior is documented in `SKILL.md`.
 
-## Skills (16)
+## Skills (25)
 
 ### Agile (15)
 
@@ -73,6 +73,25 @@ Keep frontmatter portable. Avoid agent-specific fields unless the skill truly ne
 | Skill | Purpose |
 |-------|---------|
 | figma-capture | Copy a rendered local page to the clipboard for pasting into Figma |
+
+### Workflow / Quality (9)
+
+The ultracode-style multi-agent quality system. `/workflow` (aliases `/ultracode`,
+`/quality-orchestrator`) is the entry point that composes the eight focused patterns.
+Portable across Claude Code / Grok / Codex / OpenCode — overview in
+[docs/skills/workflow.md](docs/skills/workflow.md).
+
+| Skill | Purpose |
+|-------|---------|
+| workflow | Entry-point orchestrator: assess complexity, pick phases, compose patterns, prefer direct oracles |
+| wf-refute | Adversarial verification — N evidence-weighted refuters with perspective-diverse lenses |
+| wf-judge | Generative judge-panel — N candidate approaches, parallel judges, synthesize the winner |
+| wf-sweep | Multi-modal blind discovery across independent angles; dedup against a persistent seen-set |
+| wf-exhaust | Loop-until-dry: repeat finders until K quiet rounds (unknown-cardinality discovery) |
+| wf-gaps | Completeness critic — "what did the list/scope NOT cover?"; fail-closed gate |
+| wf-tournament | best-of-n implementation tournament in isolated worktrees, oracle-gated, diff-graded |
+| wf-check | Oracle-first code verifier (schema-validated PASS/FAIL); delegates the quality lens to wf-review |
+| wf-review | Maintainability / structural review specialist (invoke-by-name) |
 
 ## Flow
 
