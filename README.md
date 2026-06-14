@@ -68,11 +68,12 @@ Keep frontmatter portable. Avoid agent-specific fields unless the skill truly ne
 | agile-tdd | TDD cycle + pragmatic testing strategy |
 | agile-skill-feedback | Improve, merge, split, deprecate, or remove skills from real usage evidence |
 
-### Design (1)
+### Design (2)
 
 | Skill | Purpose |
 |-------|---------|
 | figma-capture | Copy a rendered local page to the clipboard for pasting into Figma |
+| excalidraw | Author & edit raw `.excalidraw` scene files by hand (element JSON, binding, updating sections) |
 
 ### Workflow / Quality (9)
 
