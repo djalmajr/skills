@@ -131,33 +131,35 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
    hook stdout (no handoff injection; use the MCP `memory_handoff_accept` instead). (Legacy qmd
    repos have per-repo `wiki-reindex` hooks; migration removes them.)
 
-## Client / OAuth-only instance (recall-only)
+## Second / custom instance (e.g. a client Keycloak instance)
 
-Some repos talk to **two** ai-memory instances — a **personal** one (capture + recall) and a
-**client/org** one that authenticates with **OAuth/OIDC (Keycloak, RFC 9728)** instead of a
-static bearer. The OAuth-only instance is **recall-only**:
+Some repos talk to **two** ai-memory instances — a **personal** one and a **client/org** one
+that authenticates with **OAuth/OIDC (Keycloak, RFC 9728)** rather than (or in addition to) a
+static bearer. Both are **read + write**; keep them in sync, with the **personal instance as the
+superset** (it accumulates everything any custom instance has).
 
-- **Capture via hook is infeasible** on an OAuth-only instance. Lifecycle hooks are
-  fire-and-forget and authenticate with a *static* bearer on `/hook`+`/handoff`; they cannot
-  run an interactive OAuth PKCE flow. So **do not run `install-hooks` against an OAuth-only
-  instance** and do not invent a "per-project hook token" for it — there is none
-  (`install-hooks --auth-token …` needs a static token the OAuth gateway rejects → 401 silently).
-- **Capture stays on the personal instance.** Its global hooks fire in this repo (marker present)
-  and write to the marker's `workspace/project` on the personal instance.
-- **Register the OAuth-only instance as a second, recall-only MCP** (e.g. `memory-serpro`) at its
-  `/mcp` URL — mind any **base path** (e.g. `…/wiki/mcp`). The agent recalls from it (OAuth login
-  in-session via the MCP client's DCR) and can `pull → personal` on demand. Treat it read-only if
-  policy forbids writing to the client instance.
-- **Pass explicit `workspace`+`project` on every recall** to the OAuth-only instance. With the
-  engine in `per_actor` (recommended) and the scope-bleed fail-closed fix, an un-scoped MCP call
-  falls back to that instance's *baked default* (no bleed, but not your project either) — and the
-  instance has **no hooks publishing the repo's active-project**, so it cannot auto-resolve the
-  repo. The `.ai-memory.toml` marker gives the canonical scope.
+- **Hook capture works against an OAuth/Keycloak instance too.** A hook is headless and cannot run
+  an *interactive* OAuth PKCE flow per event, but it authenticates either with a **static bearer**
+  (`--auth-token`, e.g. a `HOOK_AUTH_TOKEN` the instance accepts on `/hook`) **or** with a stored
+  **OIDC device-flow token**: run `ai-memory auth login oidc-device --issuer <realm> --client-id
+  <public-client>` once, and the hook (`resolve_bearer`) loads it from `auth.json` and refreshes it
+  headlessly. So `install-hooks` against a Keycloak instance is valid — pass `--auth-token` if it
+  has a static hook token, otherwise omit it and rely on the stored device token.
+- **Dual-capture:** global hooks → personal (static bearer); **project-level** hooks
+  (`.claude/settings.local.json`) → the client instance (static or OIDC device token). With both
+  wired, every lifecycle event captures to both. (Or capture to one and reconcile via sync.)
+- **Dual-write durable pages:** a `memory_write_page` in a two-instance project goes to **both**
+  MCPs, same `(workspace, project)`.
+- **Pass explicit `workspace`+`project`** on recall/write to the client instance — with `per_actor`
+  + the scope-bleed fail-closed fix, an un-scoped call lands on that instance's baked default. The
+  `.ai-memory.toml` marker gives the canonical scope.
+- **Keep in sync** (bidirectional, on-demand): personal ⊇ everything; reconcile drift both ways
+  preserving `(workspace, project)`.
 
 This operator-specific dual-instance wiring belongs in **operator-global config**
 (`~/.claude/CLAUDE.md` or a shared memory rule), **not** the committed per-repo CLAUDE.md
 `ai-memory` block — that block is generic + binary-owned, and in a shared/client repo it would
-leak the personal+client setup and the project's information architecture.
+leak the dual-instance/capture setup and the project's information architecture.
 
 ## doctor (read-only)
 
@@ -191,13 +193,13 @@ Report, without writing:
   Dynamic-Client-Registration id was orphaned (realm recreated/migrated). Clear the stale entry
   from the agent's MCP-auth cache (e.g. OpenCode's `~/.local/share/opencode/mcp-auth.json`) and
   re-auth to force a fresh DCR.
-- **OAuth-only / recall-only instance?** If the repo registers a second MCP that authenticates
-  with OAuth/OIDC (Keycloak) rather than a static bearer, confirm it is treated as **recall-only**:
-  NO `install-hooks` pointed at it, NO per-project "client hook token" (none exists — the OAuth
-  gateway rejects a static bearer), capture handled by the **personal** instance's global hooks,
-  and the routing reminds the agent to pass explicit `workspace`+`project` when recalling from it
-  (it has no hooks publishing the repo's active-project, so un-scoped calls fail closed to its
-  baked default). Flag any committed CLAUDE.md that hard-codes this dual-instance/capture wiring —
+- **Two-instance (e.g. client Keycloak) repo?** If the repo registers a second MCP (a client/org
+  instance), confirm: both are treated as **read+write** with the **personal** instance as the
+  superset; durable writes are dual-written; if auto-capture to the client instance is wanted,
+  project-level hooks point at it with a static `HOOK_AUTH_TOKEN` **or** a stored OIDC device-flow
+  token (`ai-memory auth login oidc-device …` → `resolve_bearer` refreshes headlessly) — capture is
+  feasible, not "impossible"; recall/write pass explicit `workspace`+`project` (per_actor
+  fail-closed). Flag any committed CLAUDE.md that hard-codes this dual-instance/capture wiring —
   it belongs in operator-global config, not the shared per-repo block.
 - **Legacy qmd?** Flag any of: a `qmd` MCP entry, a `wiki/` dir with `CONVENTIONS.md`, per-repo
   `*/hooks/wiki-reindex.sh`, a "Wiki (`wiki/`)" block in CLAUDE.md/AGENTS.md, `.wiki-guardrails.yml`.
