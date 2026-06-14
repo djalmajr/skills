@@ -106,30 +106,85 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
    `%LOCALAPPDATA%\ai-memory\hooks\` on Windows). They are marker-gated: they fire in any
    repo that has `.ai-memory.toml`. A repo needs **no per-repo hook scripts** — just the marker.
    Install or refresh them per agent with the capture base URL, not the `/mcp` URL.
-   **If the server authenticates the hook routes** (e.g. an `mcp-auth` gateway with a static
-   `HOOK_AUTH_TOKEN` accepted only on `/hook` and `/handoff`), pass that bearer via
-   `--auth-token` so the hooks authenticate — it is embedded in each agent's hook config, so
-   treat that file as sensitive (`chmod 600`). Add `--hooks-dir <ai-memory/hooks>` when the
-   binary can't locate its vendored scripts (e.g. a `cargo install` build):
+   **Hook auth — pick the mode that matches the server. This is the #1 cause of silent
+   capture failure: the wrong mode 401s on every drain, the spool fills, captures are lost.**
+   There are three modes:
+   - **Open hook routes** (no auth on `/hook`+`/handoff`) → install with **no** `--auth-token`.
+   - **Static bearer** — the server accepts a shared/per-user token on `/hook`+`/handoff`
+     (e.g. `AI_MEMORY_AUTH_TOKEN` on a single-tenant engine, or a token from
+     `ai-memory user add`) → pass it via `--auth-token`. Embedded in each agent's hook config,
+     so treat that file as sensitive (`chmod 600`).
+   - **OIDC / Keycloak gateway** — a forwardAuth sidecar (`mcp-auth`) that validates a **JWT**
+     and answers `401 WWW-Authenticate: Bearer resource_metadata=…` (RFC 9728). A static hex
+     token is **rejected (401)** here — the gateway only accepts a Keycloak JWT, and the
+     engine's upstream bearer is proxy-injected, not client-sendable. Use a per-developer
+     **OIDC device token**: run `ai-memory auth login oidc-device --issuer <oidc-issuer>
+     --client-id <public-device-client>` **once** (browser approval), then install hooks
+     **without** `--auth-token` — the hook's `resolve_bearer` loads the token from `auth.json`
+     and refreshes it headlessly. Full recipe in "Second / custom instance" below.
+
+   Quick test of which mode a server is in: `curl -sI <server>/hook` → `401` with a
+   `WWW-Authenticate: Bearer resource_metadata=` header means OIDC/Keycloak (device flow);
+   a plain `401`/`200` without that header means static-bearer/open.
+
+   Add `--hooks-dir <ai-memory/hooks>` when the binary can't locate its vendored scripts
+   (e.g. a `cargo install` build):
    ```bash
-   TOKEN=<HOOK_AUTH_TOKEN>   # omit --auth-token entirely if the server's hook routes are open
-   ai-memory install-hooks --apply --agent claude-code     --server-url https://memory.example.dev --auth-token "$TOKEN"
-   ai-memory install-hooks --apply --agent codex           --server-url https://memory.example.dev --auth-token "$TOKEN"
-   ai-memory install-hooks --apply --agent open-code       --server-url https://memory.example.dev --auth-token "$TOKEN"
-   ai-memory install-hooks --apply --agent antigravity-cli --server-url https://memory.example.dev --auth-token "$TOKEN"
+   # static-bearer server:
+   TOKEN=<HOOK_AUTH_TOKEN>
+   ai-memory install-hooks --apply --agent claude-code --server-url https://memory.example.dev --auth-token "$TOKEN"
+   # OIDC/Keycloak server (after `auth login oidc-device`) OR open server — NO --auth-token:
+   ai-memory install-hooks --apply --agent claude-code --server-url https://memory.example.dev
+   ai-memory install-hooks --apply --agent codex       --server-url https://memory.example.dev
+   ai-memory install-hooks --apply --agent open-code   --server-url https://memory.example.dev
    ```
    Modern `install-hooks` wires **native** hooks (`ai-memory hook --event …` calling the binary
    directly) instead of shell scripts — the binary emits the correct per-agent stdout contract
    (e.g. Claude Code's `hookSpecificOutput.additionalContext` JSON wrapper for handoff
    injection), so there are **no hand-patched hook scripts to drift**. Do **not** hand-maintain a
-   custom `_lib.sh` overlay for auth (e.g. a Keycloak token-mint prepend) — `--auth-token` is the
-   supported path; a static hook bearer scoped to `/hook`+`/handoff` is lower-risk than a
-   short-lived JWT minted on every event.
+   custom `_lib.sh` overlay for auth (e.g. a Keycloak token-mint prepend) — the supported paths
+   are `--auth-token` (static-bearer servers) or `auth login oidc-device` + no-`--auth-token`
+   (OIDC/Keycloak servers). The device token is **not** minted per event: it's stored once in
+   `auth.json` and refreshed headlessly at drain time.
    On Codex, confirm `~/.codex/hooks.json` contains the ai-memory lifecycle hooks and trust the
    new hook commands when Codex prompts on the next start. **Grok Build CLI** (`~/.grok/hooks/*.json`)
    is not yet a supported `--agent` — integrate manually, and note that its `SessionStart` ignores
    hook stdout (no handoff injection; use the MCP `memory_handoff_accept` instead). (Legacy qmd
    repos have per-repo `wiki-reindex` hooks; migration removes them.)
+
+### Hook config — per-platform paths + delivery model (macOS / Linux / Windows)
+
+`install-hooks` and `auth login oidc-device` both default to the platform **data dir**
+(`dirs::data_local_dir()`), where `auth.json`, the `hook-spool/`, and the staged hook scripts
+live — so the OIDC device token lands exactly where the hooks look for it. Same flow on all
+three OSes; only the paths differ:
+
+| OS | data dir (`auth.json`, `hook-spool/`, `hooks/`) | Claude Code settings |
+|---|---|---|
+| **macOS** | `~/Library/Application Support/ai-memory` | `~/.claude/settings.json` |
+| **Linux** | `~/.local/share/ai-memory` | `~/.claude/settings.json` |
+| **Windows** | `%LOCALAPPDATA%\ai-memory` | `%USERPROFILE%\.claude\settings.json` |
+
+Hooks are **native** (`ai-memory hook --event …` calls the binary directly — no shell spawn;
+Windows uses the `WindowsNative` config with the same spool + OIDC-token fallback). Codex →
+`~/.codex/hooks.json`; OpenCode → its plugin config. If the binary can't find its vendored
+scripts (e.g. a `cargo install` build), pass `--hooks-dir <data_dir>/hooks`. `auth.json` is
+sensitive → `chmod 600` on POSIX (the CLI writes it that way).
+
+**Delivery is batched at session boundaries, not per event.** Per-event hooks
+(`user-prompt-submit`, `pre/post-tool-use`, `pre-compact`, `stop`) only **enqueue** to
+`<data_dir>/hook-spool` (instant, fire-and-forget). The spool is **drained** on
+**`session-start`** (clears prior-session backlog) and **`session-end`** (the main delivery
+point). So "captures don't show up immediately" is normal — they flush at the next boundary.
+`resolve_bearer` at drain time: explicit `--auth-token` wins (static); else the OIDC token
+from `auth.json` (refreshed if near expiry); else anonymous. The spool drops entries after 8
+failed attempts or 7 days, capped at 10000 files. **Symptom of a wrong auth mode:**
+`hook-spool` filling toward 10000 with `auth_mode: static` entries that 401 forever (a static
+token against a Keycloak gateway) → switch to device flow and clear the dead backlog.
+
+Token lifetime (device flow): access token auto-refreshes; the refresh token lasts as long as
+the issuer's offline-session idle window — after long inactivity, re-run `auth login
+oidc-device`. Verify state any time with `ai-memory auth status`.
 
 ## Second / custom instance (e.g. a client Keycloak instance)
 
@@ -139,15 +194,25 @@ static bearer. Both are **read + write**; keep them in sync, with the **personal
 superset** (it accumulates everything any custom instance has).
 
 - **Hook capture works against an OAuth/Keycloak instance too.** A hook is headless and cannot run
-  an *interactive* OAuth PKCE flow per event, but it authenticates either with a **static bearer**
-  (`--auth-token`, e.g. a `HOOK_AUTH_TOKEN` the instance accepts on `/hook`) **or** with a stored
-  **OIDC device-flow token**: run `ai-memory auth login oidc-device --issuer <realm> --client-id
-  <public-client>` once, and the hook (`resolve_bearer`) loads it from `auth.json` and refreshes it
-  headlessly. So `install-hooks` against a Keycloak instance is valid — pass `--auth-token` if it
-  has a static hook token, otherwise omit it and rely on the stored device token.
-- **Dual-capture:** global hooks → personal (static bearer); **project-level** hooks
-  (`.claude/settings.local.json`) → the client instance (static or OIDC device token). With both
-  wired, every lifecycle event captures to both. (Or capture to one and reconcile via sync.)
+  an *interactive* OAuth PKCE flow per event, so it uses a stored **OIDC device-flow token**: run
+  `ai-memory auth login oidc-device --issuer <oidc-issuer> --client-id <public-device-client>`
+  once (browser approval), and the hook (`resolve_bearer`) loads it from `auth.json` and refreshes
+  it headlessly. Then `install-hooks` **without** `--auth-token`.
+  - **A forwardAuth-JWT-only gateway rejects static bearers.** If the gateway answers
+    `401 WWW-Authenticate: Bearer resource_metadata=…` (RFC 9728), a static hex token gets 401 —
+    the upstream bearer is proxy-injected, not client-sendable — so **device flow is the only
+    headless option** there. Only pass `--auth-token` when the instance genuinely accepts a static
+    `HOOK_AUTH_TOKEN` on `/hook`.
+  - **Device-flow client requirements (issuer side):** a **public** client with the
+    device-authorization grant **enabled** and **no PKCE enforcement** (PKCE has no place in the
+    device grant — there's no redirect; keep the browser/DCR/MCP client, which *does* enforce PKCE,
+    as a **separate** client so you don't have to weaken it). The user needs the realm role the
+    server checks (e.g. `mcp:read`/`mcp:write`) — those ride into the JWT via the realm-role mapper,
+    not via a scope.
+- **Dual-capture:** global hooks → personal instance; **project-level** hooks
+  (`.claude/settings.local.json`) → the client instance. Each leg uses **that instance's** auth
+  mode (static bearer or OIDC device token — they're independent). With both wired, every lifecycle
+  event captures to both. (Or capture to one and reconcile via sync.)
 - **Dual-write durable pages:** a `memory_write_page` in a two-instance project goes to **both**
   MCPs, same `(workspace, project)`.
 - **Pass explicit `workspace`+`project`** on recall/write to the client instance — with `per_actor`
@@ -186,9 +251,14 @@ Report, without writing:
   scripts under a custom overlay (e.g. `~/.config/ai-memory/hooks/` sourcing a Keycloak-mint
   `_lib.sh`) instead of the binary's `ai-memory hook --event …` form — those drift and miss
   upstream fixes (e.g. the `hookSpecificOutput` JSON wrapper + tab-escape fix that handoff
-  injection depends on). If the server gates `/hook`/`/handoff`, confirm each hook carries
-  `--auth-token` (otherwise captures 401 silently). Re-running
-  `install-hooks --apply --auth-token <token>` migrates them and removes the overlay dependency.
+  injection depends on). If the server gates `/hook`/`/handoff`, confirm the hook carries the
+  **right credential for that server's mode** (otherwise captures 401 **silently** — the CLI
+  spools locally and returns `{}` regardless): a **static-bearer** server needs `--auth-token`;
+  an **OIDC/Keycloak** gateway (`401 WWW-Authenticate: Bearer resource_metadata=…`) needs a
+  device-flow token (`auth login oidc-device`) and the hooks installed **without** `--auth-token`
+  — a static token is rejected there. Tell-tale of the wrong mode: `<data_dir>/hook-spool` filling
+  toward 10000 with `auth_mode: static` entries. Re-run `install-hooks --apply` (with or without
+  `--auth-token` per mode) to migrate and remove any overlay dependency.
 - **MCP auth (DCR):** if an agent's MCP login shows Keycloak **"Client not found"**, its cached
   Dynamic-Client-Registration id was orphaned (realm recreated/migrated). Clear the stale entry
   from the agent's MCP-auth cache (e.g. OpenCode's `~/.local/share/opencode/mcp-auth.json`) and
@@ -332,8 +402,8 @@ calls don't forward the hook's `session_id`, so the engine collapses both window
 one user-only slot. Workaround: **treat each repo as its own logical user**.
 
 ```bash
-ai-memory user add --username djalmajr-foo --email djalmajr@foo.local   # token T-foo
-ai-memory user add --username djalmajr-bar --email djalmajr@bar.local   # token T-bar
+ai-memory user add --username alice-foo --email alice@foo.local   # token T-foo
+ai-memory user add --username alice-bar --email alice@bar.local   # token T-bar
 ```
 
 In each repo's **project-level** `.claude/settings.json` (Claude Code merges project-level
@@ -353,7 +423,7 @@ over global), pin a distinct token:
 Install hooks scoped the same way:
 ```bash
 cd ~/repo-foo && ai-memory install-hooks --apply \
-  --as-user djalmajr-foo --auth-token T-foo \
+  --as-user alice-foo --auth-token T-foo \
   --config-file ./.claude/settings.json
 ```
 
@@ -375,7 +445,7 @@ webhooks:
   scopeGuard:
     enabled: true
     rules:
-      djalmajr:   [{ workspace: "djalmajr|shared", project: ".*" }]
+      alice:   [{ workspace: "alice|shared", project: ".*" }]
       client-x: [{ workspace: "client-x|shared", project: ".*" }]
 ```
 

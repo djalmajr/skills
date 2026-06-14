@@ -1,12 +1,12 @@
 ---
-name: wf-judge
+name: work-judge
 description: >
-  Generative multi-approach design or solution panel. Generates N independent candidate solutions from different angles (MVP-first, risk-first, user-first, performance-first, etc.), has parallel judges score them on multiple dimensions against re-read evidence, then synthesizes the winner by grafting the best ideas from the losers. Use for "which approach?", architecture decisions, design problems, "best way to implement X". Settles by direct oracle / throwaway prototype before convening the panel where possible. Invoke via /wf-judge.
+  Generative multi-approach design or solution panel. Generates N independent candidate solutions from different angles (MVP-first, risk-first, user-first, performance-first, etc.), has parallel judges score them on multiple dimensions against re-read evidence, then synthesizes the winner by grafting the best ideas from the losers. Use for "which approach?", architecture decisions, design problems, "best way to implement X". Settles by direct oracle / throwaway prototype before convening the panel where possible. Invoke via /work-judge.
 metadata:
   short-description: "Generative tournament: parallel candidates → barrier judging on evidence → synthesis"
 ---
 
-# /wf-judge — Generative Design / Solution Panel
+# /work-judge — Generative Design / Solution Panel
 
 This skill implements the **Judge Panel** quality pattern: explore a wide solution
 space by generating diverse candidates, judging them on evidence, and synthesizing
@@ -14,18 +14,18 @@ a winner that grafts the best of the losers.
 
 It is one pattern in the quality system. The orchestration model (shapes, mechanics,
 schema conventions) lives in
-[`../workflow/references/workflow-mode.md`](../workflow/references/workflow-mode.md);
+[`../work/references/workflow-mode.md`](../work/references/workflow-mode.md);
 the failure modes it guards against are in
-[`../workflow/references/anti-error-lessons.md`](../workflow/references/anti-error-lessons.md)
+[`../work/references/anti-error-lessons.md`](../work/references/anti-error-lessons.md)
 (lessons L1–L8). This skill **operationalizes** those — it does not restate them.
 
 ## When to use
 - Wide solution space: architecture, design trade-offs, "how should we implement this feature?"
 - You want to explore multiple angles explicitly rather than one "best guess".
-- Not for pure verification of an existing claim → use [`../wf-refute/SKILL.md`](../wf-refute/SKILL.md).
-- Not for picking among already-built implementations → use [`../wf-tournament/SKILL.md`](../wf-tournament/SKILL.md) (tournament in worktrees).
+- Not for pure verification of an existing claim → use [`../work-refute/SKILL.md`](../work-refute/SKILL.md).
+- Not for picking among already-built implementations → use [`../work-tournament/SKILL.md`](../work-tournament/SKILL.md) (tournament in worktrees).
 
-Difference from wf-refute: this is **generative** (produces candidates) +
+Difference from work-refute: this is **generative** (produces candidates) +
 **comparative scoring** + synthesis. Adversarial is **destructive** (tries to kill
 existing findings).
 
@@ -43,15 +43,15 @@ The panel is for genuinely open design space with **no** cheap oracle.
 
 ## Usage
 ```
-/wf-judge [N=3] "the design problem or decision to explore"
+/work-judge [N=3] "the design problem or decision to explore"
 ```
 
 Options:
-- `/wf-judge 5 "problem description"`
-- Add angles: `/wf-judge angles="MVP-first,risk-first,user-experience,performance,maintainability" "problem"`
-- Focus: `/wf-judge focus="security and multi-tenancy" "problem"`
+- `/work-judge 5 "problem description"`
+- Add angles: `/work-judge angles="MVP-first,risk-first,user-experience,performance,maintainability" "problem"`
+- Focus: `/work-judge focus="security and multi-tenancy" "problem"`
 
-The orchestrator ([`../workflow/SKILL.md`](../workflow/SKILL.md))
+The orchestrator ([`../work/SKILL.md`](../work/SKILL.md))
 often calls this as the Design phase of a larger harness.
 
 ---
@@ -106,7 +106,7 @@ Announce each phase via your harness's todo/plan tool (workflow-mode §3 log/pha
 
 ### 1. Generate diverse candidates in parallel (fan-out)
 Spawn **N** candidate agents in a **single message** (parallel sub-agent calls), mirroring the
-[`../wf-tournament/SKILL.md`](../wf-tournament/SKILL.md) mechanics so the ecosystem is consistent:
+[`../work-tournament/SKILL.md`](../work-tournament/SKILL.md) mechanics so the ecosystem is consistent:
 
 - sub-agent role: a general-purpose role (use a plan-only role for pure design with no file writes).
 - isolation: an **isolated worktree** **only when the candidate will write/run code** (a throwaway
@@ -307,7 +307,7 @@ These make the pattern reliable (full table: workflow-mode §3). For this panel 
 
 ## Worked example (compact)
 
-`/wf-judge 3 angles="MVP-first,risk-first,scalability" focus="multi-tenancy" "How to add real-time notifications to a multi-tenant app's kanban board"`
+`/work-judge 3 angles="MVP-first,risk-first,scalability" focus="multi-tenancy" "How to add real-time notifications to a multi-tenant app's kanban board"`
 
 1. **L1 gate** — no test/oracle decides "which realtime transport"; proceed (logged).
 2. **Angle coverage (L5)** — map: security→risk-first, multi-tenancy→risk-first,
@@ -323,19 +323,19 @@ These make the pattern reliable (full table: workflow-mode §3). For this panel 
    tenancy risk (re-read shows per-tenant channel) → C wins at the **Risk** tier (logged).
 6. **BARRIER #2 / Synthesize** — base = C; graft A's feature-flag rollback and B's
    backpressure note. `openQuestions`: "confirm channel auth binds to session, not ?hostname"
-   → flagged for [`../wf-refute/SKILL.md`](../wf-refute/SKILL.md).
+   → flagged for [`../work-refute/SKILL.md`](../work-refute/SKILL.md).
 
 ---
 
 ## Integration with other patterns
 
-- Often **follows** an Understand phase ([`../wf-sweep/SKILL.md`](../wf-sweep/SKILL.md) or research).
-- The synthesized winner is the natural input to [`../wf-refute/SKILL.md`](../wf-refute/SKILL.md)
+- Often **follows** an Understand phase ([`../work-sweep/SKILL.md`](../work-sweep/SKILL.md) or research).
+- The synthesized winner is the natural input to [`../work-refute/SKILL.md`](../work-refute/SKILL.md)
   for destructive review of the final proposal (kill its `openQuestions`).
-- [`../wf-gaps/SKILL.md`](../wf-gaps/SKILL.md) runs after synthesis:
+- [`../work-gaps/SKILL.md`](../work-gaps/SKILL.md) runs after synthesis:
   "what important angle or risk did the whole panel miss?" — the L5 coverage map is its input.
 - For choosing among **already-built** implementations rather than proposals, use
-  [`../wf-tournament/SKILL.md`](../wf-tournament/SKILL.md).
+  [`../work-tournament/SKILL.md`](../work-tournament/SKILL.md).
 
 This pattern scales confidence on design decisions where no single obvious answer exists —
 and, via the L1 gate, refuses to run when a cheap oracle already has the answer.

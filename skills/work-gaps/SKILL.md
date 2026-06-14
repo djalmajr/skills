@@ -1,12 +1,12 @@
 ---
-name: wf-gaps
+name: work-gaps
 description: >
-  After one or more discovery or analysis rounds, explicitly asks "What is still missing?" Modalities not swept, claims not verified, sources not read, edge cases not considered, downstream effects not traced, assumptions not checked. The output becomes the seed for the next round of work (more angles, more verification, more research). Use near the end of Research, Review, or Understand phases, or before declaring a task complete. Invoke via /wf-gaps.
+  After one or more discovery or analysis rounds, explicitly asks "What is still missing?" Modalities not swept, claims not verified, sources not read, edge cases not considered, downstream effects not traced, assumptions not checked. The output becomes the seed for the next round of work (more angles, more verification, more research). Use near the end of Research, Review, or Understand phases, or before declaring a task complete. Invoke via /work-gaps.
 metadata:
   short-description: "Explicit 'what did we miss?' critic after discovery work"
 ---
 
-# /wf-gaps — Gap and Omission Finder
+# /work-gaps — Gap and Omission Finder
 
 Implements the **Completeness critic** pattern — the **final gate** of the
 quality system: after find → dedup → verify, it asks "what did the LIST / SCOPE
@@ -22,8 +22,8 @@ It is cheap insurance against "we covered everything important" when you actuall
 ## Workflow shape — PARALLEL / BARRIER gate (default single-pass)
 
 This skill is the **closing gate** of the canonical Review harness
-(`find → dedup → wf-refute → wf-gaps`; see
-[`workflow-mode.md`](../workflow/references/workflow-mode.md) §2).
+(`find → dedup → work-refute → work-gaps`; see
+[`workflow-mode.md`](../work/references/workflow-mode.md) §2).
 
 - **Default: single-pass critic.** One critic run over the reconstructed scope is
   enough for most work, and it is cheap relative to the work it gates.
@@ -41,12 +41,12 @@ computed over **all** category results at once — you cannot close on a partial
 union. The dedup-against-`SEEN` step is **plain set logic, never an agent call**.
 
 This skill is **not** a LOOP itself — but its `gaps[]` output is the seed that
-*feeds* a LOOP: each gap becomes input for another `wf-sweep`,
-`wf-refute`, or research round (see [Integration](#integration)).
+*feeds* a LOOP: each gap becomes input for another `work-sweep`,
+`work-refute`, or research round (see [Integration](#integration)).
 
 ## Usage
 ```
-/wf-gaps "context of what was done so far" [focus="optional extra areas"]
+/work-gaps "context of what was done so far" [focus="optional extra areas"]
 ```
 
 The orchestrator calls this at natural checkpoints and at the very end of complex work.
@@ -67,7 +67,7 @@ re-checking what was. Concretely:
   the task, a list of all callers/consumers, a `git diff --name-only` against the
   change set. The point is to surface items **outside** the fan-out list (this is
   exactly what caught the 5 orphan files in the grounding case — see
-  [`anti-error-lessons.md`](../workflow/references/anti-error-lessons.md)).
+  [`anti-error-lessons.md`](../work/references/anti-error-lessons.md)).
 - `coverageDiff = global_oracle_set − actually_swept_set`. Every item in the
   diff is a candidate gap with category `scope-gap` and an oracle attached.
 
@@ -133,7 +133,7 @@ critic forces `clearedToClose: false`.
 Emit exactly one fenced ```json block matching this schema. The orchestrator
 **parses and validates** it and **branches on `clearedToClose`**; it re-requests
 once on malformed output before treating the run as failed (per
-[`workflow-mode.md`](../workflow/references/workflow-mode.md) §3–4).
+[`workflow-mode.md`](../work/references/workflow-mode.md) §3–4).
 
 ```json
 {
@@ -146,7 +146,7 @@ once on malformed output before treating the run as failed (per
     {
       "category": "downstream",
       "description": "storageTenant override is read in storage/handlers.ts, never traced by the review",
-      "suggestedAction": "Run wf-refute on the ?hostname storage path with lens 'alternative-code-path'",
+      "suggestedAction": "Run work-refute on the ?hostname storage path with lens 'alternative-code-path'",
       "priority": "high",
       "reachabilityArgument": "the public-facing portal hits the upload handler with attacker-controlled ?hostname, post-auth, no session binding",
       "reReadSources": ["src/storage/handlers.ts:212"],
@@ -154,14 +154,14 @@ once on malformed output before treating the run as failed (per
     }
   ],
   "coveredCategories": [
-    { "category": "unverified-claim", "evidence": "all 6 findings carry workDone:true from wf-refute" },
+    { "category": "unverified-claim", "evidence": "all 6 findings carry workDone:true from work-refute" },
     { "category": "modality-missing", "evidence": "Step 0 scope-diff clean for code paths; grep returned no un-swept callers" }
   ],
   "droppedCoverage": [
     { "category": "time-based", "reason": "no migration/ordering oracle available this round; not investigated" }
   ],
   "overallAssessment": "Coverage solid on code paths but one high-priority downstream gap is open",
-  "recommendation": "Run one more wf-refute round on the storage path before closing",
+  "recommendation": "Run one more work-refute round on the storage path before closing",
   "clearedToClose": false
 }
 ```
@@ -177,7 +177,7 @@ Field rules:
 
 ## Execution Mechanics
 
-See [`workflow-mode.md`](../workflow/references/workflow-mode.md) §3
+See [`workflow-mode.md`](../work/references/workflow-mode.md) §3
 for the full table; the mechanics that bind **this** skill:
 
 ### Null-handling & the close gate
@@ -206,12 +206,12 @@ task with zero coverage evidence. The correct rule:
 - **Budget awareness**: if budget runs low, reduce the number of fan-out categories **explicitly** and list the un-run ones in `droppedCoverage` — never silently skip a category (L7). Budget pressure never flips `clearedToClose` to `true`.
 - **No silent caps** (L7): every un-run category, un-run angle, or dropped gap is a named line in `droppedCoverage` + your harness's todo/plan tool. A reader must be able to tell "clean" from "truncated".
 - **log/phase**: announce phases via your harness's todo/plan tool — "Step 0 scope-diff: global grep, 2 items outside swept set", "Completeness critic: raised 4 gaps, 1 high-priority open, clearedToClose=false".
-- **Feeds the loop**: the `gaps[]` it produces are the seed for the next iteration of [`wf-exhaust`](../wf-exhaust/SKILL.md), another [`wf-sweep`](../wf-sweep/SKILL.md), or targeted [`wf-refute`](../wf-refute/SKILL.md). Dedup that seed against `SEEN`, not survivors (L4), so rejected items don't re-enter.
+- **Feeds the loop**: the `gaps[]` it produces are the seed for the next iteration of [`work-exhaust`](../work-exhaust/SKILL.md), another [`work-sweep`](../work-sweep/SKILL.md), or targeted [`work-refute`](../work-refute/SKILL.md). Dedup that seed against `SEEN`, not survivors (L4), so rejected items don't re-enter.
 
 ## Worked example (single-pass, from the grounding case)
 
 A reference-cleanup fan-out edited every file on its task list and reported
-"done". The wf-gaps critic ran as the close gate:
+"done". The work-gaps critic ran as the close gate:
 
 - **Step 0** reconstructed the swept set (the task-list files) and ran an
   independent global oracle: `grep -rln '<deleted-entity-id>' .`. The grep
@@ -227,10 +227,10 @@ A reference-cleanup fan-out edited every file on its task list and reported
 
 ## Integration
 
-- Called by [`workflow`](../workflow/SKILL.md) after major phases and as the **final gate** before "task complete"; the orchestrator branches on `clearedToClose`.
-- Works extremely well after [`wf-refute`](../wf-refute/SKILL.md) or [`wf-judge`](../wf-judge/SKILL.md) (the things the adversarial process didn't kill may still have gaps around them).
-- Its `gaps[]` feed [`wf-sweep`](../wf-sweep/SKILL.md) (new angles), [`wf-refute`](../wf-refute/SKILL.md) (newly-surfaced claims), and the round structure of [`wf-exhaust`](../wf-exhaust/SKILL.md) — always deduped against `SEEN` (L4).
-- The shared model lives in [`workflow-mode.md`](../workflow/references/workflow-mode.md) and [`anti-error-lessons.md`](../workflow/references/anti-error-lessons.md); this skill operationalizes L1, L2, L4, L5, L6, L7, L8.
+- Called by [`work`](../work/SKILL.md) after major phases and as the **final gate** before "task complete"; the orchestrator branches on `clearedToClose`.
+- Works extremely well after [`work-refute`](../work-refute/SKILL.md) or [`work-judge`](../work-judge/SKILL.md) (the things the adversarial process didn't kill may still have gaps around them).
+- Its `gaps[]` feed [`work-sweep`](../work-sweep/SKILL.md) (new angles), [`work-refute`](../work-refute/SKILL.md) (newly-surfaced claims), and the round structure of [`work-exhaust`](../work-exhaust/SKILL.md) — always deduped against `SEEN` (L4).
+- The shared model lives in [`workflow-mode.md`](../work/references/workflow-mode.md) and [`anti-error-lessons.md`](../work/references/anti-error-lessons.md); this skill operationalizes L1, L2, L4, L5, L6, L7, L8.
 - Can be run on the output of a human + agent collaboration too.
 
 This is one of the highest-leverage cheap patterns: after you've done the hard work of finding and verifying, spend a little more to ask "what did our process systematically fail to look at?"

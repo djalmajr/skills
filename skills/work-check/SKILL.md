@@ -1,5 +1,5 @@
 ---
-name: wf-check
+name: work-check
 description: >
   Check your work with a verification sub-agent that runs direct oracles first
   (build/test/typecheck/lint/run-the-app), re-reads the changed code, and
@@ -7,44 +7,44 @@ description: >
   verifier for small diffs, or parallel lenses (BARRIER) for larger or
   security/auth/data-boundary changes, then fixes issues and re-verifies under a
   SEEN ledger until it passes. Use when asked to "check work", "verify changes",
-  "self-verify", "/wf-check", "/check", "/verify", or "/self-verify".
+  "self-verify", "/work-check", "/check", "/verify", or "/self-verify".
 metadata:
   short-description: "Verify changes with oracle-first, schema-validated sub-agents"
 ---
 
-# /wf-check -- Self-Verification
+# /work-check -- Self-Verification
 
 Verify work by spawning a verifier sub-agent, parsing its **schema-validated
 verdict**, and fixing issues until it passes.
 
 This skill is the **default code verifier** the
-[`workflow`](../workflow/SKILL.md) runs **before**
-[`wf-refute`](../wf-refute/SKILL.md) when changes are code —
-the orchestrator now grants wf-check this pre-verifier slot in the canonical
-Review-phase flow (wf-sweep → dedup → **wf-check** →
-wf-refute → wf-gaps). wf-check establishes that the work
+[`work`](../work/SKILL.md) runs **before**
+[`work-refute`](../work-refute/SKILL.md) when changes are code —
+the orchestrator now grants work-check this pre-verifier slot in the canonical
+Review-phase flow (work-sweep → dedup → **work-check** →
+work-refute → work-gaps). work-check establishes that the work
 *builds, runs, and addresses the request* (oracle-first), and **delegates the
-deep maintainability lens to** [`wf-review`](../wf-review/SKILL.md).
-wf-refute then attacks the *surviving* claims. Run wf-check first;
-escalate to wf-refute only for the findings that need a destructive
+deep maintainability lens to** [`work-review`](../work-review/SKILL.md).
+work-refute then attacks the *surviving* claims. Run work-check first;
+escalate to work-refute only for the findings that need a destructive
 second opinion.
 
 It executes the deterministic discipline of
-[`workflow-mode.md`](../workflow/references/workflow-mode.md) and
+[`workflow-mode.md`](../work/references/workflow-mode.md) and
 operationalizes lessons L1–L8 from
-[`anti-error-lessons.md`](../workflow/references/anti-error-lessons.md).
+[`anti-error-lessons.md`](../work/references/anti-error-lessons.md).
 The tool vocabulary for spawning sub-agents (spawn a sub-agent with the right
 sub-agent role, run it in the background, wait for all, collect its result,
 in an isolated worktree) is shared with
-[`wf-tournament`](../wf-tournament/SKILL.md); the concrete per-harness
+[`work-tournament`](../work-tournament/SKILL.md); the concrete per-harness
 tool-name table lives in
-[`workflow-mode.md`](../workflow/references/workflow-mode.md).
+[`workflow-mode.md`](../work/references/workflow-mode.md).
 
 ## Workflow shape
 
 **This skill is PIPELINE for small diffs, escalating to a PARALLEL-BARRIER for
 larger or sensitive ones.** (See the three shapes in
-[`workflow-mode.md`](../workflow/references/workflow-mode.md) §1.)
+[`workflow-mode.md`](../work/references/workflow-mode.md) §1.)
 
 - **Single verifier (default)** — diff touches **≤ ~2 files** and no
   security/auth/data-boundary surface: one verifier runs the full VERIFIER
@@ -64,7 +64,7 @@ larger or sensitive ones.** (See the three shapes in
 
 ## Usage
 
-`/wf-check [focus area]`
+`/work-check [focus area]`
 
 The optional focus area tells the verifier to pay special attention to specific
 aspects of the changes (e.g. "auth logic and JWT handling").
@@ -75,7 +75,7 @@ Determine which mode you are in before proceeding:
 
 - **Same-turn mode**: There is a user task alongside this skill (e.g. headless
   `--check`). **Complete the task fully first**, then proceed to Step 1 below.
-- **Standalone mode**: There is no task — just `/wf-check` (or the alias `/check`) or the skill was invoked
+- **Standalone mode**: There is no task — just `/work-check` (or the alias `/check`) or the skill was invoked
   after a previous turn. Proceed directly to Step 1.
 
 ## Steps
@@ -136,7 +136,7 @@ Every verifier returns this **schema-validated object** as a fenced ```json
 block at the end of its reply (it replaces grepping for `VERDICT: PASS/FAIL`).
 The caller parses and validates it; enums are fixed so severity/verdict stay
 calibrated (L6). See
-[`workflow-mode.md`](../workflow/references/workflow-mode.md) §4 for
+[`workflow-mode.md`](../work/references/workflow-mode.md) §4 for
 the convention.
 
 ```json
@@ -217,7 +217,7 @@ PASSes.
 - **Scale to the ask:** a one-line change with one obvious oracle does **not**
   need the parallel-barrier or the journal — run Step 0, confirm, log, stop.
   Reserve the lens fan-out for diffs that are multi-file or sensitive. (See
-  [`workflow-mode.md`](../workflow/references/workflow-mode.md) §5.)
+  [`workflow-mode.md`](../work/references/workflow-mode.md) §5.)
 
 ## Worked example (parallel-barrier, abridged)
 
@@ -438,13 +438,13 @@ data analysis, research).
 --- DELEGATING THE DEEP CODE-QUALITY LENS ---
 
 For the destructive code-quality angle (reuse, simplification, efficiency,
-subtle correctness), you may DELEGATE to the `/wf-review` skill rather than
-re-deriving it here — it is the system's specialist lens. `/wf-review` is
+subtle correctness), you may DELEGATE to the `/work-review` skill rather than
+re-deriving it here — it is the system's specialist lens. `/work-review` is
 **INVOKE-BY-NAME ONLY** (`disable-model-invocation: true`): it will **not**
-auto-trigger, so you must call `/wf-review` directly to reach it. Fold its
+auto-trigger, so you must call `/work-review` directly to reach it. Fold its
 findings into your `issues[]` (mapping its severities onto the enum). Keep
 ownership of the oracle gate, the trace review, and the completeness sweep
-yourself: wf-review sharpens the quality lens; it does not replace Step 0 or
+yourself: work-review sharpens the quality lens; it does not replace Step 0 or
 the L8 gate.
 
 --- VERDICT ---

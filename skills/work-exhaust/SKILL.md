@@ -1,19 +1,19 @@
 ---
-name: wf-exhaust
+name: work-exhaust
 description: >
-  LOOP-shaped discovery pattern: repeat rounds of parallel finders (bugs, edge cases, sites, opportunities, missing items) until K consecutive *qualifying* rounds produce nothing new. Each round is a parallel fan-out + a real dedup BARRIER against a persistent seen[]; an oracle gates the seed, every item, and final completeness. Use when the total size of the set is unknown: "find all X", "enumerate edge cases", "discover all places that do Y". Invoke via /wf-exhaust.
+  LOOP-shaped discovery pattern: repeat rounds of parallel finders (bugs, edge cases, sites, opportunities, missing items) until K consecutive *qualifying* rounds produce nothing new. Each round is a parallel fan-out + a real dedup BARRIER against a persistent seen[]; an oracle gates the seed, every item, and final completeness. Use when the total size of the set is unknown: "find all X", "enumerate edge cases", "discover all places that do Y". Invoke via /work-exhaust.
 metadata:
   short-description: "Exhaustive discovery via repeated rounds until dry (LOOP shape)"
 ---
 
-# /wf-exhaust — Exhaustive Discovery Until Saturation
+# /work-exhaust — Exhaustive Discovery Until Saturation
 
 This skill implements the **Loop-until-dry** quality pattern for unknown-sized discovery problems.
 
 The deterministic execution model (the three shapes, structured-output rules, null-handling, journaling) lives in
-[`../workflow/references/workflow-mode.md`](../workflow/references/workflow-mode.md);
+[`../work/references/workflow-mode.md`](../work/references/workflow-mode.md);
 the failure modes this skill defends against are
-[`../workflow/references/anti-error-lessons.md`](../workflow/references/anti-error-lessons.md)
+[`../work/references/anti-error-lessons.md`](../work/references/anti-error-lessons.md)
 (referenced as L1..L8 below). This skill is the canonical **LOOP** of that model — read those first; this file keeps inline only what's needed to run the loop standalone.
 
 ## Orchestration shape (deterministic)
@@ -24,7 +24,7 @@ This skill is the **LOOP** shape (until-dry), and it is built from the other two
   sub-agents (read-only → no worktree) and their results are collected with
   `.filter(Boolean)` — a dead/errored finder contributes nothing, it is **not** an empty round (see Null-handling
   and the False-DRY guard). Each finder works a **distinct angle** sourced from
-  [`../wf-sweep/SKILL.md`](../wf-sweep/SKILL.md).
+  [`../work-sweep/SKILL.md`](../work-sweep/SKILL.md).
 - **Round end → genuine BARRIER.** Dedup-against-`seen[]` and the dry-counter decision need **ALL** finders of the
   round to have returned (you cannot decide "0 new" until every finder is in). This is the one place a barrier is
   *justified* by a real cross-item dependency (the merge), per workflow-mode §1. The dedup itself is **plain set
@@ -41,17 +41,17 @@ This skill is the **LOOP** shape (until-dry), and it is built from the other two
 - Single pass is likely to miss things (bugs, edge cases, integration points, data sources, files that need migration, etc.).
 - You want to keep going until you stop finding new items for several rounds in a row.
 
-Complements the multi-modal sweep (`wf-sweep`): the sweep gives different search angles in one round; `wf-exhaust` repeats rounds until saturation.
+Complements the multi-modal sweep (`work-sweep`): the sweep gives different search angles in one round; `work-exhaust` repeats rounds until saturation.
 
 ## Usage
 ```
-/wf-exhaust [K=3] "what we are discovering" [context]
+/work-exhaust [K=3] "what we are discovering" [context]
 ```
 
 Examples:
-- `/wf-exhaust "all places in the codebase that touch job state transitions"`
-- `/wf-exhaust 4 "edge cases in the async job draft flow" "focus on error paths and partial failures"`
-- `/wf-exhaust "document parsing failure modes"`
+- `/work-exhaust "all places in the codebase that touch job state transitions"`
+- `/work-exhaust 4 "edge cases in the async job draft flow" "focus on error paths and partial failures"`
+- `/work-exhaust "document parsing failure modes"`
 
 The orchestrator often uses this inside Research or Review phases.
 
@@ -83,7 +83,7 @@ A zero-new round only counts toward K if the round did **real new work**:
 - K is measured **only over qualifying rounds** — rounds that each introduced **a fresh angle not yet in
   `anglesUsed[]`** OR ran the final completeness oracle. An exhausted *angle* is not an exhausted *territory*.
 - Therefore **every round MUST rotate to at least one not-yet-exhausted angle** (sourced from
-  [`../wf-sweep/SKILL.md`](../wf-sweep/SKILL.md)). If no fresh angle and no un-run oracle remains,
+  [`../work-sweep/SKILL.md`](../work-sweep/SKILL.md)). If no fresh angle and no un-run oracle remains,
   the territory really is dry — stop and record `stoppedReason:"angles-and-oracles-exhausted"`.
 
 ## How it works
@@ -92,7 +92,7 @@ A zero-new round only counts toward K if the round did **real new work**:
    - Load or clear `seen[]`, `anglesUsed[]`, `dryCounter` (persisted in the journal for resume — **never reset
      `seen[]`**, L4).
    - Run the **pre-loop oracle seed** (gate 1) → populate `seen[]` with oracle-enumerable items.
-   - Define the finder mission and the pool of angles for this discovery (from `wf-sweep`).
+   - Define the finder mission and the pool of angles for this discovery (from `work-sweep`).
    - Set dry threshold K (default 3; K≥2). Announce shape + K + seed count via your harness's todo/plan tool.
 
 2. **Round loop** (each round is PARALLEL fan-out → BARRIER)
@@ -124,8 +124,8 @@ A zero-new round only counts toward K if the round did **real new work**:
 4. **Direct verification & hand-off**
    - Every accepted item already carries `reReadSources`/`workDone` from gate 2. Items that admit a stronger oracle
      (a failing test, an exact repro command) get it run here and recorded.
-   - The deduped set typically feeds [`../wf-refute/SKILL.md`](../wf-refute/SKILL.md) (each item
-     becomes a claim to refute) and [`../wf-gaps/SKILL.md`](../wf-gaps/SKILL.md).
+   - The deduped set typically feeds [`../work-refute/SKILL.md`](../work-refute/SKILL.md) (each item
+     becomes a claim to refute) and [`../work-gaps/SKILL.md`](../work-gaps/SKILL.md).
 
 ## Structured I/O contract
 
@@ -152,7 +152,7 @@ dropped + logged per workflow-mode §3). The loop validates and returns a **mast
 }
 ```
 - `severity` enum: `critical | high | medium | low` (calibrated per L6; this is the discovery hint, the
-  authoritative severity comes from downstream `wf-refute`).
+  authoritative severity comes from downstream `work-refute`).
 - `location` is `file:line` (or a named concept when no file applies); `reReadSources` + `workDone` carry the
   gate-2 re-read so a lazy finder can be detected and its item dropped (L2/L8).
 
@@ -184,7 +184,7 @@ dropped + logged per workflow-mode §3). The loop validates and returns a **mast
 
 These are the LOOP-specific instances of workflow-mode §3 — see that doc for the general rules.
 
-- **Journaling / resume (deterministic)**: Write `quality-journals/wf-exhaust-<task>.json` (under your agent's data
+- **Journaling / resume (deterministic)**: Write `quality-journals/work-exhaust-<task>.json` (under your agent's data
   dir) after every round:
   ```json
   { "seen": [], "anglesUsed": [], "dryCounter": 0, "rounds": [], "droppedDueToBudget": [] }
@@ -199,7 +199,7 @@ These are the LOOP-specific instances of workflow-mode §3 — see that doc for 
   angles queue to the next wave. The cap applied is logged (no silent cap).
 - **Budget awareness**: When budget runs low, **reduce the angle count or stop early — explicitly**, recording it in
   `stoppedReason`/`droppedDueToBudget[]`. Never silently shrink a round.
-- **Multi-modal inside rounds**: Source angles from [`../wf-sweep/SKILL.md`](../wf-sweep/SKILL.md);
+- **Multi-modal inside rounds**: Source angles from [`../work-sweep/SKILL.md`](../work-sweep/SKILL.md);
   the False-DRY guard requires each qualifying round to consume at least one fresh angle from that pool.
 - **No silent caps (L7)**: Any angle not run, round skipped, item dropped (failed re-read, budget), or tail
   deprioritized is a **named line** in the decision record AND surfaced via your harness's todo/plan tool.
@@ -232,12 +232,12 @@ reset the counter (L5: completeness independent of the finder seed).
 
 ## Integration
 
-- Source per-round angles from [`../wf-sweep/SKILL.md`](../wf-sweep/SKILL.md) (one round of that
+- Source per-round angles from [`../work-sweep/SKILL.md`](../work-sweep/SKILL.md) (one round of that
   sweep ≈ one round here; this skill repeats until dry).
-- The deduped set feeds [`../wf-refute/SKILL.md`](../wf-refute/SKILL.md) (each discovered item
-  becomes a claim to try to refute) and [`../wf-gaps/SKILL.md`](../wf-gaps/SKILL.md) (gate 3
+- The deduped set feeds [`../work-refute/SKILL.md`](../work-refute/SKILL.md) (each discovered item
+  becomes a claim to try to refute) and [`../work-gaps/SKILL.md`](../work-gaps/SKILL.md) (gate 3
   is a lightweight inline version of it; the full critic runs after convergence).
-- Orchestrated by [`../workflow/SKILL.md`](../workflow/SKILL.md), which decides when the
+- Orchestrated by [`../work/SKILL.md`](../work/SKILL.md), which decides when the
   discovery set is large/unknown enough to warrant the loop instead of a single sweep (workflow-mode §5 "scale to
   the ask" — don't run the loop on a 3-item enumeration a single grep settles).
 

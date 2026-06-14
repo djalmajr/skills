@@ -9,7 +9,7 @@ human overview of how the nine skills fit together.
 
 ## Entry point
 
-**`/workflow`** (aliases `/ultracode`, `/quality-orchestrator`) — the orchestrator. It
+**`/work`** (aliases `/ultracode`, `/quality-orchestrator`) — the orchestrator. It
 self-assesses complexity, prefers direct oracles first, picks phases
 (Understand / Design / Review / Research / Implement / Migrate), composes the focused
 patterns below, and applies the execution mechanics. Call it on any medium/high-complexity
@@ -20,28 +20,28 @@ on trivial work.
 
 | Skill | Role |
 |---|---|
-| `wf-refute` | Adversarial verification — N **evidence-weighted** refuters with perspective-diverse lenses; a refutation counts only if it re-read the source (L8). |
-| `wf-judge` | Generative judge-panel — N candidate approaches from distinct angles, parallel judges, synthesize the winner by grafting. |
-| `wf-sweep` | Multi-modal blind discovery across independent angles; dedup against a persistent `seen` set. |
-| `wf-exhaust` | Loop-until-dry — repeat finders until K consecutive quiet rounds (unknown-cardinality discovery). |
-| `wf-gaps` | Completeness critic — "what did the list/scope NOT cover?"; fail-closed gate (a failed critic is `clearedToClose:false`, never "all clear"). |
-| `wf-tournament` | best-of-n implementation tournament in isolated worktrees, oracle-gated per candidate, graded from the actual diff. |
-| `wf-check` | Oracle-first code verifier (schema-validated PASS/FAIL); runs before `wf-refute` for code diffs and delegates the deep quality lens to `wf-review`. |
-| `wf-review` | Maintainability / structural review specialist. **Invoke-by-name only** (`disable-model-invocation`) — reached via `wf-check` or called directly. |
+| `work-refute` | Adversarial verification — N **evidence-weighted** refuters with perspective-diverse lenses; a refutation counts only if it re-read the source (L8). |
+| `work-judge` | Generative judge-panel — N candidate approaches from distinct angles, parallel judges, synthesize the winner by grafting. |
+| `work-sweep` | Multi-modal blind discovery across independent angles; dedup against a persistent `seen` set. |
+| `work-exhaust` | Loop-until-dry — repeat finders until K consecutive quiet rounds (unknown-cardinality discovery). |
+| `work-gaps` | Completeness critic — "what did the list/scope NOT cover?"; fail-closed gate (a failed critic is `clearedToClose:false`, never "all clear"). |
+| `work-tournament` | best-of-n implementation tournament in isolated worktrees, oracle-gated per candidate, graded from the actual diff. |
+| `work-check` | Oracle-first code verifier (schema-validated PASS/FAIL); runs before `work-refute` for code diffs and delegates the deep quality lens to `work-review`. |
+| `work-review` | Maintainability / structural review specialist. **Invoke-by-name only** (`disable-model-invocation`) — reached via `work-check` or called directly. |
 
 ## Canonical Review harness
 
 ```
-wf-sweep (parallel angles)
+work-sweep (parallel angles)
   → dedup against ALL seen (barrier; plain set logic)
-  → [for code diffs: wf-check → wf-review]
-  → wf-refute each finding (pipeline; perspective-diverse lenses)
-  → wf-gaps (final gate)
+  → [for code diffs: work-check → work-review]
+  → work-refute each finding (pipeline; perspective-diverse lenses)
+  → work-gaps (final gate)
 ```
 
 ## Shared foundation
 
-`workflow/references/` holds the canonical model both for the orchestrator and every
+`work/references/` holds the canonical model both for the orchestrator and every
 pattern:
 - **`workflow-mode.md`** — the three deterministic shapes (PIPELINE / PARALLEL-BARRIER /
   LOOP), execution mechanics, schema conventions, and a **Harness mapping** table that
@@ -56,8 +56,8 @@ pattern:
 
 ```bash
 # whole package
-bunx skills add djalmajr/skills --skill workflow --skill 'wf-*' --agent claude-code --agent grok --agent codex --agent opencode
+bunx skills add djalmajr/skills --skill work --skill 'work-*' --agent claude-code --agent grok --agent codex --agent opencode
 
 # just the entry point (it references the others)
-bunx skills add djalmajr/skills --skill workflow
+bunx skills add djalmajr/skills --skill work
 ```

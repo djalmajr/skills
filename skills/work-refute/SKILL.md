@@ -1,19 +1,19 @@
 ---
-name: wf-refute
+name: work-refute
 description: >
   Adversarial verification ("try to refute") of a claim or a SET of claims/findings/root-causes/design-decisions using N independent sub-agent refuters per claim. Runs as a PIPELINE (each claim's refuter-group is independent — no barrier across claims) with perspective-diverse lenses as the DEFAULT for security/auth/multi-tenancy/data-integrity/correctness claims. Survival is EVIDENCE-WEIGHTED, not naive majority: only verdicts that re-read the cited source count; lazy/empty verdicts are abstentions. Strongly prefers direct deterministic oracles (commands, tests, git, type checks, exact grep) over agent voting. Use when the user says "adversarial verify", "refute this", "have verifiers attack", "perspective-diverse review", "run adversarial checks on these findings", "ultracode verify", or "kill this claim".
 metadata:
   short-description: "Evidence-weighted adversarial refutation (pipeline over claims, perspective-diverse lenses)"
 ---
 
-# /wf-refute — Refutation Tournament
+# /work-refute — Refutation Tournament
 
 This skill implements the **adversarial verify** quality pattern.
-It is the **destructive** sibling of [`../wf-tournament/SKILL.md`](../wf-tournament/SKILL.md)
+It is the **destructive** sibling of [`../work-tournament/SKILL.md`](../work-tournament/SKILL.md)
 (parallel *creation* + selection) and is the verify stage of the harness in
-[`../workflow/references/workflow-mode.md`](../workflow/references/workflow-mode.md).
+[`../work/references/workflow-mode.md`](../work/references/workflow-mode.md).
 It operationalizes lessons **L1, L2, L3, L5, L6, L7, L8** from
-[`../workflow/references/anti-error-lessons.md`](../workflow/references/anti-error-lessons.md).
+[`../work/references/anti-error-lessons.md`](../work/references/anti-error-lessons.md).
 
 ## Workflow shape — this skill is a PIPELINE over claims
 
@@ -69,15 +69,15 @@ Use adversarial verify only for **probabilistic / subjective / judgment** claims
 ## Usage
 
 ```
-/wf-refute [N] "the claim or finding to attack"
+/work-refute [N] "the claim or finding to attack"
 ```
 
 Options (you can combine):
 
-- `/wf-refute 5 "the claim"` — use 5 verifiers (default = 3)
-- `/wf-refute lenses=correção,segurança,reproduz "claim"` — perspective-diverse with explicit lenses
-- `/wf-refute "claim" --direct-first` (default behavior)
-- Focus on existing findings: `/wf-refute the 4 findings from my last review`
+- `/work-refute 5 "the claim"` — use 5 verifiers (default = 3)
+- `/work-refute lenses=correção,segurança,reproduz "claim"` — perspective-diverse with explicit lenses
+- `/work-refute "claim" --direct-first` (default behavior)
+- Focus on existing findings: `/work-refute the 4 findings from my last review`
 
 You can also pass structured input (list of findings) when the main agent already extracted candidates.
 
@@ -88,7 +88,7 @@ You can also pass structured input (list of findings) when the main agent alread
 | Verifiable by command / test / type / git  | Direct verification (run it and observe)        |
 | Judgment about code / design / cause       | Adversarial verify (N independent refuters)     |
 | Can fail in many different ways            | Perspective-diverse (distinct lenses)           |
-| Set of unknown size (find all X)           | wf-exhaust (repeat until K empty rounds)         |
+| Set of unknown size (find all X)           | work-exhaust (repeat until K empty rounds)       |
 
 The skill will **always** attempt direct verification steps before spawning expensive refuters.
 
@@ -173,7 +173,7 @@ The skill will **always** attempt direct verification steps before spawning expe
    - **Oracle gate (L1, fail-closed):** any survivor with an available, un-run oracle →
      run it now; a failing oracle flips the verdict.
    - **Completeness hand-off (L5):** pass the surviving set to
-     [`../wf-gaps/SKILL.md`](../wf-gaps/SKILL.md) asking
+     [`../work-gaps/SKILL.md`](../work-gaps/SKILL.md) asking
      literally **"what code path / modality did NO refuter attack?"** — plus run **one
      global oracle** (repo-wide grep for the core entity, a scope-coverage diff) to catch
      claims/paths that were never on the list.
@@ -187,14 +187,14 @@ The skill will **always** attempt direct verification steps before spawning expe
    - **refuted[]** + the strongest attack and its `file:line`.
    - **abstentions[]** + why each was dropped (transparency, L7/L8).
    - For perspective-diverse runs: a **per-lens** breakdown.
-   - The wf-gaps "untouched paths" note and a clear recommendation.
+   - The work-gaps "untouched paths" note and a clear recommendation.
 
 ## Structured I/O contract
 
 Every refuter ends its reply with a **fenced `json` block** matching this shape. The
 caller parses + validates it (re-request once on malformed, then drop-and-log). This is
 the per-skill instance of the convention in
-[`../workflow/references/workflow-mode.md`](../workflow/references/workflow-mode.md) §4.
+[`../work/references/workflow-mode.md`](../work/references/workflow-mode.md) §4.
 
 ```json
 {
@@ -282,7 +282,7 @@ Evidence-weighted rule:
 2. **Recompute + log:** `N=3 → 1 dropped → vote over k=2`.
 3. **Weight:** #2 is a high-confidence, source-re-read, `file:line`-evidenced refutation. It
    **outweighs** #1's single survive → **verdict = `confirmed_bug`, severity `high`**.
-4. **Oracle gate / completeness:** hand to wf-gaps — *"what path did no refuter
+4. **Oracle gate / completeness:** hand to work-gaps — *"what path did no refuter
    attack?"* surfaces the storage-listing route; severity re-anchored to `high` (reachable +
    damaging + uncovered).
 
@@ -316,7 +316,7 @@ The `[LENS]` slot is filled per refuter from the auto-picked distinct lenses (st
 ## Loop-mode note (until-dry over a survivor set)
 
 When the cardinality of attack angles is unknown, wrap the single-pass pipeline in a
-[`../wf-exhaust/SKILL.md`](../wf-exhaust/SKILL.md) loop that re-attacks the
+[`../work-exhaust/SKILL.md`](../work-exhaust/SKILL.md) loop that re-attacks the
 **survivors** with **fresh lenses** each round:
 
 - Maintain a persistent **`seen`/`attacked` set** in the journal (claim × lens pairs already
@@ -331,43 +331,43 @@ When the cardinality of attack angles is unknown, wrap the single-pass pipeline 
 
 ## Integration with Existing Skills
 
-- Sibling / evolution of [`../wf-tournament/SKILL.md`](../wf-tournament/SKILL.md) (parallel
+- Sibling / evolution of [`../work-tournament/SKILL.md`](../work-tournament/SKILL.md) (parallel
   independent attempts + selection) — same orchestration vocabulary
   (spawn a sub-agent, an isolated worktree, in the background, wait for all, collect its
   result) but for **destruction** instead of creation.
-- [`../wf-check/SKILL.md`](../wf-check/SKILL.md) (trace review + direct state
-  verification + strict PASS/FAIL) — a hardened wf-check verifier makes a good refuter
+- [`../work-check/SKILL.md`](../work-check/SKILL.md) (trace review + direct state
+  verification + strict PASS/FAIL) — a hardened work-check verifier makes a good refuter
   when appropriate. For pure code-change validation after implementation, prefer
-  `/wf-check` first; reach for wf-refute when the **meaning** or **impact** of
+  `/work-check` first; reach for work-refute when the **meaning** or **impact** of
   the change is the question.
-- **Post-vote hand-off** to [`../wf-gaps/SKILL.md`](../wf-gaps/SKILL.md)
+- **Post-vote hand-off** to [`../work-gaps/SKILL.md`](../work-gaps/SKILL.md)
   (the L5 "what did NO refuter attack?" gate) and, for unknown-cardinality angle sets, to
-  [`../wf-exhaust/SKILL.md`](../wf-exhaust/SKILL.md).
+  [`../work-exhaust/SKILL.md`](../work-exhaust/SKILL.md).
 - Upstream finders that feed this skill a set of claims:
-  [`../wf-sweep/SKILL.md`](../wf-sweep/SKILL.md).
+  [`../work-sweep/SKILL.md`](../work-sweep/SKILL.md).
 - The full harness that composes these is in
-  [`../workflow/references/workflow-mode.md`](../workflow/references/workflow-mode.md) §2.
+  [`../work/references/workflow-mode.md`](../work/references/workflow-mode.md) §2.
 
 ## Example Invocations
 
 1. Single high-stakes finding from a review:
    ```
-   /wf-refute "The new AI drawer can cause the form state to get out of sync when the user collapses it during an adjustment"
+   /work-refute "The new AI drawer can cause the form state to get out of sync when the user collapses it during an adjustment"
    ```
 
 2. Perspective-diverse on a security-sensitive claim:
    ```
-   /wf-refute lenses="functional correctness, injection / secrets, authentication bypass, data exposure" "The new endpoint is safe for unauthenticated access because we check the tenant in middleware"
+   /work-refute lenses="functional correctness, injection / secrets, authentication bypass, data exposure" "The new endpoint is safe for unauthenticated access because we check the tenant in middleware"
    ```
 
 3. Multiple findings at once (the main agent extracts them first):
    ```
-   /wf-refute the 6 review findings I just listed about the upload stage machine
+   /work-refute the 6 review findings I just listed about the upload stage machine
    ```
 
 4. After a long agent session, before declaring victory:
    ```
-   /wf-refute "We have correctly implemented the SLA calculation and the UI now shows the right amber/red states"
+   /work-refute "We have correctly implemented the SLA calculation and the UI now shows the right amber/red states"
    ```
 
 ## When This Skill Should Refuse or Downgrade

@@ -1,5 +1,5 @@
 ---
-name: wf-review
+name: work-review
 description: >
   Run an extremely strict maintainability review of the current diff for abstraction quality, giant files, duplication, layering leaks, and spaghetti-condition growth. Measures with oracles before opining, applies diverse review lenses, and sweeps outside the diff for completeness. Effort tiers: low/medium → fewer lenses, highest-confidence findings only; high → all lenses + completeness sweep; ultra → fan lenses across files in parallel. Use for a deep code quality audit or an especially harsh maintainability review.
 metadata:
@@ -13,9 +13,9 @@ Use this skill for an unusually strict review focused on implementation quality,
 
 Above all, this skill should push the reviewer to be **ambitious** about code structure. Do not merely identify local cleanup opportunities. Actively search for "code judo" moves: restructurings that preserve behavior while making the implementation dramatically simpler, smaller, more direct, and more elegant.
 
-**This skill is INVOKE-BY-NAME ONLY (`disable-model-invocation: true`)** — it never auto-triggers; call `/wf-review` directly (e.g. it is reached via `wf-check` in the orchestrator's Review flow).
+**This skill is INVOKE-BY-NAME ONLY (`disable-model-invocation: true`)** — it never auto-triggers; call `/work-review` directly (e.g. it is reached via `work-check` in the orchestrator's Review flow).
 
-This is a **review pattern** in the quality system. It executes in **workflow mode** — a deterministic discipline the agent runs by hand when composing sub-agents. The orchestration model (three shapes, execution mechanics, schema conventions) lives in [`../workflow/references/workflow-mode.md`](../workflow/references/workflow-mode.md); the failure modes it guards against (L1–L8) live in [`../workflow/references/anti-error-lessons.md`](../workflow/references/anti-error-lessons.md). This skill does **not** restate those docs — it references them and keeps inline only what a reviewer needs to run standalone.
+This is a **review pattern** in the quality system. It executes in **workflow mode** — a deterministic discipline the agent runs by hand when composing sub-agents. The orchestration model (three shapes, execution mechanics, schema conventions) lives in [`../work/references/workflow-mode.md`](../work/references/workflow-mode.md); the failure modes it guards against (L1–L8) live in [`../work/references/anti-error-lessons.md`](../work/references/anti-error-lessons.md). This skill does **not** restate those docs — it references them and keeps inline only what a reviewer needs to run standalone.
 
 ## Workflow shape
 
@@ -103,7 +103,7 @@ Field rules:
   was asserted without a re-read.
 - `workDone` — `boolean`; `true` only if you actually ran the re-read / oracle work backing
   this finding, not first-pass memory. `false` ⇒ no verification work was done.
-- **Abstention rule (mirrors `wf-refute`):** a `blocker`/`major` with **empty
+- **Abstention rule (mirrors `work-refute`):** a `blocker`/`major` with **empty
   `reReadSources` or `workDone:false` is an abstention** — it did not do the work, so it is
   **demoted to `minor`/`consider` and logged** (it cannot stop a merge), never surfaced as a
   blocker.
@@ -178,7 +178,7 @@ global repo oracle** per category:
 
 Record each global oracle you ran in `caps` so "no completeness findings" is distinguishable
 from "skipped the sweep" (L7). This sweep is the same final gate as the
-[`../wf-gaps/SKILL.md`](../wf-gaps/SKILL.md) pattern, scoped to a diff.
+[`../work-gaps/SKILL.md`](../work-gaps/SKILL.md) pattern, scoped to a diff.
 
 ## Non-Negotiable Additional Standards
 
@@ -406,9 +406,9 @@ This skill **finds and ranks**; it does not quietly rewrite the diff. When the u
 quality cleanups *applied* (or the orchestrator runs with `--fix`), hand the ranked
 `findings` to **`/simplify`** — the sibling skill that applies reuse / simplification /
 abstraction / layering remedies to the working tree. Keep the division of labor clean:
-`/wf-review` produces the structured verdict; `/simplify` executes the code-judo moves it
+`/work-review` produces the structured verdict; `/simplify` executes the code-judo moves it
 named. For verifying a specific behavior-preservation claim before acting on a `blocker`,
-route it through [`../wf-refute/SKILL.md`](../wf-refute/SKILL.md) with
+route it through [`../work-refute/SKILL.md`](../work-refute/SKILL.md) with
 perspective-diverse lenses (L3).
 
 ## Worked example (small, for clarity)

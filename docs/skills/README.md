@@ -32,17 +32,17 @@ Human-facing notes moved out of individual skill folders.
 
 ## Workflow / Quality (9)
 
-Ultracode-style multi-agent quality system — overview in [workflow.md](workflow.md).
+Ultracode-style multi-agent quality system — overview in [work.md](work.md).
 `SKILL.md` is the source of truth for each.
 
 | Skill | One-liner |
 |---|---|
-| workflow | Entry-point orchestrator (aliases `/ultracode`, `/quality-orchestrator`) |
-| wf-refute | Adversarial verification — evidence-weighted refuters, perspective-diverse lenses |
-| wf-judge | Generative judge-panel over N candidate approaches |
-| wf-sweep | Multi-modal blind discovery; dedup against a persistent seen-set |
-| wf-exhaust | Loop-until-dry exhaustive discovery |
-| wf-gaps | Completeness critic with a fail-closed gate |
-| wf-tournament | best-of-n implementation tournament in worktrees |
-| wf-check | Oracle-first code verifier (PASS/FAIL); delegates to wf-review |
-| wf-review | Maintainability/structural review specialist (invoke-by-name) |
+| work | Entry-point orchestrator (aliases `/ultracode`, `/quality-orchestrator`) |
+| work-refute | Adversarial verification — evidence-weighted refuters, perspective-diverse lenses |
+| work-judge | Generative judge-panel over N candidate approaches |
+| work-sweep | Multi-modal blind discovery; dedup against a persistent seen-set |
+| work-exhaust | Loop-until-dry exhaustive discovery |
+| work-gaps | Completeness critic with a fail-closed gate |
+| work-tournament | best-of-n implementation tournament in worktrees |
+| work-check | Oracle-first code verifier (PASS/FAIL); delegates to work-review |
+| work-review | Maintainability/structural review specialist (invoke-by-name) |

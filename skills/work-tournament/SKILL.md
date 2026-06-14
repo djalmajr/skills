@@ -1,5 +1,5 @@
 ---
-name: wf-tournament
+name: work-tournament
 description: >
   Implement a task N ways in parallel and pick the best — by OUTCOME, not by
   pitch. Spawns N sub-agents in isolated git worktrees, each from a DISTINCT
@@ -7,21 +7,21 @@ description: >
   + test + lint), grades survivors from the ACTUAL diff (never the self-report),
   runs a completeness sweep on the winner, applies it to main, and re-verifies
   the oracle green before declaring a winner. Use when asked to "best of n",
-  "try multiple approaches", "parallel implementations", "/wf-tournament", or "/bon".
+  "try multiple approaches", "parallel implementations", "/work-tournament", or "/bon".
 metadata:
   short-description: "Parallel implementation tournament (oracle-gated, diff-graded)"
 ---
 
-# /wf-tournament -- Parallel Implementation Tournament
+# /work-tournament -- Parallel Implementation Tournament
 
 Implement a task multiple different ways in parallel, **gate each candidate on a
 deterministic oracle**, evaluate the survivors **from their real diffs**, and
 apply the best one — then **re-verify it in main**.
 
 This is the **implementation** arm of the quality system. It is the build-phase
-tournament referenced by [`../workflow/references/workflow-mode.md`](../workflow/references/workflow-mode.md)
-§2 ("Implementation work uses `wf-tournament` … in worktrees"). It operationalizes
-lessons L1–L8 from [`../workflow/references/anti-error-lessons.md`](../workflow/references/anti-error-lessons.md);
+tournament referenced by [`../work/references/workflow-mode.md`](../work/references/workflow-mode.md)
+§2 ("Implementation work uses `work-tournament` … in worktrees"). It operationalizes
+lessons L1–L8 from [`../work/references/anti-error-lessons.md`](../work/references/anti-error-lessons.md);
 the lesson tags below (L1…L8) point back there — do not duplicate that content,
 read it.
 
@@ -44,14 +44,14 @@ silently looping.)
 
 ## Usage
 
-`/wf-tournament [N] <task>`
+`/work-tournament [N] <task>`
 
 - If the first token is a number 2-10, it sets the candidate count; the rest is the task.
 - If omitted, N defaults to 3.
 
 Examples:
-- `/wf-tournament implement the login page` (3 candidates)
-- `/wf-tournament 5 refactor the auth module` (5 candidates)
+- `/work-tournament implement the login page` (3 candidates)
+- `/work-tournament 5 refactor the auth module` (5 candidates)
 
 ## Budget, concurrency, no-silent-caps
 
@@ -102,7 +102,7 @@ shape is enforced. After spawning, **wait for all** candidates to finish, then
 **collect each result**. For your harness's concrete tool names (spawn a
 sub-agent / wait for all / collect its result / in the background / isolated
 worktree), see the per-harness table in
-[`../workflow/references/workflow-mode.md`](../workflow/references/workflow-mode.md).
+[`../work/references/workflow-mode.md`](../work/references/workflow-mode.md).
 
 ### 3.5 Per-candidate oracle gate — BEFORE any evaluation (L1, fail-closed)
 A candidate's self-report is **not** evidence. Run the deterministic oracle in
@@ -161,7 +161,7 @@ not re-checking what was:
 - Downstream consumers of the changed API/signature/schema not updated.
 
 Log gaps as a named list (L7). A gap big enough to break scope demotes the winner
-or pulls a graft from a loser (wf-judge-style) — say which.
+or pulls a graft from a loser (work-judge-style) — say which.
 
 ### 7. Apply the winner to main
 Graft the winning worktree's changes into the main workspace. Resolve any
@@ -234,7 +234,7 @@ and the post-apply re-verification result (step 8).
 
 ## Worked example (abridged)
 
-`/wf-tournament 4 add rate-limiting to the login route`
+`/work-tournament 4 add rate-limiting to the login route`
 
 1. Angles: c1 minimal-diff, c2 most-idiomatic, c3 most-defensive, c4 performance-first. *(logged)*
 2. Spawn 4 in worktrees (cap = `min(4,16,cores−2)`), in the background.
@@ -247,19 +247,19 @@ and the post-apply re-verification result (step 8).
 
 ## Composition
 
-- **Invokable by** [`../workflow/SKILL.md`](../workflow/SKILL.md)
+- **Invokable by** [`../work/SKILL.md`](../work/SKILL.md)
   as the build-phase tournament (workflow-mode §2).
-- **May delegate**: grade a survivor with [`../wf-check/SKILL.md`](../wf-check/SKILL.md),
+- **May delegate**: grade a survivor with [`../work-check/SKILL.md`](../work-check/SKILL.md),
   destructively attack the leading diff with
-  [`../wf-refute/SKILL.md`](../wf-refute/SKILL.md), or run the
-  step-6 sweep via [`../wf-gaps/SKILL.md`](../wf-gaps/SKILL.md).
-- **Contrast with** [`../wf-judge/SKILL.md`](../wf-judge/SKILL.md): wf-judge
+  [`../work-refute/SKILL.md`](../work-refute/SKILL.md), or run the
+  step-6 sweep via [`../work-gaps/SKILL.md`](../work-gaps/SKILL.md).
+- **Contrast with** [`../work-judge/SKILL.md`](../work-judge/SKILL.md): work-judge
   is *generative design* over a wide solution space (proposals, no code applied);
-  wf-tournament *implements code* and applies a winner gated by a real oracle.
+  work-tournament *implements code* and applies a winner gated by a real oracle.
 
 ## Scale to the ask
 
 A one-line change with an obvious single correct form does **not** need a 5-way
-tournament — do it directly and log why (workflow-mode §5). Reach for wf-tournament
+tournament — do it directly and log why (workflow-mode §5). Reach for work-tournament
 when the task has real design latitude (multiple reasonable implementations,
 non-trivial diff, a meaningful correctness/quality/perf trade-off).

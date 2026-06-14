@@ -54,18 +54,18 @@ the false-dry guard (an exhausted *angle* is not an exhausted *territory*).
 ## 2. The canonical multi-stage Review harness (compose, don't reinvent)
 
 ```
-find (wf-sweep, parallel angles)
+find (work-sweep, parallel angles)
   → dedup against ALL seen (barrier; plain set logic, not an agent)
-  → wf-refute each finding (pipeline; perspective-diverse lenses)
-  → wf-gaps (final gate: "what did the list/scope NOT cover?")
+  → work-refute each finding (pipeline; perspective-diverse lenses)
+  → work-gaps (final gate: "what did the list/scope NOT cover?")
 ```
 
 - Verify each finding **as soon as its review completes** (pipeline) — do not barrier
   the whole find phase before starting verification unless you need cross-finding dedup.
 - The dedup step is a barrier and is **plain code/set logic**, never an agent call.
 
-Design work swaps `wf-judge` (generative) for `wf-refute` (destructive).
-Implementation work uses `wf-tournament` (in worktrees) for the build phase.
+Design work swaps `work-judge` (generative) for `work-refute` (destructive).
+Implementation work uses `work-tournament` (in worktrees) for the build phase.
 
 ---
 

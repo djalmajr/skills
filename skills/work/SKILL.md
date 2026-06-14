@@ -1,14 +1,14 @@
 ---
-name: workflow
+name: work
 description: >
-  Autonomous quality meta-skill / "quality brain" (also invocable as /ultracode and /quality-orchestrator aliases). Proactively orchestrates a rigorous, multi-phase quality workflow on any medium/high complexity implementation, review, fix, research, design, audit, or work involving judgment, unknown scope, risk, multiple findings, or non-trivial trade-offs — without the user having to ask. It self-assesses complexity, prefers direct deterministic oracles first, chooses phases (Understand/Design/Review/Research/etc.), composes the right patterns (wf-refute with lenses, wf-judge, wf-exhaust, wf-sweep, wf-gaps, wf-tournament, wf-check, wf-review), applies all execution mechanics (structured output + retry, worktree isolation, null-handling, concurrency/budget caps, journaling/resume, no silent caps, log/phase via todos), and drives the workflow visibly.
+  Autonomous quality meta-skill / "quality brain" (also invocable as /ultracode and /quality-orchestrator aliases). Proactively orchestrates a rigorous, multi-phase quality workflow on any medium/high complexity implementation, review, fix, research, design, audit, or work involving judgment, unknown scope, risk, multiple findings, or non-trivial trade-offs — without the user having to ask. It self-assesses complexity, prefers direct deterministic oracles first, chooses phases (Understand/Design/Review/Research/etc.), composes the right patterns (work-refute with lenses, work-judge, work-exhaust, work-sweep, work-gaps, work-tournament, work-check, work-review), applies all execution mechanics (structured output + retry, worktree isolation, null-handling, concurrency/budget caps, journaling/resume, no silent caps, log/phase via todos), and drives the workflow visibly.
 
   The agent is expected to decide on its own at checkpoints (after significant edits, before marking complex todos done, at phase boundaries, when findings accumulate, or when the task language implies "make sure it's solid / thorough / find all issues"). Broad auto-trigger phrases: complex work, implementation, review the changes, audit, design decision, ensure quality, make it robust, thorough review, find all edge cases, etc. The agent can also call the focused skills directly when it identifies the specific need.
 metadata:
   short-description: "Intelligent orchestrator that picks phases + patterns + mechanics for the task"
 ---
 
-# /workflow (aliases: /ultracode, /quality-orchestrator) — Full Quality Workflow Orchestrator
+# /work (aliases: /ultracode, /quality-orchestrator) — Full Quality Workflow Orchestrator
 
 This is the **central orchestrator** that makes the entire quality pattern system practical and automatic.
 
@@ -59,21 +59,21 @@ Low-complexity mechanical changes can skip or use a very lightweight path.
    - If medium/high → proceed to full workflow.
 
 2. **Phase selection** (common useful phases; the orchestrator can chain or run subsets). Each phase names its shape and the lessons it operationalizes.
-   - **Understand** — `PARALLEL/BARRIER`: parallel readers / [wf-sweep](../wf-sweep/SKILL.md) over the relevant subsystems → structured map of the area (barrier so the map is whole before deciding).
-   - **Design** (when choosing approach) — `PARALLEL/BARRIER`: [wf-judge](../wf-judge/SKILL.md) ranks all candidates (cross-item comparison ⇒ barrier).
-   - **Research / Discovery** — `LOOP`: [wf-sweep](../wf-sweep/SKILL.md) + [wf-exhaust](../wf-exhaust/SKILL.md), dedup each round against `seen[]` (**L4**: dedup vs SEEN, never vs survivors — else judge-rejected items reappear and the loop never converges).
-   - **Implement** — normal agent work in **worktree isolation** when parallel agents mutate code (an isolated worktree) + frequent direct oracle checks (**L1**). For "try N ways", call [wf-tournament](../wf-tournament/SKILL.md).
-   - **Review** — `PIPELINE`: find ([wf-sweep](../wf-sweep/SKILL.md)) → dedup against everything ever seen (barrier; **plain set logic, never an agent**) → **for CODE diffs: [wf-check](../wf-check/SKILL.md) first** (oracle-first PASS/FAIL; it delegates the deep maintainability lens to [wf-review](../wf-review/SKILL.md)) → [wf-refute](../wf-refute/SKILL.md) each finding *as soon as its review lands* (perspective-diverse lenses) → [wf-gaps](../wf-gaps/SKILL.md). wf-check runs **before** wf-refute for code changes. wf-review is reached **via wf-check** and is **invoke-by-name only** (`disable-model-invocation: true`) — call `/wf-review` directly; it will not auto-trigger. Wire the lessons:
+   - **Understand** — `PARALLEL/BARRIER`: parallel readers / [work-sweep](../work-sweep/SKILL.md) over the relevant subsystems → structured map of the area (barrier so the map is whole before deciding).
+   - **Design** (when choosing approach) — `PARALLEL/BARRIER`: [work-judge](../work-judge/SKILL.md) ranks all candidates (cross-item comparison ⇒ barrier).
+   - **Research / Discovery** — `LOOP`: [work-sweep](../work-sweep/SKILL.md) + [work-exhaust](../work-exhaust/SKILL.md), dedup each round against `seen[]` (**L4**: dedup vs SEEN, never vs survivors — else judge-rejected items reappear and the loop never converges).
+   - **Implement** — normal agent work in **worktree isolation** when parallel agents mutate code (an isolated worktree) + frequent direct oracle checks (**L1**). For "try N ways", call [work-tournament](../work-tournament/SKILL.md).
+   - **Review** — `PIPELINE`: find ([work-sweep](../work-sweep/SKILL.md)) → dedup against everything ever seen (barrier; **plain set logic, never an agent**) → **for CODE diffs: [work-check](../work-check/SKILL.md) first** (oracle-first PASS/FAIL; it delegates the deep maintainability lens to [work-review](../work-review/SKILL.md)) → [work-refute](../work-refute/SKILL.md) each finding *as soon as its review lands* (perspective-diverse lenses) → [work-gaps](../work-gaps/SKILL.md). work-check runs **before** work-refute for code changes. work-review is reached **via work-check** and is **invoke-by-name only** (`disable-model-invocation: true`) — call `/work-review` directly; it will not auto-trigger. Wire the lessons:
      - **L2** — every verifier **re-opens each `file:line`** and confirms from current source; never accepts the investigator's quoted evidence. Record `reReadSources[]`.
      - **L3** — for security / auth / multi-tenancy / data-integrity / correctness claims, assign **distinct lenses** (forgery/spoofing, config-or-realm confusion, alternative-code-path, downstream effect, regression) — **mandatory, not opt-in**. N identical refuters is redundancy, not diversity.
      - **L8** — a `refuted` verdict (the one that **kills** a finding) counts **only if** `workDone: true` and `reReadSources` is non-empty. A lazy dismissal is an **abstention**: filtered + logged, and the finding **survives** to the next round. A `needs_oracle` verdict is **fail-closed** — run the L1 oracle before deciding. Votes are evidence-weighted (one well-evidenced refutation > two empty "no doubt" votes).
    - **Migrate / Transform** — `PIPELINE`: discover sites → isolated worktree transforms → verify each.
-   - **Final gate** ([wf-gaps](../wf-gaps/SKILL.md), `PARALLEL/BARRIER`): see "Final gate" below — fail-closed on un-run oracles, plus the two-sided severity + scope-coverage check.
+   - **Final gate** ([work-gaps](../work-gaps/SKILL.md), `PARALLEL/BARRIER`): see "Final gate" below — fail-closed on un-run oracles, plus the two-sided severity + scope-coverage check.
 
 3. **Pattern composition**
    - The orchestrator decides the concrete pattern(s) for each phase.
-   - Canonical Review harness (PIPELINE; full version in [`references/workflow-mode.md`](references/workflow-mode.md) §2): [wf-sweep](../wf-sweep/SKILL.md) → dedup against all previously seen (barrier, plain set logic) → **for CODE diffs: [wf-check](../wf-check/SKILL.md) first** (oracle-first PASS/FAIL; it delegates the deep maintainability lens to [wf-review](../wf-review/SKILL.md)) → [wf-refute](../wf-refute/SKILL.md) (or [wf-judge](../wf-judge/SKILL.md) if generative) → [wf-gaps](../wf-gaps/SKILL.md). wf-check runs **before** wf-refute for code changes; [wf-review](../wf-review/SKILL.md) is reached **via wf-check** and is **invoke-by-name only** (`disable-model-invocation: true` — call `/wf-review` directly). The full roster of composable skills: [wf-refute](../wf-refute/SKILL.md), [wf-judge](../wf-judge/SKILL.md), [wf-exhaust](../wf-exhaust/SKILL.md), [wf-sweep](../wf-sweep/SKILL.md), [wf-gaps](../wf-gaps/SKILL.md), [wf-tournament](../wf-tournament/SKILL.md), [wf-check](../wf-check/SKILL.md), [wf-review](../wf-review/SKILL.md).
-   - It can nest workflows (call another workflow run or a focused pattern skill as a sub-step). Light "did this change do what it claims?" checks can delegate to [wf-check](../wf-check/SKILL.md).
+   - Canonical Review harness (PIPELINE; full version in [`references/workflow-mode.md`](references/workflow-mode.md) §2): [work-sweep](../work-sweep/SKILL.md) → dedup against all previously seen (barrier, plain set logic) → **for CODE diffs: [work-check](../work-check/SKILL.md) first** (oracle-first PASS/FAIL; it delegates the deep maintainability lens to [work-review](../work-review/SKILL.md)) → [work-refute](../work-refute/SKILL.md) (or [work-judge](../work-judge/SKILL.md) if generative) → [work-gaps](../work-gaps/SKILL.md). work-check runs **before** work-refute for code changes; [work-review](../work-review/SKILL.md) is reached **via work-check** and is **invoke-by-name only** (`disable-model-invocation: true` — call `/work-review` directly). The full roster of composable skills: [work-refute](../work-refute/SKILL.md), [work-judge](../work-judge/SKILL.md), [work-exhaust](../work-exhaust/SKILL.md), [work-sweep](../work-sweep/SKILL.md), [work-gaps](../work-gaps/SKILL.md), [work-tournament](../work-tournament/SKILL.md), [work-check](../work-check/SKILL.md), [work-review](../work-review/SKILL.md).
+   - It can nest workflows (call another workflow run or a focused pattern skill as a sub-step). Light "did this change do what it claims?" checks can delegate to [work-check](../work-check/SKILL.md).
 
 4. **Execution mechanics application** (these make the patterns reliable; full table in [`references/workflow-mode.md`](references/workflow-mode.md) §3)
    - **Structured output + retry**: Every sub-agent returns a **schema-validated ```json object** (see contract below), never prose the caller greps. The caller validates the shape and **re-requests once** on malformed output; a still-malformed result is **dropped and logged**, never silently accepted.
@@ -95,7 +95,7 @@ Low-complexity mechanical changes can skip or use a very lightweight path.
    - **Fail-closed on un-run oracles (L1)**: scan every surviving finding for an **available oracle that was not run** (a test, type-check, exact grep + manual confirm, `git`, running the app). If any exists, the gate **blocks `done`** — run the oracle first, then re-evaluate. A survivor with an available, un-run oracle is **not** done.
    - **Scope-coverage (L5)**: run **at least one global oracle** (repo-wide grep for the core entity, a scope-coverage diff) to surface items *outside* the fan-out list — the orphan-file / untouched-modality class. Record `seen[]` vs swept.
    - **Two-sided severity (L6)**: re-anchor each survivor's severity in verified real-world impact and guard **both** errors — no `high` on a speculative gap, no `low` on an exploitable one. Rubric: **high** = concretely reachable + damaging + currently uncovered (state the reachability argument); **medium** = plausible but unverified / no oracle; **low** = cosmetic / already-mitigated.
-   - [wf-gaps](../wf-gaps/SKILL.md) asks "what did the LIST / SCOPE not cover?"; remaining high-priority gaps become outstanding todos or explicit risks in the decision record.
+   - [work-gaps](../work-gaps/SKILL.md) asks "what did the LIST / SCOPE not cover?"; remaining high-priority gaps become outstanding todos or explicit risks in the decision record.
 
 ## Structured I/O contracts (fenced JSON — required fields + enums)
 
@@ -131,7 +131,7 @@ Validation rules the caller enforces: a `refuted` verdict (the one that **kills*
   "phasesDone": ["understand", "review", "final-gate"],
   "shapePerPhase": { "understand": "barrier", "review": "pipeline" },
   "patternsApplied": [
-    { "phase": "review", "skill": "wf-refute", "params": { "N": 3, "lenses": ["spoofing","realm-confusion","alt-path"], "K": 2 } }
+    { "phase": "review", "skill": "work-refute", "params": { "N": 3, "lenses": ["spoofing","realm-confusion","alt-path"], "K": 2 } }
   ],
   "seen": ["host-derived-tenant", "journal-drift"],
   "anglesUsed": ["storage-path", "token-issuer", "design-doc-intent"],
@@ -161,10 +161,10 @@ On resume: **load `seen[]` and never reset it** (**L4**) — rejected findings s
 
 ## Worked example — multi-tenant isolation audit (pipeline + barrier + loop)
 
-`/workflow "audit the upload + storage paths of a multi-tenant app for tenant isolation"` → **high** complexity (data-boundary, judgment, unknown scope).
+`/work "audit the upload + storage paths of a multi-tenant app for tenant isolation"` → **high** complexity (data-boundary, judgment, unknown scope).
 
 1. **Understand** (`BARRIER`): 3 readers sweep the auth middleware, the upload handler (storage), the tenant-isolation design doc. Barrier → a whole map before deciding. Output: subsystem map; `anglesUsed += [storage-path, token-issuer, design-doc-intent]`.
-2. **Find** (wf-sweep) → **dedup barrier** against `seen[]` (plain set logic). Findings: `host-derived-tenant` (a `?hostname` storage override + shared-identity-provider token confusion) and `journal-drift`.
+2. **Find** (work-sweep) → **dedup barrier** against `seen[]` (plain set logic). Findings: `host-derived-tenant` (a `?hostname` storage override + shared-identity-provider token confusion) and `journal-drift`.
 3. **Verify** (`PIPELINE`, **L2/L3/L8**): verify each finding as its review lands.
    - `journal-drift`: oracle available → read the migration runner. Apply path is a filesystem scan that never reads the journal ⇒ `{ "verdict": "refuted", "severity": "low", "oracleRun": true, "workDone": true }` (**L1/L6** false-positive guarded).
    - `host-derived-tenant`: lenses `[spoofing, realm-confusion, alternative-code-path]`. A lazy "the issuer check closes it" verdict arrives with empty `reReadSources` → **abstention** (**L8**), filtered + logged, finding **survives**. The diverse lens re-reads the storage handler + design doc ⇒ `{ "verdict": "confirmed_bug", "severity": "high", "reReadSources": ["upload-handler.ts:171"], "workDone": true }` (false-negative guarded).
@@ -179,10 +179,10 @@ On resume: **load `seen[]` and never reset it** (**L4**) — rejected findings s
 
 ## Example high-level invocations
 
-- After a long implementation: `/workflow "review the changes I just made to the draft-generation flow for correctness, robustness, and state issues"`
-- Design decision: `/workflow "help me choose the right architecture for real-time updates in a kanban board"`
-- Full audit: `/workflow "perform an end-to-end audit of the upload-handling and SLA-calculation paths"`
+- After a long implementation: `/work "review the changes I just made to the draft-generation flow for correctness, robustness, and state issues"`
+- Design decision: `/work "help me choose the right architecture for real-time updates in a kanban board"`
+- Full audit: `/work "perform an end-to-end audit of the upload-handling and SLA-calculation paths"`
 
-The orchestrator will break it down, run the appropriate sub-patterns (possibly calling `wf-refute`, `wf-judge`, `wf-exhaust`, etc. as sub-skills), apply the mechanics, and surface a high-confidence result plus the reasoning trail.
+The orchestrator will break it down, run the appropriate sub-patterns (possibly calling `work-refute`, `work-judge`, `work-exhaust`, etc. as sub-skills), apply the mechanics, and surface a high-confidence result plus the reasoning trail.
 
 This is the practical realization of the full ultracode-style quality system, portable across harnesses. Use it.

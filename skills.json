@@ -22,15 +22,15 @@
     "aim-init",
     "aim-query",
     "aim-write",
-    "workflow",
-    "wf-refute",
-    "wf-judge",
-    "wf-sweep",
-    "wf-exhaust",
-    "wf-gaps",
-    "wf-tournament",
-    "wf-check",
-    "wf-review"
+    "work",
+    "work-refute",
+    "work-judge",
+    "work-sweep",
+    "work-exhaust",
+    "work-gaps",
+    "work-tournament",
+    "work-check",
+    "work-review"
    ]
   }
  ]
