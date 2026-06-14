@@ -1,13 +1,5 @@
 **CRITICAL**: These instructions are MANDATORY. Read all *.md files inside .agents/rules and its subfolders as well as ~/.agents/rules to get context and rules.
 
-## LLM Wiki — relation to this repo
-
-This repo **produces** the wiki skills (`wiki-init`, `wiki-ingest`, `wiki-query`, `wiki-lint`, `wiki-policy-check`). It does **not** maintain a wiki of its own — there is no `wiki/` directory here, and no product/process domain that would justify one.
-
-Projects that **use** these skills maintain their own local wiki per the convention in [`skills/wiki-init/`](./skills/wiki-init/) and [`skills/wiki-ingest/SKILL.md`](./skills/wiki-ingest/SKILL.md). Sample projects that exercise the pattern are tracked under [`samples/`](./samples/).
-
-Pattern inspired by [LLM Wiki — Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
-
 ## Skill Templates
 
 Templates that support a skill must live inside that skill folder, under `skills/<skill-name>/templates/`.

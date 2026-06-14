@@ -1,2 +1,0 @@
-{"ts":"2026-05-22T08:30:00Z","kind":"etl-run","source":"valid-proj","files":35,"duration_s":12.4}
-{"ts":"2026-05-22T09:00:00Z","kind":"decision-created","ref":"ADR-0001","actor":"knowledge-center-bot"}

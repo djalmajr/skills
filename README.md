@@ -46,7 +46,7 @@ These skills are written for the common `SKILL.md` format used by `skills.sh`, C
 
 Keep frontmatter portable. Avoid agent-specific fields unless the skill truly needs them and the behavior is documented in `SKILL.md`.
 
-## Skills (21)
+## Skills (16)
 
 ### Agile (15)
 
@@ -67,16 +67,6 @@ Keep frontmatter portable. Avoid agent-specific fields unless the skill truly ne
 | agile-proto | Interactive UI prototypes |
 | agile-tdd | TDD cycle + pragmatic testing strategy |
 | agile-skill-feedback | Improve, merge, split, deprecate, or remove skills from real usage evidence |
-
-### Wiki (5)
-
-| Skill | Purpose |
-|-------|---------|
-| wiki-ingest | Ingest new source into wiki (documents, notes, decisions) |
-| wiki-init | Initialize, diagnose, or migrate wiki + QMD + hooks/plugin infrastructure |
-| wiki-query | Ask about something in the wiki |
-| wiki-lint | Audit and organize the wiki |
-| wiki-policy-check | Audit a product/code repo for business rules that should live in the wiki |
 
 ### Design (1)
 
@@ -120,60 +110,6 @@ Before publishing or asking users to update installed skills:
 
 See the full publishing and update checklist in [`docs/distribution.md`](docs/distribution.md).
 
-## Wiki (Karpathy Pattern)
-
-This project uses the **LLM Wiki** pattern to maintain versioned, AI-consultable organizational knowledge.
-
-### How it works
-
-Each project that installs these skills creates its own local `wiki/`. Skills ingest sources (notes, decisions, documents) and the AI consults the wiki before answering domain questions.
-
-### Structure created by the project
-
-```
-wiki/
-├── CONVENTIONS.md   # Schema, frontmatter, operations
-├── index.md         # Navigable catalog
-├── log.md           # Operation history
-├── sources/         # Source summaries
-├── business/        # Business rules (audience: business)
-├── ops/             # Operational procedures (audience: ops)
-└── patterns/        # Patterns identified in practice
-raw/                 # Original sources (before ingestion)
-```
-
-### Wiki Skills
-
-| Skill | When to use |
-|-------|-------------|
-| `/wiki-ingest` | Ingest new source into wiki (documents, notes, decisions) |
-| `/wiki-init` | Initialize, diagnose, or migrate wiki + QMD + hooks/plugin infrastructure |
-| `/wiki-query` | Ask about something in the wiki |
-| `/wiki-lint` | Audit and organize the wiki |
-| `/wiki-policy-check` | Audit a product/code repo for business rules that should be in the wiki |
-
-### Retrieval engine — QMD (recommended)
-
-The wiki skills prefer **[QMD](https://github.com/tobi/qmd)** as the retrieval engine: a local hybrid search (BM25 + vector + LLM reranking) that runs entirely on-device and supports per-path context injection. The skills detect QMD per-session — when it is configured they use `mcp__qmd__query` (or the `qmd` CLI), and when it is not they fall back to `grep` / `Read` / `wiki/index.md`.
-
-Start with `/wiki-init doctor`. Modern installs prepare a managed QMD checkout and per-project wrapper instead of depending on a global `qmd` binary or shell alias. The human troubleshooting guide is in [`docs/wiki/qmd-setup.md`](docs/wiki/qmd-setup.md).
-
-### Project setup
-
-When installing in a new project, start with:
-
-```text
-/wiki-init doctor
-```
-
-`wiki-init` diagnoses the current project, suggests the wiki location and QMD index, and only writes changes after explicit `--wiki` and `--index` confirmation.
-
-For OpenCode projects, `wiki-init` generates `opencode.json` with the local QMD MCP server and `wiki-*` skill permission, plus `.opencode/plugins/wiki-guardrails.js` to run the wiki guardrails through OpenCode plugin events.
-
-> **Note on business rules placement.** When your project separates a wiki repo from product/code repos, the convention these skills follow is: **all business/product rules live in the central wiki**, never inside the product repos. Product repos hold only technical rules — stack, environment, gotchas, ADRs. The `wiki-ingest` skill enforces this split when deciding where to land a new source. Document the specific layout (which sibling repos exist, what each one is for) in your project's wiki — these skills stay agnostic to project specifics.
-
-Inspired by [LLM Wiki — Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
-
 ## Documentation
 
 [`docs/`](docs/) — human usage guides organized by category. Workflow diagram in [`docs/agile/`](docs/agile/README.md). Skill-specific human notes moved from skill folders live under [`docs/skills/`](docs/skills/).
@@ -190,8 +126,6 @@ Each skill is invoked with `/skill-name`:
 /agile-status
 /agile-skill-feedback
 /figma-capture
-/wiki-query
-/wiki-init
 ```
 
 Not sure which skill to use? Try `/agile-router`.

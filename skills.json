@@ -19,11 +19,6 @@
     "agile-tdd",
     "agile-skill-feedback",
     "figma-capture",
-    "wiki-ingest",
-    "wiki-init",
-    "wiki-lint",
-    "wiki-policy-check",
-    "wiki-query",
     "aim-init",
     "aim-query",
     "aim-write"

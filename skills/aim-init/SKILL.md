@@ -9,7 +9,7 @@ metadata:
 
 Wire a repo into **ai-memory** so its sessions auto-capture and the agent recalls
 durable knowledge. Works greenfield or brownfield (incl. migrating off the old
-`qmd`/`wiki/` stack — see [wiki-init](../wiki-init/SKILL.md) for the legacy pattern).
+`qmd`/`wiki/` stack).
 
 > ai-memory replaces the qmd `wiki/` + local-index stack: knowledge lives server-side
 > in the ai-memory instance (recalled via the MCP), not in a per-repo `wiki/` folder.
@@ -236,8 +236,8 @@ Run **doctor** first; then, with the user's confirmation:
    `git rm --cached .mcp.json` if it was tracked.
 3. **CLAUDE.md / AGENTS.md** — replace the "Wiki (`wiki/`)" / qmd-MCP block with the routing
    snippet. Drop instructions that tell the agent to query `qmd` or maintain `wiki/`.
-4. **Remove ALL qmd-era artifacts.** `wiki-init` installs more than hooks — enumerate against
-   [wiki-init](../wiki-init/SKILL.md) and remove every one:
+4. **Remove ALL qmd-era artifacts.** The old qmd/wiki setup installs more than hooks —
+   enumerate every one and remove it:
    - **`.wiki-guardrails.yml`** (guardrails config).
    - **Hooks** — `.claude/hooks/wiki-*.sh` (policy-check, reindex, drift-audit, suggest-ingest);
      `.codex/hooks/wiki-*.sh` (policy-check, reindex, drift-audit, consider) **+ `.codex/hooks.json`**;

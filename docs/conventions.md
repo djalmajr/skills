@@ -12,7 +12,7 @@ Every skill that writes an artifact has a `## Project root` section in its `SKIL
 
 This matters most for multi-repo sessions (e.g., the skills repo open while planning a sample project as a sibling). Without the section, the first write tends to land in the wrong repo silently. With it, the agent has explicit guidance.
 
-Covered skills: 18 of 20. The two skipped — `agile-onboarding` and `agile-router` — do not write artifacts.
+Covered skills: 13 of 15. The two skipped — `agile-onboarding` and `agile-router` — do not write artifacts.
 
 ## How a skill asks you a question — `## Prompting`
 
@@ -40,7 +40,7 @@ samples/<project>/
 └── proposals/        # formal /agile-skill-feedback artifacts
 ```
 
-The current sample is [`samples/reserva-pwa/`](../samples/reserva-pwa/) — a PWA for restaurant table reservations that exercises the full agile + wiki flow. The sample's journals are the primary source of `[[finding-candidate]]` items that drive refinements via [`/agile-skill-feedback`](skills/agile-skill-feedback.md).
+The current sample is [`samples/reserva-pwa/`](../samples/reserva-pwa/) — a PWA for restaurant table reservations that exercises the full agile flow. The sample's journals are the primary source of `[[finding-candidate]]` items that drive refinements via [`/agile-skill-feedback`](skills/agile-skill-feedback.md).
 
 Promotion criteria:
 - **2+ evidences across sessions** → finding with `status: mature`.
@@ -71,7 +71,6 @@ A few patterns recur across real sessions:
 - **State the project root in the args** when the active CWD differs from the project (e.g., `Project root: /abs/path/to/project`). Avoids the silent-misplace failure mode the `## Project root` section was added to prevent.
 - **Declare the language explicitly** when it matters (`Output language: pt-br`). Otherwise the skill defaults to the user's apparent language, which can drift.
 - **Pick `plan-only` vs `plan-then-implement`** for `/agile-story` based on the surrounding workflow. Plan-only when refining ahead of execution; plan-then-implement when ready to code in the same session.
-- **Always confirm `--project` for `wiki-init`** — its script does not fall back to CWD silently. Same for `wiki-policy-check`.
 
 ## Chain of skills, by entry point
 
@@ -87,13 +86,8 @@ A few patterns recur across real sessions:
 | Sprint ceremony | `/agile-sprint`, `/agile-review`, `/agile-retro`, `/agile-metrics` |
 | Improve the skill library | `/agile-skill-feedback` |
 | Decide which skill to use | `/agile-router` |
-| Set up wiki + QMD infrastructure | `/wiki-init` |
-| Ingest a source into wiki | `/wiki-ingest` |
-| Ask a question of the wiki | `/wiki-query` |
-| Audit wiki health | `/wiki-lint` |
-| Audit business-rule leaks into code | `/wiki-policy-check` |
 | Sketch UI before implementation | `/agile-proto` |
 | Copy a rendered local page into Figma | `/figma-capture` |
 | Onboard a new team member | `/agile-onboarding` |
 
-The detailed end-to-end flows live in [`agile/guides/`](agile/) and [`wiki/`](wiki/).
+The detailed end-to-end flows live in [`agile/guides/`](agile/).

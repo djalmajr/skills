@@ -24,16 +24,6 @@ Human-facing notes moved out of individual skill folders.
 | [agile-onboarding](agile-onboarding.md) | Onboard a new team member |
 | [agile-proto](agile-proto.md) | Interactive UI prototypes |
 
-## Wiki (5)
-
-| Skill | One-liner |
-|---|---|
-| [wiki-init](wiki-init.md) | Initialize, diagnose, or migrate wiki + QMD + hooks infrastructure |
-| [wiki-ingest](wiki-ingest.md) | Process a source from `raw/` into the wiki |
-| [wiki-query](wiki-query.md) | Answer a question using the wiki as canonical source |
-| [wiki-lint](wiki-lint.md) | Audit wiki health (links, frontmatter, drift) |
-| [wiki-policy-check](wiki-policy-check.md) | Audit a product/code repo for business rules that should live in the wiki |
-
 ## Design (1)
 
 | Skill | One-liner |

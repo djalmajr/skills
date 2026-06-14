@@ -22,22 +22,6 @@ Guides showing how skills chain together in real delivery scenarios.
 
 Full skill reference and workflow diagram: [agile/](agile/README.md)
 
-## Wiki (Karpathy Pattern)
-
-AI-maintained organizational knowledge system.
-
-| Guide | What you'll learn |
-|-------|-------------------|
-| [Wiki Skills Guide](wiki/README.md) | Ingest, query, lint, init, policy-check with real-world scenarios |
-| [QMD setup](wiki/qmd-setup.md) | One-time owner setup of the retrieval engine |
-
-Each wiki skill also has its own human guide:
-- [wiki-init](skills/wiki-init.md) — initialize, diagnose, or migrate wiki + QMD + hooks infrastructure
-- [wiki-ingest](skills/wiki-ingest.md) — process a source from `raw/` into the wiki
-- [wiki-query](skills/wiki-query.md) — answer questions using the wiki as canonical source
-- [wiki-lint](skills/wiki-lint.md) — audit wiki health
-- [wiki-policy-check](skills/wiki-policy-check.md) — audit business-rule leaks into code
-
 ## Sample observations
 
 Real-world skill usage is logged under [`../samples/`](../samples/) — see the [conventions guide](conventions.md#real-world-evidence--samples) for the journal → finding → proposal flow. The current sample is [`samples/reserva-pwa/`](../samples/reserva-pwa/).

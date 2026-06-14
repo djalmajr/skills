@@ -21,7 +21,7 @@ bunx skills add djalmajr/skills --skill '*'
 ## Install selected skills
 
 ```bash
-bunx skills add djalmajr/skills --skill wiki-init --skill wiki-query
+bunx skills add djalmajr/skills --skill aim-init --skill aim-query
 ```
 
 ## Install for explicit agents
@@ -68,34 +68,6 @@ Do not rely on:
 - private project names;
 - custom install scripts for normal skill installation.
 
-## Wiki infrastructure after skill install
-
-Installing the skills only makes the skills available to the agent. It does not configure a target project.
-
-For a project that should use the wiki pattern, run:
-
-```text
-/wiki-init doctor
-```
-
-Then confirm the concrete wiki path and QMD index before writing:
-
-```bash
-bun skills/wiki-init/scripts/wiki-init.ts install --project /path/to/project --wiki ../knowledge-base --index my-project --harness claude,codex,opencode --write
-```
-
-`wiki-init` may generate project-local configuration such as:
-
-- `AGENTS.md` / `CLAUDE.md` managed wiki blocks;
-- `.wiki-guardrails.yml`;
-- `.mcp.json`;
-- `.claude/settings.json` and `.claude/hooks/`;
-- `.codex/config.toml`, `.codex/hooks.json`, and `.codex/hooks/`;
-- `opencode.json`, `.opencode/plugins/`, and `.opencode/hooks/`;
-- managed QMD wrapper and manifest under the user's local skill cache.
-
-These generated files belong to the target project, not to the skill distribution contract.
-
 ## Before publishing
 
 Before asking users to update installed skills:
@@ -117,7 +89,7 @@ The update path is reinstalling from the source repository with `bunx skills add
 Use a selected install when only one skill changed:
 
 ```bash
-bunx skills add djalmajr/skills --skill wiki-init
+bunx skills add djalmajr/skills --skill aim-init
 ```
 
 Use full install when shared docs/templates or several skills changed:
@@ -125,5 +97,3 @@ Use full install when shared docs/templates or several skills changed:
 ```bash
 bunx skills add djalmajr/skills --skill '*'
 ```
-
-After updating `wiki-init`, existing projects do not automatically receive new hooks or plugins. Run `/wiki-init doctor` in the target project and then `install` or `update-hooks` with explicit `--wiki`, `--index`, and `--write` if project-local infrastructure needs to be refreshed.
