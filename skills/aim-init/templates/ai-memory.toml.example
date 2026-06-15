@@ -1,0 +1,18 @@
+# .ai-memory.toml — per-repo ai-memory routing marker.
+#
+# Git-ignored BY DEFAULT (public-repo safety). For a PRIVATE team repo you MAY
+# commit this so every developer gets the same routing + onboarding profile on
+# `git clone`. The values below are instance config, NOT credentials.
+
+workspace = "default"      # personal -> "default"; org repo -> its own workspace
+project   = "my-project"   # defaults to the repo basename
+
+# Optional: Keycloak/OIDC onboarding profile. When present, the `aim-init` skill
+# reads it to wire the lifecycle hooks (device login + install-hooks) WITHOUT
+# asking. The native hook only parses workspace/project, so this block is inert
+# at runtime — it exists purely to make onboarding self-serve. Non-secret.
+[instance]
+issuer     = "https://kc.example/auth/realms/<realm>"   # OIDC realm (issuer) URL
+server_url = "https://memory.example.dev/wiki"          # ai-memory URL incl. any base path
+client_id  = "ai-memory-cli"                            # public device-flow client
+agents     = ["claude-code"]                            # claude-code codex open-code antigravity-cli grok ...

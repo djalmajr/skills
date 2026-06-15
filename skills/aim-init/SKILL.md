@@ -64,12 +64,25 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
 
 ## What a wired repo has
 
-1. **`.ai-memory.toml`** at the repo root — routes captures + recall to a workspace/project.
-   Operator-local: it must be **git-ignored** (add `.ai-memory.toml` to the global
-   gitignore, `git config --global core.excludesfile`, so it never lands in shared/public repos).
+1. **`.ai-memory.toml`** at the repo root — routes captures + recall to a workspace/project,
+   and (optionally) names the Keycloak/OIDC instance this repo onboards onto.
+   Git-ignored **by default** (add `.ai-memory.toml` to the global gitignore,
+   `git config --global core.excludesfile`, so it never lands in a shared/public repo). For a
+   **private team repo** you MAY commit it instead, so every developer gets the same routing
+   **and onboarding profile on clone** — the values below are instance config, NOT credentials.
    ```toml
    workspace = "default"
    project   = "<repo-name>"
+
+   # Optional: Keycloak/OIDC onboarding profile the agent reads to wire hooks
+   # WITHOUT asking (see "Keycloak-gated instance"). Non-secret. The native hook
+   # only parses workspace/project, so this block is inert at runtime — it exists
+   # purely so `aim-init` can self-serve the device-flow setup.
+   [instance]
+   issuer     = "https://kc.example/auth/realms/<realm>"
+   server_url = "https://memory.example.dev/wiki"   # ai-memory URL incl. base path
+   client_id  = "ai-memory-cli"                      # device-flow client
+   agents     = ["claude-code"]                      # agents to wire hooks for
    ```
 2. **Routing snippet** in `CLAUDE.md` and `AGENTS.md` — the `<!-- ai-memory:start -->…end -->`
    block. It drives proactive recall mid-session. **The block's text is owned by the
@@ -196,13 +209,17 @@ The [`scripts/`](scripts/) are your canonical, cross-platform command reference
 (`*.sh` for macOS/Linux, `*.ps1` for Windows) — invoke them, or run the
 equivalent `ai-memory` commands directly.
 
-**Inputs you need** (ask the dev, or recall from operator-global config — see the
-note at the end):
+**Inputs you need** — **read them from the repo's `.ai-memory.toml` `[instance]` block
+first** (`issuer` / `server_url` / `client_id` / `agents`, see "What a wired repo has");
+only ask the dev (or fall back to operator-global config) when that block is absent:
 - `ISSUER` — realm URL, e.g. `https://kc.example/auth/realms/<realm>`.
 - `SERVER_URL` — ai-memory server URL **including any base path**, e.g.
   `https://memory.example.dev` or `https://memory.example.dev/wiki`.
 - `CLIENT_ID` — the device-flow client (default `ai-memory-cli`).
 - which `AGENTS` the dev uses (`claude-code`, `codex`, `open-code`, …).
+
+When the `[instance]` block is present (e.g. committed in a private team repo), the agent
+uses it and does NOT ask — `git clone` + `aim-init` is turnkey for the next developer.
 
 **1. Check the device-flow client exists** (read-only):
 `GET <ISSUER>/.well-known/openid-configuration` (confirm `device_authorization_endpoint`),
