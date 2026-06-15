@@ -1,21 +1,30 @@
 ---
 name: excalidraw
-description: "Author and edit raw Excalidraw scene files (`.excalidraw`) by hand — the JSON element model (rectangle, text, arrow), two-way arrow binding, ids/seeds, z-order, coordinates & sizing, groups, and how to read an existing scene and update sections (append, replace, edit-in-place). Use whenever you must create or modify a `.excalidraw` file directly: not through the Excalidraw editor UI, and not via Mermaid."
+description: "Author and edit Excalidraw scene files (`.excalidraw`): the JSON element model (rectangle, text, arrow), two-way arrow binding, ids/z-order, coordinates & sizing, groups, and reading/updating an existing scene. Two paths — by hand for small scenes/edits, or programmatically via `scripts/` which builds scenes with Excalidraw's own `convertToExcalidrawElements`, renders a faithful preview with `exportToSvg`, and lints geometry. Use whenever you create or modify a `.excalidraw` file directly (not through the editor UI). Mermaid is a supported INPUT for standard diagrams, not the file format."
 metadata:
-  short-description: Write & edit raw .excalidraw scene files by hand
+  short-description: Author & edit .excalidraw scenes — by hand or via the official JS compiler + preview/lint
 ---
 
 # excalidraw
 
-Produce and edit **`.excalidraw` files directly as JSON**. An `.excalidraw` file is a
-flat scene of *elements* (rectangles, text, arrows) on an infinite canvas — no DSL, no
-compiler. This skill teaches the element format, the binding/grouping rules that make a
-scene behave, and the precise moves for updating an existing scene without breaking it.
+Produce and edit **`.excalidraw` files** — a flat scene of *elements* (rectangles,
+text, arrows) on an infinite canvas. Two ways to author, picked by scale:
 
-> Scope: this is about Excalidraw's **own** on-disk format. It is **not** Mermaid (a
-> different text DSL that some apps transpile into a scene) and **not** any app-specific
-> declarative spec that compiles down to Excalidraw. If you have a `.excalidraw` file in
-> front of you and need to write or change its JSON, you're in the right place.
+- **By hand (JSON)** — for a handful of boxes, or editing an existing scene (recolor,
+  rename, re-wire, append). The element format and binding/grouping rules below are
+  what you need — and they're also what the programmatic path emits, so read them
+  either way.
+- **Programmatically** — for anything bigger or that you'll maintain. The toolchain in
+  [`scripts/`](scripts/) builds scenes with Excalidraw's **own**
+  `convertToExcalidrawElements` (it owns the gotchas: reciprocal binding, container
+  labels, text sizing, z-order), renders a **faithful** SVG preview with `exportToSvg`,
+  and lints geometry. See **Programmatic authoring** below.
+
+> `.excalidraw` is Excalidraw's own on-disk JSON format. **Mermaid** is a separate
+> thing but a useful **input**: for standard shapes (flowchart, sequence, class, ER)
+> write Mermaid and convert it to a native Excalidraw scene — the editor's built-in
+> "Mermaid to Excalidraw", or `fromMermaid()` in `scripts/`. Either way the file you
+> then edit is Excalidraw JSON, which is what this skill covers.
 
 ## When to use
 
@@ -25,7 +34,50 @@ scene behave, and the precise moves for updating an existing scene without break
 - Reading a scene to summarize or reason about it (build an outline from the elements).
 
 If a real Excalidraw editor is available and the user just wants to *draw*, prefer the
-editor. This skill is for **programmatic / by-hand** authoring where you emit JSON.
+editor. This skill is for **generating/editing the file directly** — pick the by-hand
+path for small or edit work, the programmatic path (next) for non-trivial diagrams.
+
+## Programmatic authoring (the preview-and-lint loop)
+
+For non-trivial or maintained diagrams, don't hand-place dozens of elements — use the
+JS toolchain in [`scripts/`](scripts/). It wraps the **official** Excalidraw functions,
+so its output can't drift from the format:
+
+- `convertToExcalidrawElements(skeleton)` — Excalidraw's own compiler. Hand it
+  high-level shapes plus which boxes an arrow connects; it returns valid elements with
+  reciprocal binding, container labels, measured text, ids and z-order. The single
+  biggest correctness win — the **Gotchas** further down become *its* job, not yours.
+- `exportToSvg(scene)` — renders the **real** look (rough strokes, fonts), so previews
+  don't lie the way an approximate renderer would.
+
+One-time setup (installs the headless toolchain + bundles `@excalidraw/*`; needs node +
+npm, plus `canvas`/`jsdom` for headless text measurement):
+
+```sh
+sh scripts/setup.sh
+```
+
+Then loop — **build → lint → render → look → iterate**:
+
+```sh
+node examples/architecture.example.mjs              # build with the Diagram builder
+node scripts/lint-scene.mjs  /tmp/arch.excalidraw   # arrow crossings / label overflow / overlap
+node scripts/render.mjs      /tmp/arch.excalidraw   # -> /tmp/arch.svg (faithful)
+rsvg-convert -w 1200 /tmp/arch.svg -o /tmp/arch.png # rasterize, then actually LOOK
+```
+
+**Looking at the render is the most important step.** Valid JSON still produces
+unreadable diagrams — arrows through unrelated boxes, labels off-card. The linter
+catches the mechanical ones; your eyes catch the routing. Iterate on the builder code,
+not on the JSON.
+
+The `Diagram` builder (`scripts/excalidraw-lib.mjs`) gives `card()`, `zone()`, `note()`
+and `arrow(a, b, label, {waypoints, dashed, color})`; `arrow()` binds both ends and
+routes through absolute waypoints (keep them axis-aligned for clean orthogonal lines).
+`fromMermaid()` converts Mermaid for standard diagram types (optional dependency).
+
+The element-format reference below still matters — it's what the builder emits, what you
+edit by hand on small scenes, and how you reason about an existing file.
 
 ## The file envelope
 
@@ -251,6 +303,10 @@ Mutate fields directly, then signal the change so the editor reconciles cleanly:
 
 ## Gotchas (the things that actually break a scene)
 
+The programmatic path (`convertToExcalidrawElements`) handles the first four
+automatically — it sets reciprocal binding, relative points, text sizing and z-order
+for you. These bite mainly when **hand-authoring**.
+
 - **One-way binding** → arrows detach on drag. Always set the arrow's `*Binding` **and** the
   shapes' `boundElements`.
 - **Absolute arrow points** → arrow renders in the wrong place. Points are relative; first
@@ -270,6 +326,10 @@ Mutate fields directly, then signal the change so the editor reconciles cleanly:
   (fontFamily, arrowhead, roundness, appState keys), and binding/grouping semantics.
 - `references/minimal-scene.excalidraw` — a complete, loadable two-box-and-an-arrow scene
   you can copy and adapt.
+- `scripts/` — the programmatic toolchain: `excalidraw-lib.mjs` (the `Diagram` builder +
+  `writeScene`/`writeSvg`/`fromMermaid`), `render.mjs` (faithful SVG export), `lint-scene.mjs`
+  (geometry linter), `setup.sh` (one-time install + bundle). See `scripts/README.md`.
+- `examples/architecture.example.mjs` — a runnable end-to-end diagram built with the builder.
 
 ## Source of truth
 

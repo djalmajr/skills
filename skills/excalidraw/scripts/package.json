@@ -1,0 +1,19 @@
+{
+  "name": "excalidraw-skill-tools",
+  "private": true,
+  "type": "module",
+  "description": "Headless Node toolchain for the excalidraw skill: official element compiler + faithful SVG export.",
+  "scripts": {
+    "build": "esbuild vendor/entry.mjs --bundle --platform=node --format=esm --outfile=vendor/bundle.mjs --loader:.css=empty --log-level=error"
+  },
+  "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
+    "canvas": "^3.0.0",
+    "jsdom": "^24.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
