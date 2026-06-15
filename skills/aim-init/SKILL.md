@@ -186,43 +186,65 @@ Token lifetime (device flow): access token auto-refreshes; the refresh token las
 the issuer's offline-session idle window — after long inactivity, re-run `auth login
 oidc-device`. Verify state any time with `ai-memory auth status`.
 
-### Keycloak-gated instance — scripted setup (the explicit process)
+### Keycloak-gated instance — the agent drives onboarding (mac / Linux / Windows)
 
-Onboarding a developer/machine onto a **Keycloak/OIDC** instance has exactly two
-steps, split by who can do them. Two helper scripts under
-[`scripts/`](scripts/) make it copy-paste:
+The developer should **not** hand-run setup scripts. When a dev needs hook
+capture on a Keycloak/OIDC instance, **you (the agent) drive it**: gather the
+inputs, check/create the device client, run the per-machine setup, and verify.
+The dev only answers a couple of questions and approves a browser prompt once.
+The [`scripts/`](scripts/) are your canonical, cross-platform command reference
+(`*.sh` for macOS/Linux, `*.ps1` for Windows) — invoke them, or run the
+equivalent `ai-memory` commands directly.
 
-**Step 1 — one-time per realm, by a Keycloak admin: create the device-flow client.**
-`ai-memory auth login oidc-device` needs a **public, device-flow-enabled, no-PKCE**
-client; the browser/MCP client (PKCE-enforced) can't be reused. Run once:
+**Inputs you need** (ask the dev, or recall from operator-global config — see the
+note at the end):
+- `ISSUER` — realm URL, e.g. `https://kc.example/auth/realms/<realm>`.
+- `SERVER_URL` — ai-memory server URL **including any base path**, e.g.
+  `https://memory.example.dev` or `https://memory.example.dev/wiki`.
+- `CLIENT_ID` — the device-flow client (default `ai-memory-cli`).
+- which `AGENTS` the dev uses (`claude-code`, `codex`, `open-code`, …).
+
+**1. Check the device-flow client exists** (read-only):
+`GET <ISSUER>/.well-known/openid-configuration` (confirm `device_authorization_endpoint`),
+then POST `client_id=<CLIENT_ID>&scope=openid` to that endpoint. A `device_code`
+→ ready. `invalid_client` (no such client) or `unauthorized_client … device flow
+is disabled` → the realm needs the client (step 2). The browser/MCP client is
+PKCE-enforced and 400s with `Missing parameter: code_challenge_method`, so it
+can't be reused — that's why a dedicated client exists.
+
+**2. Create the client IF missing — one-time per realm, needs Keycloak admin.**
+If you have Keycloak admin access, use `scripts/kc-create-device-client.sh`
+(idempotent; public, device-only, no PKCE). For a containerized Keycloak run it
+INSIDE the pod (it runs `sh` there regardless of your OS), reusing the pod's own
+admin env so no secret leaves the cluster:
 ```bash
-KC_SERVER=https://kc.example/auth KC_REALM=<realm> \
-KC_ADMIN_USER=admin KC_ADMIN_PASS=… \
-sh scripts/kc-create-device-client.sh         # creates client `ai-memory-cli` (idempotent)
-# containerized Keycloak:
-kubectl exec -i <keycloak-pod> -- env KC_SERVER=… KC_REALM=… KC_ADMIN_USER=… KC_ADMIN_PASS=… \
-  sh -s < scripts/kc-create-device-client.sh
+# macOS/Linux/WSL:
+kubectl exec -i <keycloak-pod> -- sh -c \
+  'CLIENT_ID=ai-memory-cli KC_SERVER=http://localhost:8080/auth KC_REALM=<realm> \
+   KC_ADMIN_USER="$KEYCLOAK_ADMIN" KC_ADMIN_PASS="$KEYCLOAK_ADMIN_PASSWORD" sh -s' \
+  < scripts/kc-create-device-client.sh
+# Windows PowerShell: Get-Content scripts/kc-create-device-client.sh | kubectl exec -i <pod> -- sh -c '…'
 ```
-**Tell-tale that Step 1 is missing:** the developer's `auth login oidc-device …
---client-id ai-memory-cli` returns `invalid_client` (no such client) or
-`unauthorized_client … device flow is disabled` (a client without the grant).
-Confirm a realm read-only with: `curl -s <issuer>/.well-known/openid-configuration`
-(device endpoint present) then POST `client_id=ai-memory-cli&scope=openid` to it
-— a `device_code` means Step 1 is done.
+Adjust `KC_SERVER` to `…:8080` vs `…:8080/auth` per the realm's
+`KC_HTTP_RELATIVE_PATH` (a `404 Not Found` on login means flip it). If you lack
+admin access, ask the operator to run it once, then resume.
 
-**Step 2 — per developer machine (no admin): log in + wire hooks.**
-```bash
-ISSUER=https://kc.example/auth/realms/<realm> \
-SERVER_URL=https://memory.example.dev[/base-path] \
-AGENTS="claude-code codex open-code" \
-sh scripts/dev-setup-hooks.sh                 # device login (browser approve) + install-hooks, no static token
-```
-The developer needs the realm role the server checks (e.g. `mcp:read`/`mcp:write`)
-— the same one MCP login already requires.
+**3. Run the per-machine setup yourself** — don't make the dev run a script. Per
+the dev's OS:
+- macOS/Linux: `ISSUER=… SERVER_URL=… CLIENT_ID=… AGENTS="…" sh scripts/dev-setup-hooks.sh`
+- Windows: `pwsh scripts/dev-setup-hooks.ps1 -Issuer … -ServerUrl … -Agents "…"`
+- Either way it runs `ai-memory auth login oidc-device --issuer <ISSUER>
+  --client-id <CLIENT_ID>` (the dev approves the printed URL in their browser
+  ONCE) then `ai-memory install-hooks --apply --agent <each> --server-url
+  <SERVER_URL>` (NO `--auth-token`).
 
-Record each instance's `ISSUER` / `SERVER_URL` / `CLIENT_ID` in **operator-global
-config** (e.g. `~/.claude/CLAUDE.md` or a private runbook), NOT in this skill —
-the scripts stay generic and these endpoints are operator/instance-specific.
+**4. Verify:** `ai-memory auth status` → `oidc-device: logged in`. The dev needs
+the realm role the server checks (`mcp:read`/`mcp:write`) — the same one MCP
+login already requires.
+
+Record each instance's `ISSUER`/`SERVER_URL`/`CLIENT_ID` in **operator-global
+config** (`~/.claude/CLAUDE.md` or a private runbook), NOT in this skill — the
+scripts stay generic; these endpoints are operator/instance-specific.
 
 ## Second / custom instance (e.g. a client Keycloak instance)
 
