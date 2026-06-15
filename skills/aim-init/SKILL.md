@@ -186,6 +186,44 @@ Token lifetime (device flow): access token auto-refreshes; the refresh token las
 the issuer's offline-session idle window — after long inactivity, re-run `auth login
 oidc-device`. Verify state any time with `ai-memory auth status`.
 
+### Keycloak-gated instance — scripted setup (the explicit process)
+
+Onboarding a developer/machine onto a **Keycloak/OIDC** instance has exactly two
+steps, split by who can do them. Two helper scripts under
+[`scripts/`](scripts/) make it copy-paste:
+
+**Step 1 — one-time per realm, by a Keycloak admin: create the device-flow client.**
+`ai-memory auth login oidc-device` needs a **public, device-flow-enabled, no-PKCE**
+client; the browser/MCP client (PKCE-enforced) can't be reused. Run once:
+```bash
+KC_SERVER=https://kc.example/auth KC_REALM=<realm> \
+KC_ADMIN_USER=admin KC_ADMIN_PASS=… \
+sh scripts/kc-create-device-client.sh         # creates client `ai-memory-cli` (idempotent)
+# containerized Keycloak:
+kubectl exec -i <keycloak-pod> -- env KC_SERVER=… KC_REALM=… KC_ADMIN_USER=… KC_ADMIN_PASS=… \
+  sh -s < scripts/kc-create-device-client.sh
+```
+**Tell-tale that Step 1 is missing:** the developer's `auth login oidc-device …
+--client-id ai-memory-cli` returns `invalid_client` (no such client) or
+`unauthorized_client … device flow is disabled` (a client without the grant).
+Confirm a realm read-only with: `curl -s <issuer>/.well-known/openid-configuration`
+(device endpoint present) then POST `client_id=ai-memory-cli&scope=openid` to it
+— a `device_code` means Step 1 is done.
+
+**Step 2 — per developer machine (no admin): log in + wire hooks.**
+```bash
+ISSUER=https://kc.example/auth/realms/<realm> \
+SERVER_URL=https://memory.example.dev[/base-path] \
+AGENTS="claude-code codex open-code" \
+sh scripts/dev-setup-hooks.sh                 # device login (browser approve) + install-hooks, no static token
+```
+The developer needs the realm role the server checks (e.g. `mcp:read`/`mcp:write`)
+— the same one MCP login already requires.
+
+Record each instance's `ISSUER` / `SERVER_URL` / `CLIENT_ID` in **operator-global
+config** (e.g. `~/.claude/CLAUDE.md` or a private runbook), NOT in this skill —
+the scripts stay generic and these endpoints are operator/instance-specific.
+
 ## Second / custom instance (e.g. a client Keycloak instance)
 
 Some repos talk to **two** ai-memory instances — a **personal** one and a **client/org** one
