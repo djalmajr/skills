@@ -336,8 +336,12 @@ Report, without writing:
   bodies). Re-installing the current template (below) backfills it. This matters because
   `memory_query` has **no global search**: an agent that searches only the current project
   and stops will miss cross-cutting knowledge that lives in a sibling (`infra`/`ops`) project.
-- Is an ai-memory MCP entry present in `.mcp.json` / `opencode.json` / `.codex/config.toml`? Is
-  `.mcp.json` git-ignored (operator-local) rather than tracked?
+- Is an ai-memory MCP entry present? Check the agent's **global** config FIRST — the MCP is
+  usually installed there (`~/.claude.json` top-level `mcpServers`, e.g. `memory-personal`;
+  `~/.codex/config.toml`; the OpenCode global config), *then* the **per-repo** `.mcp.json` /
+  `opencode.json`. **Don't conclude "no recall" from an empty per-repo `.mcp.json`** — a global
+  entry applies to every repo. If a per-repo `.mcp.json` IS used, confirm it's git-ignored
+  (operator-local) rather than tracked.
 - For Codex, are global ai-memory hooks present in `~/.codex/hooks.json` (`SessionStart`,
   `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `Stop`) and do the staged
   scripts exist under the platform ai-memory hooks dir?
@@ -443,9 +447,12 @@ server upgrades. No marker/snippet/MCP changes; **detect what's installed and br
 1. **Detect the current state** (read-only): local `ai-memory --version` vs the **latest upstream
    release** (`gh release view -R akitaonrails/ai-memory --json tagName -q .tagName`; the server's
    own `.version` is admin-gated at `/admin/status` → `401` for a user, so the release is the
-   checkable target); which agents have ai-memory hooks (`~/.claude/settings.json`,
-   `~/.codex/hooks.json`, `~/.grok/hooks/ai-memory.json`, the OpenCode plugin, `~/.cursor/hooks.json`);
-   and `ai-memory auth status` (is the OIDC device token valid?).
+   checkable target); which agents have ai-memory hooks — `ai-memory install-hooks --help` lists the
+   **canonical** supported agents (don't hardcode a stale subset): claude-code
+   (`~/.claude/settings.json`), codex (`~/.codex/hooks.json`), gemini-cli (`~/.gemini/settings.json`),
+   **antigravity-cli / `agy`** (`~/.gemini/config/hooks.json`), grok (`~/.grok/hooks/ai-memory.json`),
+   cursor (`~/.cursor/hooks.json`), open-code (`~/.config/opencode/plugins/`), omp
+   (`~/.omp/agent/extensions/`), openclaw; and `ai-memory auth status` (is the OIDC device token valid?).
 2. **Upgrade the CLI** if behind the latest release (see "CLI prerequisite"): download the
    `ai-memory-<os>-<arch>.tar.gz` asset, verify its `.sha256`, **back up** the current binary, and
    install over `~/.local/bin/ai-memory`. Confirm `ai-memory --version` is now ≥ the server's.
