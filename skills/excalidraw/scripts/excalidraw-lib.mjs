@@ -28,6 +28,8 @@ export class Diagram {
   constructor(title) {
     this.sk = [];
     this.rects = {};
+    this.cardSk = {}; // card id -> its skeleton parts (rect + title + body), so group() can group every part
+    this._gid = 0; // monotonic group-id counter
     if (title) this.sk.push({ type: "text", x: 40, y: 24, text: title, fontSize: 22, strokeColor: "#1e1e1e", fontFamily: 2 });
   }
 
@@ -45,10 +47,33 @@ export class Diagram {
   // A card = rounded rect + left-aligned title + optional smaller body.
   card(id, x, y, w, h, title, body = "", kind = "config") {
     const [stroke, fill] = COLORS[kind] || COLORS.config;
-    this.sk.push({ type: "rectangle", id, x, y, width: w, height: h, strokeColor: stroke, backgroundColor: fill, fillStyle: "solid", strokeWidth: 2, roundness: { type: 3 } });
-    this.sk.push({ type: "text", x: x + 12, y: y + 10, text: title, fontSize: 15, strokeColor: "#1e1e1e", fontFamily: 2 });
-    if (body) this.sk.push({ type: "text", x: x + 12, y: y + 34, text: body, fontSize: 11, strokeColor: MUTED, fontFamily: 2 });
+    const parts = [
+      { type: "rectangle", id, x, y, width: w, height: h, strokeColor: stroke, backgroundColor: fill, fillStyle: "solid", strokeWidth: 2, roundness: { type: 3 } },
+      { type: "text", x: x + 12, y: y + 10, text: title, fontSize: 15, strokeColor: "#1e1e1e", fontFamily: 2 },
+    ];
+    if (body) parts.push({ type: "text", x: x + 12, y: y + 34, text: body, fontSize: 11, strokeColor: MUTED, fontFamily: 2 });
+    this.sk.push(...parts);
+    this.cardSk[id] = parts; // remember every part so group() can put them in one Excalidraw group
     this.rects[id] = { x, y, w, h };
+    return this;
+  }
+
+  // Group cards so they move together in the editor — a REAL Excalidraw group (a
+  // shared groupId on every part of each member, the same thing Ctrl/Cmd+G does),
+  // not just a box drawn around them. Pass the SAME ids you gave card(). Draws an
+  // optional dashed frame + label (also in the group, behind the cards in z-order).
+  // groupIds survive convertToExcalidrawElements, so this is just skeleton data.
+  group(ids, { title = "", color = "#adb5bd", pad = 16 } = {}) {
+    const boxes = ids.map((id) => this.rects[id]).filter(Boolean);
+    if (!boxes.length) return this;
+    const gid = `g${++this._gid}`;
+    for (const id of ids) for (const sk of this.cardSk[id] || []) (sk.groupIds ||= []).push(gid);
+    const minX = Math.min(...boxes.map((b) => b.x)), minY = Math.min(...boxes.map((b) => b.y));
+    const maxX = Math.max(...boxes.map((b) => b.x + b.w)), maxY = Math.max(...boxes.map((b) => b.y + b.h));
+    const topPad = title ? 24 : pad;
+    const frame = [{ type: "rectangle", x: minX - pad, y: minY - topPad, width: maxX - minX + pad * 2, height: maxY - minY + topPad + pad, strokeColor: color, backgroundColor: "transparent", strokeStyle: "dashed", roundness: { type: 3 }, groupIds: [gid] }];
+    if (title) frame.push({ type: "text", x: minX - pad + 10, y: minY - topPad + 6, text: title, fontSize: 12, strokeColor: color, fontFamily: 2, groupIds: [gid] });
+    this.sk.unshift(...frame); // draw the frame/label behind the cards
     return this;
   }
 

@@ -219,6 +219,11 @@ Binding is **two-way and reciprocal**. To bind an arrow between two shapes you m
 - `gap` is the px gap the arrowhead keeps from the shape (2–6 looks right).
 - If you only set the arrow's bindings but **not** the shapes' `boundElements`, the arrow
   renders but detaches the moment a shape is dragged. Always do both directions.
+- **Prefer the builder.** `diagram.arrow(a, b)` does all three for you via the official
+  compiler — reach for hand-written bindings only when editing raw JSON. Either way,
+  **`lint-scene.mjs` now fails (exit 1) on any arrow that is unbound, one-way, or dangling**,
+  so run it before calling a scene done: an arrow that doesn't follow on move is an error,
+  not a style nit.
 
 ## Labels — text inside a box (two ways)
 
@@ -242,6 +247,12 @@ object. To group elements, give them all the same group-id string in `groupIds`.
 groups stack ids (outermost last). To draw a labelled "container" visually, add a dashed
 rectangle behind the members (`strokeStyle: "dashed"`, muted stroke, `backgroundColor:
 "transparent"`) — it's a normal rectangle, optionally in the same group.
+
+**Programmatic path:** `diagram.group(ids, { title })` makes a real group from cards you
+already placed — it stamps the shared groupId onto every part of each card (rect + title +
+body) and draws the optional dashed frame + label behind them. Use it whenever blocks
+should move together as a unit; pass the same ids you gave `card()`. (`groupIds` survives
+`convertToExcalidrawElements`, so the builder just sets it on the skeleton.)
 
 ## Coordinates & layout conventions
 

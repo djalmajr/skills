@@ -51,6 +51,21 @@ function lint(path) {
       }
     }
   }
+
+  // binding: an arrow not RECIPROCALLY bound to a shape won't follow it when the
+  // shape moves — the #1 way a generated diagram falls apart on edit. Prefer the
+  // Diagram builder's arrow(a, b); if hand-authoring, set startBinding/endBinding
+  // AND push { id, type: "arrow" } into each target's boundElements.
+  const byId = new Map(els.map((e) => [e.id, e]));
+  for (const a of els.filter((e) => e.type === "arrow")) {
+    for (const [end, b] of [["start", a.startBinding], ["end", a.endBinding]]) {
+      if (!b) { issues.push(`unbound: arrow ${a.id} has no ${end}Binding — it won't follow on move`); continue; }
+      const t = byId.get(b.elementId);
+      if (!t || t.isDeleted) { issues.push(`dangling: arrow ${a.id} ${end}Binding points at missing element ${b.elementId}`); continue; }
+      if (!(t.boundElements || []).some((be) => be.id === a.id))
+        issues.push(`one-way: arrow ${a.id} is ${end}-bound to ${t.id} but ${t.id}.boundElements omits it — won't follow`);
+    }
+  }
   return [...new Set(issues)];
 }
 
