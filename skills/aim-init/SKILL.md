@@ -1,6 +1,6 @@
 ---
 name: aim-init
-description: "Initialize or migrate a repo into the ai-memory pattern: the .ai-memory.toml routing marker (workspace/project), the recall/write routing snippet in CLAUDE.md/AGENTS.md, and the ai-memory MCP server entry. Includes the qmd→ai-memory migration for repos still on the old wiki/qmd stack. Use when the user asks to set up ai-memory in a project (greenfield or brownfield), wire the MCP, enable auto-capture, or migrate off qmd."
+description: "Initialize, migrate, or refresh a repo's ai-memory wiring: the .ai-memory.toml routing marker (workspace/project), the recall/write routing snippet in CLAUDE.md/AGENTS.md, the ai-memory MCP server entry, and the global capture hooks. Includes the qmd→ai-memory migration for repos still on the old wiki/qmd stack, and a refresh flow that detects CLI↔server version skew and re-stages hooks to parity. Use when the user asks to set up ai-memory in a project (greenfield or brownfield), wire the MCP, enable auto-capture, migrate off qmd, diagnose with doctor, or upgrade/refresh an existing setup (local CLI + hooks) to the server's version."
 metadata:
   short-description: Initialize/migrate a repo into ai-memory
 ---
@@ -20,6 +20,9 @@ durable knowledge. Works greenfield or brownfield (incl. migrating off the old
 - "como está?", "preciso migrar?", "doctor" → run **doctor** (read-only diagnosis).
 - "configura ai-memory aqui", "liga a captura", "init" → **install** (greenfield).
 - "migra do qmd", "tira o qmd e põe ai-memory" → **migrate** (brownfield).
+- "atualiza/pareia o CLI", "refresca os hooks", "tá numa versão velha", "upgrade" → **refresh**
+  (detect the environment + bring the local CLI and hooks to parity with the server — no
+  marker/snippet/MCP changes).
 
 Before writing anything, confirm the three routing parameters with the user — there can be
 **multiple ai-memory instances** (e.g. a personal `memory.example.dev`, a separate org
@@ -38,8 +41,11 @@ The endpoint chosen here is what `aim-query` / `aim-write` will target later (by
 `aim-init` needs the `ai-memory` CLI to install MCP entries, install hooks, and refresh the
 routing snippet. Prefer a **native CLI binary** over the Docker wrapper:
 
-1. If `ai-memory` is already on `PATH`, run `ai-memory --version` and keep using it when it can
-   talk to the target server.
+1. If `ai-memory` is already on `PATH`, run `ai-memory --version` **and compare it to the server**
+   (`ai-memory status --json` → `.version`). Keep it only if it works **and is ≥ the server** — a
+   CLI **behind the server** misses newer subcommands (e.g. `auto-improve`, `pending-writes`,
+   `curator`) and hook fixes, so upgrade it to parity even when it still "talks" (see **refresh**).
+   A CLI ahead of the server is fine.
 2. If it is missing or stale, check the latest upstream release first:
    `https://github.com/akitaonrails/ai-memory/releases/latest`.
    - Linux: download the matching `ai-memory-linux-<arch>.tar.gz` asset, verify its `.sha256`,
@@ -313,6 +319,10 @@ Report, without writing:
   fall back to the Docker wrapper unless the user wants Docker.
 - Can the CLI reach the chosen server (`ai-memory status --json` with the right
   `AI_MEMORY_SERVER_URL` / auth env or flags)?
+- **CLI ↔ server version parity.** Compare `ai-memory --version` (local) to the server's
+  `ai-memory status --json` → `.version`. Flag a CLI **behind the server** even when it still
+  reaches it — it lacks newer subcommands (`auto-improve`, `pending-writes`, `curator`) and hook
+  fixes. Recommend **refresh** (upgrade the local CLI + re-stage hooks for the detected agents).
 - Is there a `.ai-memory.toml`? What workspace/project? Is it git-ignored?
 - Is the routing snippet present in CLAUDE.md / AGENTS.md?
 - **Does the snippet teach the search strategy?** Flag a stale snippet that lacks the
@@ -335,9 +345,20 @@ Report, without writing:
   spools locally and returns `{}` regardless): a **static-bearer** server needs `--auth-token`;
   an **OIDC/Keycloak** gateway (`401 WWW-Authenticate: Bearer resource_metadata=…`) needs a
   device-flow token (`auth login oidc-device`) and the hooks installed **without** `--auth-token`
-  — a static token is rejected there. Tell-tale of the wrong mode: `<data_dir>/hook-spool` filling
-  toward 10000 with `auth_mode: static` entries. Re-run `install-hooks --apply` (with or without
+  — a static token is rejected there. Re-run `install-hooks --apply` (with or without
   `--auth-token` per mode) to migrate and remove any overlay dependency.
+- **`hook-spool` at/near the 10000 cap — two DISTINCT causes; read `auth_mode` / `attempts` /
+  `last_error` on a few entries to tell them apart:**
+  - **Wrong auth** (fixable): `auth_mode: static` against a Keycloak/JWT gateway → `attempts` climb,
+    `last_error` shows 401, entries drop after 8 tries. Fix: device flow (`auth login oidc-device`)
+    + `install-hooks --apply` **without** `--auth-token`, and clear the dead backlog.
+  - **Drain cadence** (NOT an auth bug): `auth_mode: oidc` (correct), `attempts: 0`,
+    `last_error: null` — delivery works, but drains only fire at `session-start` / `session-end`, so
+    a marathon session exceeds `MAX_SPOOL_FILES` (10000) before it ends and the **oldest are
+    evicted**. Mitigate by draining at a boundary (start a fresh session, or run the `session-start`
+    hook manually to drain) or shorter sessions; the durable fix is **mid-session incremental
+    draining** (upstream — track the hook-spool delivery-reliability work). The spool is **shared
+    across all agents** on the same data dir, so parallel long sessions accumulate together.
 - **MCP auth (DCR):** if an agent's MCP login shows Keycloak **"Client not found"**, its cached
   Dynamic-Client-Registration id was orphaned (realm recreated/migrated). Clear the stale entry
   from the agent's MCP-auth cache (e.g. OpenCode's `~/.local/share/opencode/mcp-auth.json`) and
@@ -408,6 +429,31 @@ Run **doctor** first; then, with the user's confirmation:
 7. Re-run **doctor** to confirm: marker present + git-ignored, snippet in CLAUDE/AGENTS,
    ai-memory MCP wired, and **no qmd remnants** (no `.wiki-guardrails.yml`, no `wiki-*` hooks/
    plugins, no qmd MCP entry, no `codex_hooks`/`wiki-*` permission leftovers).
+
+## refresh (upgrade CLI + re-stage hooks to parity)
+
+For an **already-wired** environment that drifted from the server — CLI behind, or after the
+server upgrades. No marker/snippet/MCP changes; **detect what's installed and bring it to parity**:
+
+1. **Detect the current state** (read-only): local `ai-memory --version` vs the server's
+   `ai-memory status --json` → `.version`; which agents have ai-memory hooks
+   (`~/.claude/settings.json`, `~/.codex/hooks.json`, `~/.grok/hooks/ai-memory.json`, the OpenCode
+   plugin, `~/.cursor/hooks.json`); and `ai-memory auth status` (is the OIDC device token valid?).
+2. **Upgrade the CLI** if behind the server (see "CLI prerequisite"): download the
+   `ai-memory-<os>-<arch>.tar.gz` asset, verify its `.sha256`, **back up** the current binary, and
+   install over `~/.local/bin/ai-memory`. Confirm `ai-memory --version` is now ≥ the server's.
+3. **Re-stage hooks for every detected agent:** `ai-memory install-hooks --apply --agent <agent>
+   --server-url <capture-url>` (OIDC/Keycloak server → **no** `--auth-token`; static-bearer →
+   `--auth-token`). It re-verifies the staged scripts and refreshes the agent config (writes a
+   backup). Native hooks (`ai-memory hook --event …`) pick up the new binary automatically; this
+   refreshes the config + staged fallback scripts and drops any legacy `_lib.sh` overlay.
+4. **Verify:** `ai-memory --version` matches the server; `ai-memory auth status` → logged in; the
+   agent configs still call `ai-memory hook --event` natively; `<data_dir>/hook-spool` is well
+   below the 10000 cap.
+
+`refresh` does **not** touch the marker, routing snippet, or MCP entry (version-agnostic, and the
+snippet is binary-owned) — run **install** / **migrate** for those. Hooks are **global** (one data
+dir for all agents), so refreshing once updates every wired repo, not just the current one.
 
 ## Verify
 
