@@ -13,14 +13,17 @@ Long-term, server-side memory for agent work. Knowledge lives in an **ai-memory 
 - **Recall/write** uses the MCP server(s) in `.mcp.json` / `opencode.json` / `.codex/config.toml`
   — per-repo, and you can configure several instances. The agent (and `aim-query`/`aim-write`)
   pick which to call.
-- **Auto-capture** posts to a **single global** endpoint, `AI_MEMORY_HOOK_URL`
-  (`~/.config/ai-memory/memory-hooks.env`) — it does **not** read `.mcp.json`. So configuring
-  two MCP servers does **not** double-capture; all repos capture to one instance.
+- **Auto-capture** is driven by **native lifecycle hooks** (`ai-memory hook --event …`, the
+  binary called directly — no shell scripts), installed per agent with
+  `install-hooks --server-url <instance>`. The capture endpoint is set at install time, separate
+  from the MCP endpoint, so configuring two MCP servers does **not** by itself double-capture.
 
 The `.ai-memory.toml` marker picks **workspace + project** (routing *within* the capture
-instance) — it does **not** set the capture endpoint. Per-repo capture to different instances
-isn't supported by the current hooks (the URL is global); it would need a small hook change
-to read a `hook_url` from the marker.
+instance). **Dual-capture across two instances IS supported:** the **global** hooks point at one
+instance; **project-level** hooks (`.claude/settings.local.json`, installed with
+`--config-file`) point at a second (e.g. a client/org one). Each leg carries that instance's own
+auth mode (static bearer or OIDC device token). With both wired, every lifecycle event captures
+to both.
 
 ## Two layers of recall
 
@@ -96,6 +99,7 @@ repo B injects B's. Switching projects switches context. (There is also a worksp
 | `memory_explore` | prose digest ("catch me up") |
 | `memory_handoff_accept` / `memory_handoff_begin` | resume / hand off |
 | `memory_consolidate` | compile observations into pages (usually automatic) |
+| `memory_auto_improve` | LLM learning-review of a completed session → durable wiki edit proposals (v1.0.7+; server-side scheduler can run it automatically when enabled) |
 | `memory_write_page` | write a durable page (decisions/rules/gotchas) |
 | `memory_lint` / `memory_forget_sweep` | audit / prune |
 | `memory_install_self_routing` | emit the routing snippet for CLAUDE.md/AGENTS.md |

@@ -46,10 +46,10 @@ routing snippet. Prefer a **native CLI binary** over the Docker wrapper:
      and install the binary into `~/.local/bin/ai-memory` (or another user-owned PATH dir).
    - Windows: download `ai-memory-windows-x86_64.zip`, verify its `.sha256`, and follow the
      bundled Windows docs.
-   - macOS/Darwin: as of the current upstream release format, there may be no Darwin asset.
-     In that case use the native Rust install/build path instead:
-     `cargo install --git https://github.com/akitaonrails/ai-memory --tag <latest-tag>`
-     or build the local source and install `target/release/ai-memory` into `~/.local/bin`.
+   - macOS/Darwin: download the matching `ai-memory-macos-<arch>.tar.gz` asset
+     (`ai-memory-macos-aarch64.tar.gz` on Apple Silicon, `-x86_64` on Intel), verify its
+     `.sha256`, and install the binary into `~/.local/bin/ai-memory`. Fallback only if no asset
+     for your arch: `cargo install --git https://github.com/akitaonrails/ai-memory --tag <latest-tag>`.
 3. Use the Docker wrapper (`bin/ai-memory` or the quick-start wrapper from GitHub) only when the
    user explicitly wants Docker. Do not suggest it as the default local CLI on macOS or when the
    user asks for a non-Docker setup.
@@ -99,7 +99,7 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
    project's internal information architecture. Cross-scope / shared-rules wiring belongs in
    operator-global config (`~/.claude/CLAUDE.md`), not the per-repo block.
 3. **MCP server entry** in `.mcp.json` (Claude), `opencode.json` (OpenCode), `.codex/config.toml`
-   (Codex) — points at the ai-memory instance (template: [templates/mcp-entry.json](templates/mcp-entry.json)).
+   (Codex) — points at the ai-memory instance (template: [templates/mcp-entry.json.tmpl](templates/mcp-entry.json.tmpl)).
    Prefer the CLI installer so each agent gets its native global config:
    ```bash
    ai-memory install-mcp --client codex --server-url https://memory.example.dev/mcp --name memory-personal --apply
@@ -307,8 +307,10 @@ leak the dual-instance/capture setup and the project's information architecture.
 
 Report, without writing:
 - Is the `ai-memory` CLI available on `PATH`? What version? If missing/stale, report the native
-  install path from the latest upstream release (or `cargo install` on macOS when no Darwin asset
-  exists). Do **not** fall back to the Docker wrapper unless the user wants Docker.
+  install path from the latest upstream release — download the `ai-memory-<os>-<arch>.tar.gz`
+  asset (macOS ships `ai-memory-macos-aarch64`/`-x86_64`; Linux `ai-memory-linux-aarch64`/
+  `-x86_64`), verify its `.sha256`; `cargo install` only if no asset for your arch. Do **not**
+  fall back to the Docker wrapper unless the user wants Docker.
 - Can the CLI reach the chosen server (`ai-memory status --json` with the right
   `AI_MEMORY_SERVER_URL` / auth env or flags)?
 - Is there a `.ai-memory.toml`? What workspace/project? Is it git-ignored?
@@ -355,9 +357,9 @@ Report, without writing:
 
 1. Confirm workspace + project with the user.
 2. Ensure the native `ai-memory` CLI is installed and functional (see "CLI prerequisite" above).
-   Install/upgrade from upstream release assets when available; on macOS use native
-   `cargo install`/source build if there is no Darwin release asset. Avoid the Docker wrapper unless
-   explicitly requested.
+   Install/upgrade from upstream release assets (macOS ships `ai-memory-macos-<arch>.tar.gz`,
+   Linux `ai-memory-linux-<arch>.tar.gz`; verify the `.sha256`); `cargo install`/source build
+   only if no asset for your arch. Avoid the Docker wrapper unless explicitly requested.
 3. Ensure `.ai-memory.toml` is git-ignored globally (see step 1 above), then write the marker.
 4. Obtain the canonical routing block from the binary (`memory_install_self_routing`, or
    `ai-memory install-instructions`) and write it into `CLAUDE.md` and `AGENTS.md` (idempotent
