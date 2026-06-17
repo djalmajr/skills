@@ -41,11 +41,14 @@ The endpoint chosen here is what `aim-query` / `aim-write` will target later (by
 `aim-init` needs the `ai-memory` CLI to install MCP entries, install hooks, and refresh the
 routing snippet. Prefer a **native CLI binary** over the Docker wrapper:
 
-1. If `ai-memory` is already on `PATH`, run `ai-memory --version` **and compare it to the server**
-   (`ai-memory status --json` → `.version`). Keep it only if it works **and is ≥ the server** — a
-   CLI **behind the server** misses newer subcommands (e.g. `auto-improve`, `pending-writes`,
-   `curator`) and hook fixes, so upgrade it to parity even when it still "talks" (see **refresh**).
-   A CLI ahead of the server is fine.
+1. If `ai-memory` is already on `PATH`, run `ai-memory --version` and compare it to the **latest
+   upstream release** (`gh release view -R akitaonrails/ai-memory --json tagName -q .tagName`, or
+   the releases/latest page). Keep it only if it's at a recent release — a CLI **behind it** misses
+   newer subcommands (e.g. `auto-improve`, `pending-writes`, `curator`) and hook fixes, so upgrade
+   it (see **refresh**). The **server's** exact `.version` lives at `GET /admin/status`, which needs
+   the **admin** token (a user's OIDC/JWT gets `401` there) — so the latest release is the practical
+   parity target; the connected MCP client also learns the server version from its `initialize`
+   handshake.
 2. If it is missing or stale, check the latest upstream release first:
    `https://github.com/akitaonrails/ai-memory/releases/latest`.
    - Linux: download the matching `ai-memory-linux-<arch>.tar.gz` asset, verify its `.sha256`,
@@ -319,10 +322,12 @@ Report, without writing:
   fall back to the Docker wrapper unless the user wants Docker.
 - Can the CLI reach the chosen server (`ai-memory status --json` with the right
   `AI_MEMORY_SERVER_URL` / auth env or flags)?
-- **CLI ↔ server version parity.** Compare `ai-memory --version` (local) to the server's
-  `ai-memory status --json` → `.version`. Flag a CLI **behind the server** even when it still
-  reaches it — it lacks newer subcommands (`auto-improve`, `pending-writes`, `curator`) and hook
-  fixes. Recommend **refresh** (upgrade the local CLI + re-stage hooks for the detected agents).
+- **CLI version parity.** Compare `ai-memory --version` (local) to the **latest upstream release**
+  (`gh release view -R akitaonrails/ai-memory --json tagName -q .tagName`). Flag a CLI behind it —
+  it lacks newer subcommands (`auto-improve`, `pending-writes`, `curator`) and hook fixes — and
+  recommend **refresh**. (The server's exact `.version` is admin-gated at `/admin/status`: a user's
+  OIDC/JWT gets `401`, so don't rely on `ai-memory status` against the server for it; the latest
+  release is the checkable target, and the MCP `initialize` handshake also carries it.)
 - Is there a `.ai-memory.toml`? What workspace/project? Is it git-ignored?
 - Is the routing snippet present in CLAUDE.md / AGENTS.md?
 - **Does the snippet teach the search strategy?** Flag a stale snippet that lacks the
@@ -435,11 +440,13 @@ Run **doctor** first; then, with the user's confirmation:
 For an **already-wired** environment that drifted from the server — CLI behind, or after the
 server upgrades. No marker/snippet/MCP changes; **detect what's installed and bring it to parity**:
 
-1. **Detect the current state** (read-only): local `ai-memory --version` vs the server's
-   `ai-memory status --json` → `.version`; which agents have ai-memory hooks
-   (`~/.claude/settings.json`, `~/.codex/hooks.json`, `~/.grok/hooks/ai-memory.json`, the OpenCode
-   plugin, `~/.cursor/hooks.json`); and `ai-memory auth status` (is the OIDC device token valid?).
-2. **Upgrade the CLI** if behind the server (see "CLI prerequisite"): download the
+1. **Detect the current state** (read-only): local `ai-memory --version` vs the **latest upstream
+   release** (`gh release view -R akitaonrails/ai-memory --json tagName -q .tagName`; the server's
+   own `.version` is admin-gated at `/admin/status` → `401` for a user, so the release is the
+   checkable target); which agents have ai-memory hooks (`~/.claude/settings.json`,
+   `~/.codex/hooks.json`, `~/.grok/hooks/ai-memory.json`, the OpenCode plugin, `~/.cursor/hooks.json`);
+   and `ai-memory auth status` (is the OIDC device token valid?).
+2. **Upgrade the CLI** if behind the latest release (see "CLI prerequisite"): download the
    `ai-memory-<os>-<arch>.tar.gz` asset, verify its `.sha256`, **back up** the current binary, and
    install over `~/.local/bin/ai-memory`. Confirm `ai-memory --version` is now ≥ the server's.
 3. **Re-stage hooks for every detected agent:** `ai-memory install-hooks --apply --agent <agent>
