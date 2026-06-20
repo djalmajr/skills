@@ -594,6 +594,19 @@ webhooks:
       client-x: [{ workspace: "client-x|shared", project: ".*" }]
 ```
 
+**Enabling scope-guard ⇒ the write's *actor* must be non-empty, or the ACL rejects
+everything.** The ACL keys on `ActorContext.user`. An **OIDC** client carries it in the
+JWT (`preferred_username`), so multi-user instances match rules naturally. But a client
+that authenticates hooks with the **static `HOOK_AUTH_TOKEN`** lands with an **empty
+actor** unless you also set **`mcpAuth.hookAuth.username`** (→ `HOOK_AUTH_USERNAME`, the
+username mcp-auth stamps on hook-token requests) to a user the ACL allows. Miss it and
+**every static-token hook capture is silently 403'd at admission** — data loss visible
+only in the engine logs (`scope-guard: user '' not allowed to write_page …`). Note
+`aiMemory.rootUsername` does **not** cover this: it stamps the rung-1/MCP path, not the
+hook path. So a single-operator static-token instance must set
+`mcpAuth.hookAuth.username` (= the ACL user) when it enables `scopeGuard`; multi-user
+instances rely on OIDC instead (never a shared hook username).
+
 Reads are NOT gated — the engine has no read-side admission chain. For real read privacy
 (adversarial users), run separate ai-memory instances per trust boundary.
 
