@@ -75,8 +75,11 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
 
 1. **`.ai-memory.toml`** at the repo root — routes captures + recall to a workspace/project,
    and (optionally) names the Keycloak/OIDC instance this repo onboards onto.
-   Git-ignored **by default** (add `.ai-memory.toml` to the global gitignore,
-   `git config --global core.excludesfile`, so it never lands in a shared/public repo). For a
+   Git-ignored **by default** via the repo-local **`.git/info/exclude`** (operator-local, not
+   committed, and — unlike the global `core.excludesfile` — it does NOT impose the ignore on
+   every other repo you clone, some of which may legitimately commit `.ai-memory.toml`/`.mcp.json`).
+   Append the marker filename there so it never lands in a shared/public repo. Do **not** add it
+   to the global `core.excludesfile`. For a
    **private team repo** you MAY commit it instead, so every developer gets the same routing
    **and onboarding profile on clone** — the values below are instance config, NOT credentials.
    ```toml
@@ -116,11 +119,13 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
    ai-memory install-mcp --client claude-code --server-url https://memory.example.dev/mcp --name memory-personal --apply
    ```
    This is **operator-local routing** (the endpoint is per-operator — your instance, your auth),
-   so keep it out of git the same way as the marker: add **`.mcp.json`** to the global gitignore.
-   (`.mcp.json` is pure MCP config — safe to ignore wholesale. `opencode.json`/`.codex/config.toml`
-   hold other settings too, so handle per your existing convention.) If the file is already tracked,
-   `git rm --cached .mcp.json` to untrack it (keeps the file). Committing it forces collaborators
-   onto your instance and leaks the endpoint in shared/public repos.
+   so keep it out of git the same way as the marker: add **`.mcp.json`** to the repo-local
+   **`.git/info/exclude`** (NOT the global `core.excludesfile` — that would force the ignore on
+   every repo you clone). (`.mcp.json` is pure MCP config — safe to ignore wholesale.
+   `opencode.json`/`.codex/config.toml` hold other settings too, so handle per your existing
+   convention.) If the file is already tracked, `git rm --cached .mcp.json` to untrack it (keeps
+   the file). Committing it forces collaborators onto your instance and leaks the endpoint in
+   shared/public repos.
 4. **Auto-capture hooks** are **global** (Claude settings, Codex `~/.codex/hooks.json`,
    OpenCode plugin config, plus staged hook scripts under the platform data dir:
    `~/.local/share/ai-memory/hooks/` on Linux,
@@ -390,7 +395,8 @@ Report, without writing:
    Install/upgrade from upstream release assets (macOS ships `ai-memory-macos-<arch>.tar.gz`,
    Linux `ai-memory-linux-<arch>.tar.gz`; verify the `.sha256`); `cargo install`/source build
    only if no asset for your arch. Avoid the Docker wrapper unless explicitly requested.
-3. Ensure `.ai-memory.toml` is git-ignored globally (see step 1 above), then write the marker.
+3. Ensure `.ai-memory.toml` is git-ignored via the repo-local `.git/info/exclude` (see step 1
+   above — not the global `core.excludesfile`), then write the marker.
 4. Obtain the canonical routing block from the binary (`memory_install_self_routing`, or
    `ai-memory install-instructions`) and write it into `CLAUDE.md` and `AGENTS.md` (idempotent
    — between the `<!-- ai-memory:start -->`/`<!-- ai-memory:end -->` markers; replace if

@@ -63,7 +63,8 @@ workspace = "default"     # personal; org repos use their own (e.g. "acmecorp")
 project   = "my-project"  # defaults to repo basename
 ```
 
-Operator-local — keep it out of git (global gitignore covers `.ai-memory.toml`) so it never
+Operator-local — keep it out of git via the repo-local `.git/info/exclude` (not the global
+`core.excludesfile`, which would impose the ignore on every repo you clone) so it never
 leaks into shared/public repos. The hooks walk up from the cwd to find it and route the
 `/hook` events to `workspace/project`; without a marker, events fall back to `default` +
 `basename(cwd)` (or are skipped if the marker gate is required).
