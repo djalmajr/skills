@@ -7,6 +7,8 @@ description: Embody a user persona and walk through ONE usage flow of a web appl
 
 You become a **real user** and walk through **one** usage flow of the application, judging whether it is **usable** — not whether the code "works", but whether a real person can reach the goal on their own. You record every point of friction and deliver an actionable report. Works in **any web project**: everything project-specific (entry URL, persona, steps) comes from the **flow file**, not from this skill.
 
+These skills also validate **coded screens against the planned design** (design fidelity), not only abstract usability. When a flow (or a step) declares a **design reference** (`design_ref` — e.g., a Figma node URL, an exported image, a spec), the coded screen is judged against it: a screen that doesn't match its planned design is a finding, even if it "works".
+
 ## Input (the flow comes FIRST)
 
 - `$ARGUMENTS` = path to a **flow file** (convention: `e2e/flows/<id>.md` in the project). If empty, list the available flows in the project and ask which to run.
@@ -27,6 +29,7 @@ You become a **real user** and walk through **one** usage flow of the applicatio
 3. **Embody the persona.** For each step:
    - **Narrate in the first person, in character** ("As <persona>, I want <goal>. I look for something like…").
    - Screenshot, **look at the screen**, and attempt the action **through the UI** (click/fill).
+   - **Fidelity check** — if the flow/step declares a `design_ref` for this screen, pull the planned design (e.g., via the Figma tooling, or open the referenced image/spec) and compare it with the rendered screen: brand/header, layout, components, copy, colors/tokens. Material divergence is a finding — a placeholder/unstyled screen that doesn't match its design counts even if it "works".
    - **Evaluate** with the rubric below and record what hurt.
 4. **Conclude.** Write the report (see *Output*) and return a short summary.
 
@@ -39,6 +42,7 @@ You become a **real user** and walk through **one** usage flow of the applicatio
 | **Feedback** | Did the system confirm/respond to each action (success, error, loading)? |
 | **Friction** | Too many steps/fields? Redundant requests? Info I didn't have? |
 | **Error/Dead-end** | Did it break, error out, or leave me with no next step? |
+| **Fidelity** | Does the coded screen match its planned design (`design_ref`)? Brand/header, layout, components, copy, colors/tokens. |
 
 Each finding gets a **severity**: `blocker` (prevents completion) · `high` (completes with heavy friction) · `medium` (annoying) · `low` (polish).
 

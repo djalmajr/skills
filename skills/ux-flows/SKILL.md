@@ -15,26 +15,28 @@ Convention: **one file per flow** at `e2e/flows/<id>.md` in the project, version
 ---
 id: <kebab-id>
 name: <readable name>
-reference: <optional: requirement / ticket / reference screen>
+reference: <optional: requirement / ticket>
 persona: <id of e2e/personas/<persona>.md, or a bundled ux-persona persona>
 entry: "<entry-point URL — typically the app's home/landing>"
 preconditions:
   - <app running at the entry point>
   - <minimal data required>
+design_refs:               # optional but recommended: the planned design per screen
+  <screen-key>: "<Figma node URL / exported image / spec — the source of truth for that screen>"
 ---
 
 ## User goal
 <what the person wants to achieve, in one sentence>
 
 ## Steps (each step is a UI ACTION + the expected result)
-1. At the entry point, **<UI action>** → <expected result>.
-2. **<UI action>** → <expected result>.
+1. At the entry point (`<screen-key>`), **<UI action>** → <expected result>.
+2. (`<screen-key>`) **<UI action>** → <expected result>.
 
 ## Expected result
 <the final observable state that proves success>
 ```
 
-> **Modeling rule:** every flow **starts at the entry point** (the home/landing) and describes **UI actions** (click/fill), **never** "go to URL X". That is what lets the persona flag screens unreachable by navigation.
+> **Modeling rule:** every flow **starts at the entry point** (the home/landing) and describes **UI actions** (click/fill), **never** "go to URL X". That is what lets the persona flag screens unreachable by navigation. When a screen has a planned design, list it in `design_refs` so the persona validates the coded screen against the prototype (design fidelity), not only its usability.
 
 ## Commands (via `$ARGUMENTS`)
 
