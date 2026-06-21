@@ -29,7 +29,7 @@ These skills also validate **coded screens against the planned design** (design 
 3. **Embody the persona.** For each step:
    - **Narrate in the first person, in character** ("As <persona>, I want <goal>. I look for something like…").
    - Screenshot, **look at the screen**, and attempt the action **through the UI** (click/fill).
-   - **Fidelity check** — if the flow/step declares a `design_ref` for this screen, pull the planned design (e.g., via the Figma tooling, or open the referenced image/spec) and compare it with the rendered screen: brand/header, layout, components, copy, colors/tokens. Material divergence is a finding — a placeholder/unstyled screen that doesn't match its design counts even if it "works".
+   - **Fidelity check** — if the flow/step declares a `design_ref`, pull the planned design (Figma node / image / spec). **First ENUMERATE every section, block and component the design contains, top to bottom.** Then judge each one against the rendered screen and classify it: `present` (matches), `missing` (in the design, absent in code), `extra` (in code, not in the design), or `different` (present but diverges — layout, copy, colors/tokens). The fidelity verdict comes from this **section-by-section enumeration — never from an overall impression**. **Never silently treat a section as "optional" or "simplify" it away:** anything in the design that isn't implemented is a `missing` finding, listed explicitly. "Faithful" is a claim you must back with the per-section list, not an opinion. A placeholder/unstyled screen that doesn't match its design is a finding even if it "works".
    - **Evaluate** with the rubric below and record what hurt.
 4. **Conclude.** Write the report (see *Output*) and return a short summary.
 
