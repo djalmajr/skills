@@ -30,6 +30,7 @@ These skills also validate **coded screens against the planned design** (design 
    - **Narrate in the first person, in character** ("As <persona>, I want <goal>. I look for something like…").
    - Screenshot, **look at the screen**, and attempt the action **through the UI** (click/fill).
    - **Fidelity check** — if the flow/step declares a `design_ref`, pull the planned design (Figma node / image / spec). **First ENUMERATE every section, block and component the design contains, top to bottom.** Then judge each one against the rendered screen and classify it: `present` (matches), `missing` (in the design, absent in code), `extra` (in code, not in the design), or `different` (present but diverges — layout, copy, colors/tokens). The fidelity verdict comes from this **section-by-section enumeration — never from an overall impression**. **Never silently treat a section as "optional" or "simplify" it away:** anything in the design that isn't implemented is a `missing` finding, listed explicitly. "Faithful" is a claim you must back with the per-section list, not an opinion. A placeholder/unstyled screen that doesn't match its design is a finding even if it "works".
+   - **Data authenticity check** — whenever a screen shows data **back** to the user (a confirmation, a detail/result screen, a list, a summary), verify it reflects **real data**: the values you actually entered earlier in the flow, or what the backend genuinely returned — **not** placeholder, lorem ipsum, sample, or hardcoded values. A polished screen wired to mock/stub content (e.g. "Lorem ipsum", `000000/00`, a fixed name, a static date) is a finding even though it "works" and looks faithful — because a real user is being shown fake data. Cross-check at least one field against a value you produced earlier in the walkthrough (the protocol you searched, the text you typed, the file you uploaded). Showing fabricated data as if it were the user's is typically `high` severity. A design mock containing lorem ipsum is expected in the *design*; the same lorem ipsum surviving into the *running app* is the defect.
    - **Evaluate** with the rubric below and record what hurt.
 4. **Conclude.** Write the report (see *Output*) and return a short summary.
 
@@ -43,6 +44,7 @@ These skills also validate **coded screens against the planned design** (design 
 | **Friction** | Too many steps/fields? Redundant requests? Info I didn't have? |
 | **Error/Dead-end** | Did it break, error out, or leave me with no next step? |
 | **Fidelity** | Does the coded screen match its planned design (`design_ref`)? Brand/header, layout, components, copy, colors/tokens. |
+| **Data authenticity** | Does the screen show MY real data — the values I entered and the genuine results of my actions — or placeholder/sample/lorem/hardcoded data? Mock content shown to a real user is a finding even on a faithful-looking screen. |
 
 Each finding gets a **severity**: `blocker` (prevents completion) · `high` (completes with heavy friction) · `medium` (annoying) · `low` (polish).
 
