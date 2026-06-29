@@ -7,6 +7,10 @@
 workspace = "default"      # personal -> "default"; org repo -> its own workspace
 project   = "my-project"   # defaults to the repo basename
 
+# Optional routing/policy (defaults shown; uncomment to change — commented = no-op):
+# project_strategy = "repo-root"     # collapse worktrees/subdirs to the git root (default: basename)
+# drop_subagent_captures = "true"    # accept-but-don't-store THIS project's subagent captures (default: off)
+
 # Optional: Keycloak/OIDC onboarding profile. When present, the `aim-init` skill
 # reads it to wire the lifecycle hooks (device login + install-hooks) WITHOUT
 # asking. The native hook only parses workspace/project, so this block is inert

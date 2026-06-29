@@ -86,10 +86,15 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
    workspace = "default"
    project   = "<repo-name>"
 
+   # Optional routing/policy (defaults shown; uncomment to change — commented = no-op):
+   # project_strategy = "repo-root"     # collapse worktrees/subdirs to the git root (default: basename)
+   # drop_subagent_captures = "true"    # accept-but-don't-store THIS project's subagent captures (default: off)
+
    # Optional: Keycloak/OIDC onboarding profile the agent reads to wire hooks
    # WITHOUT asking (see "Keycloak-gated instance"). Non-secret. The native hook
-   # only parses workspace/project, so this block is inert at runtime — it exists
-   # purely so `aim-init` can self-serve the device-flow setup.
+   # reads the routing/policy keys above but NOT this [instance] block, so the
+   # block is inert at runtime — it exists purely so `aim-init` can self-serve
+   # the device-flow setup.
    [instance]
    issuer     = "https://kc.example/auth/realms/<realm>"
    server_url = "https://memory.example.dev/wiki"   # ai-memory URL incl. base path

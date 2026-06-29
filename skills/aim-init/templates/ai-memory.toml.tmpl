@@ -2,3 +2,7 @@
 # Operator-local — keep OUT of git via the repo-local .git/info/exclude (not the global core.excludesfile).
 workspace = "{{WORKSPACE}}"
 project   = "{{PROJECT}}"
+
+# Optional (defaults shown; uncomment to change — commented lines are no-ops):
+# project_strategy = "repo-root"     # collapse worktrees/subdirs to the git root (default: basename)
+# drop_subagent_captures = "true"    # accept-but-don't-store THIS project's subagent captures (default: off)
