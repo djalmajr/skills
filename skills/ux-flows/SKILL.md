@@ -1,6 +1,6 @@
 ---
 name: ux-flows
-description: Catalog + orchestrator for a web application's usage (E2E) flows. Keeps the project's flow definitions and hands them, ONE at a time, to the `ux-persona` skill to validate usability in the browser. Use to "list the flows", "validate all flows as a user", "run the usability walkthrough", or "create a new usage flow".
+description: Catalog + orchestrator for a web application's usage (E2E) flows. Keeps the project's flow definitions and hands them, ONE at a time, to the `ux-persona` skill to validate usability in the browser. Use to "list the flows", "validate all flows as a user", "run the usability walkthrough", "create a new usage flow", or run flow walkthroughs with Webwright-style replayable evidence.
 ---
 
 # ux-flows — usage-flow catalog and orchestration
@@ -64,6 +64,18 @@ The catalog presupposes the `e2e/flows/` convention, but a project may start wit
 1. **Single pre-check:** is the app running at the flows' entry points? If not, start it via the project's run command, or report and stop. Is minimal data seeded?
 2. For each selected flow, **call the `ux-persona` skill** with the flow file's path. **Sequential** — wait for one report before the next.
 3. At the end, **consolidate**: read the reports produced this round (`e2e/usability/`) and produce a **scoreboard** — per flow: verdict + number of findings per severity — and a **prioritized list of usability fixes** (blockers first), pointing to the screen/reference of each.
+
+### Webwright-backed runs
+
+If the user asks for Webwright, replayable evidence, generated browser scripts,
+or stronger screenshot/action logs, still keep this skill as the catalog
+orchestrator and still dispatch each flow to `ux-persona`. Tell `ux-persona` to
+use Webwright as its execution backend for that flow.
+
+Do not replace `e2e/flows/*.md` with Webwright scripts. The flow definition
+remains the source of truth; Webwright `final_runs/run_<id>/` artifacts are
+supporting evidence for the generated `e2e/usability/<flow-id>--<date>.md`
+report. Native Playwright E2E remains the place for durable CI regressions.
 
 ## Catalog maintenance
 

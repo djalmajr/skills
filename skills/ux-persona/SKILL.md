@@ -1,6 +1,6 @@
 ---
 name: ux-persona
-description: Embody a user persona and walk through ONE usage flow of a web application THROUGH THE UI (starting from the flow's entry point, never typing internal URLs), judging whether the journey is usable and recording actionable findings. Takes the flow as an argument. Use when you want to "test as a user", "check if it's usable", "walk flow X as a persona", or "validate the usability of a screen/journey".
+description: Embody a user persona and walk through ONE usage flow of a web application THROUGH THE UI (starting from the flow's entry point, never typing internal URLs), judging whether the journey is usable and recording actionable findings. Takes the flow as an argument. Use when you want to "test as a user", "check if it's usable", "walk flow X as a persona", "validate the usability of a screen/journey", or run a flow with Webwright-style replayable screenshots/log evidence.
 ---
 
 # ux-persona — persona-driven usability walkthrough
@@ -21,6 +21,32 @@ These skills also validate **coded screens against the planned design** (design 
 ## Golden rule (non-negotiable)
 
 **You navigate only through the interface.** Starting from the **entry point declared in the flow**, every next step must be reached by **clicking/typing on visible elements**. **NEVER** type an internal route URL to "jump" to a screen. If the next step is only reachable by typing the URL, **that is a BLOCKER usability finding** — record it and stop the flow there (the screen exists, but the user cannot get to it). Falling back to the direct URL hides the bug; don't.
+
+## Execution backend
+
+Default to the browser-automation tools available in the session. Use the
+Webwright skill/plugin as the execution backend when the user explicitly asks
+for Webwright, replayable evidence, a generated browser script, or a stronger
+screenshot/action-log audit trail.
+
+When using Webwright:
+
+- Keep this skill's flow file as the source of truth. Translate the flow's user
+  goal, steps, preconditions, expected result, persona lens, and any
+  `design_refs` into Webwright critical points.
+- Preserve the golden rule: the generated script must start at the flow
+  `entry` URL and reach every later screen through visible UI actions, never by
+  typing internal URLs.
+- Treat Webwright `final_runs/run_<id>/` artifacts as evidence, not as the
+  durable report. Cite the relevant screenshots/log lines in this skill's
+  normal `e2e/usability/<flow-id>--<YYYY-MM-DD>.md` report.
+- If Webwright succeeds mechanically but the persona rubric finds poor
+  discoverability, unclear copy, missing feedback, design mismatch, or fake
+  data, record that as a usability finding. Automation success is not UX
+  success.
+- If the Webwright script becomes broadly useful as a regression, recommend
+  porting the stable path into the project's native Playwright E2E suite; do
+  not treat generated Webwright scripts as the CI source of truth.
 
 ## Procedure
 
