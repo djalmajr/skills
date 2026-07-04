@@ -73,15 +73,16 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
 
 ## What a wired repo has
 
-1. **`.ai-memory.toml`** at the repo root — routes captures + recall to a workspace/project,
-   and (optionally) names the Keycloak/OIDC instance this repo onboards onto.
-   Git-ignored **by default** via the repo-local **`.git/info/exclude`** (operator-local, not
-   committed, and — unlike the global `core.excludesfile` — it does NOT impose the ignore on
-   every other repo you clone, some of which may legitimately commit `.ai-memory.toml`/`.mcp.json`).
-   Append the marker filename there so it never lands in a shared/public repo. Do **not** add it
-   to the global `core.excludesfile`. For a
-   **private team repo** you MAY commit it instead, so every developer gets the same routing
-   **and onboarding profile on clone** — the values below are instance config, NOT credentials.
+1. **`.ai-memory.toml`** at the repo root — stable, non-secret routing for captures + recall
+   to a workspace/project, and (optionally) the Keycloak/OIDC instance this repo onboards onto.
+   Tracking policy is contextual, not automatic:
+   - **Private/team repo with shared routing:** commit it so every developer gets the same
+     workspace/project and onboarding profile on clone. These values are instance config, NOT
+     credentials, and normally do not change after setup.
+   - **Public repo, personal fork, or per-operator routing:** keep it local via the repo-local
+     `.git/info/exclude`.
+   Do **not** add it to the global `core.excludesfile`, and do **not** run
+   `git rm --cached .ai-memory.toml` unless the user explicitly chooses local-only routing.
    ```toml
    workspace = "default"
    project   = "<repo-name>"
@@ -110,10 +111,10 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
    - **CLI:** `ai-memory install-instructions` (writes `CLAUDE.md`; `--target AGENTS.md`).
 
    The canonical block is already **generic** (no workspace/project/server names, no page
-   paths — the git-ignored `.ai-memory.toml` marker scopes recall and the MCP auto-scopes),
-   so it is safe to commit even in a public repo. Whatever you do, never expand the committed
-   block into a "where things live" map that enumerates the knowledge base — that leaks the
-   project's internal information architecture. Cross-scope / shared-rules wiring belongs in
+   paths — the `.ai-memory.toml` marker scopes recall and the MCP auto-scopes), so it is safe
+   to commit even in a public repo. Whatever you do, never expand the committed block into a
+   "where things live" map that enumerates the knowledge base — that leaks the project's
+   internal information architecture. Cross-scope / shared-rules wiring belongs in
    operator-global config (`~/.claude/CLAUDE.md`), not the per-repo block.
 3. **MCP server entry** in `.mcp.json` (Claude), `opencode.json` (OpenCode), `.codex/config.toml`
    (Codex) — points at the ai-memory instance (template: [templates/mcp-entry.json.tmpl](templates/mcp-entry.json.tmpl)).
@@ -123,14 +124,14 @@ AI_MEMORY_SERVER_URL=https://memory.example.dev AI_MEMORY_AUTH_TOKEN=<token-or-e
    ai-memory install-mcp --client open-code --server-url https://memory.example.dev/mcp --name memory-personal --apply
    ai-memory install-mcp --client claude-code --server-url https://memory.example.dev/mcp --name memory-personal --apply
    ```
-   This is **operator-local routing** (the endpoint is per-operator — your instance, your auth),
-   so keep it out of git the same way as the marker: add **`.mcp.json`** to the repo-local
-   **`.git/info/exclude`** (NOT the global `core.excludesfile` — that would force the ignore on
-   every repo you clone). (`.mcp.json` is pure MCP config — safe to ignore wholesale.
-   `opencode.json`/`.codex/config.toml` hold other settings too, so handle per your existing
-   convention.) If the file is already tracked, `git rm --cached .mcp.json` to untrack it (keeps
-   the file). Committing it forces collaborators onto your instance and leaks the endpoint in
-   shared/public repos.
+   MCP definitions are stable repo config when they contain only server names/URLs and no
+   credentials. A private/team repo MAY commit `.mcp.json` so every agent discovers the same
+   MCP endpoints on clone. Keep personal endpoints or auth-bearing entries (for example
+   `Authorization` headers, bearer tokens, or per-user secrets) in the agent's global/user
+   config, or keep a local-only `.mcp.json` via `.git/info/exclude`.
+   Do **not** add `.mcp.json` to the global `core.excludesfile`, and do **not** untrack an
+   existing `.mcp.json` automatically. Only run `git rm --cached .mcp.json` after the user
+   explicitly chooses local-only MCP config.
 4. **Auto-capture hooks** are **global** (Claude settings, Codex `~/.codex/hooks.json`,
    OpenCode plugin config, plus staged hook scripts under the platform data dir:
    `~/.local/share/ai-memory/hooks/` on Linux,
@@ -338,7 +339,8 @@ Report, without writing:
   recommend **refresh**. (The server's exact `.version` is admin-gated at `/admin/status`: a user's
   OIDC/JWT gets `401`, so don't rely on `ai-memory status` against the server for it; the latest
   release is the checkable target, and the MCP `initialize` handshake also carries it.)
-- Is there a `.ai-memory.toml`? What workspace/project? Is it git-ignored?
+- Is there a `.ai-memory.toml`? What workspace/project? Is its tracking policy intentional
+  (committed for shared stable routing, or ignored local-only)?
 - Is the routing snippet present in CLAUDE.md / AGENTS.md?
 - **Does the snippet teach the search strategy?** Flag a stale snippet that lacks the
   "broaden when the current project misses" guidance — i.e. no mention of `scopes` /
@@ -350,8 +352,9 @@ Report, without writing:
   usually installed there (`~/.claude.json` top-level `mcpServers`, e.g. `memory-personal`;
   `~/.codex/config.toml`; the OpenCode global config), *then* the **per-repo** `.mcp.json` /
   `opencode.json`. **Don't conclude "no recall" from an empty per-repo `.mcp.json`** — a global
-  entry applies to every repo. If a per-repo `.mcp.json` IS used, confirm it's git-ignored
-  (operator-local) rather than tracked.
+  entry applies to every repo. If a per-repo `.mcp.json` IS used, inspect whether it contains
+  only stable non-secret definitions or auth material, then confirm its tracking policy matches
+  the repo's convention; tracked `.mcp.json` is valid for private/team repos with shared MCPs.
 - For Codex, are global ai-memory hooks present in `~/.codex/hooks.json` (`SessionStart`,
   `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `Stop`) and do the staged
   scripts exist under the platform ai-memory hooks dir?
@@ -400,14 +403,20 @@ Report, without writing:
    Install/upgrade from upstream release assets (macOS ships `ai-memory-macos-<arch>.tar.gz`,
    Linux `ai-memory-linux-<arch>.tar.gz`; verify the `.sha256`); `cargo install`/source build
    only if no asset for your arch. Avoid the Docker wrapper unless explicitly requested.
-3. Ensure `.ai-memory.toml` is git-ignored via the repo-local `.git/info/exclude` (see step 1
-   above — not the global `core.excludesfile`), then write the marker.
+3. Decide `.ai-memory.toml` tracking policy from the repo context and user input. For a
+   private/team repo with stable shared routing, write it and leave it tracked/committable.
+   For public repos, personal forks, or per-operator routing, add it to the repo-local
+   `.git/info/exclude`. Do not use the global `core.excludesfile`, and do not untrack an
+   existing marker unless the user explicitly chooses local-only routing.
 4. Obtain the canonical routing block from the binary (`memory_install_self_routing`, or
    `ai-memory install-instructions`) and write it into `CLAUDE.md` and `AGENTS.md` (idempotent
    — between the `<!-- ai-memory:start -->`/`<!-- ai-memory:end -->` markers; replace if
    present). Don't paste a hand-maintained copy.
-5. Add the ai-memory MCP entry to the agent configs the repo uses, and ensure `.mcp.json` is
-   git-ignored (operator-local — see item 3 above); `git rm --cached .mcp.json` if already tracked.
+5. Add the ai-memory MCP entry to the agent configs the repo uses. If the entry is stable and
+   contains no credentials, it may live in a tracked per-repo `.mcp.json`; if it is personal or
+   auth-bearing, install it in the agent's global/user config or keep it local-only via
+   `.git/info/exclude`. Do not run `git rm --cached .mcp.json` unless the user explicitly asks
+   for local-only MCP config.
    For Codex, prefer `ai-memory install-mcp --client codex ... --apply` so the server lands in
    `~/.codex/config.toml`.
 6. Ensure global auto-capture hooks are installed for the active agents. For Codex, run
@@ -420,10 +429,13 @@ Report, without writing:
 
 Run **doctor** first; then, with the user's confirmation:
 
-1. **Marker** — write `.ai-memory.toml` (workspace/project), git-ignored.
+1. **Marker** — write `.ai-memory.toml` (workspace/project) and preserve/choose the tracking
+   policy: commit stable shared routing in private/team repos; keep personal/public routing
+   local-only via `.git/info/exclude`.
 2. **MCP** — in `.mcp.json` / `opencode.json` / `.codex/config.toml`, **replace** the `qmd`
-   server entry with the ai-memory entry. Ensure `.mcp.json` is git-ignored (operator-local);
-   `git rm --cached .mcp.json` if it was tracked.
+   server entry with the ai-memory entry. Preserve the repo's existing tracking policy; commit
+   stable non-secret server definitions when the repo intentionally shares MCPs, and keep
+   auth-bearing or personal endpoints local/global.
 3. **CLAUDE.md / AGENTS.md** — replace the "Wiki (`wiki/`)" / qmd-MCP block with the routing
    snippet. Drop instructions that tell the agent to query `qmd` or maintain `wiki/`.
 4. **Remove ALL qmd-era artifacts.** The old qmd/wiki setup installs more than hooks —
@@ -446,9 +458,10 @@ Run **doctor** first; then, with the user's confirmation:
    ai-memory, ingest the markdown into the chosen workspace/project (one page per file,
    redact any literal secrets) and then they can remove `wiki/`. Do **not** delete `wiki/`
    without explicit confirmation.
-7. Re-run **doctor** to confirm: marker present + git-ignored, snippet in CLAUDE/AGENTS,
-   ai-memory MCP wired, and **no qmd remnants** (no `.wiki-guardrails.yml`, no `wiki-*` hooks/
-   plugins, no qmd MCP entry, no `codex_hooks`/`wiki-*` permission leftovers).
+7. Re-run **doctor** to confirm: marker present + tracking policy intentional, snippet in
+   CLAUDE/AGENTS, ai-memory MCP wired with no committed secrets, and **no qmd remnants** (no
+   `.wiki-guardrails.yml`, no `wiki-*` hooks/plugins, no qmd MCP entry, no `codex_hooks`/
+   `wiki-*` permission leftovers).
 
 ## refresh (upgrade CLI + re-stage hooks to parity)
 
