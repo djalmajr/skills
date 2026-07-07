@@ -105,18 +105,45 @@ repo B injects B's. Switching projects switches context. (There is also a worksp
 | `memory_lint` / `memory_forget_sweep` | audit / prune |
 | `memory_install_self_routing` | emit the routing snippet for CLAUDE.md/AGENTS.md |
 
+## MCP OAuth compatibility (the `mcp-remote` stdio bridge)
+
+Some MCP clients can't complete the OAuth flow for a Keycloak/OIDC-gated instance and fail `reauth` with **`Could not discover OAuth endpoints from server response`** — they don't chase the RFC 9728 `resource_metadata` → RFC 8414 authorization-server discovery chain. Seen with **OMP's** native MCP client; Claude Code / Codex do it natively.
+
+**Fix — wrap the remote as a `stdio` server via `mcp-remote`** (it runs the discovery + browser PKCE + token cache in `~/.mcp-auth/`, then proxies stdio↔HTTP):
+
+```json
+{ "mcpServers": { "<server-name>": { "command": "npx", "args": ["-y", "mcp-remote", "https://<host>/wiki/mcp", "3335"] } } }
+```
+
+- **Keep the committed `.mcp.json` portable** (`type: "http"`, native URL) — clients that OAuth natively read it. Put the stdio bridge only in the **failing client's own** config, git-excluded, so it never forces `npx` on the others. For OMP those files are `.omp/mcp.json` (project) and `~/.omp/agent/mcp.json` (user); OMP-native files **override** the portable root `.mcp.json` for that client — it doesn't merge duplicates, highest-priority definition wins.
+- Give each bridged server a **distinct callback port** (2nd arg) to avoid collisions.
+
+**A token-exchange 404 is a metadata-discovery mismatch, not a dead endpoint.** `mcp-remote`'s SDK looks up the authorization-server metadata at the **domain root** (`{origin}/.well-known/oauth-authorization-server`), dropping the issuer's base path — so a Keycloak issuer under a base path (`/<base>/realms/<realm>`) 404s there, the SDK falls back to default endpoints, and the token POST lands on the wrong URL (nginx 404). A native client (Claude Code) connects because it does **issuer-relative OIDC** discovery (`{issuer}/.well-known/openid-configuration`), which Keycloak serves — so it's not a dead endpoint, and not fixable by `mcp-remote` version or flags (no server-metadata override). **Fix — a server-side well-known alias at the domain root (helps every RFC 8414 client):**
+
+```nginx
+location = /.well-known/oauth-authorization-server { return 302 /<base>/realms/<realm>/.well-known/oauth-authorization-server; }
+location = /.well-known/openid-configuration        { return 302 /<base>/realms/<realm>/.well-known/openid-configuration; }
+```
+
+No-infra fallback: use a native-OAuth client (Claude Code) for that instance and reserve the bridge for instances whose root well-known already resolves.
+
+**Dual-instance + `auth.json`.** The CLI's `auth.json` holds a **single** OIDC device slot (`ai-memory auth login oidc-device`) — logging into a second issuer **replaces** the first. For personal + client capture, prefer a **static `--auth-token`** on the client hooks (leaves the personal OIDC token intact) or isolate with a separate `--data-dir`. The `mcp-remote` recall cache (`~/.mcp-auth/`, per-URL) is independent of `auth.json`, so one instance's recall survives a device-login switch for another.
+
 ## Page path conventions (what gets surfaced)
 
 - **`_rules/<slug>.md`** (underscore) — highest-signal tier; surfaced **verbatim** in
   `memory_briefing` / `memory_explore`. Durable rules go here, never a plain `rules/`
   (no underscore = ordinary page, not auto-surfaced). `_slots/` is the pinned-context tier.
-- **Shared / cross-project rules** (global agent conventions reused across repos) live in a
-  dedicated scope — e.g. a shared project `default`/`development`, under `_rules/`. ai-memory's
-  auto-recall (briefing/handoff) is **per-(workspace, project)** — the marker carries a single
-  workspace/project, with no "inherit scopes" field. So a repo session does **not** auto-pull a
-  shared project's rules; reach them **cross-scope** via `memory_query scopes:[{workspace,
-  project}]` / `global:true` / `memory_read_page`. Bake that fetch into the operator's
-  CLAUDE.md/AGENTS.md so it happens before each task. See `aim-write` / `aim-query`.
+- **Shared / cross-project rules** (global agent conventions reused across repos) belong in
+  ai-memory's reserved **`_global`** scope — the `_global` project in the `default` workspace,
+  server **≥ v1.9.0**. Write with `memory_write_page scope:"global"`. Default-scoped
+  `memory_query` **auto-unions** `_global` into every project as a `global_scope_hits` field
+  (one extra scoped search, not the `global=true` fan-out), so global rules travel natively into
+  any project's recall — the v1.9.0 routing snippet already documents this. Caveats: the union is
+  on `memory_query`, **not** `memory_briefing` (briefing stays per-(workspace, project)); and in
+  parallel-agent / scope-bleed setups reach them **deterministically** via explicit
+  `memory_query scopes:[{workspace:"default", project:"_global"}]`. Pre-v1.9.0 fallback: a shared
+  `default`/`development` project under `_rules/`, fetched cross-scope. See `aim-write` / `aim-query`.
 
 ## The `aim-*` skills (manual entry points)
 
