@@ -385,6 +385,7 @@ Report, without writing:
   Dynamic-Client-Registration id was orphaned (realm recreated/migrated). Clear the stale entry
   from the agent's MCP-auth cache (e.g. OpenCode's `~/.local/share/opencode/mcp-auth.json`) and
   re-auth to force a fresh DCR.
+- **MCP OAuth discovery failure:** if a client's `reauth` errors **`Could not discover OAuth endpoints from server response`** (it doesn't chase the RFC 9728 → 8414 discovery — seen with **OMP**'s native MCP client), bridge the remote as a `stdio` server via `npx -y mcp-remote <url> <port>` in that client's own (git-excluded) config, keeping the committed `.mcp.json` portable `type: http`. If discovery+authorization then pass but the **token POST 404s**, the SDK looked up auth-server metadata at the **domain root** and dropped a path-based issuer's `/<base>/realms/<realm>` — a native client (Claude Code) connects via issuer-relative OIDC, so it's not a dead endpoint and not fixable by `mcp-remote` version/flags; fix with a server-side root `.well-known/oauth-authorization-server` (+ `openid-configuration`) alias to the realm, else use the native client. Full recipe: `references/usage.md` §MCP OAuth compatibility.
 - **Two-instance (e.g. client Keycloak) repo?** If the repo registers a second MCP (a client/org
   instance), confirm: both are treated as **read+write** with the **personal** instance as the
   superset; durable writes are dual-written; if auto-capture to the client instance is wanted,
