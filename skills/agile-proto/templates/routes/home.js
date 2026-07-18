@@ -1,14 +1,14 @@
 import { html } from "htm/preact";
-import { Badge } from "~/components/ui/badge.js";
-import { Button } from "~/components/ui/button.js";
+import { Badge } from "htm-ui/badge.js";
+import { Button } from "htm-ui/button.js";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "~/components/ui/card.js";
-import { Icon } from "~/components/ui/icon.js";
+} from "htm-ui/card.js";
+import { Icon } from "htm-ui/icon.js";
 
 export function HomePage() {
   return html`
@@ -50,7 +50,7 @@ export function HomePage() {
             <ul class="text-sm space-y-2 list-disc pl-4 text-muted-foreground">
               <li>Add scenes to <code class="text-foreground">SCENES</code></li>
               <li>Customize the sidebar in <code class="text-foreground">components/app-shell.js</code></li>
-              <li>Adjust colors in <code class="text-foreground">index.css</code> (shadcn variables)</li>
+              <li>Override semantic tokens only when this prototype needs a distinct palette</li>
               <li>For Figma MCP capture, open scenes with <code class="text-foreground">?route=scene-id</code> and capture <code class="text-foreground">#app</code></li>
               <li>For manual Figma paste, set <code class="text-foreground">figma-key</code> in <code class="text-foreground">index.html</code></li>
             </ul>

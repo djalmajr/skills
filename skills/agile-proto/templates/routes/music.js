@@ -2,11 +2,11 @@
 // Showcases: album cards, playlists sidebar, tabs (visual), tooltip.
 
 import { html } from "htm/preact";
-import { Button } from "~/components/ui/button.js";
-import { Icon } from "~/components/ui/icon.js";
-import { Separator } from "~/components/ui/separator.js";
-import { TabsList, TabsTrigger } from "~/components/ui/tabs.js";
-import { Tooltip } from "~/components/ui/tooltip.js";
+import { Button } from "htm-ui/button.js";
+import { Icon } from "htm-ui/icon.js";
+import { Separator } from "htm-ui/separator.js";
+import { TabsList, TabsTrigger } from "htm-ui/tabs.js";
+import { Tooltip } from "htm-ui/tooltip.js";
 
 const ALBUMS = [
   { title: "React Rendezvous", artist: "Ethan Byte", color: "from-red-500 to-orange-500" },

@@ -1,172 +1,42 @@
-/* z-proto override: strict scroll containment.                               */
-/* z-proto chain: .zp-stage > ... > .zp-content > .zp-content-scroll > app    */
-/* Default .zp-stage has min-height:100vh + flex-col, so any oversized        */
-/* content pushes the whole page outside the viewport. Here we pin the stage  */
-/* to the viewport and disable intermediate scrolls — the only allowed scroll */
-/* lives inside each scene's content area.                                    */
+/* z-proto owns the outer viewport; each scene owns its bounded scroll area. */
 .zp-stage {
   position: absolute !important;
   inset: 0 !important;
-  overflow: hidden !important;
   min-height: 0 !important;
+  overflow: hidden !important;
 }
+
 .zp-viewport-center {
   min-height: 0 !important;
   overflow: hidden !important;
 }
+
 .zp-frame-wrapper,
 .zp-scale-wrapper {
   max-height: 100% !important;
   min-height: 0 !important;
 }
+
 .zp-content-scroll {
   overflow: hidden !important;
 }
+
 .zp-content-inner {
   height: 100% !important;
   min-height: 0 !important;
   max-height: 100% !important;
   overflow: hidden !important;
 }
-/* ── Button component (data-slot="button") ──────────────────────────────── */
-/* All styles here so :hover works — inline styles would block pseudo-class. */
-[data-slot="button"] {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  white-space: nowrap;
-  border-radius: var(--radius);
-  font-size: 14px;
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-  border: none;
-  outline: none;
-  transition: all 0.15s;
-  height: 36px;
-  padding: 8px 16px;
-}
-[data-slot="button"]:disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
-[data-slot="button"][data-size="sm"]      { height: 32px; padding: 6px 12px; font-size: 13px; }
-[data-slot="button"][data-size="lg"]      { height: 40px; padding: 8px 24px; }
-[data-slot="button"][data-size="icon"]    { height: 36px; width: 36px; padding: 0; }
-[data-slot="button"][data-size="icon-sm"] { height: 32px; width: 32px; padding: 0; }
-[data-slot="button"][data-size="icon-lg"] { height: 40px; width: 40px; padding: 0; }
 
-[data-slot="button"][data-variant="default"] {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-[data-slot="button"][data-variant="default"]:hover { opacity: 0.9; }
-
-[data-slot="button"][data-variant="destructive"] {
-  background: var(--destructive);
-  color: white;
-}
-[data-slot="button"][data-variant="destructive"]:hover { opacity: 0.9; }
-
-[data-slot="button"][data-variant="outline"] {
-  background: var(--background);
-  color: var(--foreground);
-  border: 1px solid var(--border);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-[data-slot="button"][data-variant="outline"]:hover {
-  background: var(--accent);
-  color: var(--accent-foreground);
-}
-
-[data-slot="button"][data-variant="secondary"] {
-  background: var(--secondary);
-  color: var(--secondary-foreground);
-}
-[data-slot="button"][data-variant="secondary"]:hover { opacity: 0.8; }
-
-[data-slot="button"][data-variant="ghost"] {
-  background: transparent;
-  color: inherit;
-}
-[data-slot="button"][data-variant="ghost"]:hover {
-  background: var(--accent);
-  color: var(--accent-foreground);
-}
-
-[data-slot="button"][data-variant="link"] {
-  background: transparent;
-  color: var(--primary);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-[data-slot="button"][data-variant="link"]:hover { opacity: 0.8; }
-
-/* iconify-icon is inline by default — force inline-flex so it participates   */
-/* in flex gap and aligns properly inside buttons and other flex containers.  */
-iconify-icon {
-  display: inline-flex !important;
-  flex-shrink: 0;
-}
-html, body {
+html,
+body {
   height: 100%;
   overflow: hidden;
 }
+
 #app {
   flex: 1 1 0% !important;
+  min-width: 0 !important;
   min-height: 0 !important;
   height: 100% !important;
-}
-/* Checkmark for checkbox — inlined SVG. Kept here (instead of a Tailwind       */
-/* arbitrary value) because @tailwindcss/browser doesn't reliably parse data:    */
-/* URLs containing SVG markup.                                                   */
-input[data-slot="checkbox"]:checked {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='white' d='M13.854 3.146a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L6.5 9.793l6.646-6.647a.5.5 0 0 1 .708 0z'/></svg>");
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-/* Hide native thin scrollbars where scroll is internal (sidebar). */
-.scrollbar-thin {
-  scrollbar-width: thin;
-}
-.scrollbar-hidden {
-  scrollbar-width: none;
-}
-.scrollbar-hidden::-webkit-scrollbar {
-  display: none;
-}
-
-/* shadcn tokens — light mode (neutral / violet palette).                      */
-/* To rebrand, adjust only --primary and --ring.                               */
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.14 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.14 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.14 0 0);
-  --primary: oklch(0.52 0.22 280);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.965 0.001 286.375);
-  --secondary-foreground: oklch(0.14 0 0);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.14 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.52 0.22 280);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.14 0 0);
-  --sidebar-primary: oklch(0.52 0.22 280);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.95 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.14 0 0);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.52 0.22 280);
 }

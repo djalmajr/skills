@@ -1,14 +1,14 @@
 import { html } from "htm/preact";
-import { Avatar, AvatarFallback } from "~/components/ui/avatar.js";
-import { Button } from "~/components/ui/button.js";
+import { Avatar, AvatarFallback } from "htm-ui/avatar.js";
+import { Button } from "htm-ui/button.js";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "~/components/ui/card.js";
-import { Icon } from "~/components/ui/icon.js";
+} from "htm-ui/card.js";
+import { Icon } from "htm-ui/icon.js";
 
 function StatCard({ title, value, change, icon }) {
   return html`

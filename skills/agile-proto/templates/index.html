@@ -10,10 +10,16 @@
     <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
     <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
     <script type="module" src="https://cdn.jsdelivr.net/gh/djalmajr/z-proto@main/src/z-proto.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/djalmajr/htm-ui@main/packages/ui/theme.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/djalmajr/htm-ui@main/packages/ui/ui.css">
     <script type="importmap">
       {
         "imports": {
           "~/": "./",
+          "htm-ui": "https://cdn.jsdelivr.net/gh/djalmajr/htm-ui@main/packages/ui/index.js",
+          "htm-ui/": "https://cdn.jsdelivr.net/gh/djalmajr/htm-ui@main/packages/ui/",
+          "clsx": "https://esm.sh/clsx@2",
+          "tailwind-merge": "https://esm.sh/tailwind-merge@3",
           "htm/preact": "https://esm.sh/htm@3/preact?external=preact",
           "preact-iso": "https://esm.sh/preact-iso@2?external=preact",
           "preact": "https://esm.sh/preact@10",
@@ -23,6 +29,8 @@
     </script>
     <link rel="stylesheet" href="./index.css">
     <style type="text/tailwindcss">
+      @custom-variant dark (&:is(.dark *));
+
       @theme inline {
         --font-sans: 'Inter', sans-serif;
         --color-background: var(--background);
@@ -44,6 +52,11 @@
         --color-border: var(--border);
         --color-input: var(--input);
         --color-ring: var(--ring);
+        --color-chart-1: var(--chart-1);
+        --color-chart-2: var(--chart-2);
+        --color-chart-3: var(--chart-3);
+        --color-chart-4: var(--chart-4);
+        --color-chart-5: var(--chart-5);
         --radius-sm: calc(var(--radius) - 4px);
         --radius-md: calc(var(--radius) - 2px);
         --radius-lg: var(--radius);
@@ -58,7 +71,7 @@
         --color-sidebar-ring: var(--sidebar-ring);
       }
       @layer base {
-        * { @apply border-border; }
+        * { @apply border-border outline-ring/50; }
         body { @apply bg-background text-foreground; }
       }
     </style>
@@ -69,7 +82,7 @@
     <z-proto>
       <z-proto-header></z-proto-header>
       <z-proto-body title="Proto — AppName">
-        <div id="app" class="flex flex-1 overflow-hidden bg-background"></div>
+        <div id="app" data-floating-boundary class="flex flex-1 overflow-hidden bg-background"></div>
       </z-proto-body>
     </z-proto>
     <script type="module" src="./index.js"></script>

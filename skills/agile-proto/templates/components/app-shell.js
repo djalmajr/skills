@@ -1,17 +1,17 @@
-// Visual replica of the shadcn MainLayout (left sidebar + topbar with breadcrumbs and actions).
+// Prototype-specific shell composed from HTM UI primitives.
 
 import { html } from "htm/preact";
 import { useState } from "preact/hooks";
-import { Avatar, AvatarFallback } from "./ui/avatar.js";
-import { Badge } from "./ui/badge.js";
+import { Avatar, AvatarFallback } from "htm-ui/avatar.js";
+import { Badge } from "htm-ui/badge.js";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "./ui/breadcrumb.js";
-import { Icon } from "./ui/icon.js";
+} from "htm-ui/breadcrumb.js";
+import { Icon } from "htm-ui/icon.js";
 import {
   Sidebar,
   SidebarContent,
@@ -25,7 +25,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
-} from "./ui/sidebar.js";
+} from "htm-ui/sidebar.js";
 
 // Replace with your own groups/items. Each item: { icon, title, url, isNew? }.
 // URLs are preact-iso paths, resolved against the prototype <base href>.
