@@ -3,9 +3,9 @@
 // selection checkbox, confirmation dialog. All native HTML5.
 
 import { html } from "htm/preact";
-import { Badge } from "~/components/ui/badge.js";
-import { Button } from "~/components/ui/button.js";
-import { Checkbox } from "~/components/ui/checkbox.js";
+import { Badge } from "htm-ui/badge.js";
+import { Button } from "htm-ui/button.js";
+import { Checkbox } from "htm-ui/checkbox.js";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,7 @@ import {
   DialogTitle,
   closeDialog,
   openDialog,
-} from "~/components/ui/dialog.js";
+} from "htm-ui/dialog.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,9 +23,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu.js";
-import { Icon } from "~/components/ui/icon.js";
-import { Input } from "~/components/ui/input.js";
+} from "htm-ui/dropdown-menu.js";
+import { Icon } from "htm-ui/icon.js";
+import { Input } from "htm-ui/input.js";
 
 const TASKS = [
   { id: "TASK-8782", title: "You can't compress the program without quantifying the open-source SSD pixel!", status: "in-progress", priority: "medium", type: "Documentation" },

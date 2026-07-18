@@ -1,16 +1,16 @@
 import { html } from "htm/preact";
-import { Button } from "~/components/ui/button.js";
+import { Button } from "htm-ui/button.js";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "~/components/ui/card.js";
-import { Input } from "~/components/ui/input.js";
-import { Label } from "~/components/ui/label.js";
-import { Separator } from "~/components/ui/separator.js";
-import { Textarea } from "~/components/ui/textarea.js";
+} from "htm-ui/card.js";
+import { Input } from "htm-ui/input.js";
+import { Label } from "htm-ui/label.js";
+import { Separator } from "htm-ui/separator.js";
+import { Textarea } from "htm-ui/textarea.js";
 
 export function SettingsPage() {
   return html`
