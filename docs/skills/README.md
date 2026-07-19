@@ -24,12 +24,11 @@ Human-facing notes moved out of individual skill folders.
 | [agile-onboarding](agile-onboarding.md) | Onboard a new team member |
 | [agile-proto](agile-proto.md) | Interactive UI prototypes |
 
-## Design (2)
+## Design (1)
 
 | Skill | One-liner |
 |---|---|
 | [figma-capture](figma-capture.md) | Rendered page → clipboard capture for Figma paste |
-| [htm-ui](htm-ui.md) | Project-aware HTM UI composition, theming, migration, and validation |
 
 ## Workflow / Quality (9)
 
