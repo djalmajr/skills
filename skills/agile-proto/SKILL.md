@@ -79,25 +79,22 @@ bunx serve -s .
 
 Use SPA mode so direct reloads of preact-iso routes resolve to `index.html`.
 
-## HTM UI workflow
-
-When the `htm-ui` skill is available, use it for component selection, theming, and interaction validation.
+## HTM UI library workflow
 
 Before implementing a scene:
 
 1. Inspect the existing prototype and project rules.
-2. Run the HTM UI project inspector if available.
-3. Check the live HTM UI docs and the actual module exports.
-4. Select existing components and variants before writing custom markup.
-5. Import by file, for example:
+2. Check the live HTM UI docs and the actual module exports.
+3. Select existing components and variants before writing custom markup.
+4. Import by file, for example:
 
 ```js
 import { Button } from "htm-ui/button.js";
 import { Card, CardContent, CardHeader, CardTitle } from "htm-ui/card.js";
 ```
 
-6. Keep every component opening/closing expression on its own line in multi-line templates.
-7. Make each promised interaction observable and reversible where appropriate.
+5. Keep every component opening/closing expression on its own line in multi-line templates.
+6. Make each promised interaction observable and reversible where appropriate.
 
 Use `https://djalmajr.github.io/htm-ui/components/<slug>` for docs and `https://cdn.jsdelivr.net/gh/djalmajr/htm-ui@main/packages/ui/<module>.js` for the runtime source. Never infer the API from React shadcn.
 

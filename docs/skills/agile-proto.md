@@ -52,4 +52,4 @@ The default target is `planning/<initiative>/proto/`; existing projects may use 
 - input, select, and button height variants remain consistent;
 - long content uses intentional `ScrollArea`/scroll ownership rather than clipping.
 
-See `skills/agile-proto/SKILL.md` for the full workflow, interaction sweep, and Figma capture procedure. Pair it with the `htm-ui` skill for component selection, theming, and runtime validation.
+See `skills/agile-proto/SKILL.md` for the full workflow, interaction sweep, and Figma capture procedure. HTM UI remains an external runtime library documented at `https://djalmajr.github.io/htm-ui/`.
