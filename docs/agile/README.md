@@ -83,7 +83,8 @@ Each skill README contains full documentation with examples, tips, and chaining 
 | Skill | Usage |
 |-------|-------|
 | [router](../skills/agile-router.md) | Guidance on which skill to use |
-| [proto](../skills/agile-proto.md) | Interactive UI prototypes |
+| [proto](../skills/agile-proto.md) | Static browser prototypes powered by HTM UI |
+| [pen](../skills/agile-pen.md) | Traceable Pen.dev prototypes and explicit UI states |
 
 ### Onboarding
 

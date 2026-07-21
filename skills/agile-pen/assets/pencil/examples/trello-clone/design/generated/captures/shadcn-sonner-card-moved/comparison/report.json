@@ -1,0 +1,28 @@
+{
+  "source": {
+    "path": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-sonner-card-moved/shadcn-sonner-card-moved.png",
+    "width": 356,
+    "height": 74
+  },
+  "pencil": {
+    "path": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/pencil-validation/TYBEQ.png",
+    "width": 356,
+    "height": 74
+  },
+  "normalized": false,
+  "rmse": 8508.58,
+  "normalizedRmse": 0.129833,
+  "gates": {
+    "requireSameSize": true,
+    "maxRmse": 0.15,
+    "sameSize": true,
+    "sizePassed": true,
+    "rmsePassed": true,
+    "passed": true
+  },
+  "outputs": {
+    "diff": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-sonner-card-moved/comparison/diff.png",
+    "sideBySide": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-sonner-card-moved/comparison/side-by-side.png",
+    "normalizedPencil": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-sonner-card-moved/comparison/pencil-normalized.png"
+  }
+}

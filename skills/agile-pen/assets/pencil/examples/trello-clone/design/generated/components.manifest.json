@@ -1,0 +1,825 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    {
+      "id": "dice-ui-kanban-basic",
+      "source": "dice-ui",
+      "component": "kanban",
+      "example": "basic",
+      "category": "data-display",
+      "recipe": "dice-kanban-basic",
+      "selector": "[data-capture='dice-ui:kanban:basic']",
+      "url": "http://127.0.0.1:4179/capture/dice-ui/kanban/basic",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1440,
+          "height": 1024
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "be0618ce6be4413e3bd93c0bfaf83160b8b5ecdb244f7d4623024112c52bdceb",
+        "cliVersion": "4.13.1",
+        "base": "radix",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "code": "b2fA",
+            "fallbacks": [],
+            "values": {
+              "style": "nova",
+              "baseColor": "neutral",
+              "theme": "neutral",
+              "chartColor": "neutral",
+              "iconLibrary": "lucide",
+              "font": "geist",
+              "fontHeading": "inherit",
+              "radius": "default",
+              "menuAccent": "subtle",
+              "menuColor": "default"
+            }
+          }
+        },
+        "lockChecksum": "77d1ac5b3cf225ff558473260c90dcf7aca55a872188437dd8328a3e9d3e592d"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/dice-ui-kanban-basic/dice-ui-kanban-basic.capture.json",
+        "tree": "captures/dice-ui-kanban-basic/dice-ui-kanban-basic.tree.json",
+        "batch": "captures/dice-ui-kanban-basic/dice-ui-kanban-basic.batch.js",
+        "screenshot": "captures/dice-ui-kanban-basic/dice-ui-kanban-basic.png"
+      },
+      "checksums": {
+        "capture": "caf118855bfd78c83e15499047bdf3e773b9fb31439749ce4dd990c07498adfe",
+        "tree": "7e581b2a285378059c7b6d5a603c505f7fc6ab660f65e364f925303835acd64c",
+        "batch": "7577b484073f26ce69b16d3be06b1b7e55203241cf3e2c9e4b713340eb41c9e1",
+        "screenshot": "ce2d2653ad2fb33cf05800bcedef56e90bf1ced04cadd8301f17f61e7c0849d0"
+      },
+      "stats": {
+        "frames": 88,
+        "groups": 0,
+        "texts": 37,
+        "images": 0,
+        "gradients": 0,
+        "svgGraphics": 20,
+        "controls": 0,
+        "skipped": 2,
+        "skippedSvgInvisible": 0,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {
+          "div": 2
+        }
+      }
+    },
+    {
+      "id": "shadcn-alert-dialog-delete-card",
+      "source": "shadcn",
+      "component": "alert-dialog",
+      "example": "delete-card",
+      "category": "overlay",
+      "recipe": "shadcn-alert-dialog-delete-card",
+      "selector": "[data-capture='shadcn:alert-dialog:delete-card']",
+      "url": "http://127.0.0.1:4176/capture/shadcn/alert-dialog/delete-card",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 960
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "a8307cc756f1a48c020db7a4da29f47b9351802dbac1abea59948fb33469bb98",
+        "cliVersion": "4.13.1",
+        "base": "radix",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "code": "b2fA",
+            "fallbacks": [],
+            "values": {
+              "style": "nova",
+              "baseColor": "neutral",
+              "theme": "neutral",
+              "chartColor": "neutral",
+              "iconLibrary": "lucide",
+              "font": "geist",
+              "fontHeading": "inherit",
+              "radius": "default",
+              "menuAccent": "subtle",
+              "menuColor": "default"
+            }
+          }
+        },
+        "lockChecksum": "48b68ee85e16b142641786664062e898971703a83dca3ddf276899573ca53a15"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/shadcn-alert-dialog-delete-card/shadcn-alert-dialog-delete-card.capture.json",
+        "tree": "captures/shadcn-alert-dialog-delete-card/shadcn-alert-dialog-delete-card.tree.json",
+        "batch": "captures/shadcn-alert-dialog-delete-card/shadcn-alert-dialog-delete-card.batch.js",
+        "screenshot": "captures/shadcn-alert-dialog-delete-card/shadcn-alert-dialog-delete-card.png"
+      },
+      "checksums": {
+        "capture": "9617b8fda178b4c6ae9a398e6e850677a42843b67a4852c9070d15be7397acc4",
+        "tree": "97bcfcd4b4f6225aeb22d82e10f0e84317f4e44d0fb27d761ea2525529d9e01c",
+        "batch": "2e4b483214cfb2c2293bd36f9d612438d58902adca31aa4c971af64b46ecc61d",
+        "screenshot": "456c6d4778ba0eda3f02ad39b31b7f7b4d02f3295d849a6be12ebe71e7b163e5"
+      },
+      "stats": {
+        "frames": 9,
+        "groups": 0,
+        "texts": 5,
+        "images": 0,
+        "gradients": 0,
+        "svgGraphics": 5,
+        "controls": 0,
+        "skipped": 0,
+        "skippedSvgInvisible": 0,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {}
+      }
+    },
+    {
+      "id": "shadcn-button-default",
+      "source": "shadcn",
+      "component": "button",
+      "example": "default",
+      "category": "general",
+      "recipe": "shadcn-button-default",
+      "selector": "[data-capture='shadcn:button:default']",
+      "url": "http://127.0.0.1:4179/capture/shadcn/button/default",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 960
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "be0618ce6be4413e3bd93c0bfaf83160b8b5ecdb244f7d4623024112c52bdceb",
+        "cliVersion": "4.13.1",
+        "base": "radix",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "code": "b2fA",
+            "fallbacks": [],
+            "values": {
+              "style": "nova",
+              "baseColor": "neutral",
+              "theme": "neutral",
+              "chartColor": "neutral",
+              "iconLibrary": "lucide",
+              "font": "geist",
+              "fontHeading": "inherit",
+              "radius": "default",
+              "menuAccent": "subtle",
+              "menuColor": "default"
+            }
+          }
+        },
+        "lockChecksum": "77d1ac5b3cf225ff558473260c90dcf7aca55a872188437dd8328a3e9d3e592d"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/shadcn-button-default/shadcn-button-default.capture.json",
+        "tree": "captures/shadcn-button-default/shadcn-button-default.tree.json",
+        "batch": "captures/shadcn-button-default/shadcn-button-default.batch.js",
+        "screenshot": "captures/shadcn-button-default/shadcn-button-default.png"
+      },
+      "checksums": {
+        "capture": "b57ee82af5b20fe0768ed2368c333c36804c5e8ca11ae0dc1862f94435a32493",
+        "tree": "a1c0e055ebc6b34474611552baad89efaa042dcd25b99905be4bf3a49761e7d6",
+        "batch": "e3d395ccef211efc14af5c3a4b063827192e42933ef0425e663acf42cfe2a4e8",
+        "screenshot": "89a2c86cd15de6e1aa6a33065d8e01b145c842e7a39c0500e3a2d12e82de995f"
+      },
+      "stats": {
+        "frames": 9,
+        "groups": 0,
+        "texts": 6,
+        "images": 0,
+        "gradients": 0,
+        "svgGraphics": 2,
+        "controls": 0,
+        "skipped": 0,
+        "skippedSvgInvisible": 0,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {}
+      }
+    },
+    {
+      "id": "shadcn-command-menu",
+      "source": "shadcn",
+      "component": "command",
+      "example": "menu",
+      "category": "navigation",
+      "recipe": "shadcn-command-menu",
+      "selector": "[data-capture='registry:command-demo']",
+      "url": "http://127.0.0.1:4187/capture/registry/command-demo",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 960
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "ee8994e00641b818d970eda1544b48f37c8a3475d711ff2ef1b8f6543170be3b",
+        "cliVersion": "4.13.1",
+        "base": "base",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "style": "new-york-v4",
+            "source": "official-registry-example-fallback"
+          }
+        },
+        "lockChecksum": "d11e835ed470f222d9ff17ed1c1a98e6d323b2399f100f0c9e32a0c1384d056d"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/shadcn-command-menu/shadcn-command-menu.capture.json",
+        "tree": "captures/shadcn-command-menu/shadcn-command-menu.tree.json",
+        "batch": "captures/shadcn-command-menu/shadcn-command-menu.batch.js",
+        "screenshot": "captures/shadcn-command-menu/shadcn-command-menu.png"
+      },
+      "checksums": {
+        "capture": "3ca064c5bce59677f8ad98cd4f3eb33ba4960f4560e7c2b157096cb25b780a37",
+        "tree": "7da018532d58a5017bd7f02091cc29e28b3bdc1732c38978c7f29d790a550960",
+        "batch": "761d5e2a81bd35005d0c09e7ff3aab84bec13f32387fa57ddb184bdd0ffc6cfe",
+        "screenshot": "eaa77518c7b3415abffaee97cfcd585425234ca0735d38f93e52499c3014b280"
+      },
+      "stats": {
+        "frames": 35,
+        "groups": 0,
+        "texts": 11,
+        "images": 0,
+        "gradients": 0,
+        "svgGraphics": 26,
+        "controls": 1,
+        "skipped": 1,
+        "skippedSvgInvisible": 0,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {
+          "label": 1
+        }
+      }
+    },
+    {
+      "id": "shadcn-dashboard-01-dashboard",
+      "source": "shadcn",
+      "component": "dashboard-01",
+      "example": "dashboard",
+      "category": null,
+      "recipe": null,
+      "selector": "[data-capture='registry:dashboard-01']",
+      "url": "http://127.0.0.1:4174/capture/registry/dashboard-01",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 960
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "4638c2dee972c5b7ef47aa07ac7da48131eebe778f02253c969c63abd2b907de",
+        "cliVersion": "4.13.1",
+        "base": "radix",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "code": "b2fA",
+            "fallbacks": [],
+            "values": {
+              "style": "nova",
+              "baseColor": "neutral",
+              "theme": "neutral",
+              "chartColor": "neutral",
+              "iconLibrary": "lucide",
+              "font": "geist",
+              "fontHeading": "inherit",
+              "radius": "default",
+              "menuAccent": "subtle",
+              "menuColor": "default"
+            }
+          }
+        },
+        "lockChecksum": "1d081f30b0d3c3544a27bbfa860d4b42101113a78107faee90d464d2a162d7f3"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/shadcn-dashboard-01-dashboard/shadcn-dashboard-01-dashboard.capture.json",
+        "tree": "captures/shadcn-dashboard-01-dashboard/shadcn-dashboard-01-dashboard.tree.json",
+        "batch": "captures/shadcn-dashboard-01-dashboard/shadcn-dashboard-01-dashboard.batch.js",
+        "screenshot": "captures/shadcn-dashboard-01-dashboard/shadcn-dashboard-01-dashboard.png"
+      },
+      "checksums": {
+        "capture": "e67e459104f5a66b6c8d891cae45bcf4148ec994536ed80070660a20ccc8f09e",
+        "tree": "41fada1062cbf8075605c4831344bee0500570de53da4f0e3d6183a1ea3a06c6",
+        "batch": "2cc4704cdcc7dfabfefb678dc2fc9c37102d4107c18b3a3b585a4db0718b1ff6",
+        "screenshot": "cbaccf80c98aa845f949f0a82eba021f33b1141d40b49821fd2050080761cc5c"
+      },
+      "stats": {
+        "frames": 470,
+        "groups": 79,
+        "texts": 121,
+        "images": 0,
+        "gradients": 6,
+        "svgGraphics": 227,
+        "controls": 20,
+        "skipped": 70,
+        "skippedSvgInvisible": 6,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {
+          "div": 7,
+          "span": 27,
+          "button": 5,
+          "style": 1,
+          "title": 1,
+          "desc": 1,
+          "defs": 4,
+          "label": 24
+        }
+      }
+    },
+    {
+      "id": "shadcn-dialog-card-details",
+      "source": "shadcn",
+      "component": "dialog",
+      "example": "card-details",
+      "category": "overlay",
+      "recipe": "shadcn-dialog-card-details",
+      "selector": "[data-capture='shadcn:dialog:card-details']",
+      "url": "http://127.0.0.1:4176/capture/shadcn/dialog/card-details",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 960
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "a8307cc756f1a48c020db7a4da29f47b9351802dbac1abea59948fb33469bb98",
+        "cliVersion": "4.13.1",
+        "base": "radix",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "code": "b2fA",
+            "fallbacks": [],
+            "values": {
+              "style": "nova",
+              "baseColor": "neutral",
+              "theme": "neutral",
+              "chartColor": "neutral",
+              "iconLibrary": "lucide",
+              "font": "geist",
+              "fontHeading": "inherit",
+              "radius": "default",
+              "menuAccent": "subtle",
+              "menuColor": "default"
+            }
+          }
+        },
+        "lockChecksum": "48b68ee85e16b142641786664062e898971703a83dca3ddf276899573ca53a15"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/shadcn-dialog-card-details/shadcn-dialog-card-details.capture.json",
+        "tree": "captures/shadcn-dialog-card-details/shadcn-dialog-card-details.tree.json",
+        "batch": "captures/shadcn-dialog-card-details/shadcn-dialog-card-details.batch.js",
+        "screenshot": "captures/shadcn-dialog-card-details/shadcn-dialog-card-details.png"
+      },
+      "checksums": {
+        "capture": "70a1473608b4696d4fe6b4900fcf9f0685f6101f0f0f0e3310fc884a7163d22b",
+        "tree": "7bd8bc99722711f93568ba2149c3754cb5fa6ae3fa9c6c2e43a8f796a49de005",
+        "batch": "2f418411d0e7ba22cfd20ffb146d58c36a6f37cf9e0dc42a273287e5c4005d5f",
+        "screenshot": "3f730759e30554738e5d04e4c1808656b702bfe205024064b124c908887a9085"
+      },
+      "stats": {
+        "frames": 16,
+        "groups": 0,
+        "texts": 8,
+        "images": 0,
+        "gradients": 0,
+        "svgGraphics": 2,
+        "controls": 0,
+        "skipped": 1,
+        "skippedSvgInvisible": 0,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {
+          "span": 1
+        }
+      }
+    },
+    {
+      "id": "shadcn-dropdown-menu-card-actions",
+      "source": "shadcn",
+      "component": "dropdown-menu",
+      "example": "card-actions",
+      "category": "navigation",
+      "recipe": "shadcn-dropdown-menu-card-actions",
+      "selector": "[data-capture='shadcn:dropdown-menu:card-actions']",
+      "url": "http://127.0.0.1:4176/capture/shadcn/dropdown-menu/card-actions",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 960
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "a8307cc756f1a48c020db7a4da29f47b9351802dbac1abea59948fb33469bb98",
+        "cliVersion": "4.13.1",
+        "base": "radix",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "code": "b2fA",
+            "fallbacks": [],
+            "values": {
+              "style": "nova",
+              "baseColor": "neutral",
+              "theme": "neutral",
+              "chartColor": "neutral",
+              "iconLibrary": "lucide",
+              "font": "geist",
+              "fontHeading": "inherit",
+              "radius": "default",
+              "menuAccent": "subtle",
+              "menuColor": "default"
+            }
+          }
+        },
+        "lockChecksum": "48b68ee85e16b142641786664062e898971703a83dca3ddf276899573ca53a15"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/shadcn-dropdown-menu-card-actions/shadcn-dropdown-menu-card-actions.capture.json",
+        "tree": "captures/shadcn-dropdown-menu-card-actions/shadcn-dropdown-menu-card-actions.tree.json",
+        "batch": "captures/shadcn-dropdown-menu-card-actions/shadcn-dropdown-menu-card-actions.batch.js",
+        "screenshot": "captures/shadcn-dropdown-menu-card-actions/shadcn-dropdown-menu-card-actions.png"
+      },
+      "checksums": {
+        "capture": "1d8483f71534f2feaf598e657a8919b4b60eb180afcbbdaef9fc180634dbcb76",
+        "tree": "380a6311e2acd598673d581a957988519caf576300d4bb6401c75b9bcc0ec3de",
+        "batch": "68d43870db66cb34a0d51d95e795172fa75110c546ed291834b52bca66dfcfb4",
+        "screenshot": "668ebf4b8b2420d93f763c1138f7e987d49fc9b4e3bf45145f0deb6c5a4e83ed"
+      },
+      "stats": {
+        "frames": 8,
+        "groups": 0,
+        "texts": 5,
+        "images": 0,
+        "gradients": 0,
+        "svgGraphics": 5,
+        "controls": 0,
+        "skipped": 0,
+        "skippedSvgInvisible": 0,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {}
+      }
+    },
+    {
+      "id": "shadcn-empty-board",
+      "source": "shadcn",
+      "component": "empty",
+      "example": "board",
+      "category": "layout",
+      "recipe": "shadcn-empty-board",
+      "selector": "[data-capture='shadcn:empty:board']",
+      "url": "http://127.0.0.1:4176/capture/shadcn/empty/board",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 960
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "a8307cc756f1a48c020db7a4da29f47b9351802dbac1abea59948fb33469bb98",
+        "cliVersion": "4.13.1",
+        "base": "radix",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "code": "b2fA",
+            "fallbacks": [],
+            "values": {
+              "style": "nova",
+              "baseColor": "neutral",
+              "theme": "neutral",
+              "chartColor": "neutral",
+              "iconLibrary": "lucide",
+              "font": "geist",
+              "fontHeading": "inherit",
+              "radius": "default",
+              "menuAccent": "subtle",
+              "menuColor": "default"
+            }
+          }
+        },
+        "lockChecksum": "48b68ee85e16b142641786664062e898971703a83dca3ddf276899573ca53a15"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/shadcn-empty-board/shadcn-empty-board.capture.json",
+        "tree": "captures/shadcn-empty-board/shadcn-empty-board.tree.json",
+        "batch": "captures/shadcn-empty-board/shadcn-empty-board.batch.js",
+        "screenshot": "captures/shadcn-empty-board/shadcn-empty-board.png"
+      },
+      "checksums": {
+        "capture": "1ff88eaeae8ec97b0199177789db6723ae29c643476fa19b9474b4e87e2343be",
+        "tree": "0ad4dc8c45bfd882b585155d2769d48c36829ff456a0813408bfb559895b4519",
+        "batch": "5060ab8ee82c1177b65f84020be858bd50d6eb58d2dee331e3abc71f85e83050",
+        "screenshot": "14493e53ccb6d1c75d40c7693fd9802606d63bd20604e50a9c272558b6ffac2b"
+      },
+      "stats": {
+        "frames": 9,
+        "groups": 0,
+        "texts": 3,
+        "images": 0,
+        "gradients": 0,
+        "svgGraphics": 5,
+        "controls": 0,
+        "skipped": 0,
+        "skippedSvgInvisible": 0,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {}
+      }
+    },
+    {
+      "id": "shadcn-sidebar-collapsible",
+      "source": "shadcn",
+      "component": "sidebar",
+      "example": "collapsible",
+      "category": "layout",
+      "recipe": "shadcn-sidebar-collapsible",
+      "selector": "[data-capture='shadcn:sidebar:collapsible']",
+      "url": "http://127.0.0.1:4179/capture/shadcn/sidebar/collapsible",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 960
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "be0618ce6be4413e3bd93c0bfaf83160b8b5ecdb244f7d4623024112c52bdceb",
+        "cliVersion": "4.13.1",
+        "base": "radix",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "code": "b2fA",
+            "fallbacks": [],
+            "values": {
+              "style": "nova",
+              "baseColor": "neutral",
+              "theme": "neutral",
+              "chartColor": "neutral",
+              "iconLibrary": "lucide",
+              "font": "geist",
+              "fontHeading": "inherit",
+              "radius": "default",
+              "menuAccent": "subtle",
+              "menuColor": "default"
+            }
+          }
+        },
+        "lockChecksum": "77d1ac5b3cf225ff558473260c90dcf7aca55a872188437dd8328a3e9d3e592d"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/shadcn-sidebar-collapsible/shadcn-sidebar-collapsible.capture.json",
+        "tree": "captures/shadcn-sidebar-collapsible/shadcn-sidebar-collapsible.tree.json",
+        "batch": "captures/shadcn-sidebar-collapsible/shadcn-sidebar-collapsible.batch.js",
+        "screenshot": "captures/shadcn-sidebar-collapsible/shadcn-sidebar-collapsible.png"
+      },
+      "checksums": {
+        "capture": "b26d0ccc3f2a5428ad7adc45ffb6a29e441e8b743b90d121f54e27c19043ed8d",
+        "tree": "50c64ec6ec3f4f688f128d8a6c75f3e83aaad26f00683a4973374ab2993cff04",
+        "batch": "e53747c8ee5d3a2f16faa1b4d78f317261db79500825619106b4aab88f194231",
+        "screenshot": "311676c2928edd5f99c8edccdf5847120fa2923458432f26797f8c1373e4f674"
+      },
+      "stats": {
+        "frames": 56,
+        "groups": 0,
+        "texts": 12,
+        "images": 0,
+        "gradients": 0,
+        "svgGraphics": 20,
+        "controls": 0,
+        "skipped": 2,
+        "skippedSvgInvisible": 0,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {
+          "div": 1,
+          "span": 1
+        }
+      }
+    },
+    {
+      "id": "shadcn-sidebar-navigation",
+      "source": "shadcn",
+      "component": "sidebar",
+      "example": "navigation",
+      "category": "layout",
+      "recipe": "shadcn-sidebar-navigation",
+      "selector": "[data-slot='sidebar-inner']",
+      "url": "http://127.0.0.1:4179/capture/shadcn/sidebar/collapsible",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 960
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "be0618ce6be4413e3bd93c0bfaf83160b8b5ecdb244f7d4623024112c52bdceb",
+        "cliVersion": "4.13.1",
+        "base": "radix",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "code": "b2fA",
+            "fallbacks": [],
+            "values": {
+              "style": "nova",
+              "baseColor": "neutral",
+              "theme": "neutral",
+              "chartColor": "neutral",
+              "iconLibrary": "lucide",
+              "font": "geist",
+              "fontHeading": "inherit",
+              "radius": "default",
+              "menuAccent": "subtle",
+              "menuColor": "default"
+            }
+          }
+        },
+        "lockChecksum": "77d1ac5b3cf225ff558473260c90dcf7aca55a872188437dd8328a3e9d3e592d"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/shadcn-sidebar-navigation/shadcn-sidebar-navigation.capture.json",
+        "tree": "captures/shadcn-sidebar-navigation/shadcn-sidebar-navigation.tree.json",
+        "batch": "captures/shadcn-sidebar-navigation/shadcn-sidebar-navigation.batch.js",
+        "screenshot": "captures/shadcn-sidebar-navigation/shadcn-sidebar-navigation.png"
+      },
+      "checksums": {
+        "capture": "f67ab12028c91f9945074afd974f778fca62ab0b3363a6db614db1367b4f3159",
+        "tree": "6dc5c4837a29daac792894aa210acf4672f8a60ea862f34dbfcb9f067b2d39bd",
+        "batch": "347123211525a228bd369e8a982f989ce19e4ef28de33238eb17958cea277469",
+        "screenshot": "7e83e58205f3385311f51efc47bce820f2853802f0599c3247ba7554549e4888"
+      },
+      "stats": {
+        "frames": 46,
+        "groups": 0,
+        "texts": 10,
+        "images": 0,
+        "gradients": 0,
+        "svgGraphics": 18,
+        "controls": 0,
+        "skipped": 0,
+        "skippedSvgInvisible": 0,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {}
+      }
+    },
+    {
+      "id": "shadcn-sonner-card-moved",
+      "source": "shadcn",
+      "component": "sonner",
+      "example": "card-moved",
+      "category": "feedback",
+      "recipe": "shadcn-sonner-card-moved",
+      "selector": "[data-sonner-toast]",
+      "url": "http://127.0.0.1:4176/capture/shadcn/sonner/card-moved",
+      "environment": {
+        "locale": "en-US",
+        "timezone": "UTC",
+        "theme": "light",
+        "reducedMotion": "reduce",
+        "deviceScaleFactor": 1,
+        "viewport": {
+          "width": 1280,
+          "height": 960
+        },
+        "settleMs": 500
+      },
+      "renderer": {
+        "hash": "a8307cc756f1a48c020db7a4da29f47b9351802dbac1abea59948fb33469bb98",
+        "cliVersion": "4.13.1",
+        "base": "radix",
+        "preset": {
+          "requested": "nova",
+          "resolved": {
+            "code": "b2fA",
+            "fallbacks": [],
+            "values": {
+              "style": "nova",
+              "baseColor": "neutral",
+              "theme": "neutral",
+              "chartColor": "neutral",
+              "iconLibrary": "lucide",
+              "font": "geist",
+              "fontHeading": "inherit",
+              "radius": "default",
+              "menuAccent": "subtle",
+              "menuColor": "default"
+            }
+          }
+        },
+        "lockChecksum": "48b68ee85e16b142641786664062e898971703a83dca3ddf276899573ca53a15"
+      },
+      "namingConvention": "Name (id)",
+      "writer": "pencil-mcp-only",
+      "artifacts": {
+        "capture": "captures/shadcn-sonner-card-moved/shadcn-sonner-card-moved.capture.json",
+        "tree": "captures/shadcn-sonner-card-moved/shadcn-sonner-card-moved.tree.json",
+        "batch": "captures/shadcn-sonner-card-moved/shadcn-sonner-card-moved.batch.js",
+        "screenshot": "captures/shadcn-sonner-card-moved/shadcn-sonner-card-moved.png"
+      },
+      "checksums": {
+        "capture": "bebd232e6b8d3a29b87798dec4911da9ed2970aa85b94edcfeb4d337f9d49660",
+        "tree": "6807f61ea625dbbcc29f75ee20fedd00e0dfe83b0f43bd34c97d3a19d3a56390",
+        "batch": "0122336e404adbb93ae203e72f5f3e972235eb3a9713d29339fae25c83a28225",
+        "screenshot": "61456bdf1c4e80c09e62d8739b2bcdb498a04e7ac0955ba02e7d0c19935a11f6"
+      },
+      "stats": {
+        "frames": 6,
+        "groups": 0,
+        "texts": 2,
+        "images": 0,
+        "gradients": 0,
+        "svgGraphics": 2,
+        "controls": 0,
+        "skipped": 0,
+        "skippedSvgInvisible": 0,
+        "skippedSvgUnsupported": 0,
+        "skippedRoots": {}
+      }
+    }
+  ]
+}

@@ -28,10 +28,13 @@ bunx skills add djalmajr/skills --agent claude-code --agent opencode --agent cod
 This repo follows the shared Agent Skills convention:
 
 ```text
-skills/<skill-name>/SKILL.md
+skills/<skill-name>/SKILL.md          # project-authored, distributed skills
+.agents/skills/<skill-name>/SKILL.md  # explicitly vendored third-party skills
 ```
 
 `SKILL.md` is the source of truth for agent behavior, triggers, and execution procedure. `README.md` is still important for humans: the root README explains the package, and skill-specific human notes live under `docs/skills/`.
+
+Third-party skills are kept out of the project's canonical `skills/` namespace and out of `skills.json`. Only the explicitly unignored directories under `.agents/skills/` are versioned; other locally installed agent skills remain ignored.
 
 `agents/openai.yaml` is optional Codex UI metadata. It is not the compatibility mechanism for Claude Code or OpenCode.
 
@@ -39,16 +42,16 @@ skills/<skill-name>/SKILL.md
 
 These skills are written for the common `SKILL.md` format used by `skills.sh`, Claude Code, OpenCode, and Codex.
 
-- `skills.sh` discovers skills under `skills/` and installs them into selected agent paths.
+- `skills.sh` discovers project-authored skills under `skills/` and installs them into selected agent paths.
 - Claude Code loads installed skills from `.claude/skills/<name>/SKILL.md` or `~/.claude/skills/<name>/SKILL.md`.
 - OpenCode loads skills from `.opencode/skills`, `.claude/skills`, or `.agents/skills` locations and requires `name` to match the directory name.
 - Codex reads the same `SKILL.md` metadata; `agents/openai.yaml` only improves UI presentation when present.
 
 Keep frontmatter portable. Avoid agent-specific fields unless the skill truly needs them and the behavior is documented in `SKILL.md`.
 
-## Skills (26)
+## Skills (27)
 
-### Agile (15)
+### Agile (16)
 
 | Skill | Purpose |
 |-------|---------|
@@ -64,7 +67,8 @@ Keep frontmatter portable. Avoid agent-specific fields unless the skill truly ne
 | agile-retro | Retrospective with improvement actions |
 | agile-router | Guidance on which skill to use |
 | agile-onboarding | New member onboarding guide |
-| agile-proto | Interactive UI prototypes |
+| agile-proto | Static browser prototypes powered by HTM UI |
+| agile-pen | Traceable Pen.dev prototypes, components, states, and notes |
 | agile-tdd | TDD cycle + pragmatic testing strategy |
 | agile-skill-feedback | Improve, merge, split, deprecate, or remove skills from real usage evidence |
 

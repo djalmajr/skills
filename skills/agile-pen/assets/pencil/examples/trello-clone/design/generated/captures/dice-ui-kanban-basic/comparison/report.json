@@ -1,0 +1,28 @@
+{
+  "source": {
+    "path": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/dice-ui-kanban-basic/dice-ui-kanban-basic.png",
+    "width": 1120,
+    "height": 680
+  },
+  "pencil": {
+    "path": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/dice-ui-kanban-basic/pencil/QzmPf.png",
+    "width": 1120,
+    "height": 680
+  },
+  "normalized": false,
+  "rmse": 5466.63,
+  "normalizedRmse": 0.0834154,
+  "gates": {
+    "requireSameSize": true,
+    "maxRmse": 0.15,
+    "sameSize": true,
+    "sizePassed": true,
+    "rmsePassed": true,
+    "passed": true
+  },
+  "outputs": {
+    "diff": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/dice-ui-kanban-basic/comparison/diff.png",
+    "sideBySide": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/dice-ui-kanban-basic/comparison/side-by-side.png",
+    "normalizedPencil": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/dice-ui-kanban-basic/comparison/pencil-normalized.png"
+  }
+}

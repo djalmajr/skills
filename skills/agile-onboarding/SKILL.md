@@ -77,7 +77,8 @@ No-pause mode: if the user has explicitly disabled mid-skill clarification, conv
    - `/agile-review` — sprint review and demo
    - `/agile-metrics` — sprint metrics
    - `/agile-retro` — retrospective
-   - `/agile-proto` — interactive prototypes
+   - `/agile-proto` — static HTM UI browser prototypes
+   - `/agile-pen` — Pen.dev `.pen` prototypes
    - `/agile-router` — guidance on which skill to use
 
 ### Day 2: Practical exercise — intake and planning

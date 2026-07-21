@@ -1,11 +1,13 @@
 ---
 name: agile-proto
-description: Create interactive UI prototypes with a CDN-only stack built from z-proto, HTM UI, Tailwind CSS v4, Preact/htm, and preact-iso, including faithful send-to-Figma captures when requested. Use when asked to prototype, create mockup screens, explore an interactive UI flow, or validate product behavior before implementation.
+description: Create static, browser-based UI prototypes with a zero-build CDN stack built from z-proto, HTM UI, Tailwind CSS v4, Preact/htm, and preact-iso. Use when asked for an HTML prototype, static web prototype, clickable browser mockup, responsive interaction demo, or stakeholder flow that runs without a backend or required build pipeline. Do not use for Pen.dev or .pen artifacts; use agile-pen for those.
 ---
 
-# Interactive UI prototyping
+# Static browser prototyping
 
 Build standalone prototypes that validate flows and interactions before production implementation. Keep them zero-build and browser-native. Use HTM UI as the component source of truth; never bundle or maintain a copied component catalog inside each prototype.
+
+"Static" describes the delivery architecture: directly servable HTML, CSS, and JavaScript with no backend or required build pipeline. The browser prototype may still include realistic client-side interactions. Never create or edit `.pen` artifacts in this skill; route those requests to `agile-pen`.
 
 When a prototype belongs to an agile initiative, place it in `planning/<initiative>/proto/` beside the intake, roadmap, business rules, and future epic artifacts. Use `{app}/client-proto/` only when the project already follows that convention.
 

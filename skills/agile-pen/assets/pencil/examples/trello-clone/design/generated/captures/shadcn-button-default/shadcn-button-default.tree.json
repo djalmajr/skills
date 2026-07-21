@@ -1,0 +1,325 @@
+{
+  "format": "pencil-node-tree",
+  "version": 2,
+  "source": {
+    "url": "http://127.0.0.1:4179/capture/shadcn/button/default",
+    "selector": "[data-capture='shadcn:button:default']"
+  },
+  "stats": {
+    "frames": 9,
+    "groups": 0,
+    "texts": 6,
+    "images": 0,
+    "gradients": 0,
+    "svgGraphics": 2,
+    "controls": 0,
+    "skipped": 0,
+    "skippedSvgInvisible": 0,
+    "skippedSvgUnsupported": 0,
+    "skippedRoots": {}
+  },
+  "root": {
+    "type": "frame",
+    "name": "Captured · Primary action",
+    "layout": "none",
+    "x": 0,
+    "y": 0,
+    "width": 638.672,
+    "height": 82,
+    "cornerRadius": 10,
+    "fill": {
+      "type": "color",
+      "color": "#FFFFFF",
+      "blendMode": "normal"
+    },
+    "stroke": "#E5E5E5",
+    "strokeWidth": 1,
+    "strokeAlignment": "inner",
+    "children": [
+      {
+        "type": "frame",
+        "name": "Button",
+        "layout": "none",
+        "layoutPosition": "absolute",
+        "x": 25,
+        "y": 25,
+        "width": 116.969,
+        "height": 32,
+        "cornerRadius": 10,
+        "fill": {
+          "type": "color",
+          "color": "#171717",
+          "blendMode": "normal"
+        },
+        "children": [
+          {
+            "type": "text",
+            "name": "Button · Text",
+            "layoutPosition": "absolute",
+            "x": 11,
+            "y": 7,
+            "textGrowth": "auto",
+            "content": "Primary action",
+            "fill": "#FAFAFA",
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": "500",
+            "fontStyle": "normal",
+            "lineHeight": 1.429,
+            "textAlign": "center",
+            "textAlignVertical": "middle"
+          }
+        ]
+      },
+      {
+        "type": "frame",
+        "name": "Button",
+        "layout": "none",
+        "layoutPosition": "absolute",
+        "x": 153.969,
+        "y": 25,
+        "width": 92.359,
+        "height": 32,
+        "cornerRadius": 10,
+        "fill": {
+          "type": "color",
+          "color": "#F5F5F5",
+          "blendMode": "normal"
+        },
+        "children": [
+          {
+            "type": "text",
+            "name": "Button · Text",
+            "layoutPosition": "absolute",
+            "x": 11,
+            "y": 7,
+            "textGrowth": "auto",
+            "content": "Secondary",
+            "fill": "#171717",
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": "500",
+            "fontStyle": "normal",
+            "lineHeight": 1.429,
+            "textAlign": "center",
+            "textAlignVertical": "middle"
+          }
+        ]
+      },
+      {
+        "type": "frame",
+        "name": "Button",
+        "layout": "none",
+        "layoutPosition": "absolute",
+        "x": 258.328,
+        "y": 25,
+        "width": 69.781,
+        "height": 32,
+        "cornerRadius": 10,
+        "fill": {
+          "type": "color",
+          "color": "#FFFFFF",
+          "blendMode": "normal"
+        },
+        "stroke": "#E5E5E5",
+        "strokeWidth": 1,
+        "strokeAlignment": "inner",
+        "children": [
+          {
+            "type": "text",
+            "name": "Button · Text",
+            "layoutPosition": "absolute",
+            "x": 11,
+            "y": 7,
+            "textGrowth": "auto",
+            "content": "Outline",
+            "fill": "#0A0A0A",
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": "500",
+            "fontStyle": "normal",
+            "lineHeight": 1.429,
+            "textAlign": "center",
+            "textAlignVertical": "middle"
+          }
+        ]
+      },
+      {
+        "type": "frame",
+        "name": "Button",
+        "layout": "none",
+        "layoutPosition": "absolute",
+        "x": 340.109,
+        "y": 25,
+        "width": 61.016,
+        "height": 32,
+        "cornerRadius": 10,
+        "children": [
+          {
+            "type": "text",
+            "name": "Button · Text",
+            "layoutPosition": "absolute",
+            "x": 11,
+            "y": 7,
+            "textGrowth": "auto",
+            "content": "Ghost",
+            "fill": "#0A0A0A",
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": "500",
+            "fontStyle": "normal",
+            "lineHeight": 1.429,
+            "textAlign": "center",
+            "textAlignVertical": "middle"
+          }
+        ]
+      },
+      {
+        "type": "frame",
+        "name": "Button",
+        "layout": "none",
+        "layoutPosition": "absolute",
+        "x": 413.125,
+        "y": 25,
+        "width": 65.063,
+        "height": 32,
+        "cornerRadius": 10,
+        "fill": {
+          "type": "color",
+          "color": "#E7000B1A",
+          "blendMode": "normal"
+        },
+        "children": [
+          {
+            "type": "text",
+            "name": "Button · Text",
+            "layoutPosition": "absolute",
+            "x": 11,
+            "y": 7,
+            "textGrowth": "auto",
+            "content": "Delete",
+            "fill": "#E7000B",
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": "500",
+            "fontStyle": "normal",
+            "lineHeight": 1.429,
+            "textAlign": "center",
+            "textAlignVertical": "middle"
+          }
+        ]
+      },
+      {
+        "type": "frame",
+        "name": "Button",
+        "layout": "none",
+        "layoutPosition": "absolute",
+        "x": 490.188,
+        "y": 25,
+        "width": 32,
+        "height": 32,
+        "cornerRadius": 10,
+        "fill": {
+          "type": "color",
+          "color": "#171717",
+          "blendMode": "normal"
+        },
+        "children": [
+          {
+            "type": "frame",
+            "name": "Svg",
+            "layout": "none",
+            "layoutPosition": "absolute",
+            "x": 8,
+            "y": 8,
+            "width": 16,
+            "height": 16,
+            "cornerRadius": 0,
+            "clip": true,
+            "children": [
+              {
+                "type": "path",
+                "name": "Path",
+                "layoutPosition": "absolute",
+                "x": 0,
+                "y": 0,
+                "width": 16,
+                "height": 16,
+                "fill": "#00000000",
+                "stroke": "#FAFAFA",
+                "strokeWidth": 1.333,
+                "strokeLinecap": "round",
+                "strokeLinejoin": "round",
+                "geometry": "m5 12 7-7 7 7",
+                "viewBox": [
+                  0,
+                  0,
+                  24,
+                  24
+                ]
+              },
+              {
+                "type": "path",
+                "name": "Path",
+                "layoutPosition": "absolute",
+                "x": 0,
+                "y": 0,
+                "width": 16,
+                "height": 16,
+                "fill": "#00000000",
+                "stroke": "#FAFAFA",
+                "strokeWidth": 1.333,
+                "strokeLinecap": "round",
+                "strokeLinejoin": "round",
+                "geometry": "M12 19V5",
+                "viewBox": [
+                  0,
+                  0,
+                  24,
+                  24
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "frame",
+        "name": "Button",
+        "layout": "none",
+        "layoutPosition": "absolute",
+        "x": 534.188,
+        "y": 25,
+        "width": 79.484,
+        "height": 32,
+        "cornerRadius": 10,
+        "fill": {
+          "type": "color",
+          "color": "#171717",
+          "blendMode": "normal"
+        },
+        "opacity": 0.5,
+        "children": [
+          {
+            "type": "text",
+            "name": "Button · Text",
+            "layoutPosition": "absolute",
+            "x": 11,
+            "y": 7,
+            "textGrowth": "auto",
+            "content": "Disabled",
+            "fill": "#FAFAFA",
+            "fontFamily": "Inter",
+            "fontSize": 14,
+            "fontWeight": "500",
+            "fontStyle": "normal",
+            "lineHeight": 1.429,
+            "textAlign": "center",
+            "textAlignVertical": "middle"
+          }
+        ]
+      }
+    ],
+    "clip": false
+  }
+}

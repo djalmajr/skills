@@ -1,0 +1,964 @@
+{
+  "format": "pen-node-tree",
+  "version": 2,
+  "source": {
+    "url": "http://127.0.0.1:50002/capture/registry/login-04",
+    "selector": "[data-capture='registry:login-04']"
+  },
+  "stats": {
+    "frames": 40,
+    "groups": 0,
+    "texts": 14,
+    "images": 1,
+    "gradients": 0,
+    "svgGraphics": 3,
+    "controls": 1,
+    "skipped": 3,
+    "skippedSvgInvisible": 0,
+    "skippedSvgUnsupported": 0,
+    "skippedRoots": {
+      "span": 3
+    }
+  },
+  "root": {
+    "type": "frame",
+    "name": "Captured · Welcome back",
+    "layout": "none",
+    "x": 0,
+    "y": 0,
+    "width": 1280,
+    "height": 960,
+    "cornerRadius": 0,
+    "fill": {
+      "type": "color",
+      "color": "#FFFFFF",
+      "blendMode": "normal"
+    },
+    "children": [
+      {
+        "type": "frame",
+        "name": "Div",
+        "layout": "none",
+        "layoutPosition": "absolute",
+        "x": 0,
+        "y": 0,
+        "width": 1280,
+        "height": 960,
+        "cornerRadius": 0,
+        "fill": {
+          "type": "color",
+          "color": "#F5F5F5",
+          "blendMode": "normal"
+        },
+        "children": [
+          {
+            "type": "frame",
+            "name": "Div",
+            "layout": "none",
+            "layoutPosition": "absolute",
+            "x": 192,
+            "y": 231.375,
+            "width": 896,
+            "height": 497.25,
+            "cornerRadius": 0,
+            "children": [
+              {
+                "type": "frame",
+                "name": "Div",
+                "layout": "none",
+                "layoutPosition": "absolute",
+                "x": 0,
+                "y": 0,
+                "width": 896,
+                "height": 497.25,
+                "cornerRadius": 0,
+                "children": [
+                  {
+                    "type": "frame",
+                    "name": "Div · card",
+                    "layout": "none",
+                    "layoutPosition": "absolute",
+                    "x": 0,
+                    "y": 0,
+                    "width": 896,
+                    "height": 452.25,
+                    "cornerRadius": 14,
+                    "fill": {
+                      "type": "color",
+                      "color": "#FFFFFF",
+                      "blendMode": "normal"
+                    },
+                    "stroke": "#0A0A0A1A",
+                    "strokeWidth": 1,
+                    "strokeAlignment": "inner",
+                    "clip": true,
+                    "children": [
+                      {
+                        "type": "frame",
+                        "name": "Div · card-content",
+                        "layout": "none",
+                        "layoutPosition": "absolute",
+                        "x": 0,
+                        "y": 0,
+                        "width": 896,
+                        "height": 452.25,
+                        "cornerRadius": 0,
+                        "children": [
+                          {
+                            "type": "frame",
+                            "name": "Form",
+                            "layout": "none",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 0,
+                            "width": 448,
+                            "height": 452.25,
+                            "cornerRadius": 0,
+                            "children": [
+                              {
+                                "type": "frame",
+                                "name": "Div · field-group",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 32,
+                                "y": 32,
+                                "width": 384,
+                                "height": 388.25,
+                                "cornerRadius": 0,
+                                "children": [
+                                  {
+                                    "type": "frame",
+                                    "name": "Div",
+                                    "layout": "none",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 384,
+                                    "height": 60,
+                                    "cornerRadius": 0,
+                                    "children": [
+                                      {
+                                        "type": "frame",
+                                        "name": "H1 · Welcome back",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 105.219,
+                                        "y": 0,
+                                        "width": 173.547,
+                                        "height": 32,
+                                        "cornerRadius": 0,
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "name": "H1 · Welcome back · Text",
+                                            "layoutPosition": "absolute",
+                                            "x": 0,
+                                            "y": 0,
+                                            "textGrowth": "auto",
+                                            "content": "Welcome back",
+                                            "fill": "#0A0A0A",
+                                            "fontFamily": "Inter",
+                                            "fontSize": 24,
+                                            "fontWeight": "700",
+                                            "fontStyle": "normal",
+                                            "lineHeight": 1.333,
+                                            "textAlign": "center",
+                                            "textAlignVertical": "top"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "frame",
+                                        "name": "P · Login to your Acme Inc account",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 90.969,
+                                        "y": 40,
+                                        "width": 202.063,
+                                        "height": 20,
+                                        "cornerRadius": 0,
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "name": "P · Login to your Acme Inc account · Text",
+                                            "layoutPosition": "absolute",
+                                            "x": 0,
+                                            "y": 1,
+                                            "textGrowth": "auto",
+                                            "content": "Login to your Acme Inc account",
+                                            "fill": "#737373",
+                                            "fontFamily": "Inter",
+                                            "fontSize": 14,
+                                            "fontWeight": "400",
+                                            "fontStyle": "normal",
+                                            "lineHeight": 1.429,
+                                            "textAlign": "center",
+                                            "textAlignVertical": "top"
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "frame",
+                                    "name": "Div · field",
+                                    "layout": "none",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 80,
+                                    "width": 384,
+                                    "height": 59.25,
+                                    "cornerRadius": 0,
+                                    "children": [
+                                      {
+                                        "type": "frame",
+                                        "name": "Label · field-label",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 0,
+                                        "y": 0,
+                                        "width": 384,
+                                        "height": 19.25,
+                                        "cornerRadius": 0,
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "name": "Label · field-label · Text",
+                                            "layoutPosition": "absolute",
+                                            "x": 0,
+                                            "y": 0,
+                                            "textGrowth": "auto",
+                                            "content": "Email",
+                                            "fill": "#0A0A0A",
+                                            "fontFamily": "Inter",
+                                            "fontSize": 14,
+                                            "fontWeight": "500",
+                                            "fontStyle": "normal",
+                                            "lineHeight": 1.375,
+                                            "textAlign": "left",
+                                            "textAlignVertical": "top"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "frame",
+                                        "name": "Input",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 0,
+                                        "y": 27.25,
+                                        "width": 384,
+                                        "height": 32,
+                                        "cornerRadius": 10,
+                                        "stroke": "#E5E5E5",
+                                        "strokeWidth": 1,
+                                        "strokeAlignment": "inner",
+                                        "clip": true,
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "name": "Input · Value",
+                                            "layoutPosition": "absolute",
+                                            "x": 10,
+                                            "y": 6,
+                                            "textGrowth": "auto",
+                                            "content": "m@example.com",
+                                            "fill": "#737373",
+                                            "fontFamily": "Inter",
+                                            "fontSize": 14,
+                                            "fontWeight": "400",
+                                            "fontStyle": "normal",
+                                            "lineHeight": 1.429,
+                                            "textAlign": "left"
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "frame",
+                                    "name": "Div · field",
+                                    "layout": "none",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 159.25,
+                                    "width": 384,
+                                    "height": 60,
+                                    "cornerRadius": 0,
+                                    "children": [
+                                      {
+                                        "type": "frame",
+                                        "name": "Div",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 0,
+                                        "y": 0,
+                                        "width": 384,
+                                        "height": 20,
+                                        "cornerRadius": 0,
+                                        "children": [
+                                          {
+                                            "type": "frame",
+                                            "name": "Label · field-label",
+                                            "layout": "none",
+                                            "layoutPosition": "absolute",
+                                            "x": 0,
+                                            "y": 0.375,
+                                            "width": 64.031,
+                                            "height": 19.25,
+                                            "cornerRadius": 0,
+                                            "children": [
+                                              {
+                                                "type": "text",
+                                                "name": "Label · field-label · Text",
+                                                "layoutPosition": "absolute",
+                                                "x": 0,
+                                                "y": 0,
+                                                "textGrowth": "auto",
+                                                "content": "Password",
+                                                "fill": "#0A0A0A",
+                                                "fontFamily": "Inter",
+                                                "fontSize": 14,
+                                                "fontWeight": "500",
+                                                "fontStyle": "normal",
+                                                "lineHeight": 1.375,
+                                                "textAlign": "left",
+                                                "textAlignVertical": "top"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "type": "frame",
+                                            "name": "A · Forgot your password?",
+                                            "layout": "none",
+                                            "layoutPosition": "absolute",
+                                            "x": 237.031,
+                                            "y": 0,
+                                            "width": 146.969,
+                                            "height": 20,
+                                            "cornerRadius": 0,
+                                            "children": [
+                                              {
+                                                "type": "text",
+                                                "name": "A · Forgot your password? · Text",
+                                                "layoutPosition": "absolute",
+                                                "x": 0,
+                                                "y": 1,
+                                                "textGrowth": "auto",
+                                                "content": "Forgot your password?",
+                                                "fill": "#0A0A0A",
+                                                "fontFamily": "Inter",
+                                                "fontSize": 14,
+                                                "fontWeight": "400",
+                                                "fontStyle": "normal",
+                                                "lineHeight": 1.429,
+                                                "textAlign": "left",
+                                                "textAlignVertical": "top",
+                                                "href": "#",
+                                                "metadata": {
+                                                  "type": "pen-capture-link",
+                                                  "href": "#"
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "frame",
+                                        "name": "Input",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 0,
+                                        "y": 28,
+                                        "width": 384,
+                                        "height": 32,
+                                        "cornerRadius": 10,
+                                        "stroke": "#E5E5E5",
+                                        "strokeWidth": 1,
+                                        "strokeAlignment": "inner",
+                                        "clip": true,
+                                        "children": []
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "frame",
+                                    "name": "Div · field",
+                                    "layout": "none",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 239.25,
+                                    "width": 384,
+                                    "height": 32,
+                                    "cornerRadius": 0,
+                                    "children": [
+                                      {
+                                        "type": "frame",
+                                        "name": "Button",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 0,
+                                        "y": 0,
+                                        "width": 384,
+                                        "height": 32,
+                                        "cornerRadius": 10,
+                                        "fill": {
+                                          "type": "color",
+                                          "color": "#171717",
+                                          "blendMode": "normal"
+                                        },
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "name": "Button · Text",
+                                            "layoutPosition": "absolute",
+                                            "x": 173.984,
+                                            "y": 7,
+                                            "textGrowth": "auto",
+                                            "content": "Login",
+                                            "fill": "#FAFAFA",
+                                            "fontFamily": "Inter",
+                                            "fontSize": 14,
+                                            "fontWeight": "500",
+                                            "fontStyle": "normal",
+                                            "lineHeight": 1.429,
+                                            "textAlign": "center",
+                                            "textAlignVertical": "middle"
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "frame",
+                                    "name": "Div · field-separator",
+                                    "layout": "none",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 283.25,
+                                    "width": 384,
+                                    "height": 20,
+                                    "cornerRadius": 0,
+                                    "children": [
+                                      {
+                                        "type": "frame",
+                                        "name": "Div · separator",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 0,
+                                        "y": 10,
+                                        "width": 384,
+                                        "height": 1,
+                                        "cornerRadius": 0,
+                                        "fill": {
+                                          "type": "color",
+                                          "color": "#E5E5E5",
+                                          "blendMode": "normal"
+                                        },
+                                        "children": []
+                                      },
+                                      {
+                                        "type": "frame",
+                                        "name": "Span · field-separator-content",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 131.172,
+                                        "y": 0,
+                                        "width": 121.656,
+                                        "height": 20,
+                                        "cornerRadius": 0,
+                                        "fill": {
+                                          "type": "color",
+                                          "color": "#FFFFFF",
+                                          "blendMode": "normal"
+                                        },
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "name": "Span · field-separator-content · Text",
+                                            "layoutPosition": "absolute",
+                                            "x": 8,
+                                            "y": 1,
+                                            "textGrowth": "auto",
+                                            "content": "Or continue with",
+                                            "fill": "#737373",
+                                            "fontFamily": "Inter",
+                                            "fontSize": 14,
+                                            "fontWeight": "400",
+                                            "fontStyle": "normal",
+                                            "lineHeight": 1.429,
+                                            "textAlign": "left",
+                                            "textAlignVertical": "top"
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "frame",
+                                    "name": "Div · field",
+                                    "layout": "none",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 315.25,
+                                    "width": 384,
+                                    "height": 32,
+                                    "cornerRadius": 0,
+                                    "children": [
+                                      {
+                                        "type": "frame",
+                                        "name": "Button",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 0,
+                                        "y": 0,
+                                        "width": 117.328,
+                                        "height": 32,
+                                        "cornerRadius": 10,
+                                        "fill": {
+                                          "type": "color",
+                                          "color": "#FFFFFF",
+                                          "blendMode": "normal"
+                                        },
+                                        "stroke": "#E5E5E5",
+                                        "strokeWidth": 1,
+                                        "strokeAlignment": "inner",
+                                        "children": [
+                                          {
+                                            "type": "frame",
+                                            "name": "Svg",
+                                            "layout": "none",
+                                            "layoutPosition": "absolute",
+                                            "x": 50.656,
+                                            "y": 8,
+                                            "width": 16,
+                                            "height": 16,
+                                            "cornerRadius": 0,
+                                            "clip": true,
+                                            "children": [
+                                              {
+                                                "type": "path",
+                                                "name": "Path",
+                                                "layoutPosition": "absolute",
+                                                "x": 0,
+                                                "y": 0,
+                                                "width": 16,
+                                                "height": 16,
+                                                "fill": "#0A0A0A",
+                                                "geometry": "M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701",
+                                                "viewBox": [
+                                                  0,
+                                                  0,
+                                                  24,
+                                                  24
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "frame",
+                                        "name": "Button",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 133.328,
+                                        "y": 0,
+                                        "width": 117.328,
+                                        "height": 32,
+                                        "cornerRadius": 10,
+                                        "fill": {
+                                          "type": "color",
+                                          "color": "#FFFFFF",
+                                          "blendMode": "normal"
+                                        },
+                                        "stroke": "#E5E5E5",
+                                        "strokeWidth": 1,
+                                        "strokeAlignment": "inner",
+                                        "children": [
+                                          {
+                                            "type": "frame",
+                                            "name": "Svg",
+                                            "layout": "none",
+                                            "layoutPosition": "absolute",
+                                            "x": 50.656,
+                                            "y": 8,
+                                            "width": 16,
+                                            "height": 16,
+                                            "cornerRadius": 0,
+                                            "clip": true,
+                                            "children": [
+                                              {
+                                                "type": "path",
+                                                "name": "Path",
+                                                "layoutPosition": "absolute",
+                                                "x": 0,
+                                                "y": 0,
+                                                "width": 16,
+                                                "height": 16,
+                                                "fill": "#0A0A0A",
+                                                "geometry": "M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z",
+                                                "viewBox": [
+                                                  0,
+                                                  0,
+                                                  24,
+                                                  24
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "frame",
+                                        "name": "Button",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 266.656,
+                                        "y": 0,
+                                        "width": 117.344,
+                                        "height": 32,
+                                        "cornerRadius": 10,
+                                        "fill": {
+                                          "type": "color",
+                                          "color": "#FFFFFF",
+                                          "blendMode": "normal"
+                                        },
+                                        "stroke": "#E5E5E5",
+                                        "strokeWidth": 1,
+                                        "strokeAlignment": "inner",
+                                        "children": [
+                                          {
+                                            "type": "frame",
+                                            "name": "Svg",
+                                            "layout": "none",
+                                            "layoutPosition": "absolute",
+                                            "x": 50.672,
+                                            "y": 8,
+                                            "width": 16,
+                                            "height": 16,
+                                            "cornerRadius": 0,
+                                            "clip": true,
+                                            "children": [
+                                              {
+                                                "type": "path",
+                                                "name": "Path",
+                                                "layoutPosition": "absolute",
+                                                "x": 0,
+                                                "y": 0,
+                                                "width": 16,
+                                                "height": 16,
+                                                "fill": "#0A0A0A",
+                                                "geometry": "M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z",
+                                                "viewBox": [
+                                                  0,
+                                                  0,
+                                                  24,
+                                                  24
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "frame",
+                                    "name": "P · field-description",
+                                    "layout": "none",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 367.25,
+                                    "width": 384,
+                                    "height": 21,
+                                    "cornerRadius": 0,
+                                    "children": [
+                                      {
+                                        "type": "text",
+                                        "name": "P · field-description · Text",
+                                        "layoutPosition": "absolute",
+                                        "x": 90.859,
+                                        "y": 1,
+                                        "textGrowth": "auto",
+                                        "content": "Don't have an account?",
+                                        "fill": "#737373",
+                                        "fontFamily": "Inter",
+                                        "fontSize": 14,
+                                        "fontWeight": "400",
+                                        "fontStyle": "normal",
+                                        "lineHeight": 1.5,
+                                        "textAlign": "center",
+                                        "textAlignVertical": "top"
+                                      },
+                                      {
+                                        "type": "frame",
+                                        "name": "A · Sign up",
+                                        "layout": "none",
+                                        "layoutPosition": "absolute",
+                                        "x": 244.391,
+                                        "y": 1,
+                                        "width": 48.734,
+                                        "height": 18,
+                                        "cornerRadius": 0,
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "name": "A · Sign up · Text",
+                                            "layoutPosition": "absolute",
+                                            "x": 0,
+                                            "y": 0,
+                                            "textGrowth": "auto",
+                                            "content": "Sign up",
+                                            "fill": "#737373",
+                                            "fontFamily": "Inter",
+                                            "fontSize": 14,
+                                            "fontWeight": "400",
+                                            "fontStyle": "normal",
+                                            "lineHeight": 1.5,
+                                            "textAlign": "center",
+                                            "textAlignVertical": "top",
+                                            "underline": true,
+                                            "href": "#",
+                                            "metadata": {
+                                              "type": "pen-capture-link",
+                                              "href": "#"
+                                            }
+                                          },
+                                          {
+                                            "type": "frame",
+                                            "name": "A · Sign up · Underline",
+                                            "layout": "none",
+                                            "layoutPosition": "absolute",
+                                            "x": 0,
+                                            "y": 17,
+                                            "width": 48.734,
+                                            "height": 1,
+                                            "fill": "#737373",
+                                            "metadata": {
+                                              "type": "pen-capture-link-underline",
+                                              "href": "#"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "frame",
+                            "name": "Div",
+                            "layout": "none",
+                            "layoutPosition": "absolute",
+                            "x": 448,
+                            "y": 0,
+                            "width": 448,
+                            "height": 452.25,
+                            "cornerRadius": 0,
+                            "fill": {
+                              "type": "color",
+                              "color": "#F5F5F5",
+                              "blendMode": "normal"
+                            },
+                            "children": [
+                              {
+                                "type": "rectangle",
+                                "name": "Image · Image",
+                                "layoutPosition": "absolute",
+                                "x": 0,
+                                "y": 0,
+                                "width": 448,
+                                "height": 452.25,
+                                "fill": {
+                                  "type": "image",
+                                  "url": "http://127.0.0.1:50002/placeholder.svg",
+                                  "mode": "fill"
+                                },
+                                "cornerRadius": 0
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "frame",
+                    "name": "P · field-description",
+                    "layout": "none",
+                    "layoutPosition": "absolute",
+                    "x": 0,
+                    "y": 476.25,
+                    "width": 896,
+                    "height": 21,
+                    "cornerRadius": 0,
+                    "children": [
+                      {
+                        "type": "text",
+                        "name": "P · field-description · Text · Line 1",
+                        "layoutPosition": "absolute",
+                        "x": 212.719,
+                        "y": 1,
+                        "textGrowth": "auto",
+                        "content": "By clicking continue, you agree to our",
+                        "fill": "#737373",
+                        "fontFamily": "Inter",
+                        "fontSize": 14,
+                        "fontWeight": "400",
+                        "fontStyle": "normal",
+                        "lineHeight": 1.5,
+                        "textAlign": "center",
+                        "textAlignVertical": "top"
+                      },
+                      {
+                        "type": "text",
+                        "name": "P · field-description · Text · Line 2",
+                        "layoutPosition": "absolute",
+                        "x": 565.188,
+                        "y": 1,
+                        "textGrowth": "auto",
+                        "content": "and",
+                        "fill": "#737373",
+                        "fontFamily": "Inter",
+                        "fontSize": 14,
+                        "fontWeight": "400",
+                        "fontStyle": "normal",
+                        "lineHeight": 1.5,
+                        "textAlign": "center",
+                        "textAlignVertical": "top"
+                      },
+                      {
+                        "type": "text",
+                        "name": "P · field-description · Text · Line 3",
+                        "layoutPosition": "absolute",
+                        "x": 680.453,
+                        "y": 1,
+                        "textGrowth": "auto",
+                        "content": ".",
+                        "fill": "#737373",
+                        "fontFamily": "Inter",
+                        "fontSize": 14,
+                        "fontWeight": "400",
+                        "fontStyle": "normal",
+                        "lineHeight": 1.5,
+                        "textAlign": "center",
+                        "textAlignVertical": "top"
+                      },
+                      {
+                        "type": "frame",
+                        "name": "A · Terms of Service",
+                        "layout": "none",
+                        "layoutPosition": "absolute",
+                        "x": 455.266,
+                        "y": 1,
+                        "width": 106.422,
+                        "height": 18,
+                        "cornerRadius": 0,
+                        "children": [
+                          {
+                            "type": "text",
+                            "name": "A · Terms of Service · Text",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 0,
+                            "textGrowth": "auto",
+                            "content": "Terms of Service",
+                            "fill": "#737373",
+                            "fontFamily": "Inter",
+                            "fontSize": 14,
+                            "fontWeight": "400",
+                            "fontStyle": "normal",
+                            "lineHeight": 1.5,
+                            "textAlign": "center",
+                            "textAlignVertical": "top",
+                            "underline": true,
+                            "href": "#",
+                            "metadata": {
+                              "type": "pen-capture-link",
+                              "href": "#"
+                            }
+                          },
+                          {
+                            "type": "frame",
+                            "name": "A · Terms of Service · Underline",
+                            "layout": "none",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 17,
+                            "width": 106.422,
+                            "height": 1,
+                            "fill": "#737373",
+                            "metadata": {
+                              "type": "pen-capture-link-underline",
+                              "href": "#"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "frame",
+                        "name": "A · Privacy Policy",
+                        "layout": "none",
+                        "layoutPosition": "absolute",
+                        "x": 592.656,
+                        "y": 1,
+                        "width": 87.797,
+                        "height": 18,
+                        "cornerRadius": 0,
+                        "children": [
+                          {
+                            "type": "text",
+                            "name": "A · Privacy Policy · Text",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 0,
+                            "textGrowth": "auto",
+                            "content": "Privacy Policy",
+                            "fill": "#737373",
+                            "fontFamily": "Inter",
+                            "fontSize": 14,
+                            "fontWeight": "400",
+                            "fontStyle": "normal",
+                            "lineHeight": 1.5,
+                            "textAlign": "center",
+                            "textAlignVertical": "top",
+                            "underline": true,
+                            "href": "#",
+                            "metadata": {
+                              "type": "pen-capture-link",
+                              "href": "#"
+                            }
+                          },
+                          {
+                            "type": "frame",
+                            "name": "A · Privacy Policy · Underline",
+                            "layout": "none",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 17,
+                            "width": 87.797,
+                            "height": 1,
+                            "fill": "#737373",
+                            "metadata": {
+                              "type": "pen-capture-link-underline",
+                              "href": "#"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "clip": false
+  }
+}

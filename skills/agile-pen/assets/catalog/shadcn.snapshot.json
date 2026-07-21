@@ -1,0 +1,2863 @@
+{
+  "schemaVersion": 1,
+  "cliVersion": "4.13.1",
+  "source": "shadcn",
+  "registry": "@shadcn",
+  "items": [
+    {
+      "name": "chart-area-axes",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-area-axes"
+    },
+    {
+      "name": "chart-area-default",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-area-default"
+    },
+    {
+      "name": "chart-area-gradient",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-area-gradient"
+    },
+    {
+      "name": "chart-area-icons",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-area-icons"
+    },
+    {
+      "name": "chart-area-interactive",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-area-interactive"
+    },
+    {
+      "name": "chart-area-legend",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-area-legend"
+    },
+    {
+      "name": "chart-area-linear",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-area-linear"
+    },
+    {
+      "name": "chart-area-stacked",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-area-stacked"
+    },
+    {
+      "name": "chart-area-stacked-expand",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-area-stacked-expand"
+    },
+    {
+      "name": "chart-area-step",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-area-step"
+    },
+    {
+      "name": "chart-bar-active",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-active"
+    },
+    {
+      "name": "chart-bar-default",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-default"
+    },
+    {
+      "name": "chart-bar-horizontal",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-horizontal"
+    },
+    {
+      "name": "chart-bar-interactive",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-interactive"
+    },
+    {
+      "name": "chart-bar-label",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-label"
+    },
+    {
+      "name": "chart-bar-label-custom",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-label-custom"
+    },
+    {
+      "name": "chart-bar-mixed",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-mixed"
+    },
+    {
+      "name": "chart-bar-multiple",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-multiple"
+    },
+    {
+      "name": "chart-bar-negative",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-negative"
+    },
+    {
+      "name": "chart-bar-stacked",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-stacked"
+    },
+    {
+      "name": "chart-line-default",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-line-default"
+    },
+    {
+      "name": "chart-line-dots",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-line-dots"
+    },
+    {
+      "name": "chart-line-dots-colors",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-line-dots-colors"
+    },
+    {
+      "name": "chart-line-dots-custom",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-line-dots-custom"
+    },
+    {
+      "name": "chart-line-interactive",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-line-interactive"
+    },
+    {
+      "name": "chart-line-label",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-line-label"
+    },
+    {
+      "name": "chart-line-label-custom",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-line-label-custom"
+    },
+    {
+      "name": "chart-line-linear",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-line-linear"
+    },
+    {
+      "name": "chart-line-multiple",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-line-multiple"
+    },
+    {
+      "name": "chart-line-step",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-line-step"
+    },
+    {
+      "name": "chart-pie-donut",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-donut"
+    },
+    {
+      "name": "chart-pie-donut-active",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-donut-active"
+    },
+    {
+      "name": "chart-pie-donut-text",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-donut-text"
+    },
+    {
+      "name": "chart-pie-interactive",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-interactive"
+    },
+    {
+      "name": "chart-pie-label",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-label"
+    },
+    {
+      "name": "chart-pie-label-custom",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-label-custom"
+    },
+    {
+      "name": "chart-pie-label-list",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-label-list"
+    },
+    {
+      "name": "chart-pie-legend",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-legend"
+    },
+    {
+      "name": "chart-pie-separator-none",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-separator-none"
+    },
+    {
+      "name": "chart-pie-simple",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-simple"
+    },
+    {
+      "name": "chart-pie-stacked",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-pie-stacked"
+    },
+    {
+      "name": "chart-radar-default",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-default"
+    },
+    {
+      "name": "chart-radar-dots",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-dots"
+    },
+    {
+      "name": "chart-radar-grid-circle",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-grid-circle"
+    },
+    {
+      "name": "chart-radar-grid-circle-fill",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-grid-circle-fill"
+    },
+    {
+      "name": "chart-radar-grid-circle-no-lines",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-grid-circle-no-lines"
+    },
+    {
+      "name": "chart-radar-grid-custom",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-grid-custom"
+    },
+    {
+      "name": "chart-radar-grid-fill",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-grid-fill"
+    },
+    {
+      "name": "chart-radar-grid-none",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-grid-none"
+    },
+    {
+      "name": "chart-radar-icons",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-icons"
+    },
+    {
+      "name": "chart-radar-label-custom",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-label-custom"
+    },
+    {
+      "name": "chart-radar-legend",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-legend"
+    },
+    {
+      "name": "chart-radar-lines-only",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-lines-only"
+    },
+    {
+      "name": "chart-radar-multiple",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-multiple"
+    },
+    {
+      "name": "chart-radar-radius",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radar-radius"
+    },
+    {
+      "name": "chart-radial-grid",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radial-grid"
+    },
+    {
+      "name": "chart-radial-label",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radial-label"
+    },
+    {
+      "name": "chart-radial-shape",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radial-shape"
+    },
+    {
+      "name": "chart-radial-simple",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radial-simple"
+    },
+    {
+      "name": "chart-radial-stacked",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radial-stacked"
+    },
+    {
+      "name": "chart-radial-text",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-radial-text"
+    },
+    {
+      "name": "chart-tooltip-advanced",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-tooltip-advanced"
+    },
+    {
+      "name": "chart-tooltip-default",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-tooltip-default"
+    },
+    {
+      "name": "chart-tooltip-formatter",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-tooltip-formatter"
+    },
+    {
+      "name": "chart-tooltip-icons",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-tooltip-icons"
+    },
+    {
+      "name": "chart-tooltip-indicator-line",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-tooltip-indicator-line"
+    },
+    {
+      "name": "chart-tooltip-indicator-none",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-tooltip-indicator-none"
+    },
+    {
+      "name": "chart-tooltip-label-custom",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-tooltip-label-custom"
+    },
+    {
+      "name": "chart-tooltip-label-formatter",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-tooltip-label-formatter"
+    },
+    {
+      "name": "chart-tooltip-label-none",
+      "type": "registry:block",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-tooltip-label-none"
+    },
+    {
+      "name": "dashboard-01",
+      "type": "registry:block",
+      "description": "A dashboard with sidebar, charts and data table.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/dashboard-01"
+    },
+    {
+      "name": "login-01",
+      "type": "registry:block",
+      "description": "A simple login form.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/login-01"
+    },
+    {
+      "name": "login-02",
+      "type": "registry:block",
+      "description": "A two column login page with a cover image.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/login-02"
+    },
+    {
+      "name": "login-03",
+      "type": "registry:block",
+      "description": "A login page with a muted background color.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/login-03"
+    },
+    {
+      "name": "login-04",
+      "type": "registry:block",
+      "description": "A login page with form and image.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/login-04"
+    },
+    {
+      "name": "login-05",
+      "type": "registry:block",
+      "description": "A simple email-only login page.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/login-05"
+    },
+    {
+      "name": "sidebar-01",
+      "type": "registry:block",
+      "description": "A simple sidebar with navigation grouped by section.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-01"
+    },
+    {
+      "name": "sidebar-02",
+      "type": "registry:block",
+      "description": "A sidebar with collapsible sections.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-02"
+    },
+    {
+      "name": "sidebar-03",
+      "type": "registry:block",
+      "description": "A sidebar with submenus.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-03"
+    },
+    {
+      "name": "sidebar-04",
+      "type": "registry:block",
+      "description": "A floating sidebar with submenus.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-04"
+    },
+    {
+      "name": "sidebar-05",
+      "type": "registry:block",
+      "description": "A sidebar with collapsible submenus.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-05"
+    },
+    {
+      "name": "sidebar-06",
+      "type": "registry:block",
+      "description": "A sidebar with submenus as dropdowns.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-06"
+    },
+    {
+      "name": "sidebar-07",
+      "type": "registry:block",
+      "description": "A sidebar that collapses to icons.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-07"
+    },
+    {
+      "name": "sidebar-08",
+      "type": "registry:block",
+      "description": "An inset sidebar with secondary navigation.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-08"
+    },
+    {
+      "name": "sidebar-09",
+      "type": "registry:block",
+      "description": "Collapsible nested sidebars.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-09"
+    },
+    {
+      "name": "sidebar-10",
+      "type": "registry:block",
+      "description": "A sidebar in a popover.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-10"
+    },
+    {
+      "name": "sidebar-11",
+      "type": "registry:block",
+      "description": "A sidebar with a collapsible file tree.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-11"
+    },
+    {
+      "name": "sidebar-12",
+      "type": "registry:block",
+      "description": "A sidebar with a calendar.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-12"
+    },
+    {
+      "name": "sidebar-13",
+      "type": "registry:block",
+      "description": "A sidebar in a dialog.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-13"
+    },
+    {
+      "name": "sidebar-14",
+      "type": "registry:block",
+      "description": "A sidebar on the right.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-14"
+    },
+    {
+      "name": "sidebar-15",
+      "type": "registry:block",
+      "description": "A left and right sidebar.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-15"
+    },
+    {
+      "name": "sidebar-16",
+      "type": "registry:block",
+      "description": "A sidebar with a sticky site header.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-16"
+    },
+    {
+      "name": "signup-01",
+      "type": "registry:block",
+      "description": "A simple signup form.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/signup-01"
+    },
+    {
+      "name": "signup-02",
+      "type": "registry:block",
+      "description": "A two column signup page with a cover image.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/signup-02"
+    },
+    {
+      "name": "signup-03",
+      "type": "registry:block",
+      "description": "A signup page with a muted background color.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/signup-03"
+    },
+    {
+      "name": "signup-04",
+      "type": "registry:block",
+      "description": "A signup page with form and image.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/signup-04"
+    },
+    {
+      "name": "signup-05",
+      "type": "registry:block",
+      "description": "A simple signup form with social providers.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/signup-05"
+    },
+    {
+      "name": "accordion-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/accordion-demo"
+    },
+    {
+      "name": "alert-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/alert-demo"
+    },
+    {
+      "name": "alert-destructive",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/alert-destructive"
+    },
+    {
+      "name": "alert-dialog-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/alert-dialog-demo"
+    },
+    {
+      "name": "aspect-ratio-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/aspect-ratio-demo"
+    },
+    {
+      "name": "avatar-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/avatar-demo"
+    },
+    {
+      "name": "badge-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/badge-demo"
+    },
+    {
+      "name": "badge-destructive",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/badge-destructive"
+    },
+    {
+      "name": "badge-outline",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/badge-outline"
+    },
+    {
+      "name": "badge-secondary",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/badge-secondary"
+    },
+    {
+      "name": "breadcrumb-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/breadcrumb-demo"
+    },
+    {
+      "name": "breadcrumb-dropdown",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/breadcrumb-dropdown"
+    },
+    {
+      "name": "breadcrumb-ellipsis",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/breadcrumb-ellipsis"
+    },
+    {
+      "name": "breadcrumb-link",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/breadcrumb-link"
+    },
+    {
+      "name": "breadcrumb-responsive",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/breadcrumb-responsive"
+    },
+    {
+      "name": "breadcrumb-separator",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/breadcrumb-separator"
+    },
+    {
+      "name": "button-as-child",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-as-child"
+    },
+    {
+      "name": "button-default",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-default"
+    },
+    {
+      "name": "button-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-demo"
+    },
+    {
+      "name": "button-destructive",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-destructive"
+    },
+    {
+      "name": "button-ghost",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-ghost"
+    },
+    {
+      "name": "button-group-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-demo"
+    },
+    {
+      "name": "button-group-dropdown",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-dropdown"
+    },
+    {
+      "name": "button-group-input",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-input"
+    },
+    {
+      "name": "button-group-input-group",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-input-group"
+    },
+    {
+      "name": "button-group-nested",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-nested"
+    },
+    {
+      "name": "button-group-orientation",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-orientation"
+    },
+    {
+      "name": "button-group-popover",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-popover"
+    },
+    {
+      "name": "button-group-select",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-select"
+    },
+    {
+      "name": "button-group-separator",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-separator"
+    },
+    {
+      "name": "button-group-size",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-size"
+    },
+    {
+      "name": "button-group-split",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group-split"
+    },
+    {
+      "name": "button-icon",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-icon"
+    },
+    {
+      "name": "button-link",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-link"
+    },
+    {
+      "name": "button-loading",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-loading"
+    },
+    {
+      "name": "button-outline",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-outline"
+    },
+    {
+      "name": "button-rounded",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-rounded"
+    },
+    {
+      "name": "button-secondary",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-secondary"
+    },
+    {
+      "name": "button-size",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-size"
+    },
+    {
+      "name": "button-with-icon",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-with-icon"
+    },
+    {
+      "name": "calendar-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/calendar-demo"
+    },
+    {
+      "name": "calendar-hijri",
+      "type": "registry:example",
+      "description": "A Persian calendar.",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/calendar-hijri"
+    },
+    {
+      "name": "card-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/card-demo"
+    },
+    {
+      "name": "card-with-form",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/card-with-form"
+    },
+    {
+      "name": "carousel-api",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/carousel-api"
+    },
+    {
+      "name": "carousel-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/carousel-demo"
+    },
+    {
+      "name": "carousel-orientation",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/carousel-orientation"
+    },
+    {
+      "name": "carousel-plugin",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/carousel-plugin"
+    },
+    {
+      "name": "carousel-size",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/carousel-size"
+    },
+    {
+      "name": "carousel-spacing",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/carousel-spacing"
+    },
+    {
+      "name": "chart-bar-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-demo"
+    },
+    {
+      "name": "chart-bar-demo-axis",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-demo-axis"
+    },
+    {
+      "name": "chart-bar-demo-grid",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-demo-grid"
+    },
+    {
+      "name": "chart-bar-demo-legend",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-demo-legend"
+    },
+    {
+      "name": "chart-bar-demo-tooltip",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-bar-demo-tooltip"
+    },
+    {
+      "name": "chart-tooltip-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart-tooltip-demo"
+    },
+    {
+      "name": "checkbox-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/checkbox-demo"
+    },
+    {
+      "name": "checkbox-disabled",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/checkbox-disabled"
+    },
+    {
+      "name": "checkbox-with-text",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/checkbox-with-text"
+    },
+    {
+      "name": "collapsible-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/collapsible-demo"
+    },
+    {
+      "name": "combobox-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/combobox-demo"
+    },
+    {
+      "name": "combobox-dropdown-menu",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/combobox-dropdown-menu"
+    },
+    {
+      "name": "combobox-popover",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/combobox-popover"
+    },
+    {
+      "name": "combobox-responsive",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/combobox-responsive"
+    },
+    {
+      "name": "command-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/command-demo"
+    },
+    {
+      "name": "command-dialog",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/command-dialog"
+    },
+    {
+      "name": "context-menu-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/context-menu-demo"
+    },
+    {
+      "name": "data-table-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/data-table-demo"
+    },
+    {
+      "name": "date-picker-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/date-picker-demo"
+    },
+    {
+      "name": "date-picker-with-presets",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/date-picker-with-presets"
+    },
+    {
+      "name": "date-picker-with-range",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/date-picker-with-range"
+    },
+    {
+      "name": "dialog-close-button",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/dialog-close-button"
+    },
+    {
+      "name": "dialog-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/dialog-demo"
+    },
+    {
+      "name": "drawer-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/drawer-demo"
+    },
+    {
+      "name": "drawer-dialog",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/drawer-dialog"
+    },
+    {
+      "name": "dropdown-menu-checkboxes",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/dropdown-menu-checkboxes"
+    },
+    {
+      "name": "dropdown-menu-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/dropdown-menu-demo"
+    },
+    {
+      "name": "dropdown-menu-dialog",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/dropdown-menu-dialog"
+    },
+    {
+      "name": "dropdown-menu-radio-group",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/dropdown-menu-radio-group"
+    },
+    {
+      "name": "empty-avatar",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/empty-avatar"
+    },
+    {
+      "name": "empty-avatar-group",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/empty-avatar-group"
+    },
+    {
+      "name": "empty-background",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/empty-background"
+    },
+    {
+      "name": "empty-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/empty-demo"
+    },
+    {
+      "name": "empty-icon",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/empty-icon"
+    },
+    {
+      "name": "empty-input-group",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/empty-input-group"
+    },
+    {
+      "name": "empty-outline",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/empty-outline"
+    },
+    {
+      "name": "field-checkbox",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-checkbox"
+    },
+    {
+      "name": "field-choice-card",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-choice-card"
+    },
+    {
+      "name": "field-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-demo"
+    },
+    {
+      "name": "field-fieldset",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-fieldset"
+    },
+    {
+      "name": "field-group",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-group"
+    },
+    {
+      "name": "field-input",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-input"
+    },
+    {
+      "name": "field-radio",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-radio"
+    },
+    {
+      "name": "field-responsive",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-responsive"
+    },
+    {
+      "name": "field-select",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-select"
+    },
+    {
+      "name": "field-slider",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-slider"
+    },
+    {
+      "name": "field-switch",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-switch"
+    },
+    {
+      "name": "field-textarea",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field-textarea"
+    },
+    {
+      "name": "form-formisch-array",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-formisch-array"
+    },
+    {
+      "name": "form-formisch-checkbox",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-formisch-checkbox"
+    },
+    {
+      "name": "form-formisch-complex",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-formisch-complex"
+    },
+    {
+      "name": "form-formisch-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-formisch-demo"
+    },
+    {
+      "name": "form-formisch-input",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-formisch-input"
+    },
+    {
+      "name": "form-formisch-radiogroup",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-formisch-radiogroup"
+    },
+    {
+      "name": "form-formisch-select",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-formisch-select"
+    },
+    {
+      "name": "form-formisch-switch",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-formisch-switch"
+    },
+    {
+      "name": "form-formisch-textarea",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-formisch-textarea"
+    },
+    {
+      "name": "form-next-complex",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-next-complex"
+    },
+    {
+      "name": "form-next-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-next-demo"
+    },
+    {
+      "name": "form-rhf-array",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-rhf-array"
+    },
+    {
+      "name": "form-rhf-checkbox",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-rhf-checkbox"
+    },
+    {
+      "name": "form-rhf-complex",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-rhf-complex"
+    },
+    {
+      "name": "form-rhf-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-rhf-demo"
+    },
+    {
+      "name": "form-rhf-input",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-rhf-input"
+    },
+    {
+      "name": "form-rhf-password",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-rhf-password"
+    },
+    {
+      "name": "form-rhf-radiogroup",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-rhf-radiogroup"
+    },
+    {
+      "name": "form-rhf-select",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-rhf-select"
+    },
+    {
+      "name": "form-rhf-switch",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-rhf-switch"
+    },
+    {
+      "name": "form-rhf-textarea",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-rhf-textarea"
+    },
+    {
+      "name": "form-tanstack-array",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-tanstack-array"
+    },
+    {
+      "name": "form-tanstack-checkbox",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-tanstack-checkbox"
+    },
+    {
+      "name": "form-tanstack-complex",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-tanstack-complex"
+    },
+    {
+      "name": "form-tanstack-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-tanstack-demo"
+    },
+    {
+      "name": "form-tanstack-input",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-tanstack-input"
+    },
+    {
+      "name": "form-tanstack-radiogroup",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-tanstack-radiogroup"
+    },
+    {
+      "name": "form-tanstack-select",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-tanstack-select"
+    },
+    {
+      "name": "form-tanstack-switch",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-tanstack-switch"
+    },
+    {
+      "name": "form-tanstack-textarea",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form-tanstack-textarea"
+    },
+    {
+      "name": "hover-card-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/hover-card-demo"
+    },
+    {
+      "name": "input-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-demo"
+    },
+    {
+      "name": "input-disabled",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-disabled"
+    },
+    {
+      "name": "input-file",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-file"
+    },
+    {
+      "name": "input-group-button",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-button"
+    },
+    {
+      "name": "input-group-button-group",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-button-group"
+    },
+    {
+      "name": "input-group-custom",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-custom"
+    },
+    {
+      "name": "input-group-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-demo"
+    },
+    {
+      "name": "input-group-dropdown",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-dropdown"
+    },
+    {
+      "name": "input-group-icon",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-icon"
+    },
+    {
+      "name": "input-group-label",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-label"
+    },
+    {
+      "name": "input-group-spinner",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-spinner"
+    },
+    {
+      "name": "input-group-text",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-text"
+    },
+    {
+      "name": "input-group-textarea",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-textarea"
+    },
+    {
+      "name": "input-group-tooltip",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group-tooltip"
+    },
+    {
+      "name": "input-otp-controlled",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-otp-controlled"
+    },
+    {
+      "name": "input-otp-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-otp-demo"
+    },
+    {
+      "name": "input-otp-pattern",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-otp-pattern"
+    },
+    {
+      "name": "input-otp-separator",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-otp-separator"
+    },
+    {
+      "name": "input-with-button",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-with-button"
+    },
+    {
+      "name": "input-with-label",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-with-label"
+    },
+    {
+      "name": "input-with-text",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-with-text"
+    },
+    {
+      "name": "item-avatar",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item-avatar"
+    },
+    {
+      "name": "item-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item-demo"
+    },
+    {
+      "name": "item-dropdown",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item-dropdown"
+    },
+    {
+      "name": "item-group",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item-group"
+    },
+    {
+      "name": "item-header",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item-header"
+    },
+    {
+      "name": "item-icon",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item-icon"
+    },
+    {
+      "name": "item-image",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item-image"
+    },
+    {
+      "name": "item-link",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item-link"
+    },
+    {
+      "name": "item-size",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item-size"
+    },
+    {
+      "name": "item-variant",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item-variant"
+    },
+    {
+      "name": "kbd-button",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/kbd-button"
+    },
+    {
+      "name": "kbd-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/kbd-demo"
+    },
+    {
+      "name": "kbd-group",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/kbd-group"
+    },
+    {
+      "name": "kbd-input-group",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/kbd-input-group"
+    },
+    {
+      "name": "kbd-tooltip",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/kbd-tooltip"
+    },
+    {
+      "name": "label-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/label-demo"
+    },
+    {
+      "name": "menubar-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/menubar-demo"
+    },
+    {
+      "name": "mode-toggle",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/mode-toggle"
+    },
+    {
+      "name": "native-select-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/native-select-demo"
+    },
+    {
+      "name": "native-select-disabled",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/native-select-disabled"
+    },
+    {
+      "name": "native-select-groups",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/native-select-groups"
+    },
+    {
+      "name": "native-select-invalid",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/native-select-invalid"
+    },
+    {
+      "name": "navigation-menu-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/navigation-menu-demo"
+    },
+    {
+      "name": "pagination-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/pagination-demo"
+    },
+    {
+      "name": "popover-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/popover-demo"
+    },
+    {
+      "name": "progress-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/progress-demo"
+    },
+    {
+      "name": "radio-group-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/radio-group-demo"
+    },
+    {
+      "name": "resizable-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/resizable-demo"
+    },
+    {
+      "name": "resizable-demo-with-handle",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/resizable-demo-with-handle"
+    },
+    {
+      "name": "resizable-handle",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/resizable-handle"
+    },
+    {
+      "name": "resizable-vertical",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/resizable-vertical"
+    },
+    {
+      "name": "scroll-area-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/scroll-area-demo"
+    },
+    {
+      "name": "scroll-area-horizontal-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/scroll-area-horizontal-demo"
+    },
+    {
+      "name": "select-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/select-demo"
+    },
+    {
+      "name": "select-scrollable",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/select-scrollable"
+    },
+    {
+      "name": "separator-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/separator-demo"
+    },
+    {
+      "name": "sheet-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sheet-demo"
+    },
+    {
+      "name": "sheet-side",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sheet-side"
+    },
+    {
+      "name": "skeleton-card",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/skeleton-card"
+    },
+    {
+      "name": "skeleton-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/skeleton-demo"
+    },
+    {
+      "name": "slider-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/slider-demo"
+    },
+    {
+      "name": "sonner-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sonner-demo"
+    },
+    {
+      "name": "sonner-types",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sonner-types"
+    },
+    {
+      "name": "spinner-badge",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner-badge"
+    },
+    {
+      "name": "spinner-basic",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner-basic"
+    },
+    {
+      "name": "spinner-button",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner-button"
+    },
+    {
+      "name": "spinner-color",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner-color"
+    },
+    {
+      "name": "spinner-custom",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner-custom"
+    },
+    {
+      "name": "spinner-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner-demo"
+    },
+    {
+      "name": "spinner-empty",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner-empty"
+    },
+    {
+      "name": "spinner-input-group",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner-input-group"
+    },
+    {
+      "name": "spinner-item",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner-item"
+    },
+    {
+      "name": "spinner-size",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner-size"
+    },
+    {
+      "name": "switch-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/switch-demo"
+    },
+    {
+      "name": "table-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/table-demo"
+    },
+    {
+      "name": "tabs-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/tabs-demo"
+    },
+    {
+      "name": "textarea-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/textarea-demo"
+    },
+    {
+      "name": "textarea-disabled",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/textarea-disabled"
+    },
+    {
+      "name": "textarea-with-button",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/textarea-with-button"
+    },
+    {
+      "name": "textarea-with-label",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/textarea-with-label"
+    },
+    {
+      "name": "textarea-with-text",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/textarea-with-text"
+    },
+    {
+      "name": "toggle-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-demo"
+    },
+    {
+      "name": "toggle-disabled",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-disabled"
+    },
+    {
+      "name": "toggle-group-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-group-demo"
+    },
+    {
+      "name": "toggle-group-disabled",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-group-disabled"
+    },
+    {
+      "name": "toggle-group-lg",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-group-lg"
+    },
+    {
+      "name": "toggle-group-outline",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-group-outline"
+    },
+    {
+      "name": "toggle-group-single",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-group-single"
+    },
+    {
+      "name": "toggle-group-sm",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-group-sm"
+    },
+    {
+      "name": "toggle-group-spacing",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-group-spacing"
+    },
+    {
+      "name": "toggle-lg",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-lg"
+    },
+    {
+      "name": "toggle-outline",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-outline"
+    },
+    {
+      "name": "toggle-sm",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-sm"
+    },
+    {
+      "name": "toggle-with-text",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-with-text"
+    },
+    {
+      "name": "tooltip-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/tooltip-demo"
+    },
+    {
+      "name": "typography-blockquote",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-blockquote"
+    },
+    {
+      "name": "typography-demo",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-demo"
+    },
+    {
+      "name": "typography-h1",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-h1"
+    },
+    {
+      "name": "typography-h2",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-h2"
+    },
+    {
+      "name": "typography-h3",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-h3"
+    },
+    {
+      "name": "typography-h4",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-h4"
+    },
+    {
+      "name": "typography-inline-code",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-inline-code"
+    },
+    {
+      "name": "typography-large",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-large"
+    },
+    {
+      "name": "typography-lead",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-lead"
+    },
+    {
+      "name": "typography-list",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-list"
+    },
+    {
+      "name": "typography-muted",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-muted"
+    },
+    {
+      "name": "typography-p",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-p"
+    },
+    {
+      "name": "typography-small",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-small"
+    },
+    {
+      "name": "typography-table",
+      "type": "registry:example",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/typography-table"
+    },
+    {
+      "name": "font-dm-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-dm-sans"
+    },
+    {
+      "name": "font-eb-garamond",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-eb-garamond"
+    },
+    {
+      "name": "font-figtree",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-figtree"
+    },
+    {
+      "name": "font-geist",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-geist"
+    },
+    {
+      "name": "font-geist-mono",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-geist-mono"
+    },
+    {
+      "name": "font-heading-dm-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-dm-sans"
+    },
+    {
+      "name": "font-heading-eb-garamond",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-eb-garamond"
+    },
+    {
+      "name": "font-heading-figtree",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-figtree"
+    },
+    {
+      "name": "font-heading-geist",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-geist"
+    },
+    {
+      "name": "font-heading-geist-mono",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-geist-mono"
+    },
+    {
+      "name": "font-heading-ibm-plex-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-ibm-plex-sans"
+    },
+    {
+      "name": "font-heading-instrument-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-instrument-sans"
+    },
+    {
+      "name": "font-heading-instrument-serif",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-instrument-serif"
+    },
+    {
+      "name": "font-heading-inter",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-inter"
+    },
+    {
+      "name": "font-heading-jetbrains-mono",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-jetbrains-mono"
+    },
+    {
+      "name": "font-heading-lora",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-lora"
+    },
+    {
+      "name": "font-heading-manrope",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-manrope"
+    },
+    {
+      "name": "font-heading-merriweather",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-merriweather"
+    },
+    {
+      "name": "font-heading-montserrat",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-montserrat"
+    },
+    {
+      "name": "font-heading-noto-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-noto-sans"
+    },
+    {
+      "name": "font-heading-noto-serif",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-noto-serif"
+    },
+    {
+      "name": "font-heading-nunito-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-nunito-sans"
+    },
+    {
+      "name": "font-heading-outfit",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-outfit"
+    },
+    {
+      "name": "font-heading-oxanium",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-oxanium"
+    },
+    {
+      "name": "font-heading-playfair-display",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-playfair-display"
+    },
+    {
+      "name": "font-heading-public-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-public-sans"
+    },
+    {
+      "name": "font-heading-raleway",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-raleway"
+    },
+    {
+      "name": "font-heading-roboto",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-roboto"
+    },
+    {
+      "name": "font-heading-roboto-slab",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-roboto-slab"
+    },
+    {
+      "name": "font-heading-source-sans-3",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-source-sans-3"
+    },
+    {
+      "name": "font-heading-space-grotesk",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-heading-space-grotesk"
+    },
+    {
+      "name": "font-ibm-plex-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-ibm-plex-sans"
+    },
+    {
+      "name": "font-instrument-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-instrument-sans"
+    },
+    {
+      "name": "font-instrument-serif",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-instrument-serif"
+    },
+    {
+      "name": "font-inter",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-inter"
+    },
+    {
+      "name": "font-jetbrains-mono",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-jetbrains-mono"
+    },
+    {
+      "name": "font-lora",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-lora"
+    },
+    {
+      "name": "font-manrope",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-manrope"
+    },
+    {
+      "name": "font-merriweather",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-merriweather"
+    },
+    {
+      "name": "font-montserrat",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-montserrat"
+    },
+    {
+      "name": "font-noto-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-noto-sans"
+    },
+    {
+      "name": "font-noto-serif",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-noto-serif"
+    },
+    {
+      "name": "font-nunito-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-nunito-sans"
+    },
+    {
+      "name": "font-outfit",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-outfit"
+    },
+    {
+      "name": "font-oxanium",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-oxanium"
+    },
+    {
+      "name": "font-playfair-display",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-playfair-display"
+    },
+    {
+      "name": "font-public-sans",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-public-sans"
+    },
+    {
+      "name": "font-raleway",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-raleway"
+    },
+    {
+      "name": "font-roboto",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-roboto"
+    },
+    {
+      "name": "font-roboto-slab",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-roboto-slab"
+    },
+    {
+      "name": "font-source-sans-3",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-source-sans-3"
+    },
+    {
+      "name": "font-space-grotesk",
+      "type": "registry:font",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/font-space-grotesk"
+    },
+    {
+      "name": "use-mobile",
+      "type": "registry:hook",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/use-mobile"
+    },
+    {
+      "name": "sidebar-controlled",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-controlled"
+    },
+    {
+      "name": "sidebar-demo",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-demo"
+    },
+    {
+      "name": "sidebar-footer",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-footer"
+    },
+    {
+      "name": "sidebar-group",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-group"
+    },
+    {
+      "name": "sidebar-group-action",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-group-action"
+    },
+    {
+      "name": "sidebar-group-collapsible",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-group-collapsible"
+    },
+    {
+      "name": "sidebar-header",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-header"
+    },
+    {
+      "name": "sidebar-menu",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-menu"
+    },
+    {
+      "name": "sidebar-menu-action",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-menu-action"
+    },
+    {
+      "name": "sidebar-menu-badge",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-menu-badge"
+    },
+    {
+      "name": "sidebar-menu-collapsible",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-menu-collapsible"
+    },
+    {
+      "name": "sidebar-menu-sub",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-menu-sub"
+    },
+    {
+      "name": "sidebar-rsc",
+      "type": "registry:internal",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar-rsc"
+    },
+    {
+      "name": "utils",
+      "type": "registry:lib",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/utils"
+    },
+    {
+      "name": "index",
+      "type": "registry:style",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/index"
+    },
+    {
+      "name": "style",
+      "type": "registry:style",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/style"
+    },
+    {
+      "name": "theme-gray",
+      "type": "registry:theme",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/theme-gray"
+    },
+    {
+      "name": "theme-neutral",
+      "type": "registry:theme",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/theme-neutral"
+    },
+    {
+      "name": "theme-slate",
+      "type": "registry:theme",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/theme-slate"
+    },
+    {
+      "name": "theme-stone",
+      "type": "registry:theme",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/theme-stone"
+    },
+    {
+      "name": "theme-zinc",
+      "type": "registry:theme",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/theme-zinc"
+    },
+    {
+      "name": "accordion",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/accordion"
+    },
+    {
+      "name": "alert",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/alert"
+    },
+    {
+      "name": "alert-dialog",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/alert-dialog"
+    },
+    {
+      "name": "aspect-ratio",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/aspect-ratio"
+    },
+    {
+      "name": "attachment",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/attachment"
+    },
+    {
+      "name": "avatar",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/avatar"
+    },
+    {
+      "name": "badge",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/badge"
+    },
+    {
+      "name": "breadcrumb",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/breadcrumb"
+    },
+    {
+      "name": "bubble",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/bubble"
+    },
+    {
+      "name": "button",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button"
+    },
+    {
+      "name": "button-group",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/button-group"
+    },
+    {
+      "name": "calendar",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/calendar"
+    },
+    {
+      "name": "card",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/card"
+    },
+    {
+      "name": "carousel",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/carousel"
+    },
+    {
+      "name": "chart",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/chart"
+    },
+    {
+      "name": "checkbox",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/checkbox"
+    },
+    {
+      "name": "collapsible",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/collapsible"
+    },
+    {
+      "name": "combobox",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/combobox"
+    },
+    {
+      "name": "command",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/command"
+    },
+    {
+      "name": "context-menu",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/context-menu"
+    },
+    {
+      "name": "dialog",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/dialog"
+    },
+    {
+      "name": "direction",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/direction"
+    },
+    {
+      "name": "drawer",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/drawer"
+    },
+    {
+      "name": "dropdown-menu",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/dropdown-menu"
+    },
+    {
+      "name": "empty",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/empty"
+    },
+    {
+      "name": "field",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/field"
+    },
+    {
+      "name": "form",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/form"
+    },
+    {
+      "name": "hover-card",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/hover-card"
+    },
+    {
+      "name": "input",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input"
+    },
+    {
+      "name": "input-group",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-group"
+    },
+    {
+      "name": "input-otp",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/input-otp"
+    },
+    {
+      "name": "item",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/item"
+    },
+    {
+      "name": "kbd",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/kbd"
+    },
+    {
+      "name": "label",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/label"
+    },
+    {
+      "name": "marker",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/marker"
+    },
+    {
+      "name": "menubar",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/menubar"
+    },
+    {
+      "name": "message",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/message"
+    },
+    {
+      "name": "message-scroller",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/message-scroller"
+    },
+    {
+      "name": "native-select",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/native-select"
+    },
+    {
+      "name": "navigation-menu",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/navigation-menu"
+    },
+    {
+      "name": "pagination",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/pagination"
+    },
+    {
+      "name": "popover",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/popover"
+    },
+    {
+      "name": "progress",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/progress"
+    },
+    {
+      "name": "radio-group",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/radio-group"
+    },
+    {
+      "name": "resizable",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/resizable"
+    },
+    {
+      "name": "scroll-area",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/scroll-area"
+    },
+    {
+      "name": "select",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/select"
+    },
+    {
+      "name": "separator",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/separator"
+    },
+    {
+      "name": "sheet",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sheet"
+    },
+    {
+      "name": "sidebar",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sidebar"
+    },
+    {
+      "name": "skeleton",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/skeleton"
+    },
+    {
+      "name": "slider",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/slider"
+    },
+    {
+      "name": "sonner",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/sonner"
+    },
+    {
+      "name": "spinner",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/spinner"
+    },
+    {
+      "name": "switch",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/switch"
+    },
+    {
+      "name": "table",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/table"
+    },
+    {
+      "name": "tabs",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/tabs"
+    },
+    {
+      "name": "textarea",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/textarea"
+    },
+    {
+      "name": "toggle",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle"
+    },
+    {
+      "name": "toggle-group",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/toggle-group"
+    },
+    {
+      "name": "tooltip",
+      "type": "registry:ui",
+      "registry": "@shadcn",
+      "addCommandArgument": "@shadcn/tooltip"
+    }
+  ],
+  "checksum": "165b2d5d67d01630b6c6bf69eb302edd6548e5b96e6fe737a0a3790afb184487"
+}

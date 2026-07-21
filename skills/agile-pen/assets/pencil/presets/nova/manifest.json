@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "nova",
+  "version": "1.0.0",
+  "kind": "identity",
+  "design": "DESIGN.md",
+  "requiredIconRoles": ["add", "search", "edit", "more", "delete", "settings"]
+}

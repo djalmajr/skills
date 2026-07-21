@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://djalmajr.dev/agile-pen/validation-manifest.schema.json",
+  "title": "ADS validation manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "writer", "rendererHash", "screen", "semantic", "layout", "visual"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "writer": {"const": "pencil-mcp-evidence"},
+    "rendererHash": {"type": "string", "minLength": 1},
+    "screen": {"type": "string", "minLength": 1},
+    "semantic": {
+      "type": "object",
+      "required": ["passed", "refs"],
+      "properties": {
+        "passed": {"const": true},
+        "refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["source", "component", "componentNodeId", "instanceNodeId"],
+            "properties": {
+              "source": {"enum": ["shadcn", "dice-ui"]},
+              "component": {"type": "string", "minLength": 1},
+              "componentNodeId": {"type": "string", "minLength": 1},
+              "instanceNodeId": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "required": ["passed", "problems", "rootOverlaps", "namingViolations", "geometryViolations", "coherenceViolations", "report", "checksum", "gates"],
+      "properties": {
+        "passed": {"const": true},
+        "problems": {"const": 0},
+        "rootOverlaps": {"const": 0},
+        "namingViolations": {"const": 0},
+        "geometryViolations": {"const": 0},
+        "coherenceViolations": {"const": 0},
+        "report": {"type": "string", "minLength": 1},
+        "checksum": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "gates": {"type": "array", "minItems": 4, "items": {"type": "string"}}
+      }
+    },
+    "visual": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "report", "checksum", "sameSize", "normalizedRmse", "maxRmse"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "report": {"type": "string", "minLength": 1},
+          "checksum": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "sameSize": {"const": true},
+          "normalizedRmse": {"type": "number", "minimum": 0, "maximum": 1},
+          "maxRmse": {"type": "number", "minimum": 0, "maximum": 1}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://djalmajr.dev/agile-pen/renderer-lock.schema.json",
+  "title": "Agile Proto deterministic renderer lock",
+  "type": "object",
+  "required": ["schemaVersion", "rendererHash", "cliVersion", "template", "base", "preset", "components", "catalogChecksums", "environment"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "rendererHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "cliVersion": {"type": "string", "minLength": 1},
+    "template": {"const": "vite"},
+    "base": {"enum": ["base", "radix", "aria"]},
+    "preset": {
+      "type": "object",
+      "required": ["requested", "resolved"],
+      "properties": {
+        "requested": {"type": "string", "minLength": 1},
+        "resolved": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "components": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "catalogChecksums": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+    "environment": {"type": "object"}
+  },
+  "additionalProperties": true
+}

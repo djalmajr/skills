@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "writer": "pencil-mcp-evidence",
+  "rendererHash": "ee8994e00641b818d970eda1544b48f37c8a3475d711ff2ef1b8f6543170be3b",
+  "screen": "mLE75",
+  "semantic": {
+    "passed": true,
+    "refs": [
+      {
+        "source": "shadcn",
+        "component": "command",
+        "componentNodeId": "DcU6s",
+        "instanceNodeId": "y0YZ1f"
+      },
+      {
+        "source": "shadcn",
+        "component": "dashboard-01",
+        "componentNodeId": "q31foP",
+        "instanceNodeId": "v53P8p"
+      },
+      {
+        "source": "shadcn",
+        "component": "dialog",
+        "componentNodeId": "cOPdx",
+        "instanceNodeId": "O93g7"
+      },
+      {
+        "source": "shadcn",
+        "component": "dropdown-menu",
+        "componentNodeId": "gUwZX",
+        "instanceNodeId": "MokEp"
+      }
+    ]
+  },
+  "layout": {
+    "passed": true,
+    "problems": 0,
+    "rootOverlaps": 0,
+    "namingViolations": 0,
+    "geometryViolations": 0,
+    "coherenceViolations": 0,
+    "report": "design/generated/layout-audit.report.json",
+    "checksum": "927f057beb387d1bd1c5250980885926ed57476d968c8c0f68f56e489cb58dd9",
+    "gates": [
+      "Pencil MCP snapshot_layout",
+      "pairwise top-level geometry",
+      "role-prefixed Name (id)",
+      "resolved shell and content coherence"
+    ]
+  },
+  "visual": [
+    {
+      "id": "shadcn-command-menu",
+      "report": "design/generated/captures/pencil-validation/command-menu/report.json",
+      "checksum": "ca954d0d5340b844aa8889e7d864d40f56965d1184a761c70d01e47baf20129b",
+      "sameSize": true,
+      "normalizedRmse": 0.04717,
+      "maxRmse": 0.12
+    }
+  ]
+}

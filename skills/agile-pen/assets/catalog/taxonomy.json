@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "visual": ["shadcn", "dice-ui"],
+    "organization": "htm-ui"
+  },
+  "categories": [
+    {
+      "id": "general",
+      "label": "General",
+      "description": "Foundational components, identity, actions and compact status primitives."
+    },
+    {
+      "id": "layout",
+      "label": "Layout",
+      "description": "Containers and structural primitives used to arrange content."
+    },
+    {
+      "id": "navigation",
+      "label": "Navigation",
+      "description": "Components that move users between locations, views and commands."
+    },
+    {
+      "id": "data-entry",
+      "label": "Data Entry",
+      "description": "Controls for entering, selecting and editing values."
+    },
+    {
+      "id": "data-display",
+      "label": "Data Display",
+      "description": "Components for presenting structured, rich and temporal information."
+    },
+    {
+      "id": "feedback",
+      "label": "Feedback",
+      "description": "Status, loading, notification and system-feedback components."
+    },
+    {
+      "id": "overlay",
+      "label": "Overlay",
+      "description": "Content presented above the primary interface or in a transient layer."
+    }
+  ],
+  "assignments": {
+    "general": [
+      "dice-ui:action-bar", "dice-ui:avatar-group", "dice-ui:badge-overflow",
+      "dice-ui:color-swatch", "dice-ui:stack", "dice-ui:stat", "dice-ui:status",
+      "dice-ui:swap", "shadcn:avatar", "shadcn:badge", "shadcn:button",
+      "shadcn:button-group", "shadcn:item", "shadcn:kbd"
+    ],
+    "layout": [
+      "dice-ui:compare-slider", "dice-ui:cropper", "dice-ui:masonry",
+      "shadcn:accordion", "shadcn:aspect-ratio", "shadcn:card",
+      "shadcn:collapsible", "shadcn:empty", "shadcn:resizable",
+      "shadcn:scroll-area", "shadcn:separator", "shadcn:sidebar", "shadcn:skeleton"
+    ],
+    "navigation": [
+      "dice-ui:scroll-spy", "dice-ui:speed-dial", "dice-ui:stepper", "dice-ui:tour",
+      "shadcn:breadcrumb", "shadcn:command", "shadcn:context-menu", "shadcn:direction",
+      "shadcn:dropdown-menu", "shadcn:menubar", "shadcn:navigation-menu",
+      "shadcn:pagination", "shadcn:tabs"
+    ],
+    "data-entry": [
+      "dice-ui:angle-slider", "dice-ui:checkbox-group", "dice-ui:color-picker",
+      "dice-ui:combobox", "dice-ui:editable", "dice-ui:file-upload", "dice-ui:listbox",
+      "dice-ui:mask-input", "dice-ui:mention", "dice-ui:phone-input", "dice-ui:rating",
+      "dice-ui:segmented-input", "dice-ui:tags-input", "dice-ui:time-picker",
+      "shadcn:calendar", "shadcn:checkbox", "shadcn:combobox", "shadcn:field",
+      "shadcn:form", "shadcn:input", "shadcn:input-group", "shadcn:input-otp",
+      "shadcn:label", "shadcn:native-select", "shadcn:radio-group", "shadcn:select",
+      "shadcn:slider", "shadcn:switch", "shadcn:textarea", "shadcn:toggle",
+      "shadcn:toggle-group"
+    ],
+    "data-display": [
+      "dice-ui:gauge", "dice-ui:kanban", "dice-ui:key-value", "dice-ui:marquee",
+      "dice-ui:media-player", "dice-ui:qr-code", "dice-ui:relative-time-card",
+      "dice-ui:scroller", "dice-ui:sortable", "dice-ui:timeline", "shadcn:attachment",
+      "shadcn:bubble", "shadcn:carousel", "shadcn:chart", "shadcn:message",
+      "shadcn:message-scroller", "shadcn:table"
+    ],
+    "feedback": [
+      "dice-ui:banner", "dice-ui:circular-progress", "dice-ui:fps", "shadcn:alert",
+      "shadcn:marker", "shadcn:progress", "shadcn:sonner", "shadcn:spinner"
+    ],
+    "overlay": [
+      "dice-ui:responsive-dialog", "dice-ui:selection-toolbar", "shadcn:alert-dialog",
+      "shadcn:dialog", "shadcn:drawer", "shadcn:hover-card", "shadcn:popover",
+      "shadcn:sheet", "shadcn:tooltip"
+    ]
+  }
+}

@@ -86,7 +86,8 @@ A few patterns recur across real sessions:
 | Sprint ceremony | `/agile-sprint`, `/agile-review`, `/agile-retro`, `/agile-metrics` |
 | Improve the skill library | `/agile-skill-feedback` |
 | Decide which skill to use | `/agile-router` |
-| Sketch UI before implementation | `/agile-proto` |
+| Prototype a static browser UI with HTM UI | `/agile-proto` |
+| Prototype screens and states in Pen.dev | `/agile-pen` |
 | Copy a rendered local page into Figma | `/figma-capture` |
 | Onboard a new team member | `/agile-onboarding` |
 

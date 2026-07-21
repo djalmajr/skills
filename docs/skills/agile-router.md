@@ -63,7 +63,8 @@ Example: `/agile-router add multi-language support to onboarding`
 | `/agile-review` | Sprint review and demo |
 | `/agile-metrics` | Sprint metrics |
 | `/agile-retro` | Retrospective |
-| `/agile-proto` | Interactive UI prototypes |
+| `/agile-proto` | Static browser prototypes powered by HTM UI |
+| `/agile-pen` | Pen.dev `.pen` prototypes and explicit UI states |
 | `/agile-onboarding` | New member onboarding |
 
 ## Workflow integration

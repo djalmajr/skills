@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "source": "DESIGN.md",
+  "variables": {
+    "--background": {
+      "type": "color",
+      "value": "#F8FAFC"
+    },
+    "--foreground": {
+      "type": "color",
+      "value": "#172033"
+    },
+    "--muted": {
+      "type": "color",
+      "value": "#E8EDF3"
+    },
+    "--muted-foreground": {
+      "type": "color",
+      "value": "#667085"
+    },
+    "--card": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "--card-foreground": {
+      "type": "color",
+      "value": "#172033"
+    },
+    "--border": {
+      "type": "color",
+      "value": "#D7DEE8"
+    },
+    "--input": {
+      "type": "color",
+      "value": "#CBD5E1"
+    },
+    "--primary": {
+      "type": "color",
+      "value": "#334155"
+    },
+    "--primary-foreground": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "--accent": {
+      "type": "color",
+      "value": "#E8EDF3"
+    },
+    "--accent-foreground": {
+      "type": "color",
+      "value": "#172033"
+    },
+    "--destructive": {
+      "type": "color",
+      "value": "#B42318"
+    },
+    "--success": {
+      "type": "color",
+      "value": "#15803D"
+    },
+    "--success-soft": {
+      "type": "color",
+      "value": "#DCFCE7"
+    },
+    "--warning": {
+      "type": "color",
+      "value": "#A16207"
+    },
+    "--warning-soft": {
+      "type": "color",
+      "value": "#FEF3C7"
+    },
+    "--info": {
+      "type": "color",
+      "value": "#2563EB"
+    },
+    "--info-soft": {
+      "type": "color",
+      "value": "#DBEAFE"
+    },
+    "--font-primary": {
+      "type": "string",
+      "value": "Inter"
+    },
+    "--font-secondary": {
+      "type": "string",
+      "value": "Inter"
+    },
+    "--radius-sm": {
+      "type": "number",
+      "value": 6
+    },
+    "--radius-md": {
+      "type": "number",
+      "value": 10
+    },
+    "--space-sm": {
+      "type": "number",
+      "value": 8
+    },
+    "--space-md": {
+      "type": "number",
+      "value": 16
+    },
+    "--space-lg": {
+      "type": "number",
+      "value": 24
+    },
+    "--icon-library": {
+      "type": "string",
+      "value": "lucide"
+    },
+    "--icon-add": {
+      "type": "string",
+      "value": "plus"
+    },
+    "--icon-search": {
+      "type": "string",
+      "value": "search"
+    },
+    "--icon-edit": {
+      "type": "string",
+      "value": "pencil"
+    },
+    "--icon-more": {
+      "type": "string",
+      "value": "ellipsis"
+    },
+    "--icon-delete": {
+      "type": "string",
+      "value": "trash-2"
+    },
+    "--icon-settings": {
+      "type": "string",
+      "value": "settings"
+    }
+  }
+}

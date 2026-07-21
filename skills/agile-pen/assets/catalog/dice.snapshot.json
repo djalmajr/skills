@@ -1,0 +1,1461 @@
+{
+  "schemaVersion": 1,
+  "cliVersion": "4.13.1",
+  "source": "dice-ui",
+  "registry": "@diceui",
+  "items": [
+    {
+      "name": "client-only",
+      "type": "registry:component",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/client-only"
+    },
+    {
+      "name": "direction-provider",
+      "type": "registry:component",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/direction-provider"
+    },
+    {
+      "name": "hitbox",
+      "type": "registry:component",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/hitbox"
+    },
+    {
+      "name": "pending",
+      "type": "registry:component",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/pending"
+    },
+    {
+      "name": "portal",
+      "type": "registry:component",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/portal"
+    },
+    {
+      "name": "presence",
+      "type": "registry:component",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/presence"
+    },
+    {
+      "name": "visually-hidden",
+      "type": "registry:component",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/visually-hidden"
+    },
+    {
+      "name": "visually-hidden-input",
+      "type": "registry:component",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/visually-hidden-input"
+    },
+    {
+      "name": "action-bar-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/action-bar-demo"
+    },
+    {
+      "name": "action-bar-position-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/action-bar-position-demo"
+    },
+    {
+      "name": "angle-slider-controlled-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/angle-slider-controlled-demo"
+    },
+    {
+      "name": "angle-slider-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/angle-slider-demo"
+    },
+    {
+      "name": "angle-slider-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/angle-slider-form-demo"
+    },
+    {
+      "name": "angle-slider-range-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/angle-slider-range-demo"
+    },
+    {
+      "name": "angle-slider-themes-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/angle-slider-themes-demo"
+    },
+    {
+      "name": "avatar-group-custom-overflow-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/avatar-group-custom-overflow-demo"
+    },
+    {
+      "name": "avatar-group-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/avatar-group-demo"
+    },
+    {
+      "name": "avatar-group-icons-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/avatar-group-icons-demo"
+    },
+    {
+      "name": "avatar-group-rtl-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/avatar-group-rtl-demo"
+    },
+    {
+      "name": "avatar-group-truncation-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/avatar-group-truncation-demo"
+    },
+    {
+      "name": "badge-overflow-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/badge-overflow-demo"
+    },
+    {
+      "name": "badge-overflow-interactive-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/badge-overflow-interactive-demo"
+    },
+    {
+      "name": "badge-overflow-multiline-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/badge-overflow-multiline-demo"
+    },
+    {
+      "name": "banner-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/banner-demo"
+    },
+    {
+      "name": "banner-stacked-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/banner-stacked-demo"
+    },
+    {
+      "name": "checkbox-group-animated-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/checkbox-group-animated-demo"
+    },
+    {
+      "name": "checkbox-group-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/checkbox-group-demo"
+    },
+    {
+      "name": "checkbox-group-horizontal-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/checkbox-group-horizontal-demo"
+    },
+    {
+      "name": "checkbox-group-multi-selection-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/checkbox-group-multi-selection-demo"
+    },
+    {
+      "name": "checkbox-group-validation-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/checkbox-group-validation-demo"
+    },
+    {
+      "name": "circular-progress-colors-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/circular-progress-colors-demo"
+    },
+    {
+      "name": "circular-progress-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/circular-progress-demo"
+    },
+    {
+      "name": "circular-progress-interactive-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/circular-progress-interactive-demo"
+    },
+    {
+      "name": "color-picker-controlled-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/color-picker-controlled-demo"
+    },
+    {
+      "name": "color-picker-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/color-picker-demo"
+    },
+    {
+      "name": "color-picker-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/color-picker-form-demo"
+    },
+    {
+      "name": "color-picker-inline-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/color-picker-inline-demo"
+    },
+    {
+      "name": "color-swatch-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/color-swatch-demo"
+    },
+    {
+      "name": "color-swatch-sizes-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/color-swatch-sizes-demo"
+    },
+    {
+      "name": "color-swatch-transparency-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/color-swatch-transparency-demo"
+    },
+    {
+      "name": "combobox-custom-filter-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/combobox-custom-filter-demo"
+    },
+    {
+      "name": "combobox-debounced-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/combobox-debounced-demo"
+    },
+    {
+      "name": "combobox-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/combobox-demo"
+    },
+    {
+      "name": "combobox-groups-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/combobox-groups-demo"
+    },
+    {
+      "name": "combobox-multiple-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/combobox-multiple-demo"
+    },
+    {
+      "name": "combobox-tags-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/combobox-tags-demo"
+    },
+    {
+      "name": "combobox-virtualized-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/combobox-virtualized-demo"
+    },
+    {
+      "name": "compare-slider-controlled-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/compare-slider-controlled-demo"
+    },
+    {
+      "name": "compare-slider-customization-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/compare-slider-customization-demo"
+    },
+    {
+      "name": "compare-slider-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/compare-slider-demo"
+    },
+    {
+      "name": "compare-slider-vertical-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/compare-slider-vertical-demo"
+    },
+    {
+      "name": "cropper-controlled-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/cropper-controlled-demo"
+    },
+    {
+      "name": "cropper-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/cropper-demo"
+    },
+    {
+      "name": "cropper-file-upload-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/cropper-file-upload-demo"
+    },
+    {
+      "name": "cropper-shapes-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/cropper-shapes-demo"
+    },
+    {
+      "name": "cropper-video-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/cropper-video-demo"
+    },
+    {
+      "name": "data-grid-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/data-grid-demo"
+    },
+    {
+      "name": "data-table-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/data-table-demo"
+    },
+    {
+      "name": "editable-autosize-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/editable-autosize-demo"
+    },
+    {
+      "name": "editable-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/editable-demo"
+    },
+    {
+      "name": "editable-double-click-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/editable-double-click-demo"
+    },
+    {
+      "name": "editable-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/editable-form-demo"
+    },
+    {
+      "name": "editable-todo-list-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/editable-todo-list-demo"
+    },
+    {
+      "name": "file-upload-chat-input-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/file-upload-chat-input-demo"
+    },
+    {
+      "name": "file-upload-circular-progress-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/file-upload-circular-progress-demo"
+    },
+    {
+      "name": "file-upload-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/file-upload-demo"
+    },
+    {
+      "name": "file-upload-direct-upload-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/file-upload-direct-upload-demo"
+    },
+    {
+      "name": "file-upload-fill-progress-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/file-upload-fill-progress-demo"
+    },
+    {
+      "name": "file-upload-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/file-upload-form-demo"
+    },
+    {
+      "name": "file-upload-uploadthing-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/file-upload-uploadthing-demo"
+    },
+    {
+      "name": "file-upload-validation-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/file-upload-validation-demo"
+    },
+    {
+      "name": "fps-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/fps-demo"
+    },
+    {
+      "name": "fps-strategy-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/fps-strategy-demo"
+    },
+    {
+      "name": "gauge-colors-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/gauge-colors-demo"
+    },
+    {
+      "name": "gauge-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/gauge-demo"
+    },
+    {
+      "name": "gauge-sizes-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/gauge-sizes-demo"
+    },
+    {
+      "name": "gauge-variants-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/gauge-variants-demo"
+    },
+    {
+      "name": "hitbox-debug-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/hitbox-debug-demo"
+    },
+    {
+      "name": "hitbox-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/hitbox-demo"
+    },
+    {
+      "name": "hitbox-positions-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/hitbox-positions-demo"
+    },
+    {
+      "name": "hitbox-radii-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/hitbox-radii-demo"
+    },
+    {
+      "name": "hitbox-sizes-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/hitbox-sizes-demo"
+    },
+    {
+      "name": "kanban-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/kanban-demo"
+    },
+    {
+      "name": "kanban-dynamic-overlay-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/kanban-dynamic-overlay-demo"
+    },
+    {
+      "name": "key-value-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/key-value-demo"
+    },
+    {
+      "name": "key-value-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/key-value-form-demo"
+    },
+    {
+      "name": "key-value-paste-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/key-value-paste-demo"
+    },
+    {
+      "name": "key-value-validation-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/key-value-validation-demo"
+    },
+    {
+      "name": "listbox-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/listbox-demo"
+    },
+    {
+      "name": "listbox-grid-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/listbox-grid-demo"
+    },
+    {
+      "name": "listbox-group-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/listbox-group-demo"
+    },
+    {
+      "name": "listbox-horizontal-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/listbox-horizontal-demo"
+    },
+    {
+      "name": "marquee-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/marquee-demo"
+    },
+    {
+      "name": "marquee-logo-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/marquee-logo-demo"
+    },
+    {
+      "name": "marquee-rtl-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/marquee-rtl-demo"
+    },
+    {
+      "name": "marquee-vertical-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/marquee-vertical-demo"
+    },
+    {
+      "name": "mask-input-card-information-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/mask-input-card-information-demo"
+    },
+    {
+      "name": "mask-input-custom-pattern-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/mask-input-custom-pattern-demo"
+    },
+    {
+      "name": "mask-input-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/mask-input-demo"
+    },
+    {
+      "name": "mask-input-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/mask-input-form-demo"
+    },
+    {
+      "name": "mask-input-validation-modes-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/mask-input-validation-modes-demo"
+    },
+    {
+      "name": "masonry-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/masonry-demo"
+    },
+    {
+      "name": "masonry-linear-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/masonry-linear-demo"
+    },
+    {
+      "name": "masonry-ssr-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/masonry-ssr-demo"
+    },
+    {
+      "name": "media-player-audio-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/media-player-audio-demo"
+    },
+    {
+      "name": "media-player-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/media-player-demo"
+    },
+    {
+      "name": "media-player-error-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/media-player-error-demo"
+    },
+    {
+      "name": "media-player-hls-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/media-player-hls-demo"
+    },
+    {
+      "name": "media-player-playlist-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/media-player-playlist-demo"
+    },
+    {
+      "name": "media-player-settings-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/media-player-settings-demo"
+    },
+    {
+      "name": "mention-custom-filter-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/mention-custom-filter-demo"
+    },
+    {
+      "name": "mention-custom-trigger-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/mention-custom-trigger-demo"
+    },
+    {
+      "name": "mention-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/mention-demo"
+    },
+    {
+      "name": "pending-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/pending-demo"
+    },
+    {
+      "name": "pending-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/pending-form-demo"
+    },
+    {
+      "name": "pending-link-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/pending-link-demo"
+    },
+    {
+      "name": "pending-switch-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/pending-switch-demo"
+    },
+    {
+      "name": "pending-wrapper-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/pending-wrapper-demo"
+    },
+    {
+      "name": "phone-input-custom-countries-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/phone-input-custom-countries-demo"
+    },
+    {
+      "name": "phone-input-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/phone-input-demo"
+    },
+    {
+      "name": "phone-input-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/phone-input-form-demo"
+    },
+    {
+      "name": "qr-code-customization-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/qr-code-customization-demo"
+    },
+    {
+      "name": "qr-code-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/qr-code-demo"
+    },
+    {
+      "name": "qr-code-formats-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/qr-code-formats-demo"
+    },
+    {
+      "name": "qr-code-overlay-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/qr-code-overlay-demo"
+    },
+    {
+      "name": "rating-controlled-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/rating-controlled-demo"
+    },
+    {
+      "name": "rating-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/rating-demo"
+    },
+    {
+      "name": "rating-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/rating-form-demo"
+    },
+    {
+      "name": "rating-themes-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/rating-themes-demo"
+    },
+    {
+      "name": "relative-time-card-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/relative-time-card-demo"
+    },
+    {
+      "name": "relative-time-card-timezones-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/relative-time-card-timezones-demo"
+    },
+    {
+      "name": "relative-time-card-variants-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/relative-time-card-variants-demo"
+    },
+    {
+      "name": "responsive-dialog-confirm-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/responsive-dialog-confirm-demo"
+    },
+    {
+      "name": "responsive-dialog-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/responsive-dialog-demo"
+    },
+    {
+      "name": "scroll-spy-controlled-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/scroll-spy-controlled-demo"
+    },
+    {
+      "name": "scroll-spy-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/scroll-spy-demo"
+    },
+    {
+      "name": "scroll-spy-vertical-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/scroll-spy-vertical-demo"
+    },
+    {
+      "name": "scroller-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/scroller-demo"
+    },
+    {
+      "name": "scroller-hidden-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/scroller-hidden-demo"
+    },
+    {
+      "name": "scroller-horizontal-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/scroller-horizontal-demo"
+    },
+    {
+      "name": "scroller-navigation-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/scroller-navigation-demo"
+    },
+    {
+      "name": "segmented-input-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/segmented-input-demo"
+    },
+    {
+      "name": "segmented-input-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/segmented-input-form-demo"
+    },
+    {
+      "name": "segmented-input-rgb-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/segmented-input-rgb-demo"
+    },
+    {
+      "name": "segmented-input-vertical-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/segmented-input-vertical-demo"
+    },
+    {
+      "name": "selection-toolbar-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/selection-toolbar-demo"
+    },
+    {
+      "name": "selection-toolbar-info-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/selection-toolbar-info-demo"
+    },
+    {
+      "name": "sortable-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/sortable-demo"
+    },
+    {
+      "name": "sortable-dynamic-overlay-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/sortable-dynamic-overlay-demo"
+    },
+    {
+      "name": "sortable-handle-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/sortable-handle-demo"
+    },
+    {
+      "name": "sortable-primitive-values-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/sortable-primitive-values-demo"
+    },
+    {
+      "name": "speed-dial-controlled-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/speed-dial-controlled-demo"
+    },
+    {
+      "name": "speed-dial-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/speed-dial-demo"
+    },
+    {
+      "name": "speed-dial-hover-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/speed-dial-hover-demo"
+    },
+    {
+      "name": "speed-dial-labels-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/speed-dial-labels-demo"
+    },
+    {
+      "name": "speed-dial-side-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/speed-dial-side-demo"
+    },
+    {
+      "name": "stack-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stack-demo"
+    },
+    {
+      "name": "stack-no-expand-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stack-no-expand-demo"
+    },
+    {
+      "name": "stack-side-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stack-side-demo"
+    },
+    {
+      "name": "stat-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stat-demo"
+    },
+    {
+      "name": "stat-layout-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stat-layout-demo"
+    },
+    {
+      "name": "stat-variants-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stat-variants-demo"
+    },
+    {
+      "name": "status-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/status-demo"
+    },
+    {
+      "name": "status-list-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/status-list-demo"
+    },
+    {
+      "name": "status-text-only-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/status-text-only-demo"
+    },
+    {
+      "name": "status-variants-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/status-variants-demo"
+    },
+    {
+      "name": "stepper-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stepper-demo"
+    },
+    {
+      "name": "stepper-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stepper-form-demo"
+    },
+    {
+      "name": "stepper-validation-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stepper-validation-demo"
+    },
+    {
+      "name": "stepper-vertical-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stepper-vertical-demo"
+    },
+    {
+      "name": "swap-animations-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/swap-animations-demo"
+    },
+    {
+      "name": "swap-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/swap-demo"
+    },
+    {
+      "name": "tags-input-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/tags-input-demo"
+    },
+    {
+      "name": "tags-input-editable-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/tags-input-editable-demo"
+    },
+    {
+      "name": "tags-input-sortable-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/tags-input-sortable-demo"
+    },
+    {
+      "name": "tags-input-validation-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/tags-input-validation-demo"
+    },
+    {
+      "name": "time-picker-controlled-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/time-picker-controlled-demo"
+    },
+    {
+      "name": "time-picker-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/time-picker-demo"
+    },
+    {
+      "name": "time-picker-form-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/time-picker-form-demo"
+    },
+    {
+      "name": "time-picker-input-group-click-action-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/time-picker-input-group-click-action-demo"
+    },
+    {
+      "name": "time-picker-open-on-focus-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/time-picker-open-on-focus-demo"
+    },
+    {
+      "name": "time-picker-placeholder-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/time-picker-placeholder-demo"
+    },
+    {
+      "name": "time-picker-seconds-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/time-picker-seconds-demo"
+    },
+    {
+      "name": "time-picker-step-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/time-picker-step-demo"
+    },
+    {
+      "name": "timeline-alternate-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/timeline-alternate-demo"
+    },
+    {
+      "name": "timeline-custom-dot-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/timeline-custom-dot-demo"
+    },
+    {
+      "name": "timeline-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/timeline-demo"
+    },
+    {
+      "name": "timeline-horizontal-alternate-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/timeline-horizontal-alternate-demo"
+    },
+    {
+      "name": "timeline-horizontal-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/timeline-horizontal-demo"
+    },
+    {
+      "name": "timeline-rtl-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/timeline-rtl-demo"
+    },
+    {
+      "name": "tour-controlled-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/tour-controlled-demo"
+    },
+    {
+      "name": "tour-demo",
+      "type": "registry:example",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/tour-demo"
+    },
+    {
+      "name": "use-as-ref",
+      "type": "registry:hook",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/use-as-ref"
+    },
+    {
+      "name": "use-isomorphic-layout-effect",
+      "type": "registry:hook",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/use-isomorphic-layout-effect"
+    },
+    {
+      "name": "use-lazy-ref",
+      "type": "registry:hook",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/use-lazy-ref"
+    },
+    {
+      "name": "use-mobile",
+      "type": "registry:hook",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/use-mobile"
+    },
+    {
+      "name": "compose-refs",
+      "type": "registry:lib",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/compose-refs"
+    },
+    {
+      "name": "utils",
+      "type": "registry:lib",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/utils"
+    },
+    {
+      "name": "action-bar",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/action-bar"
+    },
+    {
+      "name": "angle-slider",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/angle-slider"
+    },
+    {
+      "name": "avatar-group",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/avatar-group"
+    },
+    {
+      "name": "badge-overflow",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/badge-overflow"
+    },
+    {
+      "name": "banner",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/banner"
+    },
+    {
+      "name": "checkbox-group",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/checkbox-group"
+    },
+    {
+      "name": "circular-progress",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/circular-progress"
+    },
+    {
+      "name": "color-picker",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/color-picker"
+    },
+    {
+      "name": "color-swatch",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/color-swatch"
+    },
+    {
+      "name": "combobox",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/combobox"
+    },
+    {
+      "name": "compare-slider",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/compare-slider"
+    },
+    {
+      "name": "cropper",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/cropper"
+    },
+    {
+      "name": "editable",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/editable"
+    },
+    {
+      "name": "file-upload",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/file-upload"
+    },
+    {
+      "name": "fps",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/fps"
+    },
+    {
+      "name": "gauge",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/gauge"
+    },
+    {
+      "name": "kanban",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/kanban"
+    },
+    {
+      "name": "key-value",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/key-value"
+    },
+    {
+      "name": "listbox",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/listbox"
+    },
+    {
+      "name": "marquee",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/marquee"
+    },
+    {
+      "name": "mask-input",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/mask-input"
+    },
+    {
+      "name": "masonry",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/masonry"
+    },
+    {
+      "name": "media-player",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/media-player"
+    },
+    {
+      "name": "mention",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/mention"
+    },
+    {
+      "name": "phone-input",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/phone-input"
+    },
+    {
+      "name": "qr-code",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/qr-code"
+    },
+    {
+      "name": "rating",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/rating"
+    },
+    {
+      "name": "relative-time-card",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/relative-time-card"
+    },
+    {
+      "name": "responsive-dialog",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/responsive-dialog"
+    },
+    {
+      "name": "scroll-spy",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/scroll-spy"
+    },
+    {
+      "name": "scroller",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/scroller"
+    },
+    {
+      "name": "segmented-input",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/segmented-input"
+    },
+    {
+      "name": "selection-toolbar",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/selection-toolbar"
+    },
+    {
+      "name": "sortable",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/sortable"
+    },
+    {
+      "name": "speed-dial",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/speed-dial"
+    },
+    {
+      "name": "stack",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stack"
+    },
+    {
+      "name": "stat",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stat"
+    },
+    {
+      "name": "status",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/status"
+    },
+    {
+      "name": "stepper",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/stepper"
+    },
+    {
+      "name": "swap",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/swap"
+    },
+    {
+      "name": "tags-input",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/tags-input"
+    },
+    {
+      "name": "time-picker",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/time-picker"
+    },
+    {
+      "name": "timeline",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/timeline"
+    },
+    {
+      "name": "tour",
+      "type": "registry:ui",
+      "registry": "@diceui",
+      "addCommandArgument": "@diceui/tour"
+    }
+  ],
+  "checksum": "cea3acb63fb08ed8aeb7c725b6cb625e507cf1943b0b6d9fd04d15ce76311537"
+}

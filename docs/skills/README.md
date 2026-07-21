@@ -22,7 +22,8 @@ Human-facing notes moved out of individual skill folders.
 | [agile-skill-feedback](agile-skill-feedback.md) | Refine, merge, split, deprecate, remove, or create skills from evidence |
 | [agile-router](agile-router.md) | Decide which skill to invoke |
 | [agile-onboarding](agile-onboarding.md) | Onboard a new team member |
-| [agile-proto](agile-proto.md) | Interactive UI prototypes |
+| [agile-proto](agile-proto.md) | Static browser prototypes powered by HTM UI |
+| [agile-pen](agile-pen.md) | Traceable Pen.dev prototypes, components, states, and notes |
 
 ## Design (1)
 

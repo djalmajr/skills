@@ -1,0 +1,28 @@
+{
+  "source": {
+    "path": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-dropdown-menu-card-actions/shadcn-dropdown-menu-card-actions.png",
+    "width": 224,
+    "height": 125
+  },
+  "pencil": {
+    "path": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/pencil-validation/F6yg6C.png",
+    "width": 224,
+    "height": 125
+  },
+  "normalized": false,
+  "rmse": 8320.06,
+  "normalizedRmse": 0.126956,
+  "gates": {
+    "requireSameSize": true,
+    "maxRmse": 0.15,
+    "sameSize": true,
+    "sizePassed": true,
+    "rmsePassed": true,
+    "passed": true
+  },
+  "outputs": {
+    "diff": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-dropdown-menu-card-actions/comparison/diff.png",
+    "sideBySide": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-dropdown-menu-card-actions/comparison/side-by-side.png",
+    "normalizedPencil": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-dropdown-menu-card-actions/comparison/pencil-normalized.png"
+  }
+}

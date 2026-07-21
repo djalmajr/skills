@@ -1,0 +1,11 @@
+{
+  "name": "@djalmajr/skills",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate:pen": "node skills/agile-pen/scripts/validate-pen-assets.mjs",
+    "validate:pencil": "npm run validate:pen",
+    "test:ads": "node --test skills/agile-pen/scripts/ads.test.mjs"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "cli": "ads",
+  "preset": {
+    "id": "nova",
+    "version": "1.0.0"
+  },
+  "writer": "pencil-mcp-only",
+  "configured": true,
+  "design": {
+    "path": "DESIGN.md",
+    "checksum": "1922bc47046097ea63811290cce3f3a05eaec780d0219b6af12689f35385701e",
+    "visualChecksum": "b42bb02792996a043f94352a67c12451884268b16beb51cff240447b836bbff4"
+  },
+  "pencil": {
+    "variables": "design/system/pencil-variables.json",
+    "import": "Pencil MCP batch only"
+  }
+}

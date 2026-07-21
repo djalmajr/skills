@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agile Pen"
+  short_description: "Build traceable prototypes in Pen.dev"
+  default_prompt: "Use $agile-pen to create a traceable Pen.dev prototype from this product flow."

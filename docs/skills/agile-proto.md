@@ -1,6 +1,6 @@
 # agile-proto
 
-Create interactive, zero-build prototypes with **z-proto + HTM UI + Tailwind CSS v4 + Preact/htm + preact-iso**. The prototype consumes HTM UI directly from its public ES modules instead of maintaining a copied component catalog.
+Create static, browser-based prototypes with **z-proto + HTM UI + Tailwind CSS v4 + Preact/htm + preact-iso**. The prototype consumes HTM UI directly from its public ES modules instead of maintaining a copied component catalog. Static means directly servable without a backend or required build pipeline; client-side interactions remain supported.
 
 ## Use it when
 
@@ -9,7 +9,7 @@ Create interactive, zero-build prototypes with **z-proto + HTM UI + Tailwind CSS
 - exploring responsive behavior and real interactions;
 - sending verified running screens to Figma.
 
-Do not use it for production code, backend integration, or delivery tracking.
+Do not use it for production code, backend integration, delivery tracking, Pen.dev, or `.pen` artifacts. Use `/agile-pen` for Pen.dev.
 
 ## Invoke
 

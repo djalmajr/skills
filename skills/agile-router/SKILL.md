@@ -139,7 +139,8 @@ Sizing alone is not enough to decide between roadmap and epic. Use this checklis
 | `/agile-review` | Sprint review and demo |
 | `/agile-metrics` | Quantitative sprint metrics |
 | `/agile-retro` | Retrospective with improvement actions |
-| `/agile-proto` | Interactive UI prototypes |
+| `/agile-proto` | Static browser prototypes powered by HTM UI |
+| `/agile-pen` | Pen.dev `.pen` prototypes and explicit UI states |
 | `/agile-onboarding` | New team member onboarding |
 | `/agile-skill-feedback` | Improve, merge, split, deprecate, or remove skills from real usage evidence |
 | `/agile-router` | This skill — guidance on which skill to use |

@@ -1,0 +1,28 @@
+{
+  "source": {
+    "path": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-sidebar-collapsible/shadcn-sidebar-collapsible.png",
+    "width": 960,
+    "height": 640
+  },
+  "pencil": {
+    "path": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-sidebar-collapsible/pencil/u7mxd.png",
+    "width": 960,
+    "height": 640
+  },
+  "normalized": false,
+  "rmse": 3359.44,
+  "normalizedRmse": 0.0512618,
+  "gates": {
+    "requireSameSize": true,
+    "maxRmse": 0.15,
+    "sameSize": true,
+    "sizePassed": true,
+    "rmsePassed": true,
+    "passed": true
+  },
+  "outputs": {
+    "diff": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-sidebar-collapsible/comparison/diff.png",
+    "sideBySide": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-sidebar-collapsible/comparison/side-by-side.png",
+    "normalizedPencil": "/Users/djalmajr/Developer/djalmajr/skills/skills/agile-proto/assets/pencil/examples/trello-clone/design/generated/captures/shadcn-sidebar-collapsible/comparison/pencil-normalized.png"
+  }
+}

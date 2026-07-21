@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "shadcn-sidebar-collapsible",
+  "source": "shadcn",
+  "component": "sidebar",
+  "example": "collapsible",
+  "route": "/capture/shadcn/sidebar/collapsible",
+  "selector": "[data-capture='shadcn:sidebar:collapsible']",
+  "viewport": {"width": 1280, "height": 960},
+  "state": {"open": true, "collapsible": "icon"},
+  "theme": "light",
+  "direction": "ltr"
+}

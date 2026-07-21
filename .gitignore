@@ -21,7 +21,15 @@ node_modules/
 .trae/
 .kiro/
 .continue/
-.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/htm-ui/
+!.agents/skills/htm-ui/**
+!.agents/skills/migrate-radix-to-base/
+!.agents/skills/migrate-radix-to-base/**
+!.agents/skills/shadcn/
+!.agents/skills/shadcn/**
 .antigravitycli
 
 
@@ -39,3 +47,5 @@ temp/
 
 # Build artifacts (generated, not committed)
 presentation/slides.pdf
+**/renderer-cache/
+**/design/generated/tools/

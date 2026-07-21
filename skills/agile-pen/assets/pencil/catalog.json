@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "name": "Agile Design System",
+  "cli": "ads",
+  "presets": [
+    {
+      "id": "nova",
+      "version": "1.0.0",
+      "description": "Neutral structural component preset based on shadcn/nova.",
+      "design": "presets/nova/DESIGN.md",
+      "manifest": "presets/nova/manifest.json"
+    }
+  ],
+  "examples": [
+    {
+      "id": "trello-clone",
+      "file": "examples/trello-clone/trello-clone.pen",
+      "design": "examples/trello-clone/DESIGN.md"
+    }
+  ]
+}

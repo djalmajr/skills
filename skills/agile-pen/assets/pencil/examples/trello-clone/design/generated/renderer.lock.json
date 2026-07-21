@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "rendererHash": "ee8994e00641b818d970eda1544b48f37c8a3475d711ff2ef1b8f6543170be3b",
+  "requestHash": "e5cbf6c7c216d2d0e03f06f16e1c24c4c475672879ace91c51f109b5fcf689a2",
+  "cliVersion": "4.13.1",
+  "template": "vite",
+  "base": "base",
+  "preset": {
+    "requested": "nova",
+    "resolved": {
+      "style": "new-york-v4",
+      "source": "official-registry-example-fallback"
+    }
+  },
+  "components": [],
+  "shadcnCommand": {
+    "schemaVersion": 1,
+    "package": "shadcn",
+    "requestedCliVersion": null,
+    "command": "add",
+    "args": [
+      "command-demo"
+    ],
+    "requestedItems": [
+      "command-demo"
+    ],
+    "normalized": "shadcn add command-demo"
+  },
+  "registryStyle": "new-york-v4",
+  "registryItemsChecksum": "dd509758802d284acd33e53a615ae0b092d8b70cb95d5f475f2ed80e324f525c",
+  "inferredRegistryDependencies": [],
+  "registryItems": [
+    {
+      "name": "command-demo",
+      "type": "registry:example",
+      "files": [
+        {
+          "path": "registry/new-york-v4/examples/command-demo.tsx",
+          "type": "registry:example",
+          "checksum": "da6068f90f9d8fd428acac6235b84b23287b7a4a9d563cc4516dcd264590e19b"
+        }
+      ]
+    }
+  ],
+  "catalogChecksums": {
+    "shadcn": "165b2d5d67d01630b6c6bf69eb302edd6548e5b96e6fe737a0a3790afb184487",
+    "dice-ui": "cea3acb63fb08ed8aeb7c725b6cb625e507cf1943b0b6d9fd04d15ce76311537"
+  },
+  "environment": {
+    "locale": "en-US",
+    "timezone": "UTC",
+    "colorScheme": "light",
+    "reducedMotion": "reduce",
+    "deviceScaleFactor": 1,
+    "viewport": {
+      "width": 1280,
+      "height": 960
+    },
+    "captureDate": "2026-07-20T12:00:00.000Z",
+    "networkAfterMaterialization": "deny-undeclared"
+  },
+  "app": "app",
+  "routes": [
+    {
+      "id": "registry-command-demo",
+      "component": "command-demo",
+      "route": "/capture/registry/command-demo",
+      "selector": "[data-capture='registry:command-demo']",
+      "provenance": {
+        "registryItem": "command-demo",
+        "command": "shadcn add command-demo",
+        "entry": "src/components/command-demo.tsx"
+      }
+    }
+  ]
+}

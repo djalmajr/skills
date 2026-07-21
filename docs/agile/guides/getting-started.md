@@ -53,7 +53,8 @@ flowchart TD
 | Demo deliveries to stakeholders | `/agile-review` |
 | Get sprint numbers | `/agile-metrics` |
 | Reflect and improve | `/agile-retro` |
-| Validate a UI flow interactively | `/agile-proto` |
+| Validate a UI flow in a static HTM UI browser prototype | `/agile-proto` |
+| Validate a UI flow as explicit Pen.dev states | `/agile-pen` |
 | Onboard a new team member | `/agile-onboarding` |
 
 ---
@@ -134,18 +135,14 @@ The design team wants to validate a 4-step onboarding wizard before engineering 
 ### Create the prototype
 
 ```
-/proto onboarding wizard with 4 steps
+/agile-pen onboarding wizard with 4 steps
 ```
 
-The skill creates a standalone interactive prototype in `client-proto/`:
-- `routes/onboarding/step-1.js` -- Account info
-- `routes/onboarding/step-2.js` -- Team setup
-- `routes/onboarding/step-3.js` -- Integration preferences
-- `routes/onboarding/step-4.js` -- Confirmation
+The skill creates the flow in a project `.pen` document with separate frames for account info, team setup, integration preferences, confirmation, and any behavior-changing alternate states. Every frame receives a paired note and a stable ID shared with planning artifacts.
 
-**Stack:** z-proto + daisyUI + Preact/htm + Tailwind v4. Zero build tools.
+**Surface:** Pen.dev with the project-local ADS library configured from the root `DESIGN.md`.
 
-All forms are pre-filled with mock data. Run `bunx serve -s .` -> stakeholders click through the wizard.
+Use realistic mock data, inspect the states in Pen.dev, and review the documented transitions with stakeholders.
 
 ### Validate and transition to real implementation
 

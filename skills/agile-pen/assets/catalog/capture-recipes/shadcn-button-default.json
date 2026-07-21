@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "shadcn-button-default",
+  "source": "shadcn",
+  "component": "button",
+  "example": "default",
+  "route": "/capture/shadcn/button/default",
+  "selector": "[data-capture='shadcn:button:default']",
+  "viewport": {"width": 1280, "height": 960},
+  "state": {"variant": "default"},
+  "theme": "light",
+  "direction": "ltr"
+}

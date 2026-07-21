@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "source": "Pencil MCP batch_get",
+  "nodeCount": 34,
+  "passed": true,
+  "overlaps": [],
+  "namingViolations": [],
+  "geometryViolations": [],
+  "coherenceViolations": [],
+  "evidenceChecksum": "5c1512c850a291ee0614e8f1504f8c3ee48741ad3a18d945aa06ab4b3e519066"
+}

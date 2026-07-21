@@ -1,0 +1,98 @@
+import { createHash } from "node:crypto";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+
+const checksum = value => createHash("sha256").update(value).digest("hex");
+const prefixes = {
+  section: "Section · ",
+  screen: "Screen · ",
+  state: "State · ",
+  note: "Note · "
+};
+
+function finiteGeometry(node) {
+  return [node.x, node.y, node.width, node.height].every(Number.isFinite) && node.width > 0 && node.height > 0;
+}
+
+function intersection(a, b) {
+  const width = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+  const height = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+  return width > 0 && height > 0 ? {width, height, area: width * height} : null;
+}
+
+function validRoleName(node) {
+  if (!String(node.name).endsWith(` (${node.id})`)) return false;
+  if (prefixes[node.role]) return String(node.name).startsWith(prefixes[node.role]);
+  if (node.role === "component") return /^(Captured · |Component · |Example\/)/.test(String(node.name));
+  return false;
+}
+
+export function auditLayoutEvidence(evidence) {
+  if (evidence?.schemaVersion !== 1 || evidence?.source !== "Pencil MCP batch_get" || !Array.isArray(evidence.nodes)) {
+    throw new Error("invalid Pencil MCP layout evidence");
+  }
+  const ids = new Set();
+  const geometryViolations = [];
+  const namingViolations = [];
+  for (const node of evidence.nodes) {
+    if (!node.id || ids.has(node.id)) throw new Error(`duplicate or missing node id: ${node.id ?? ""}`);
+    ids.add(node.id);
+    if (!finiteGeometry(node)) geometryViolations.push(node.id);
+    if (!validRoleName(node)) namingViolations.push(node.id);
+  }
+  const overlaps = [];
+  for (let left = 0; left < evidence.nodes.length; left += 1) {
+    for (let right = left + 1; right < evidence.nodes.length; right += 1) {
+      const a = evidence.nodes[left];
+      const b = evidence.nodes[right];
+      if (!finiteGeometry(a) || !finiteGeometry(b)) continue;
+      const overlap = intersection(a, b);
+      if (overlap) overlaps.push({a: a.id, b: b.id, ...overlap});
+    }
+  }
+  const coherenceViolations = [];
+  for (const check of evidence.coherenceChecks ?? []) {
+    if (check.type === "equal") {
+      const values = check.values ?? [];
+      const tolerance = Number(check.tolerance ?? 0);
+      if (values.length < 2 || values.some(value => !Number.isFinite(value)) || Math.max(...values) - Math.min(...values) > tolerance) {
+        coherenceViolations.push(check.id);
+      }
+      continue;
+    }
+    if (check.type === "fills-axis") {
+      const trailingGap = check.containerSize - check.start - check.size;
+      if (![check.containerSize, check.start, check.size, check.maxTrailingGap].every(Number.isFinite) || trailingGap < 0 || trailingGap > check.maxTrailingGap) {
+        coherenceViolations.push(check.id);
+      }
+      continue;
+    }
+    coherenceViolations.push(check.id ?? "unknown-check");
+  }
+  return {
+    schemaVersion: 1,
+    source: evidence.source,
+    nodeCount: evidence.nodes.length,
+    passed: overlaps.length === 0 && namingViolations.length === 0 && geometryViolations.length === 0 && coherenceViolations.length === 0,
+    overlaps,
+    namingViolations,
+    geometryViolations,
+    coherenceViolations
+  };
+}
+
+export async function runLayoutAudit(options = {}) {
+  if (!options.input) throw new Error("audit-layout requires --input");
+  if (!options.project) throw new Error("audit-layout requires --project");
+  const input = resolve(String(options.input));
+  if (input.endsWith(".pen")) throw new Error("audit-layout input must not be a .pen file");
+  const source = await readFile(input, "utf8");
+  const report = auditLayoutEvidence(JSON.parse(source));
+  const output = join(resolve(String(options.project)), "design/generated/layout-audit.report.json");
+  await mkdir(dirname(output), {recursive: true});
+  const temporary = `${output}.tmp-${process.pid}`;
+  await writeFile(temporary, `${JSON.stringify({...report, evidenceChecksum: checksum(source)}, null, 2)}\n`, "utf8");
+  await rename(temporary, output);
+  if (!report.passed) throw new Error(`layout audit failed: ${report.overlaps.length} overlap(s), ${report.namingViolations.length} naming violation(s), ${report.geometryViolations.length} geometry violation(s), ${report.coherenceViolations.length} coherence violation(s)`);
+  return {output, report};
+}

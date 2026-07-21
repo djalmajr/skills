@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "dice-kanban-basic",
+  "source": "dice-ui",
+  "component": "kanban",
+  "example": "basic",
+  "route": "/capture/dice-ui/kanban/basic",
+  "selector": "[data-capture='dice-ui:kanban:basic']",
+  "viewport": {"width": 1440, "height": 1024},
+  "state": {"columns": 3, "dragging": false},
+  "theme": "light",
+  "direction": "ltr"
+}

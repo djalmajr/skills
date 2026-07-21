@@ -1,0 +1,1248 @@
+{
+  "format": "pen-node-tree",
+  "version": 2,
+  "source": {
+    "url": "http://127.0.0.1:4187/capture/registry/command-demo",
+    "selector": "[data-capture='registry:command-demo']"
+  },
+  "stats": {
+    "frames": 35,
+    "groups": 0,
+    "texts": 11,
+    "images": 0,
+    "gradients": 0,
+    "svgGraphics": 26,
+    "controls": 1,
+    "skipped": 1,
+    "skippedSvgInvisible": 0,
+    "skippedSvgUnsupported": 0,
+    "skippedRoots": {
+      "label": 1
+    }
+  },
+  "root": {
+    "type": "frame",
+    "name": "Captured · Suggestions",
+    "layout": "none",
+    "x": 0,
+    "y": 0,
+    "width": 1280,
+    "height": 960,
+    "cornerRadius": 0,
+    "fill": {
+      "type": "color",
+      "color": "#FFFFFF",
+      "blendMode": "normal"
+    },
+    "children": [
+      {
+        "type": "frame",
+        "name": "Div · command",
+        "layout": "none",
+        "layoutPosition": "absolute",
+        "x": 0,
+        "y": 0,
+        "width": 1280,
+        "height": 303,
+        "cornerRadius": 10,
+        "fill": {
+          "type": "color",
+          "color": "#FFFFFF",
+          "blendMode": "normal"
+        },
+        "stroke": "#E5E5E5",
+        "strokeWidth": 1,
+        "strokeAlignment": "inner",
+        "effect": [
+          {
+            "type": "shadow",
+            "shadowType": "outer",
+            "offset": {
+              "x": 0,
+              "y": 4
+            },
+            "blur": 6,
+            "spread": -1,
+            "color": "#0000001A"
+          },
+          {
+            "type": "shadow",
+            "shadowType": "outer",
+            "offset": {
+              "x": 0,
+              "y": 2
+            },
+            "blur": 4,
+            "spread": -2,
+            "color": "#0000001A"
+          }
+        ],
+        "clip": true,
+        "children": [
+          {
+            "type": "frame",
+            "name": "Div · command-input-wrapper",
+            "layout": "none",
+            "layoutPosition": "absolute",
+            "x": 1,
+            "y": 1,
+            "width": 1278,
+            "height": 36,
+            "cornerRadius": 0,
+            "stroke": "#E5E5E5",
+            "strokeWidth": {
+              "top": 0,
+              "right": 0,
+              "bottom": 1,
+              "left": 0
+            },
+            "strokeAlignment": "inner",
+            "children": [
+              {
+                "type": "frame",
+                "name": "Svg",
+                "layout": "none",
+                "layoutPosition": "absolute",
+                "x": 12,
+                "y": 9.5,
+                "width": 16,
+                "height": 16,
+                "cornerRadius": 0,
+                "clip": true,
+                "opacity": 0.5,
+                "children": [
+                  {
+                    "type": "path",
+                    "name": "Path",
+                    "layoutPosition": "absolute",
+                    "x": 0,
+                    "y": 0,
+                    "width": 16,
+                    "height": 16,
+                    "fill": "#00000000",
+                    "stroke": "#0A0A0A",
+                    "strokeWidth": 1.333,
+                    "strokeLinecap": "round",
+                    "strokeLinejoin": "round",
+                    "geometry": "m21 21-4.34-4.34",
+                    "viewBox": [
+                      0,
+                      0,
+                      24,
+                      24
+                    ]
+                  },
+                  {
+                    "type": "ellipse",
+                    "name": "Circle",
+                    "layoutPosition": "absolute",
+                    "x": 2,
+                    "y": 2,
+                    "width": 10.667,
+                    "height": 10.667,
+                    "fill": "#00000000",
+                    "stroke": "#0A0A0A",
+                    "strokeWidth": 1.333,
+                    "strokeLinecap": "round",
+                    "strokeLinejoin": "round"
+                  }
+                ]
+              },
+              {
+                "type": "frame",
+                "name": "Input · command-input",
+                "layout": "none",
+                "layoutPosition": "absolute",
+                "x": 36,
+                "y": -2.5,
+                "width": 1230,
+                "height": 40,
+                "cornerRadius": 8,
+                "clip": true,
+                "children": [
+                  {
+                    "type": "text",
+                    "name": "Input · command-input · Value",
+                    "layoutPosition": "absolute",
+                    "x": 0,
+                    "y": 10,
+                    "textGrowth": "auto",
+                    "content": "Type a command or search...",
+                    "fill": "#737373",
+                    "fontFamily": "Inter",
+                    "fontSize": 14,
+                    "fontWeight": "400",
+                    "fontStyle": "normal",
+                    "lineHeight": 1.429,
+                    "textAlign": "left"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "frame",
+            "name": "Div · command-list",
+            "layout": "none",
+            "layoutPosition": "absolute",
+            "x": 1,
+            "y": 37,
+            "width": 1278,
+            "height": 265,
+            "cornerRadius": 0,
+            "children": [
+              {
+                "type": "frame",
+                "name": "Div",
+                "layout": "none",
+                "layoutPosition": "absolute",
+                "x": 0,
+                "y": 0,
+                "width": 1278,
+                "height": 265,
+                "cornerRadius": 0,
+                "children": [
+                  {
+                    "type": "frame",
+                    "name": "Div · command-group",
+                    "layout": "none",
+                    "layoutPosition": "absolute",
+                    "x": 0,
+                    "y": 0,
+                    "width": 1278,
+                    "height": 132,
+                    "cornerRadius": 0,
+                    "clip": true,
+                    "children": [
+                      {
+                        "type": "frame",
+                        "name": "Div · Suggestions",
+                        "layout": "none",
+                        "layoutPosition": "absolute",
+                        "x": 4,
+                        "y": 4,
+                        "width": 1270,
+                        "height": 28,
+                        "cornerRadius": 0,
+                        "children": [
+                          {
+                            "type": "text",
+                            "name": "Div · Suggestions · Text",
+                            "layoutPosition": "absolute",
+                            "x": 8,
+                            "y": 6,
+                            "textGrowth": "auto",
+                            "content": "Suggestions",
+                            "fill": "#737373",
+                            "fontFamily": "Inter",
+                            "fontSize": 12,
+                            "fontWeight": "500",
+                            "fontStyle": "normal",
+                            "lineHeight": 1.333,
+                            "textAlign": "left",
+                            "textAlignVertical": "top"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "frame",
+                        "name": "Group · Div",
+                        "layout": "none",
+                        "layoutPosition": "absolute",
+                        "x": 4,
+                        "y": 32,
+                        "width": 1270,
+                        "height": 96,
+                        "cornerRadius": 0,
+                        "children": [
+                          {
+                            "type": "frame",
+                            "name": "Div · command-item",
+                            "layout": "none",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 0,
+                            "width": 1270,
+                            "height": 32,
+                            "cornerRadius": 6,
+                            "fill": {
+                              "type": "color",
+                              "color": "#F5F5F5",
+                              "blendMode": "normal"
+                            },
+                            "children": [
+                              {
+                                "type": "frame",
+                                "name": "Svg",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 8,
+                                "y": 8,
+                                "width": 16,
+                                "height": 16,
+                                "cornerRadius": 0,
+                                "clip": true,
+                                "children": [
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M8 2v4",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M16 2v4",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "rectangle",
+                                    "name": "Rect",
+                                    "layoutPosition": "absolute",
+                                    "x": 2,
+                                    "y": 2.667,
+                                    "width": 12,
+                                    "height": 12,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "cornerRadius": 2
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M3 10h18",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "frame",
+                                "name": "Span · Calendar",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 32,
+                                "y": 6,
+                                "width": 57.859,
+                                "height": 20,
+                                "cornerRadius": 0,
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "name": "Span · Calendar · Text",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 1,
+                                    "textGrowth": "auto",
+                                    "content": "Calendar",
+                                    "fill": "#171717",
+                                    "fontFamily": "Inter",
+                                    "fontSize": 14,
+                                    "fontWeight": "400",
+                                    "fontStyle": "normal",
+                                    "lineHeight": 1.429,
+                                    "textAlign": "left",
+                                    "textAlignVertical": "top"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "frame",
+                            "name": "Div · command-item",
+                            "layout": "none",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 32,
+                            "width": 1270,
+                            "height": 32,
+                            "cornerRadius": 6,
+                            "children": [
+                              {
+                                "type": "frame",
+                                "name": "Svg",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 8,
+                                "y": 8,
+                                "width": 16,
+                                "height": 16,
+                                "cornerRadius": 0,
+                                "clip": true,
+                                "children": [
+                                  {
+                                    "type": "ellipse",
+                                    "name": "Circle",
+                                    "layoutPosition": "absolute",
+                                    "x": 1.333,
+                                    "y": 1.333,
+                                    "width": 13.333,
+                                    "height": 13.333,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round"
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M8 14s1.5 2 4 2 4-2 4-2",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Line",
+                                    "layoutPosition": "absolute",
+                                    "x": 6,
+                                    "y": 6,
+                                    "width": 1,
+                                    "height": 1,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M 0 0 L 1 0",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      1,
+                                      1
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Line",
+                                    "layoutPosition": "absolute",
+                                    "x": 10,
+                                    "y": 6,
+                                    "width": 1,
+                                    "height": 1,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M 0 0 L 1 0",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "frame",
+                                "name": "Span · Search Emoji",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 32,
+                                "y": 6,
+                                "width": 83.828,
+                                "height": 20,
+                                "cornerRadius": 0,
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "name": "Span · Search Emoji · Text",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 1,
+                                    "textGrowth": "auto",
+                                    "content": "Search Emoji",
+                                    "fill": "#0A0A0A",
+                                    "fontFamily": "Inter",
+                                    "fontSize": 14,
+                                    "fontWeight": "400",
+                                    "fontStyle": "normal",
+                                    "lineHeight": 1.429,
+                                    "textAlign": "left",
+                                    "textAlignVertical": "top"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "frame",
+                            "name": "Div · command-item",
+                            "layout": "none",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 64,
+                            "width": 1270,
+                            "height": 32,
+                            "cornerRadius": 6,
+                            "opacity": 0.5,
+                            "children": [
+                              {
+                                "type": "frame",
+                                "name": "Svg",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 8,
+                                "y": 8,
+                                "width": 16,
+                                "height": 16,
+                                "cornerRadius": 0,
+                                "clip": true,
+                                "children": [
+                                  {
+                                    "type": "rectangle",
+                                    "name": "Rect",
+                                    "layoutPosition": "absolute",
+                                    "x": 2.667,
+                                    "y": 1.333,
+                                    "width": 10.667,
+                                    "height": 13.333,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "cornerRadius": 2
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Line",
+                                    "layoutPosition": "absolute",
+                                    "x": 5.333,
+                                    "y": 4,
+                                    "width": 5.333,
+                                    "height": 1,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M 0 0 L 5.333 0",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      5.333,
+                                      1
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Line",
+                                    "layoutPosition": "absolute",
+                                    "x": 10.667,
+                                    "y": 9.333,
+                                    "width": 1,
+                                    "height": 2.667,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M 0 0 L 0 2.667",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      1,
+                                      2.667
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M16 10h.01",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M12 10h.01",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M8 10h.01",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M12 14h.01",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M8 14h.01",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M12 18h.01",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M8 18h.01",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "frame",
+                                "name": "Span · Calculator",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 32,
+                                "y": 6,
+                                "width": 65.781,
+                                "height": 20,
+                                "cornerRadius": 0,
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "name": "Span · Calculator · Text",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 1,
+                                    "textGrowth": "auto",
+                                    "content": "Calculator",
+                                    "fill": "#0A0A0A",
+                                    "fontFamily": "Inter",
+                                    "fontSize": 14,
+                                    "fontWeight": "400",
+                                    "fontStyle": "normal",
+                                    "lineHeight": 1.429,
+                                    "textAlign": "left",
+                                    "textAlignVertical": "top"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "frame",
+                    "name": "Div · command-separator",
+                    "layout": "none",
+                    "layoutPosition": "absolute",
+                    "x": -4,
+                    "y": 132,
+                    "width": 1286,
+                    "height": 1,
+                    "cornerRadius": 0,
+                    "fill": {
+                      "type": "color",
+                      "color": "#E5E5E5",
+                      "blendMode": "normal"
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "frame",
+                    "name": "Div · command-group",
+                    "layout": "none",
+                    "layoutPosition": "absolute",
+                    "x": 0,
+                    "y": 133,
+                    "width": 1278,
+                    "height": 132,
+                    "cornerRadius": 0,
+                    "clip": true,
+                    "children": [
+                      {
+                        "type": "frame",
+                        "name": "Div · Settings",
+                        "layout": "none",
+                        "layoutPosition": "absolute",
+                        "x": 4,
+                        "y": 4,
+                        "width": 1270,
+                        "height": 28,
+                        "cornerRadius": 0,
+                        "children": [
+                          {
+                            "type": "text",
+                            "name": "Div · Settings · Text",
+                            "layoutPosition": "absolute",
+                            "x": 8,
+                            "y": 6,
+                            "textGrowth": "auto",
+                            "content": "Settings",
+                            "fill": "#737373",
+                            "fontFamily": "Inter",
+                            "fontSize": 12,
+                            "fontWeight": "500",
+                            "fontStyle": "normal",
+                            "lineHeight": 1.333,
+                            "textAlign": "left",
+                            "textAlignVertical": "top"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "frame",
+                        "name": "Group · Div",
+                        "layout": "none",
+                        "layoutPosition": "absolute",
+                        "x": 4,
+                        "y": 32,
+                        "width": 1270,
+                        "height": 96,
+                        "cornerRadius": 0,
+                        "children": [
+                          {
+                            "type": "frame",
+                            "name": "Div · command-item",
+                            "layout": "none",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 0,
+                            "width": 1270,
+                            "height": 32,
+                            "cornerRadius": 6,
+                            "children": [
+                              {
+                                "type": "frame",
+                                "name": "Svg",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 8,
+                                "y": 8,
+                                "width": 16,
+                                "height": 16,
+                                "cornerRadius": 0,
+                                "clip": true,
+                                "children": [
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "ellipse",
+                                    "name": "Circle",
+                                    "layoutPosition": "absolute",
+                                    "x": 5.333,
+                                    "y": 2,
+                                    "width": 5.333,
+                                    "height": 5.333,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "frame",
+                                "name": "Span · Profile",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 32,
+                                "y": 6,
+                                "width": 41.063,
+                                "height": 20,
+                                "cornerRadius": 0,
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "name": "Span · Profile · Text",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 1,
+                                    "textGrowth": "auto",
+                                    "content": "Profile",
+                                    "fill": "#0A0A0A",
+                                    "fontFamily": "Inter",
+                                    "fontSize": 14,
+                                    "fontWeight": "400",
+                                    "fontStyle": "normal",
+                                    "lineHeight": 1.429,
+                                    "textAlign": "left",
+                                    "textAlignVertical": "top"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "frame",
+                                "name": "Span · command-shortcut",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 1239.797,
+                                "y": 8,
+                                "width": 22.203,
+                                "height": 16,
+                                "cornerRadius": 0,
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "name": "Span · command-shortcut · Text",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "textGrowth": "auto",
+                                    "content": "⌘P",
+                                    "fill": "#737373",
+                                    "fontFamily": "Inter",
+                                    "fontSize": 12,
+                                    "fontWeight": "400",
+                                    "fontStyle": "normal",
+                                    "lineHeight": 1.333,
+                                    "textAlign": "left",
+                                    "textAlignVertical": "top"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "frame",
+                            "name": "Div · command-item",
+                            "layout": "none",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 32,
+                            "width": 1270,
+                            "height": 32,
+                            "cornerRadius": 6,
+                            "children": [
+                              {
+                                "type": "frame",
+                                "name": "Svg",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 8,
+                                "y": 8,
+                                "width": 16,
+                                "height": 16,
+                                "cornerRadius": 0,
+                                "clip": true,
+                                "children": [
+                                  {
+                                    "type": "rectangle",
+                                    "name": "Rect",
+                                    "layoutPosition": "absolute",
+                                    "x": 1.333,
+                                    "y": 3.333,
+                                    "width": 13.333,
+                                    "height": 9.333,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "cornerRadius": 2
+                                  },
+                                  {
+                                    "type": "path",
+                                    "name": "Line",
+                                    "layoutPosition": "absolute",
+                                    "x": 1.333,
+                                    "y": 6.667,
+                                    "width": 13.333,
+                                    "height": 1,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M 0 0 L 13.333 0",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      13.333,
+                                      1
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "frame",
+                                "name": "Span · Billing",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 32,
+                                "y": 6,
+                                "width": 39.703,
+                                "height": 20,
+                                "cornerRadius": 0,
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "name": "Span · Billing · Text",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 1,
+                                    "textGrowth": "auto",
+                                    "content": "Billing",
+                                    "fill": "#0A0A0A",
+                                    "fontFamily": "Inter",
+                                    "fontSize": 14,
+                                    "fontWeight": "400",
+                                    "fontStyle": "normal",
+                                    "lineHeight": 1.429,
+                                    "textAlign": "left",
+                                    "textAlignVertical": "top"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "frame",
+                                "name": "Span · command-shortcut",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 1239.438,
+                                "y": 8,
+                                "width": 22.563,
+                                "height": 16,
+                                "cornerRadius": 0,
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "name": "Span · command-shortcut · Text",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "textGrowth": "auto",
+                                    "content": "⌘B",
+                                    "fill": "#737373",
+                                    "fontFamily": "Inter",
+                                    "fontSize": 12,
+                                    "fontWeight": "400",
+                                    "fontStyle": "normal",
+                                    "lineHeight": 1.333,
+                                    "textAlign": "left",
+                                    "textAlignVertical": "top"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "type": "frame",
+                            "name": "Div · command-item",
+                            "layout": "none",
+                            "layoutPosition": "absolute",
+                            "x": 0,
+                            "y": 64,
+                            "width": 1270,
+                            "height": 32,
+                            "cornerRadius": 6,
+                            "children": [
+                              {
+                                "type": "frame",
+                                "name": "Svg",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 8,
+                                "y": 8,
+                                "width": 16,
+                                "height": 16,
+                                "cornerRadius": 0,
+                                "clip": true,
+                                "children": [
+                                  {
+                                    "type": "path",
+                                    "name": "Path",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": 16,
+                                    "height": 16,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round",
+                                    "geometry": "M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915",
+                                    "viewBox": [
+                                      0,
+                                      0,
+                                      24,
+                                      24
+                                    ]
+                                  },
+                                  {
+                                    "type": "ellipse",
+                                    "name": "Circle",
+                                    "layoutPosition": "absolute",
+                                    "x": 6,
+                                    "y": 6,
+                                    "width": 4,
+                                    "height": 4,
+                                    "fill": "#00000000",
+                                    "stroke": "#737373",
+                                    "strokeWidth": 1.333,
+                                    "strokeLinecap": "round",
+                                    "strokeLinejoin": "round"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "frame",
+                                "name": "Span · Settings",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 32,
+                                "y": 6,
+                                "width": 53,
+                                "height": 20,
+                                "cornerRadius": 0,
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "name": "Span · Settings · Text",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 1,
+                                    "textGrowth": "auto",
+                                    "content": "Settings",
+                                    "fill": "#0A0A0A",
+                                    "fontFamily": "Inter",
+                                    "fontSize": 14,
+                                    "fontWeight": "400",
+                                    "fontStyle": "normal",
+                                    "lineHeight": 1.429,
+                                    "textAlign": "left",
+                                    "textAlignVertical": "top"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "frame",
+                                "name": "Span · command-shortcut",
+                                "layout": "none",
+                                "layoutPosition": "absolute",
+                                "x": 1239.906,
+                                "y": 8,
+                                "width": 22.094,
+                                "height": 16,
+                                "cornerRadius": 0,
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "name": "Span · command-shortcut · Text",
+                                    "layoutPosition": "absolute",
+                                    "x": 0,
+                                    "y": 0,
+                                    "textGrowth": "auto",
+                                    "content": "⌘S",
+                                    "fill": "#737373",
+                                    "fontFamily": "Inter",
+                                    "fontSize": 12,
+                                    "fontWeight": "400",
+                                    "fontStyle": "normal",
+                                    "lineHeight": 1.333,
+                                    "textAlign": "left",
+                                    "textAlignVertical": "top"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "clip": false
+  }
+}

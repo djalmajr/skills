@@ -1,0 +1,906 @@
+{
+  "schemaVersion": 1,
+  "taxonomySource": {
+    "visual": [
+      "shadcn",
+      "dice-ui"
+    ],
+    "organization": "htm-ui"
+  },
+  "catalogChecksums": {
+    "shadcn": "165b2d5d67d01630b6c6bf69eb302edd6548e5b96e6fe737a0a3790afb184487",
+    "dice-ui": "cea3acb63fb08ed8aeb7c725b6cb625e507cf1943b0b6d9fd04d15ce76311537"
+  },
+  "categories": [
+    {
+      "id": "general",
+      "label": "General",
+      "description": "Foundational components, identity, actions and compact status primitives.",
+      "components": [
+        {
+          "key": "dice-ui:action-bar",
+          "source": "dice-ui",
+          "name": "action-bar",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/action-bar"
+        },
+        {
+          "key": "dice-ui:avatar-group",
+          "source": "dice-ui",
+          "name": "avatar-group",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/avatar-group"
+        },
+        {
+          "key": "dice-ui:badge-overflow",
+          "source": "dice-ui",
+          "name": "badge-overflow",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/badge-overflow"
+        },
+        {
+          "key": "dice-ui:color-swatch",
+          "source": "dice-ui",
+          "name": "color-swatch",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/color-swatch"
+        },
+        {
+          "key": "dice-ui:stack",
+          "source": "dice-ui",
+          "name": "stack",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/stack"
+        },
+        {
+          "key": "dice-ui:stat",
+          "source": "dice-ui",
+          "name": "stat",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/stat"
+        },
+        {
+          "key": "dice-ui:status",
+          "source": "dice-ui",
+          "name": "status",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/status"
+        },
+        {
+          "key": "dice-ui:swap",
+          "source": "dice-ui",
+          "name": "swap",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/swap"
+        },
+        {
+          "key": "shadcn:avatar",
+          "source": "shadcn",
+          "name": "avatar",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/avatar"
+        },
+        {
+          "key": "shadcn:badge",
+          "source": "shadcn",
+          "name": "badge",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/badge"
+        },
+        {
+          "key": "shadcn:button",
+          "source": "shadcn",
+          "name": "button",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/button"
+        },
+        {
+          "key": "shadcn:button-group",
+          "source": "shadcn",
+          "name": "button-group",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/button-group"
+        },
+        {
+          "key": "shadcn:item",
+          "source": "shadcn",
+          "name": "item",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/item"
+        },
+        {
+          "key": "shadcn:kbd",
+          "source": "shadcn",
+          "name": "kbd",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/kbd"
+        }
+      ]
+    },
+    {
+      "id": "layout",
+      "label": "Layout",
+      "description": "Containers and structural primitives used to arrange content.",
+      "components": [
+        {
+          "key": "dice-ui:compare-slider",
+          "source": "dice-ui",
+          "name": "compare-slider",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/compare-slider"
+        },
+        {
+          "key": "dice-ui:cropper",
+          "source": "dice-ui",
+          "name": "cropper",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/cropper"
+        },
+        {
+          "key": "dice-ui:masonry",
+          "source": "dice-ui",
+          "name": "masonry",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/masonry"
+        },
+        {
+          "key": "shadcn:accordion",
+          "source": "shadcn",
+          "name": "accordion",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/accordion"
+        },
+        {
+          "key": "shadcn:aspect-ratio",
+          "source": "shadcn",
+          "name": "aspect-ratio",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/aspect-ratio"
+        },
+        {
+          "key": "shadcn:card",
+          "source": "shadcn",
+          "name": "card",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/card"
+        },
+        {
+          "key": "shadcn:collapsible",
+          "source": "shadcn",
+          "name": "collapsible",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/collapsible"
+        },
+        {
+          "key": "shadcn:empty",
+          "source": "shadcn",
+          "name": "empty",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/empty"
+        },
+        {
+          "key": "shadcn:resizable",
+          "source": "shadcn",
+          "name": "resizable",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/resizable"
+        },
+        {
+          "key": "shadcn:scroll-area",
+          "source": "shadcn",
+          "name": "scroll-area",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/scroll-area"
+        },
+        {
+          "key": "shadcn:separator",
+          "source": "shadcn",
+          "name": "separator",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/separator"
+        },
+        {
+          "key": "shadcn:sidebar",
+          "source": "shadcn",
+          "name": "sidebar",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/sidebar"
+        },
+        {
+          "key": "shadcn:skeleton",
+          "source": "shadcn",
+          "name": "skeleton",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/skeleton"
+        }
+      ]
+    },
+    {
+      "id": "navigation",
+      "label": "Navigation",
+      "description": "Components that move users between locations, views and commands.",
+      "components": [
+        {
+          "key": "dice-ui:scroll-spy",
+          "source": "dice-ui",
+          "name": "scroll-spy",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/scroll-spy"
+        },
+        {
+          "key": "dice-ui:speed-dial",
+          "source": "dice-ui",
+          "name": "speed-dial",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/speed-dial"
+        },
+        {
+          "key": "dice-ui:stepper",
+          "source": "dice-ui",
+          "name": "stepper",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/stepper"
+        },
+        {
+          "key": "dice-ui:tour",
+          "source": "dice-ui",
+          "name": "tour",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/tour"
+        },
+        {
+          "key": "shadcn:breadcrumb",
+          "source": "shadcn",
+          "name": "breadcrumb",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/breadcrumb"
+        },
+        {
+          "key": "shadcn:command",
+          "source": "shadcn",
+          "name": "command",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/command"
+        },
+        {
+          "key": "shadcn:context-menu",
+          "source": "shadcn",
+          "name": "context-menu",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/context-menu"
+        },
+        {
+          "key": "shadcn:direction",
+          "source": "shadcn",
+          "name": "direction",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/direction"
+        },
+        {
+          "key": "shadcn:dropdown-menu",
+          "source": "shadcn",
+          "name": "dropdown-menu",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/dropdown-menu"
+        },
+        {
+          "key": "shadcn:menubar",
+          "source": "shadcn",
+          "name": "menubar",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/menubar"
+        },
+        {
+          "key": "shadcn:navigation-menu",
+          "source": "shadcn",
+          "name": "navigation-menu",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/navigation-menu"
+        },
+        {
+          "key": "shadcn:pagination",
+          "source": "shadcn",
+          "name": "pagination",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/pagination"
+        },
+        {
+          "key": "shadcn:tabs",
+          "source": "shadcn",
+          "name": "tabs",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/tabs"
+        }
+      ]
+    },
+    {
+      "id": "data-entry",
+      "label": "Data Entry",
+      "description": "Controls for entering, selecting and editing values.",
+      "components": [
+        {
+          "key": "dice-ui:angle-slider",
+          "source": "dice-ui",
+          "name": "angle-slider",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/angle-slider"
+        },
+        {
+          "key": "dice-ui:checkbox-group",
+          "source": "dice-ui",
+          "name": "checkbox-group",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/checkbox-group"
+        },
+        {
+          "key": "dice-ui:color-picker",
+          "source": "dice-ui",
+          "name": "color-picker",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/color-picker"
+        },
+        {
+          "key": "dice-ui:combobox",
+          "source": "dice-ui",
+          "name": "combobox",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/combobox"
+        },
+        {
+          "key": "dice-ui:editable",
+          "source": "dice-ui",
+          "name": "editable",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/editable"
+        },
+        {
+          "key": "dice-ui:file-upload",
+          "source": "dice-ui",
+          "name": "file-upload",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/file-upload"
+        },
+        {
+          "key": "dice-ui:listbox",
+          "source": "dice-ui",
+          "name": "listbox",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/listbox"
+        },
+        {
+          "key": "dice-ui:mask-input",
+          "source": "dice-ui",
+          "name": "mask-input",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/mask-input"
+        },
+        {
+          "key": "dice-ui:mention",
+          "source": "dice-ui",
+          "name": "mention",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/mention"
+        },
+        {
+          "key": "dice-ui:phone-input",
+          "source": "dice-ui",
+          "name": "phone-input",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/phone-input"
+        },
+        {
+          "key": "dice-ui:rating",
+          "source": "dice-ui",
+          "name": "rating",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/rating"
+        },
+        {
+          "key": "dice-ui:segmented-input",
+          "source": "dice-ui",
+          "name": "segmented-input",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/segmented-input"
+        },
+        {
+          "key": "dice-ui:tags-input",
+          "source": "dice-ui",
+          "name": "tags-input",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/tags-input"
+        },
+        {
+          "key": "dice-ui:time-picker",
+          "source": "dice-ui",
+          "name": "time-picker",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/time-picker"
+        },
+        {
+          "key": "shadcn:calendar",
+          "source": "shadcn",
+          "name": "calendar",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/calendar"
+        },
+        {
+          "key": "shadcn:checkbox",
+          "source": "shadcn",
+          "name": "checkbox",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/checkbox"
+        },
+        {
+          "key": "shadcn:combobox",
+          "source": "shadcn",
+          "name": "combobox",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/combobox"
+        },
+        {
+          "key": "shadcn:field",
+          "source": "shadcn",
+          "name": "field",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/field"
+        },
+        {
+          "key": "shadcn:form",
+          "source": "shadcn",
+          "name": "form",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/form"
+        },
+        {
+          "key": "shadcn:input",
+          "source": "shadcn",
+          "name": "input",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/input"
+        },
+        {
+          "key": "shadcn:input-group",
+          "source": "shadcn",
+          "name": "input-group",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/input-group"
+        },
+        {
+          "key": "shadcn:input-otp",
+          "source": "shadcn",
+          "name": "input-otp",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/input-otp"
+        },
+        {
+          "key": "shadcn:label",
+          "source": "shadcn",
+          "name": "label",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/label"
+        },
+        {
+          "key": "shadcn:native-select",
+          "source": "shadcn",
+          "name": "native-select",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/native-select"
+        },
+        {
+          "key": "shadcn:radio-group",
+          "source": "shadcn",
+          "name": "radio-group",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/radio-group"
+        },
+        {
+          "key": "shadcn:select",
+          "source": "shadcn",
+          "name": "select",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/select"
+        },
+        {
+          "key": "shadcn:slider",
+          "source": "shadcn",
+          "name": "slider",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/slider"
+        },
+        {
+          "key": "shadcn:switch",
+          "source": "shadcn",
+          "name": "switch",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/switch"
+        },
+        {
+          "key": "shadcn:textarea",
+          "source": "shadcn",
+          "name": "textarea",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/textarea"
+        },
+        {
+          "key": "shadcn:toggle",
+          "source": "shadcn",
+          "name": "toggle",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/toggle"
+        },
+        {
+          "key": "shadcn:toggle-group",
+          "source": "shadcn",
+          "name": "toggle-group",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/toggle-group"
+        }
+      ]
+    },
+    {
+      "id": "data-display",
+      "label": "Data Display",
+      "description": "Components for presenting structured, rich and temporal information.",
+      "components": [
+        {
+          "key": "dice-ui:gauge",
+          "source": "dice-ui",
+          "name": "gauge",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/gauge"
+        },
+        {
+          "key": "dice-ui:kanban",
+          "source": "dice-ui",
+          "name": "kanban",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/kanban"
+        },
+        {
+          "key": "dice-ui:key-value",
+          "source": "dice-ui",
+          "name": "key-value",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/key-value"
+        },
+        {
+          "key": "dice-ui:marquee",
+          "source": "dice-ui",
+          "name": "marquee",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/marquee"
+        },
+        {
+          "key": "dice-ui:media-player",
+          "source": "dice-ui",
+          "name": "media-player",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/media-player"
+        },
+        {
+          "key": "dice-ui:qr-code",
+          "source": "dice-ui",
+          "name": "qr-code",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/qr-code"
+        },
+        {
+          "key": "dice-ui:relative-time-card",
+          "source": "dice-ui",
+          "name": "relative-time-card",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/relative-time-card"
+        },
+        {
+          "key": "dice-ui:scroller",
+          "source": "dice-ui",
+          "name": "scroller",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/scroller"
+        },
+        {
+          "key": "dice-ui:sortable",
+          "source": "dice-ui",
+          "name": "sortable",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/sortable"
+        },
+        {
+          "key": "dice-ui:timeline",
+          "source": "dice-ui",
+          "name": "timeline",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/timeline"
+        },
+        {
+          "key": "shadcn:attachment",
+          "source": "shadcn",
+          "name": "attachment",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/attachment"
+        },
+        {
+          "key": "shadcn:bubble",
+          "source": "shadcn",
+          "name": "bubble",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/bubble"
+        },
+        {
+          "key": "shadcn:carousel",
+          "source": "shadcn",
+          "name": "carousel",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/carousel"
+        },
+        {
+          "key": "shadcn:chart",
+          "source": "shadcn",
+          "name": "chart",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/chart"
+        },
+        {
+          "key": "shadcn:message",
+          "source": "shadcn",
+          "name": "message",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/message"
+        },
+        {
+          "key": "shadcn:message-scroller",
+          "source": "shadcn",
+          "name": "message-scroller",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/message-scroller"
+        },
+        {
+          "key": "shadcn:table",
+          "source": "shadcn",
+          "name": "table",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/table"
+        }
+      ]
+    },
+    {
+      "id": "feedback",
+      "label": "Feedback",
+      "description": "Status, loading, notification and system-feedback components.",
+      "components": [
+        {
+          "key": "dice-ui:banner",
+          "source": "dice-ui",
+          "name": "banner",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/banner"
+        },
+        {
+          "key": "dice-ui:circular-progress",
+          "source": "dice-ui",
+          "name": "circular-progress",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/circular-progress"
+        },
+        {
+          "key": "dice-ui:fps",
+          "source": "dice-ui",
+          "name": "fps",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/fps"
+        },
+        {
+          "key": "shadcn:alert",
+          "source": "shadcn",
+          "name": "alert",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/alert"
+        },
+        {
+          "key": "shadcn:marker",
+          "source": "shadcn",
+          "name": "marker",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/marker"
+        },
+        {
+          "key": "shadcn:progress",
+          "source": "shadcn",
+          "name": "progress",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/progress"
+        },
+        {
+          "key": "shadcn:sonner",
+          "source": "shadcn",
+          "name": "sonner",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/sonner"
+        },
+        {
+          "key": "shadcn:spinner",
+          "source": "shadcn",
+          "name": "spinner",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/spinner"
+        }
+      ]
+    },
+    {
+      "id": "overlay",
+      "label": "Overlay",
+      "description": "Content presented above the primary interface or in a transient layer.",
+      "components": [
+        {
+          "key": "dice-ui:responsive-dialog",
+          "source": "dice-ui",
+          "name": "responsive-dialog",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/responsive-dialog"
+        },
+        {
+          "key": "dice-ui:selection-toolbar",
+          "source": "dice-ui",
+          "name": "selection-toolbar",
+          "type": "registry:ui",
+          "registry": "@diceui",
+          "addCommandArgument": "@diceui/selection-toolbar"
+        },
+        {
+          "key": "shadcn:alert-dialog",
+          "source": "shadcn",
+          "name": "alert-dialog",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/alert-dialog"
+        },
+        {
+          "key": "shadcn:dialog",
+          "source": "shadcn",
+          "name": "dialog",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/dialog"
+        },
+        {
+          "key": "shadcn:drawer",
+          "source": "shadcn",
+          "name": "drawer",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/drawer"
+        },
+        {
+          "key": "shadcn:hover-card",
+          "source": "shadcn",
+          "name": "hover-card",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/hover-card"
+        },
+        {
+          "key": "shadcn:popover",
+          "source": "shadcn",
+          "name": "popover",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/popover"
+        },
+        {
+          "key": "shadcn:sheet",
+          "source": "shadcn",
+          "name": "sheet",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/sheet"
+        },
+        {
+          "key": "shadcn:tooltip",
+          "source": "shadcn",
+          "name": "tooltip",
+          "type": "registry:ui",
+          "registry": "@shadcn",
+          "addCommandArgument": "@shadcn/tooltip"
+        }
+      ]
+    }
+  ],
+  "checksum": "14089436e25cad9f26b9a45e6dd79bb9302db3d56f8641297f1e1798a3156d46"
+}
