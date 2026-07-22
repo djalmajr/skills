@@ -100,7 +100,7 @@ export async function ingestCapture(options = {}) {
       preset: rendererLock.preset,
       lockChecksum: checksum(rendererLockSource)
     },
-    namingConvention: "Name (id)",
+    namingConvention: "Semantic label",
     writer: "pencil-mcp-only",
     artifacts: {
       capture: relative(generatedRoot, paths.capture),
@@ -126,7 +126,7 @@ export async function ingestCapture(options = {}) {
   const lockPayload = {
     schemaVersion: 1,
     writer: "pencil-mcp-only",
-    namingConvention: "Name (id)",
+    namingConvention: "Semantic label",
     components: manifest.components.map(item => ({id: item.id, checksums: item.checksums}))
   };
   const lock = {...lockPayload, checksum: checksum(JSON.stringify(lockPayload))};

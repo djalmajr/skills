@@ -76,7 +76,7 @@ export async function recordValidation(options = {}) {
       coherenceViolations: layoutReport.coherenceViolations.length,
       report: projectRelativeLayoutReport.startsWith("..") ? layoutReportPath : projectRelativeLayoutReport,
       checksum: checksum(layoutReportSource),
-      gates: ["Pencil MCP snapshot_layout", "pairwise top-level geometry", "role-prefixed Name (id)", "resolved shell and content coherence"]
+      gates: ["Pencil MCP snapshot_layout", "pairwise top-level geometry", "role-prefixed semantic labels", "resolved shell and content coherence"]
     },
     visual
   };

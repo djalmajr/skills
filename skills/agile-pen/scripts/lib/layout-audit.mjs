@@ -21,9 +21,10 @@ function intersection(a, b) {
 }
 
 function validRoleName(node) {
-  if (!String(node.name).endsWith(` (${node.id})`)) return false;
-  if (prefixes[node.role]) return String(node.name).startsWith(prefixes[node.role]);
-  if (node.role === "component") return /^(Captured · |Component · |Example\/)/.test(String(node.name));
+  const name = String(node.name);
+  if (!name || name.endsWith(` (${node.id})`) || name.endsWith(` (#${node.id})`)) return false;
+  if (prefixes[node.role]) return name.startsWith(prefixes[node.role]);
+  if (node.role === "component") return /^(Captured · |Component · |Example\/)/.test(name);
   return false;
 }
 

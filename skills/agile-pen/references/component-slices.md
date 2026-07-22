@@ -16,7 +16,7 @@ Use this model to make the ADS catalog reproducible and useful at prototype time
 3. Give the slice a component title, source/provenance, and grouped example columns.
 4. Keep only the reusable origins required by the visible slices in an adjacent internal-dependencies frame.
 
-Every Pencil layer must end in its own node ID using `Name (id)`. Do not use `#` in Pencil layer names.
+Every Pen.dev layer must use a concise semantic label without appending its node ID. Retrieve the selected node ID with `Cmd+C` when traceability work requires it.
 
 ## Slice anatomy
 
@@ -31,7 +31,7 @@ Create roughly 5–10 complete examples for one component. Prefer facets that ma
 - feedback and success states;
 - loading, submitting, and failure states.
 
-Each reusable root follows `Example/<category>/<component>/<name> (id)` and records component, facet, official source, renderer hash, preset, route, selector, checksums, and Pencil evidence IDs in the generated manifests.
+Each reusable root follows `Example/<category>/<component>/<name>` and records component, facet, official source, renderer hash, preset, route, selector, checksums, and Pencil evidence IDs in the generated manifests.
 
 ## Acceptance gate
 
@@ -42,7 +42,7 @@ Each reusable root follows `Example/<category>/<component>/<name> (id)` and reco
 - Every captured root, slice, reference, and screen clips overflow intentionally.
 - Each slice uses three columns separated by two rules; its external reference remains outside the slice.
 - Adjacent slice/reference pairs have generous, consistent spacing and no root-level intersections.
-- Every layer name contains its own ID without `#`.
+- Every layer has a semantic label and does not duplicate its Pen.dev node ID.
 - Required reusable origins remain resolvable through real Pencil refs.
 - The manifest exposes the category, slice, examples, facets, provenance, and preview.
 - Source/Pencil visual comparison uses identical dimensions and an explicit RMSE threshold.

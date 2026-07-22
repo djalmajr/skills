@@ -51,23 +51,23 @@ Stop on missing tokens, unsupported icon libraries, unmapped semantic icons, or 
 Organize every `.pen` canvas in this order:
 
 1. Imported or project-local reusable components at the top.
-2. Large functional section headings below the components.
-3. Screen/state frames grouped beneath their functional section.
+2. Large functional sections below the components, arranged side by side as vertical slices.
+3. Screen/state frames grouped beneath their functional section in at most three columns, continuing vertically when needed.
 4. One paired note below every screen/state.
 
 Use these canonical names:
 
 ```text
-Section · <number or domain> · <functional group> (<section-id>)
-Screen · <primary screen name> (<stable-id>)
-State · <alternate or transient state name> (<stable-id>)
-Note · <Screen or state name> (<note-id>)
-Captured · <source> · <component> · <example> (<component-id>)
+Section · <number or domain> · <functional group>
+Screen · <primary screen name>
+State · <alternate or transient state name>
+Note · <Screen or state name>
+Captured · <source> · <component> · <example>
 ```
 
-Every Pencil layer, not only screens and notes, must end in its own ID as `Name (id)`. Do not include `#` in Pencil layer names. Keep the same stable screen ID in planning documents; in Markdown, render it as `(#ID) Name` when needed to prevent link-like parsing.
+Use concise semantic labels and do not append the Pen.dev node ID to layer names. Pen.dev exposes the selected node ID through `Cmd+C`, so repeating it in the label adds noise without improving traceability. Keep stable screen IDs in paired notes and planning documents; in Markdown, render them as `(#ID) Name` when needed to prevent link-like parsing.
 
-Reserve non-overlapping rectangles for every top-level section, screen, state, note, and captured component. Use at least 160px between the bottom of the preceding row of items/notes and the next section header, 80px between a section header and its screen row, 80px between adjacent screen/state columns, and 60px between a screen/state and its paired note. When a root changes size, reposition every affected sibling and downstream section in the same change. Overlays may overlap only as descendants inside their owning screen/state; never place an overlay as an intersecting top-level root. Never place internal rules, acceptance criteria, endpoint speculation, or traceability explanations inside the product UI. Put them in the paired note and detailed planning document.
+Reserve non-overlapping rectangles for every top-level section, screen, state, note, and captured component. Arrange primary functional sections side by side as independent vertical slices. Inside each slice, place screens and states in rows of at most three columns; when a section exceeds three frames, continue in another row within the same slice instead of creating a fourth column. Use at least 160px between adjacent section slices, 80px between a section header and its screen row, 80px between adjacent screen/state columns, and 60px between a screen/state and its paired note. When a root changes size, reposition every affected sibling and section slice in the same change. Overlays may overlap only as descendants inside their owning screen/state; never place an overlay as an intersecting top-level root. Never place internal rules, acceptance criteria, endpoint speculation, or traceability explanations inside the product UI. Put them in the paired note and detailed planning document.
 
 Treat every screen as a coherent shell. In a horizontal application shell, sidebar and main-content roots must resolve to the full screen height; in a vertical shell, header/body/footer widths must resolve to the full screen width. Primary content regions and repeated columns must stretch to the available axis after accounting for deliberate header, padding, and footer insets. Do not leave unexplained dead space, truncate one region while a peer fills the shell, or allow equivalent states to use conflicting shell dimensions. Apply size overrides to a component instance when adapting it to a screen; do not mutate the faithful captured origin solely to fit one composition.
 
@@ -132,7 +132,7 @@ Do not require or distribute a shared `components.lib.pen`. The canonical machin
 Every promoted example must:
 
 - preserve a visually approved source composition;
-- use a reusable `Example/<category>/<component>/<name> (ID)` root;
+- use a reusable `Example/<category>/<component>/<name>` root;
 - fill the available card width without distorting its internal geometry;
 - retain the official source geometry and product-neutral component styling;
 - record source, route, selector, renderer hash, preset, checksums, and Pencil evidence IDs in generated manifests.
@@ -173,7 +173,7 @@ It validates the 27 layouts currently exposed by the official shadcn Blocks page
 
 Then use Pencil to:
 
-- confirm every Pencil layer name follows `Name (id)` and contains its own ID;
+- confirm every Pen.dev layer has a concise semantic label without a duplicated node ID;
 - confirm every screen has exactly one paired note;
 - inspect reusable components, real `ref` nodes, and slot usage;
 - confirm curated examples fill their card width and retain approved geometry;
@@ -208,6 +208,6 @@ node <agile-pen-skill>/scripts/ads.mjs audit-layout \
   --input design/generated/layout-evidence.json --project .
 ```
 
-Do not complete the skill while the audit reports a root overlap, invalid geometry, incoherent shell/content sizing, missing role prefix, or a name whose final `(id)` differs from the actual Pencil node ID.
+Do not complete the skill while the audit reports a root overlap, invalid geometry, incoherent shell/content sizing, missing role prefix, or a label that duplicates the Pen.dev node ID.
 
 Do not report interactive behavior as implemented: Pen.dev documents the observable states and transitions that production code must later implement.

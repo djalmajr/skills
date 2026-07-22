@@ -16,8 +16,8 @@ Use this workflow to turn rendered web examples into a curated ADS catalog witho
 3. Create or reuse the ADS category frame.
 4. Copy only selected compositions into a three-column category grid.
 5. Match the column/card width to the captured root width. Do not widen a card while leaving its absolute-positioned internals at the old width.
-6. Normalize every copied layer to `Name (currentId)` after Pencil remaps IDs.
-7. Mark the promoted root reusable and name it `Example/<category>/<component>/<name> (ID)`.
+6. Normalize every copied layer to a concise semantic label after Pen.dev remaps IDs.
+7. Mark the promoted root reusable and name it `Example/<category>/<component>/<name>`.
 8. Add the example to `components.manifest.json` with its node ID, source, source catalog, category, and status.
 
 ## Conservative tokenization
@@ -38,7 +38,7 @@ Do not infer Auto Layout, replace arbitrary colors, flatten nested layers, or re
 ## Acceptance gate
 
 - Raw capture remains unchanged and visually inspectable.
-- Promoted root and every descendant follow `Name (id)`.
+- Promoted root and every descendant use concise semantic labels without duplicated node IDs.
 - Promoted root is reusable and listed by `ads examples`.
 - All visible card regions fill the promoted root width.
 - `snapshot_layout(problemsOnly: true)` introduces no new category/grid problem; inherited capture warnings are documented.

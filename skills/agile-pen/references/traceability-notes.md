@@ -12,7 +12,7 @@ Use one paired Pencil note for every screen or observable state. The note is the
 ## Stable identifier contract
 
 - The screen/state frame owns one stable Pencil ID.
-- Its paired note names that screen ID explicitly: `Note · <screen-id> (<note-id>)`.
+- Its paired note uses `Note · <screen name>` as the layer label and records the screen ID explicitly in the note content.
 - Planning documents refer to the same frame ID, rendered as `(#<screen-id>) <screen name>` when Markdown ambiguity is possible.
 - Renaming visible screen copy must not change the stable frame ID.
 

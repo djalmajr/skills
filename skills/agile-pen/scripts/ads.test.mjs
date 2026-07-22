@@ -11,7 +11,7 @@ import { parseShadcnAddCommand } from "./lib/shadcn-command.mjs";
 import { ingestCapture } from "./lib/ingest.mjs";
 import { recordValidation } from "./lib/validation.mjs";
 import { auditLayoutEvidence } from "./lib/layout-audit.mjs";
-import { PEN_CAPTURE_PACKAGE, PEN_CAPTURE_REGISTRY, PEN_CAPTURE_VERSION, parsePenCaptureArgs, penCaptureCacheRoot } from "./pen-capture.mjs";
+import { PEN_CAPTURE_PACKAGE, PEN_CAPTURE_REGISTRY, PEN_CAPTURE_VERSION, normalizeGeneratedBatchLabels, parsePenCaptureArgs, penCaptureCacheRoot } from "./pen-capture.mjs";
 import { blockCategory, officialPageBlocks } from "./validate-shadcn-blocks.mjs";
 
 const starterPath = new URL("../assets/pencil/presets/nova/DESIGN.md", import.meta.url);
@@ -129,6 +129,14 @@ test("pins pen-capture from GitHub Packages in the target project cache", () => 
   assert.equal(penCaptureCacheRoot(parsed.project), "/tmp/work/fixture/design/generated/tools/pen-capture/0.1.6");
 });
 
+test("removes duplicated Pen.dev node IDs from generated batch labels", () => {
+  const source = "Update(id,{name:data.name.replace(/ \\(#?[-A-Za-z0-9]+\\)$/,'')+' ('+id+')'});";
+  assert.equal(
+    normalizeGeneratedBatchLabels(source),
+    "Update(id,{name:data.name.replace(/ \\(#?[-A-Za-z0-9]+\\)$/,'')});"
+  );
+});
+
 test("captures registry-sized stdout without the Bun pipe limit", async () => {
   const result = await run("bun", ["-e", 'process.stdout.write("x".repeat(90000))'], {captureLargeStdout:true});
   assert.equal(result.stdout.length, 90000);
@@ -206,7 +214,7 @@ test("ingests neutral capture artifacts without reading or writing a .pen file",
       "renderer-lock": join(project, "renderer.lock.json")
     });
     assert.equal(result.entry.writer, "pencil-mcp-only");
-    assert.equal(result.entry.namingConvention, "Name (id)");
+    assert.equal(result.entry.namingConvention, "Semantic label");
     const lock = JSON.parse(await readFile(result.lock, "utf8"));
     assert.equal(lock.components.length, 1);
     await writeFile(capturePath, `${JSON.stringify({
@@ -254,16 +262,18 @@ test("records semantic, layout and visual evidence without accessing a .pen file
 
 test("rejects top-level overlap and role naming violations from Pencil MCP evidence", () => {
   const base = {schemaVersion:1,source:"Pencil MCP batch_get",nodes:[
-    {id:"screen-a",role:"screen",name:"Screen · A (screen-a)",x:0,y:0,width:100,height:100},
-    {id:"note-a",role:"note",name:"Wrong (note-a)",x:50,y:50,width:100,height:100}
+    {id:"screen-a",role:"screen",name:"Screen · A",x:0,y:0,width:100,height:100},
+    {id:"note-a",role:"note",name:"Wrong",x:50,y:50,width:100,height:100}
   ]};
   const failed = auditLayoutEvidence(base);
   assert.equal(failed.passed, false);
   assert.equal(failed.overlaps.length, 1);
   assert.deepEqual(failed.namingViolations, ["note-a"]);
-  const alignedNodes = [base.nodes[0],{...base.nodes[1],name:"Note · A (note-a)",x:0,y:160}];
+  const alignedNodes = [base.nodes[0],{...base.nodes[1],name:"Note · A",x:0,y:160}];
   const passed = auditLayoutEvidence({...base,nodes:alignedNodes,coherenceChecks:[{id:"shell",type:"equal",values:[720,720],tolerance:0}]});
   assert.equal(passed.passed, true);
+  const duplicatedId = auditLayoutEvidence({...base,nodes:[{...alignedNodes[0],name:"Screen · A (screen-a)"},alignedNodes[1]]});
+  assert.deepEqual(duplicatedId.namingViolations,["screen-a"]);
   const incoherent = auditLayoutEvidence({...base,nodes:alignedNodes,coherenceChecks:[{id:"shell",type:"equal",values:[720,680],tolerance:0}]});
   assert.deepEqual(incoherent.coherenceViolations,["shell"]);
 });

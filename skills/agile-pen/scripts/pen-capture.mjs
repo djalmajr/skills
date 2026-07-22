@@ -47,6 +47,10 @@ export function penCaptureCacheRoot(project) {
   return join(resolve(project), "design/generated/tools/pen-capture", PEN_CAPTURE_VERSION);
 }
 
+export function normalizeGeneratedBatchLabels(source) {
+  return source.replaceAll("+' ('+id+')'", "");
+}
+
 async function githubToken() {
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
   if (process.env.GH_TOKEN) return process.env.GH_TOKEN;
@@ -140,6 +144,12 @@ export async function main(argv = process.argv.slice(2)) {
     cwd: project,
     env: resolved.browsers ? {PLAYWRIGHT_BROWSERS_PATH:resolved.browsers} : {}
   });
+  if (command === "batch" && forwarded[2]) {
+    const output = resolve(project, forwarded[2]);
+    const source = await readFile(output, "utf8");
+    const normalized = normalizeGeneratedBatchLabels(source);
+    if (normalized !== source) await writeFile(output, normalized, "utf8");
+  }
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";

@@ -42,11 +42,11 @@ if (project) {
     const manifest = await readJson(componentManifestPath);
     const lock = await readJson(captureLockPath);
     requireCondition(lock.writer === "pencil-mcp-only", "capture lock must enforce Pencil MCP as the only .pen writer");
-    requireCondition(lock.namingConvention === "Name (id)", "capture lock naming convention must be Name (id)");
+    requireCondition(lock.namingConvention === "Semantic label", "capture lock naming convention must be Semantic label");
     requireCondition(manifest.components.length === lock.components.length, "capture manifest and lock component counts differ");
     for (const component of manifest.components) {
       requireCondition(component.writer === "pencil-mcp-only", `${component.id}: invalid writer`);
-      requireCondition(component.namingConvention === "Name (id)", `${component.id}: invalid naming convention`);
+      requireCondition(component.namingConvention === "Semantic label", `${component.id}: invalid naming convention`);
       for (const [kind, relativePath] of Object.entries(component.artifacts)) {
         if (!relativePath) continue;
         const path = join(generated, relativePath);
