@@ -1558,7 +1558,7 @@
       "id": "DnHN6",
       "x": 1455,
       "y": 1040,
-      "name": "Note · EkeUR (DnHN6)",
+      "name": "Note · Board empty (DnHN6)",
       "width": 1180,
       "height": 300,
       "content": "Resumo: Empty board state guides the first structural action without fabricating work items.\nÉpico: Assumption - pending planning ID\nHistória: Assumption - pending planning ID\nUser stories: Assumption - pending planning ID\nRequisitos: Assumption - pending planning ID\nRegras: An empty board has no implicit lists or cards; the user chooses the first list.\nEstado / gatilho: empty - open a board with zero lists.\nCritérios: Empty guidance is clear; the primary action creates the first list; navigation remains available.\nAnterior / próximo: Product entry or last-list deletion → first-list creation or populated board."
@@ -1568,7 +1568,7 @@
       "id": "K4mG6q",
       "x": 0,
       "y": 3240,
-      "name": "Delete card confirmation (K4mG6q)",
+      "name": "State · Delete card confirmation (K4mG6q)",
       "clip": true,
       "width": 1180,
       "height": 720,
@@ -2078,7 +2078,7 @@
       "id": "FxtJm",
       "x": 1260,
       "y": 3240,
-      "name": "Card moved feedback (FxtJm)",
+      "name": "State · Card moved feedback (FxtJm)",
       "clip": true,
       "width": 1180,
       "height": 720,
@@ -19810,6 +19810,2173 @@
       "width": 1280,
       "height": 300,
       "content": "Resumo: Official shadcn dashboard-01 reference captured from the supplied registry command.\nÉpico: Assumption - pending planning ID\nHistória: Assumption - pending planning ID\nUser stories: Assumption - pending planning ID\nRequisitos: Replicate the official dashboard-01 layout and visual hierarchy in Pen.dev.\nRegras: Preserve the sidebar, header, metric cards, chart, data table, full-height content, and canonical shadcn styling.\nEstado / gatilho: dashboard reference - npx shadcn add dashboard-01.\nCritérios: Screen matches the captured reference; no top-level overlaps; all layers follow Name (id).\nAnterior / próximo: trello-clone board flows → Screen UZQ0E."
+    },
+    {
+      "type": "frame",
+      "id": "DcU6s",
+      "x": -675,
+      "y": -5563.5,
+      "name": "Captured · shadcn · Command · Menu (DcU6s)",
+      "reusable": true,
+      "clip": true,
+      "width": 1280,
+      "height": 303,
+      "fill": "#FFFFFF",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "paBNl",
+          "layoutPosition": "absolute",
+          "x": 0,
+          "y": 0,
+          "name": "Div · command (paBNl)",
+          "clip": true,
+          "width": 1280,
+          "height": 303,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "stroke": "#E5E5E5",
+          "strokeWidth": 1,
+          "strokeAlignment": "inner",
+          "effect": [
+            {
+              "type": "shadow",
+              "shadowType": "outer",
+              "color": "#0000001A",
+              "offset": {
+                "x": 0,
+                "y": 4
+              },
+              "blur": 6,
+              "spread": -1
+            },
+            {
+              "type": "shadow",
+              "shadowType": "outer",
+              "color": "#0000001A",
+              "offset": {
+                "x": 0,
+                "y": 2
+              },
+              "blur": 4,
+              "spread": -2
+            }
+          ],
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "P5vzFb",
+              "layoutPosition": "absolute",
+              "x": 1,
+              "y": 1,
+              "name": "Div · command-input-wrapper (P5vzFb)",
+              "width": 1278,
+              "height": 36,
+              "stroke": "#E5E5E5",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "strokeAlignment": "inner",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "S9dIoE",
+                  "layoutPosition": "absolute",
+                  "x": 12,
+                  "y": 9.5,
+                  "name": "Svg (S9dIoE)",
+                  "opacity": 0.5,
+                  "clip": true,
+                  "width": 16,
+                  "height": 16,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "path",
+                      "id": "UPT10",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 0,
+                      "name": "Path (UPT10)",
+                      "geometry": "M21 21l-4.34-4.34",
+                      "viewBox": [
+                        0,
+                        0,
+                        24,
+                        24
+                      ],
+                      "fill": "#00000000",
+                      "width": 16,
+                      "height": 16,
+                      "stroke": "#0A0A0A",
+                      "strokeWidth": 1.333,
+                      "strokeLinejoin": "round",
+                      "strokeLinecap": "round"
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "fwCeB",
+                      "layoutPosition": "absolute",
+                      "x": 2,
+                      "y": 2,
+                      "name": "Circle (fwCeB)",
+                      "fill": "#00000000",
+                      "width": 10.667,
+                      "height": 10.667,
+                      "stroke": "#0A0A0A",
+                      "strokeWidth": 1.333,
+                      "strokeLinejoin": "round",
+                      "strokeLinecap": "round"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "kUctz",
+                  "layoutPosition": "absolute",
+                  "x": 36,
+                  "y": -2.5,
+                  "name": "Input · command-input (kUctz)",
+                  "clip": true,
+                  "width": 1230,
+                  "height": 40,
+                  "cornerRadius": 8,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "q5Iqe",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 10,
+                      "name": "Input · command-input · Value (q5Iqe)",
+                      "fill": "#737373",
+                      "content": "Type a command or search...",
+                      "lineHeight": 1.429,
+                      "fontFamily": "Inter",
+                      "fontSize": 14
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "dq2eP",
+              "layoutPosition": "absolute",
+              "x": 1,
+              "y": 37,
+              "name": "Div · command-list (dq2eP)",
+              "width": 1278,
+              "height": 265,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "aDeiV",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Div (aDeiV)",
+                  "width": 1278,
+                  "height": 265,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "tMQYB",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 0,
+                      "name": "Div · command-group (tMQYB)",
+                      "clip": true,
+                      "width": 1278,
+                      "height": 132,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "d0SaVT",
+                          "layoutPosition": "absolute",
+                          "x": 4,
+                          "y": 4,
+                          "name": "Div · Suggestions (d0SaVT)",
+                          "width": 1270,
+                          "height": 28,
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "u1nzi",
+                              "layoutPosition": "absolute",
+                              "x": 8,
+                              "y": 6,
+                              "name": "Div · Suggestions · Text (u1nzi)",
+                              "fill": "#737373",
+                              "content": "Suggestions",
+                              "lineHeight": 1.333,
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "FDjJ6",
+                          "layoutPosition": "absolute",
+                          "x": 4,
+                          "y": 32,
+                          "name": "Group · Div (FDjJ6)",
+                          "width": 1270,
+                          "height": 96,
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "d3LP8f",
+                              "layoutPosition": "absolute",
+                              "x": 0,
+                              "y": 0,
+                              "name": "Div · command-item (d3LP8f)",
+                              "width": 1270,
+                              "height": 32,
+                              "fill": "#F5F5F5",
+                              "cornerRadius": 6,
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "gxOdA",
+                                  "layoutPosition": "absolute",
+                                  "x": 8,
+                                  "y": 8,
+                                  "name": "Svg (gxOdA)",
+                                  "clip": true,
+                                  "width": 16,
+                                  "height": 16,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "path",
+                                      "id": "G0P4H",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (G0P4H)",
+                                      "geometry": "M8 2v4",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "xKIvo",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (xKIvo)",
+                                      "geometry": "M16 2v4",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "cornerRadius": 2,
+                                      "id": "ha6vz",
+                                      "layoutPosition": "absolute",
+                                      "x": 2,
+                                      "y": 2.667,
+                                      "name": "Rect (ha6vz)",
+                                      "fill": "#00000000",
+                                      "width": 12,
+                                      "height": 12,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "bDQDT",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (bDQDT)",
+                                      "geometry": "M3 10h18",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "wSekk",
+                                  "layoutPosition": "absolute",
+                                  "x": 32,
+                                  "y": 6,
+                                  "name": "Span · Calendar (wSekk)",
+                                  "width": 57.859,
+                                  "height": 20,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "J8DmI1",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 1,
+                                      "name": "Span · Calendar · Text (J8DmI1)",
+                                      "fill": "#171717",
+                                      "content": "Calendar",
+                                      "lineHeight": 1.429,
+                                      "fontFamily": "Inter",
+                                      "fontSize": 14
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "dPyQZ",
+                              "layoutPosition": "absolute",
+                              "x": 0,
+                              "y": 32,
+                              "name": "Div · command-item (dPyQZ)",
+                              "width": 1270,
+                              "height": 32,
+                              "cornerRadius": 6,
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "R6kG1y",
+                                  "layoutPosition": "absolute",
+                                  "x": 8,
+                                  "y": 8,
+                                  "name": "Svg (R6kG1y)",
+                                  "clip": true,
+                                  "width": 16,
+                                  "height": 16,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "ellipse",
+                                      "id": "f5S7xm",
+                                      "layoutPosition": "absolute",
+                                      "x": 1.333,
+                                      "y": 1.333,
+                                      "name": "Circle (f5S7xm)",
+                                      "fill": "#00000000",
+                                      "width": 13.333,
+                                      "height": 13.333,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "vsuzp",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (vsuzp)",
+                                      "geometry": "M8 14s1.5 2 4 2 4-2 4-2",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "yGJol",
+                                      "layoutPosition": "absolute",
+                                      "x": 6,
+                                      "y": 6,
+                                      "name": "Line (yGJol)",
+                                      "geometry": "M0 0l1 0",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        1,
+                                        1
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 1,
+                                      "height": 1,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "Ctn5t",
+                                      "layoutPosition": "absolute",
+                                      "x": 10,
+                                      "y": 6,
+                                      "name": "Line (Ctn5t)",
+                                      "geometry": "M0 0l1 0",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        1,
+                                        1
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 1,
+                                      "height": 1,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "GjRva",
+                                  "layoutPosition": "absolute",
+                                  "x": 32,
+                                  "y": 6,
+                                  "name": "Span · Search Emoji (GjRva)",
+                                  "width": 83.828,
+                                  "height": 20,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "q2U6BE",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 1,
+                                      "name": "Span · Search Emoji · Text (q2U6BE)",
+                                      "fill": "#0A0A0A",
+                                      "content": "Search Emoji",
+                                      "lineHeight": 1.429,
+                                      "fontFamily": "Inter",
+                                      "fontSize": 14
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "T166QE",
+                              "layoutPosition": "absolute",
+                              "x": 0,
+                              "y": 64,
+                              "name": "Div · command-item (T166QE)",
+                              "opacity": 0.5,
+                              "width": 1270,
+                              "height": 32,
+                              "cornerRadius": 6,
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "E3MK9M",
+                                  "layoutPosition": "absolute",
+                                  "x": 8,
+                                  "y": 8,
+                                  "name": "Svg (E3MK9M)",
+                                  "clip": true,
+                                  "width": 16,
+                                  "height": 16,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "rectangle",
+                                      "cornerRadius": 2,
+                                      "id": "y7tpW",
+                                      "layoutPosition": "absolute",
+                                      "x": 2.667,
+                                      "y": 1.333,
+                                      "name": "Rect (y7tpW)",
+                                      "fill": "#00000000",
+                                      "width": 10.667,
+                                      "height": 13.333,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "G9j66",
+                                      "layoutPosition": "absolute",
+                                      "x": 5.333,
+                                      "y": 4,
+                                      "name": "Line (G9j66)",
+                                      "geometry": "M0 0l5.333 0",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        5.333,
+                                        1
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 5.333,
+                                      "height": 1,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "Due95",
+                                      "layoutPosition": "absolute",
+                                      "x": 10.667,
+                                      "y": 9.333,
+                                      "name": "Line (Due95)",
+                                      "geometry": "M0 0l0 2.667",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        1,
+                                        2.667
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 1,
+                                      "height": 2.667,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "ysjuS",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (ysjuS)",
+                                      "geometry": "M16 10h0.01",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "qCmJe",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (qCmJe)",
+                                      "geometry": "M12 10h0.01",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "RyBIx",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (RyBIx)",
+                                      "geometry": "M8 10h0.01",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "okLiZ",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (okLiZ)",
+                                      "geometry": "M12 14h0.01",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "IJ0p5",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (IJ0p5)",
+                                      "geometry": "M8 14h0.01",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "fsBCH",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (fsBCH)",
+                                      "geometry": "M12 18h0.01",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "D3oiyE",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (D3oiyE)",
+                                      "geometry": "M8 18h0.01",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "a0ma2n",
+                                  "layoutPosition": "absolute",
+                                  "x": 32,
+                                  "y": 6,
+                                  "name": "Span · Calculator (a0ma2n)",
+                                  "width": 65.781,
+                                  "height": 20,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "pUMKO",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 1,
+                                      "name": "Span · Calculator · Text (pUMKO)",
+                                      "fill": "#0A0A0A",
+                                      "content": "Calculator",
+                                      "lineHeight": 1.429,
+                                      "fontFamily": "Inter",
+                                      "fontSize": 14
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ljJT2",
+                      "layoutPosition": "absolute",
+                      "x": -4,
+                      "y": 132,
+                      "name": "Div · command-separator (ljJT2)",
+                      "width": 1286,
+                      "height": 1,
+                      "fill": "#E5E5E5",
+                      "layout": "none"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "AKjBK",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 133,
+                      "name": "Div · command-group (AKjBK)",
+                      "clip": true,
+                      "width": 1278,
+                      "height": 132,
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "rd1fJ",
+                          "layoutPosition": "absolute",
+                          "x": 4,
+                          "y": 4,
+                          "name": "Div · Settings (rd1fJ)",
+                          "width": 1270,
+                          "height": 28,
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "lvsPt",
+                              "layoutPosition": "absolute",
+                              "x": 8,
+                              "y": 6,
+                              "name": "Div · Settings · Text (lvsPt)",
+                              "fill": "#737373",
+                              "content": "Settings",
+                              "lineHeight": 1.333,
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "k1dt3",
+                          "layoutPosition": "absolute",
+                          "x": 4,
+                          "y": 32,
+                          "name": "Group · Div (k1dt3)",
+                          "width": 1270,
+                          "height": 96,
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "UL15K",
+                              "layoutPosition": "absolute",
+                              "x": 0,
+                              "y": 0,
+                              "name": "Div · command-item (UL15K)",
+                              "width": 1270,
+                              "height": 32,
+                              "cornerRadius": 6,
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "eqHVS",
+                                  "layoutPosition": "absolute",
+                                  "x": 8,
+                                  "y": 8,
+                                  "name": "Svg (eqHVS)",
+                                  "clip": true,
+                                  "width": 16,
+                                  "height": 16,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "path",
+                                      "id": "RvUMj",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (RvUMj)",
+                                      "geometry": "M19 21v-2a4 4 0 0 0-4-4h-6a4 4 0 0 0-4 4v2",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "ellipse",
+                                      "id": "I8rG6O",
+                                      "layoutPosition": "absolute",
+                                      "x": 5.333,
+                                      "y": 2,
+                                      "name": "Circle (I8rG6O)",
+                                      "fill": "#00000000",
+                                      "width": 5.333,
+                                      "height": 5.333,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "T7KCS",
+                                  "layoutPosition": "absolute",
+                                  "x": 32,
+                                  "y": 6,
+                                  "name": "Span · Profile (T7KCS)",
+                                  "width": 41.063,
+                                  "height": 20,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "oDs47",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 1,
+                                      "name": "Span · Profile · Text (oDs47)",
+                                      "fill": "#0A0A0A",
+                                      "content": "Profile",
+                                      "lineHeight": 1.429,
+                                      "fontFamily": "Inter",
+                                      "fontSize": 14
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "u6knNw",
+                                  "layoutPosition": "absolute",
+                                  "x": 1239.797,
+                                  "y": 8,
+                                  "name": "Span · command-shortcut (u6knNw)",
+                                  "width": 22.203,
+                                  "height": 16,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "HrLzS",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Span · command-shortcut · Text (HrLzS)",
+                                      "fill": "#737373",
+                                      "content": "⌘P",
+                                      "lineHeight": 1.333,
+                                      "fontFamily": "Inter",
+                                      "fontSize": 12
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "ybGqD",
+                              "layoutPosition": "absolute",
+                              "x": 0,
+                              "y": 32,
+                              "name": "Div · command-item (ybGqD)",
+                              "width": 1270,
+                              "height": 32,
+                              "cornerRadius": 6,
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "aKv0Y",
+                                  "layoutPosition": "absolute",
+                                  "x": 8,
+                                  "y": 8,
+                                  "name": "Svg (aKv0Y)",
+                                  "clip": true,
+                                  "width": 16,
+                                  "height": 16,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "rectangle",
+                                      "cornerRadius": 2,
+                                      "id": "apQzD",
+                                      "layoutPosition": "absolute",
+                                      "x": 1.333,
+                                      "y": 3.333,
+                                      "name": "Rect (apQzD)",
+                                      "fill": "#00000000",
+                                      "width": 13.333,
+                                      "height": 9.333,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "UjMw2",
+                                      "layoutPosition": "absolute",
+                                      "x": 1.333,
+                                      "y": 6.667,
+                                      "name": "Line (UjMw2)",
+                                      "geometry": "M0 0l13.333 0",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        13.333,
+                                        1
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 13.333,
+                                      "height": 1,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "o28Zk",
+                                  "layoutPosition": "absolute",
+                                  "x": 32,
+                                  "y": 6,
+                                  "name": "Span · Billing (o28Zk)",
+                                  "width": 39.703,
+                                  "height": 20,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "sHoDE",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 1,
+                                      "name": "Span · Billing · Text (sHoDE)",
+                                      "fill": "#0A0A0A",
+                                      "content": "Billing",
+                                      "lineHeight": 1.429,
+                                      "fontFamily": "Inter",
+                                      "fontSize": 14
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "An1Ds",
+                                  "layoutPosition": "absolute",
+                                  "x": 1239.438,
+                                  "y": 8,
+                                  "name": "Span · command-shortcut (An1Ds)",
+                                  "width": 22.563,
+                                  "height": 16,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "X7WTpX",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Span · command-shortcut · Text (X7WTpX)",
+                                      "fill": "#737373",
+                                      "content": "⌘B",
+                                      "lineHeight": 1.333,
+                                      "fontFamily": "Inter",
+                                      "fontSize": 12
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "vAFyK",
+                              "layoutPosition": "absolute",
+                              "x": 0,
+                              "y": 64,
+                              "name": "Div · command-item (vAFyK)",
+                              "width": 1270,
+                              "height": 32,
+                              "cornerRadius": 6,
+                              "layout": "none",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "KZMmO",
+                                  "layoutPosition": "absolute",
+                                  "x": 8,
+                                  "y": 8,
+                                  "name": "Svg (KZMmO)",
+                                  "clip": true,
+                                  "width": 16,
+                                  "height": 16,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "path",
+                                      "id": "LDBq4",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Path (LDBq4)",
+                                      "geometry": "M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831 2.34 2.34 0 0 1 2.329-4.033 2.34 2.34 0 0 0 3.319-1.915",
+                                      "viewBox": [
+                                        0,
+                                        0,
+                                        24,
+                                        24
+                                      ],
+                                      "fill": "#00000000",
+                                      "width": 16,
+                                      "height": 16,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    },
+                                    {
+                                      "type": "ellipse",
+                                      "id": "rmbSj",
+                                      "layoutPosition": "absolute",
+                                      "x": 6,
+                                      "y": 6,
+                                      "name": "Circle (rmbSj)",
+                                      "fill": "#00000000",
+                                      "width": 4,
+                                      "height": 4,
+                                      "stroke": "#737373",
+                                      "strokeWidth": 1.333,
+                                      "strokeLinejoin": "round",
+                                      "strokeLinecap": "round"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "kt6E8",
+                                  "layoutPosition": "absolute",
+                                  "x": 32,
+                                  "y": 6,
+                                  "name": "Span · Settings (kt6E8)",
+                                  "width": 53,
+                                  "height": 20,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "LfXzZ",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 1,
+                                      "name": "Span · Settings · Text (LfXzZ)",
+                                      "fill": "#0A0A0A",
+                                      "content": "Settings",
+                                      "lineHeight": 1.429,
+                                      "fontFamily": "Inter",
+                                      "fontSize": 14
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "POeZL",
+                                  "layoutPosition": "absolute",
+                                  "x": 1239.906,
+                                  "y": 8,
+                                  "name": "Span · command-shortcut (POeZL)",
+                                  "width": 22.094,
+                                  "height": 16,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "m23lMO",
+                                      "layoutPosition": "absolute",
+                                      "x": 0,
+                                      "y": 0,
+                                      "name": "Span · command-shortcut · Text (m23lMO)",
+                                      "fill": "#737373",
+                                      "content": "⌘S",
+                                      "lineHeight": 1.333,
+                                      "fontFamily": "Inter",
+                                      "fontSize": 12
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "gUwZX",
+      "x": -675,
+      "y": -5808.5,
+      "name": "Captured · shadcn · Dropdown Menu · Card actions (gUwZX)",
+      "reusable": true,
+      "width": 224,
+      "height": 125,
+      "fill": "#FFFFFF",
+      "cornerRadius": 10,
+      "stroke": "#0A0A0A1A",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "effect": [
+        {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#0000001A",
+          "offset": {
+            "x": 0,
+            "y": 4
+          },
+          "blur": 6,
+          "spread": -1
+        },
+        {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#0000001A",
+          "offset": {
+            "x": 0,
+            "y": 2
+          },
+          "blur": 4,
+          "spread": -2
+        }
+      ],
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "r02zO",
+          "layoutPosition": "absolute",
+          "x": 4,
+          "y": 4,
+          "name": "Div · dropdown-menu-label (r02zO)",
+          "width": 216,
+          "height": 24,
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "yAbAG",
+              "layoutPosition": "absolute",
+              "x": 6,
+              "y": 4,
+              "name": "Div · dropdown-menu-label · Text (yAbAG)",
+              "fill": "#737373",
+              "content": "Card actions",
+              "lineHeight": 1.333,
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "gCWBS",
+          "layoutPosition": "absolute",
+          "x": 4,
+          "y": 28,
+          "name": "Div · dropdown-menu-item (gCWBS)",
+          "width": 216,
+          "height": 28,
+          "cornerRadius": 8,
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "L31KP",
+              "layoutPosition": "absolute",
+              "x": 6,
+              "y": 5,
+              "name": "Div · dropdown-menu-item · Text (L31KP)",
+              "fill": "#0A0A0A",
+              "content": "Edit card",
+              "lineHeight": 1.429,
+              "fontFamily": "Inter",
+              "fontSize": 14
+            },
+            {
+              "type": "frame",
+              "id": "uDtwp",
+              "layoutPosition": "absolute",
+              "x": 174.594,
+              "y": 6,
+              "name": "Span · dropdown-menu-shortcut (uDtwp)",
+              "width": 35.406,
+              "height": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "pLLJ7",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Span · dropdown-menu-shortcut · Text (pLLJ7)",
+                  "fill": "#737373",
+                  "content": "Enter",
+                  "lineHeight": 1.333,
+                  "fontFamily": "Inter",
+                  "fontSize": 12
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "BfYy1",
+          "layoutPosition": "absolute",
+          "x": 4,
+          "y": 56,
+          "name": "Div · dropdown-menu-item (BfYy1)",
+          "width": 216,
+          "height": 28,
+          "cornerRadius": 8,
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "cooYp",
+              "layoutPosition": "absolute",
+              "x": 6,
+              "y": 5,
+              "name": "Div · dropdown-menu-item · Text (cooYp)",
+              "fill": "#0A0A0A",
+              "content": "Duplicate",
+              "lineHeight": 1.429,
+              "fontFamily": "Inter",
+              "fontSize": 14
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "gO591",
+          "layoutPosition": "absolute",
+          "x": 0,
+          "y": 88,
+          "name": "Div · dropdown-menu-separator (gO591)",
+          "width": 224,
+          "height": 1,
+          "fill": "#E5E5E5",
+          "layout": "none"
+        },
+        {
+          "type": "frame",
+          "id": "dvsH7",
+          "layoutPosition": "absolute",
+          "x": 4,
+          "y": 93,
+          "name": "Div · dropdown-menu-item (dvsH7)",
+          "width": 216,
+          "height": 28,
+          "cornerRadius": 8,
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "yb6V3",
+              "layoutPosition": "absolute",
+              "x": 28,
+              "y": 5,
+              "name": "Div · dropdown-menu-item · Text (yb6V3)",
+              "fill": "#E7000B",
+              "content": "Delete card",
+              "lineHeight": 1.429,
+              "fontFamily": "Inter",
+              "fontSize": 14
+            },
+            {
+              "type": "frame",
+              "id": "Noxo3",
+              "layoutPosition": "absolute",
+              "x": 6,
+              "y": 6,
+              "name": "Svg (Noxo3)",
+              "clip": true,
+              "width": 16,
+              "height": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "path",
+                  "id": "pH9V6",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Path (pH9V6)",
+                  "geometry": "M10 11v6",
+                  "viewBox": [
+                    0,
+                    0,
+                    24,
+                    24
+                  ],
+                  "fill": "#00000000",
+                  "width": 16,
+                  "height": 16,
+                  "stroke": "#E7000B",
+                  "strokeWidth": 1.333,
+                  "strokeLinejoin": "round",
+                  "strokeLinecap": "round"
+                },
+                {
+                  "type": "path",
+                  "id": "MS1Ip",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Path (MS1Ip)",
+                  "geometry": "M14 11v6",
+                  "viewBox": [
+                    0,
+                    0,
+                    24,
+                    24
+                  ],
+                  "fill": "#00000000",
+                  "width": 16,
+                  "height": 16,
+                  "stroke": "#E7000B",
+                  "strokeWidth": 1.333,
+                  "strokeLinejoin": "round",
+                  "strokeLinecap": "round"
+                },
+                {
+                  "type": "path",
+                  "id": "DBzIv",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Path (DBzIv)",
+                  "geometry": "M19 6v14a2 2 0 0 1-2 2h-10a2 2 0 0 1-2-2v-14",
+                  "viewBox": [
+                    0,
+                    0,
+                    24,
+                    24
+                  ],
+                  "fill": "#00000000",
+                  "width": 16,
+                  "height": 16,
+                  "stroke": "#E7000B",
+                  "strokeWidth": 1.333,
+                  "strokeLinejoin": "round",
+                  "strokeLinecap": "round"
+                },
+                {
+                  "type": "path",
+                  "id": "XbYCz",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Path (XbYCz)",
+                  "geometry": "M3 6h18",
+                  "viewBox": [
+                    0,
+                    0,
+                    24,
+                    24
+                  ],
+                  "fill": "#00000000",
+                  "width": 16,
+                  "height": 16,
+                  "stroke": "#E7000B",
+                  "strokeWidth": 1.333,
+                  "strokeLinejoin": "round",
+                  "strokeLinecap": "round"
+                },
+                {
+                  "type": "path",
+                  "id": "ByPN9",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Path (ByPN9)",
+                  "geometry": "M8 6v-2a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+                  "viewBox": [
+                    0,
+                    0,
+                    24,
+                    24
+                  ],
+                  "fill": "#00000000",
+                  "width": 16,
+                  "height": 16,
+                  "stroke": "#E7000B",
+                  "strokeWidth": 1.333,
+                  "strokeLinejoin": "round",
+                  "strokeLinecap": "round"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "cOPdx",
+      "x": -675,
+      "y": -6229.5,
+      "name": "Captured · shadcn · Dialog · Card details (cOPdx)",
+      "reusable": true,
+      "width": 384,
+      "height": 301,
+      "fill": "#FFFFFF",
+      "cornerRadius": 14,
+      "stroke": "#0A0A0A1A",
+      "strokeWidth": 1,
+      "strokeAlignment": "inner",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "pGvQt",
+          "layoutPosition": "absolute",
+          "x": 16,
+          "y": 16,
+          "name": "Div · dialog-header (pGvQt)",
+          "width": 352,
+          "height": 44,
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "S6wO8g",
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 0,
+              "name": "H2 · dialog-title (S6wO8g)",
+              "width": 352,
+              "height": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "zl4cU",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": -3,
+                  "name": "H2 · dialog-title · Text (zl4cU)",
+                  "fill": "#0A0A0A",
+                  "content": "Build onboarding flow",
+                  "lineHeight": 1,
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "fUUGE",
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 24,
+              "name": "P · dialog-description (fUUGE)",
+              "width": 352,
+              "height": 20,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "vUUCF",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 1,
+                  "name": "P · dialog-description · Text (vUUCF)",
+                  "fill": "#737373",
+                  "content": "Review the card details before saving your changes.",
+                  "lineHeight": 1.429,
+                  "fontFamily": "Inter",
+                  "fontSize": 14
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "R7Ldz",
+          "layoutPosition": "absolute",
+          "x": 16,
+          "y": 76,
+          "name": "Div (R7Ldz)",
+          "width": 352,
+          "height": 144,
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "X35NM",
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 0,
+              "name": "Div (X35NM)",
+              "width": 352,
+              "height": 66,
+              "cornerRadius": 10,
+              "stroke": "#E5E5E5",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "UMiq5",
+                  "layoutPosition": "absolute",
+                  "x": 13,
+                  "y": 14,
+                  "name": "Span · Owner (UMiq5)",
+                  "width": 42.266,
+                  "height": 18,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "N5OW66",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 0,
+                      "name": "Span · Owner · Text (N5OW66)",
+                      "fill": "#737373",
+                      "content": "Owner",
+                      "lineHeight": 1.429,
+                      "fontFamily": "Inter",
+                      "fontSize": 14
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "kKgA2",
+                  "layoutPosition": "absolute",
+                  "x": 13,
+                  "y": 33,
+                  "name": "Div · Taylor Kim (kKgA2)",
+                  "width": 326,
+                  "height": 20,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "eKoqj",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 1,
+                      "name": "Div · Taylor Kim · Text (eKoqj)",
+                      "fill": "#0A0A0A",
+                      "content": "Taylor Kim",
+                      "lineHeight": 1.429,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "K8SXYC",
+              "layoutPosition": "absolute",
+              "x": 0,
+              "y": 78,
+              "name": "Div (K8SXYC)",
+              "width": 352,
+              "height": 66,
+              "cornerRadius": 10,
+              "stroke": "#E5E5E5",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "UDWdr",
+                  "layoutPosition": "absolute",
+                  "x": 13,
+                  "y": 14,
+                  "name": "Span · Due date (UDWdr)",
+                  "width": 57.313,
+                  "height": 18,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ZJTLK",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 0,
+                      "name": "Span · Due date · Text (ZJTLK)",
+                      "fill": "#737373",
+                      "content": "Due date",
+                      "lineHeight": 1.429,
+                      "fontFamily": "Inter",
+                      "fontSize": 14
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "z6Afj",
+                  "layoutPosition": "absolute",
+                  "x": 13,
+                  "y": 33,
+                  "name": "Div · Jul 21, 2026 (z6Afj)",
+                  "width": 326,
+                  "height": 20,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Xhka0",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 1,
+                      "name": "Div · Jul 21, 2026 · Text (Xhka0)",
+                      "fill": "#0A0A0A",
+                      "content": "Jul 21, 2026",
+                      "lineHeight": 1.429,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "E7HGz",
+          "layoutPosition": "absolute",
+          "x": 0,
+          "y": 236,
+          "name": "Div · dialog-footer (E7HGz)",
+          "width": 384,
+          "height": 65,
+          "fill": "#F5F5F580",
+          "cornerRadius": [
+            0,
+            0,
+            14,
+            14
+          ],
+          "stroke": "#E5E5E5",
+          "strokeWidth": {
+            "top": 1
+          },
+          "strokeAlignment": "inner",
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "bEUpW",
+              "layoutPosition": "absolute",
+              "x": 179.063,
+              "y": 17,
+              "name": "Button (bEUpW)",
+              "width": 67.578,
+              "height": 32,
+              "fill": "#FFFFFF",
+              "cornerRadius": 10,
+              "stroke": "#A1A1A1",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#A1A1A180",
+                "spread": 3
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "CVpaS",
+                  "layoutPosition": "absolute",
+                  "x": 11,
+                  "y": 7,
+                  "name": "Button · Text (CVpaS)",
+                  "fill": "#0A0A0A",
+                  "content": "Cancel",
+                  "lineHeight": 1.429,
+                  "textAlign": "center",
+                  "textAlignVertical": "middle",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "sNNWB",
+              "layoutPosition": "absolute",
+              "x": 254.641,
+              "y": 17,
+              "name": "Button (sNNWB)",
+              "width": 113.359,
+              "height": 32,
+              "fill": "#171717",
+              "cornerRadius": 10,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "UjMFZ",
+                  "layoutPosition": "absolute",
+                  "x": 11,
+                  "y": 7,
+                  "name": "Button · Text (UjMFZ)",
+                  "fill": "#FAFAFA",
+                  "content": "Save changes",
+                  "lineHeight": 1.429,
+                  "textAlign": "center",
+                  "textAlignVertical": "middle",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "bappF",
+          "layoutPosition": "absolute",
+          "x": 348,
+          "y": 8,
+          "name": "Button · dialog-close (bappF)",
+          "width": 28,
+          "height": 28,
+          "cornerRadius": 8,
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "C5iVR",
+              "layoutPosition": "absolute",
+              "x": 6,
+              "y": 6,
+              "name": "Svg (C5iVR)",
+              "clip": true,
+              "width": 16,
+              "height": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "path",
+                  "id": "SYto9",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Path (SYto9)",
+                  "geometry": "M18 6l-12 12",
+                  "viewBox": [
+                    0,
+                    0,
+                    24,
+                    24
+                  ],
+                  "fill": "#00000000",
+                  "width": 16,
+                  "height": 16,
+                  "stroke": "#0A0A0A",
+                  "strokeWidth": 1.333,
+                  "strokeLinejoin": "round",
+                  "strokeLinecap": "round"
+                },
+                {
+                  "type": "path",
+                  "id": "Lfxa4",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 0,
+                  "name": "Path (Lfxa4)",
+                  "geometry": "M6 6l12 12",
+                  "viewBox": [
+                    0,
+                    0,
+                    24,
+                    24
+                  ],
+                  "fill": "#00000000",
+                  "width": 16,
+                  "height": 16,
+                  "stroke": "#0A0A0A",
+                  "strokeWidth": 1.333,
+                  "strokeLinejoin": "round",
+                  "strokeLinecap": "round"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "mLE75",
+      "x": 0,
+      "y": 6700,
+      "name": "Section · 05 · Prompt-driven dashboard flow (mLE75)",
+      "clip": true,
+      "width": 2830,
+      "height": 180,
+      "fill": "$--muted",
+      "stroke": "$--border",
+      "strokeWidth": {
+        "bottom": 1
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "id": "fmy0n",
+          "x": 0,
+          "y": 0,
+          "name": "Section accent (fmy0n)",
+          "fill": "$--primary",
+          "width": 8,
+          "height": 180
+        },
+        {
+          "type": "text",
+          "id": "dunXf",
+          "x": 40,
+          "y": 20,
+          "name": "Section title (dunXf)",
+          "fill": "$--foreground",
+          "textGrowth": "fixed-width-height",
+          "width": 2260,
+          "height": 72,
+          "content": "05 · Prompt-driven dashboard flow",
+          "lineHeight": 1.08,
+          "fontFamily": "$--font-primary",
+          "fontSize": 56,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "L5DPB6",
+          "x": 40,
+          "y": 122,
+          "name": "Section description (L5DPB6)",
+          "fill": "$--muted-foreground",
+          "textGrowth": "fixed-width-height",
+          "width": 2260,
+          "height": 30,
+          "content": "Prompt test: sidebar, data table, command menu, dropdown menu, and dialog using dashboard-01 as the visual base.",
+          "fontFamily": "$--font-primary",
+          "fontSize": 20,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "MqD4e",
+      "x": 0,
+      "y": 6960,
+      "name": "Screen · Prompt dashboard (MqD4e)",
+      "clip": true,
+      "width": 1280,
+      "height": 960,
+      "fill": "$--background",
+      "stroke": "$--border",
+      "strokeWidth": 1,
+      "layout": "none",
+      "children": [
+        {
+          "id": "v53P8p",
+          "type": "ref",
+          "ref": "q31foP",
+          "name": "Dashboard 01 base (v53P8p)",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 1521.5
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "QzeZb",
+      "x": 1360,
+      "y": 6960,
+      "name": "State · Command menu open (QzeZb)",
+      "clip": true,
+      "width": 1280,
+      "height": 960,
+      "fill": "$--background",
+      "stroke": "$--border",
+      "strokeWidth": 1,
+      "layout": "none",
+      "children": [
+        {
+          "id": "mkny6",
+          "type": "ref",
+          "ref": "q31foP",
+          "name": "Dashboard 01 base (mkny6)",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 1521.5
+        },
+        {
+          "type": "frame",
+          "id": "I7TN6",
+          "x": 0,
+          "y": 0,
+          "name": "Command backdrop (I7TN6)",
+          "width": 1280,
+          "height": 960,
+          "fill": "#00000055",
+          "layout": "none"
+        },
+        {
+          "id": "y0YZ1f",
+          "type": "ref",
+          "ref": "DcU6s",
+          "name": "Command menu (y0YZ1f)",
+          "x": 0,
+          "y": 180,
+          "width": 1280,
+          "height": 303
+        }
+      ]
+    },
+    {
+      "type": "note",
+      "id": "mVB05",
+      "x": 0,
+      "y": 7980,
+      "name": "Note · Prompt dashboard (mVB05)",
+      "width": 1280,
+      "height": 300,
+      "content": "Resumo: Dashboard base materialized from the official shadcn dashboard-01 block.\nÉpico: Assumption - pending planning ID\nHistória: Assumption - pending planning ID\nUser stories: Navigate work, inspect the data table, and invoke global or row-level actions.\nRequisitos: Sidebar and data table remain visible in a coherent full-height shell.\nRegras: dashboard-01 is the visual base; captured origins remain local to this .pen.\nEstado / gatilho: default - open the dashboard.\nCritérios: Sidebar, header, metric cards, chart, and table are visible without top-level overlap.\nAnterior / próximo: Entry → command menu, dropdown menu, or dialog state."
+    },
+    {
+      "type": "note",
+      "id": "csvnb",
+      "x": 1360,
+      "y": 7980,
+      "name": "Note · Command menu open (csvnb)",
+      "width": 1280,
+      "height": 300,
+      "content": "Resumo: Global command menu over the dashboard context.\nÉpico: Assumption - pending planning ID\nHistória: Assumption - pending planning ID\nUser stories: Search and invoke navigation or settings commands from the keyboard.\nRequisitos: Use the official shadcn command-demo captured through pen-capture.\nRegras: Escape dismisses; selecting a command routes or performs the documented action.\nEstado / gatilho: command - press the command shortcut.\nCritérios: Search input, grouped suggestions, selected item, and shortcuts are visible.\nAnterior / próximo: Prompt dashboard → destination or prompt dashboard."
+    },
+    {
+      "type": "frame",
+      "id": "uDJSn",
+      "x": 0,
+      "y": 8460,
+      "name": "State · Dropdown menu open (uDJSn)",
+      "clip": true,
+      "width": 1280,
+      "height": 960,
+      "fill": "$--background",
+      "stroke": "$--border",
+      "strokeWidth": 1,
+      "layout": "none",
+      "children": [
+        {
+          "id": "V85ME",
+          "type": "ref",
+          "ref": "q31foP",
+          "name": "Dashboard 01 base (V85ME)",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 1521.5
+        },
+        {
+          "id": "MokEp",
+          "type": "ref",
+          "ref": "gUwZX",
+          "name": "Card actions dropdown (MokEp)",
+          "x": 1010,
+          "y": 132,
+          "width": 224,
+          "height": 125
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "bPi2I",
+      "x": 1360,
+      "y": 8460,
+      "name": "State · Dialog open (bPi2I)",
+      "clip": true,
+      "width": 1280,
+      "height": 960,
+      "fill": "$--background",
+      "stroke": "$--border",
+      "strokeWidth": 1,
+      "layout": "none",
+      "children": [
+        {
+          "id": "BcUyE",
+          "type": "ref",
+          "ref": "q31foP",
+          "name": "Dashboard 01 base (BcUyE)",
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 1521.5
+        },
+        {
+          "type": "frame",
+          "id": "QVN9t",
+          "x": 0,
+          "y": 0,
+          "name": "Dialog backdrop (QVN9t)",
+          "width": 1280,
+          "height": 960,
+          "fill": "#00000055",
+          "layout": "none"
+        },
+        {
+          "id": "O93g7",
+          "type": "ref",
+          "ref": "cOPdx",
+          "name": "Card details dialog (O93g7)",
+          "x": 448,
+          "y": 280,
+          "width": 384,
+          "height": 301
+        }
+      ]
+    },
+    {
+      "type": "note",
+      "id": "wlTve",
+      "x": 0,
+      "y": 9480,
+      "name": "Note · Dropdown menu open (wlTve)",
+      "width": 1280,
+      "height": 300,
+      "content": "Resumo: Row-level actions exposed without leaving the dashboard.\nÉpico: Assumption - pending planning ID\nHistória: Assumption - pending planning ID\nUser stories: Open card actions, edit, move, or request deletion.\nRequisitos: Use the locally captured official shadcn dropdown menu.\nRegras: Non-destructive actions may proceed; destructive action opens confirmation.\nEstado / gatilho: menu - activate the row actions trigger.\nCritérios: Menu is anchored, readable, and does not obscure the full table context.\nAnterior / próximo: Prompt dashboard → dialog, confirmation, or prompt dashboard."
+    },
+    {
+      "type": "note",
+      "id": "ogkCN",
+      "x": 1360,
+      "y": 9480,
+      "name": "Note · Dialog open (ogkCN)",
+      "width": 1280,
+      "height": 300,
+      "content": "Resumo: Card details dialog over the dashboard shell.\nÉpico: Assumption - pending planning ID\nHistória: Assumption - pending planning ID\nUser stories: Review ownership and due date before saving changes.\nRequisitos: Use the locally captured official shadcn dialog.\nRegras: Cancel preserves prior values; save applies valid changes.\nEstado / gatilho: dialog - choose Edit from the dropdown menu.\nCritérios: Backdrop, title, description, fields, close, cancel, and save controls are visible.\nAnterior / próximo: Dropdown menu → prompt dashboard on cancel or save."
     }
   ],
   "variables": {

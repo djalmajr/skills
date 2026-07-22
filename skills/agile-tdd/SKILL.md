@@ -137,6 +137,21 @@ Explore the code to understand:
 - What is already covered (check existing tests)
 - Which business rule IDs, acceptance criteria, or prototype flows the change must satisfy
 
+For front-end work backed by a Pen.dev prototype, inspect `design-system.lock.json` before starting Red. When it declares `prototype.path`:
+
+1. Run the sibling Agile-Pen gate:
+
+   ```bash
+   node <agile-pen-skill>/scripts/ads.mjs verify --project <project-root>
+   ```
+
+2. Read `design/generated/prototype.catalog.json`, `design/generated/parity-audit.report.json`, and `design/generated/validation.manifest.json`.
+3. Resolve every component instance needed by the target screen/state through `screen.instances[].componentId` to its catalog entry, capture provenance, registry, and checksum-locked `code[].path` counterpart.
+4. Reuse or compose those mapped code counterparts. Do not recreate a shadcn, Dice UI, community-registry, or project-owned primitive under another name.
+5. Stop before Red if the gate fails, coverage is below 100%, a manual component exists, a target screen/ref is absent, or a mapped code checksum is stale. Return the prototype to Agile-Pen for reconciliation; do not guess from visual similarity.
+
+The parity catalog decides component identity and code location. TDD still decides observable behavior: test the screen flow, validation, permissions, state changes, and integration contracts rather than the internal markup of the mapped design-system component.
+
 ### 2. Choose the right test type
 
 Use the test pyramid as guide:

@@ -10,6 +10,7 @@ import { formatMaterialization, materializeRenderer } from "./lib/renderer.mjs";
 import { ingestCapture } from "./lib/ingest.mjs";
 import { recordValidation } from "./lib/validation.mjs";
 import { runLayoutAudit } from "./lib/layout-audit.mjs";
+import { runParityAudit, verifyPrototypeParity } from "./lib/parity.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const assetsDir = resolve(scriptDir, "../assets/pencil");
@@ -231,11 +232,35 @@ async function verifyProject(options) {
   const variableDocument = await readJson(paths.variables);
   if (stableJson(variableDocument.variables) !== stableJson(variables)) throw new Error("generated variables do not match DESIGN.md");
   if (lock.writer !== "pencil-mcp-only") throw new Error("design lock does not enforce Pencil MCP as the only .pen writer");
+  if (lock.prototype?.path) await verifyPrototypeParity({project: paths.root, lock});
   console.log(`verified nova@${lock.preset.version} in ${paths.root}`);
 }
 
 function usage() {
-  console.log(`Agile Design System\n\nRun with: node <agile-pen-skill>/scripts/ads.mjs <command>\n(Bun may replace Node.)\n\nCommands:\n  catalog sync [--sources shadcn,dice-ui] [--cli-version ${DEFAULT_SHADCN_CLI_VERSION}]\n  materialize (--components shadcn:sidebar,dice-ui:kanban | --shadcn-command "yarn dlx shadcn@latest add login-03") [--base base] [--preset nova|<preset-code>] [--cli-version ${DEFAULT_SHADCN_CLI_VERSION}] [--project <path>] [--cache <override-path>]\n  ingest --capture <capture.json> --tree <tree.json> --batch <batch.js> --source <shadcn|dice-ui> --component <name> --example <name> [--category <id>] [--recipe <id>] [--screenshot <png>] [--renderer-lock <json>] [--project <path>]\n  audit-layout --input <pencil-mcp-layout-evidence.json> --project <path>\n  record-validation --project <path> --screen <id> --refs <source:component:componentNode:instanceNode,...> --reports <capture-id=report.json,...> --layout-report <layout-audit.report.json>\n  list\n  info nova\n  components [--category <id>]\n  slices [--category <id>] [--source <id>]\n  examples [--category <id>] [--component <id>] [--facet <id>] [--source <id>]\n  sources\n  install nova --project <path> [--design <path>]\n  configure --project <path> [--design <path>]\n  verify --project <path> [--design <path>]\n  update nova@<version> --project <path> [--design <path>]\n\nPen.dev documents are imported only through generated batches executed by Pencil MCP.`);
+  console.log(`Agile Design System
+
+Run with: node <agile-pen-skill>/scripts/ads.mjs <command>
+(Bun may replace Node.)
+
+Commands:
+  catalog sync [--sources shadcn,dice-ui] [--cli-version ${DEFAULT_SHADCN_CLI_VERSION}]
+  materialize (--components shadcn:sidebar,dice-ui:kanban | --shadcn-command "yarn dlx shadcn@latest add login-03") [--base base] [--preset nova|<preset-code>] [--cli-version ${DEFAULT_SHADCN_CLI_VERSION}] [--project <path>] [--cache <override-path>]
+  ingest --capture <capture.json> --tree <tree.json> --batch <batch.js> --source <shadcn|dice-ui|community> --component <name> --example <name> [--registry <id>] [--category <id>] [--recipe <id>] [--screenshot <png>] [--renderer-lock <json>] [--project <path>]
+  audit-layout --input <pencil-mcp-layout-evidence.json> --project <path>
+  audit-parity --input <pencil-mcp-prototype-evidence.json> --project <path>
+  record-validation --project <path> --screen <id> --refs <source:component:componentNode:instanceNode,...> --reports <capture-id=report.json,...> --layout-report <layout-audit.report.json> --parity-report <parity-audit.report.json>
+  list
+  info nova
+  components [--category <id>]
+  slices [--category <id>] [--source <id>]
+  examples [--category <id>] [--component <id>] [--facet <id>] [--source <id>]
+  sources
+  install nova --project <path> [--design <path>]
+  configure --project <path> [--design <path>]
+  verify --project <path> [--design <path>]
+  update nova@<version> --project <path> [--design <path>]
+
+Pen.dev documents are imported only through generated batches executed by Pencil MCP.`);
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -266,6 +291,11 @@ export async function main(argv = process.argv.slice(2)) {
   }
   if (command === "audit-layout") {
     const result = await runLayoutAudit(options);
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  if (command === "audit-parity") {
+    const result = await runParityAudit(options);
     console.log(JSON.stringify(result, null, 2));
     return;
   }
