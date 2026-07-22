@@ -44,6 +44,16 @@ export async function recordValidation(options = {}) {
   const layoutReportSource = await readFile(layoutReportPath, "utf8");
   const layoutReport = JSON.parse(layoutReportSource);
   if (layoutReport.passed !== true) throw new Error("layout report did not pass");
+  if (!options["parity-report"]) throw new Error("record-validation requires --parity-report");
+  const parityReportPath = resolve(String(options["parity-report"]));
+  if (parityReportPath.endsWith(".pen")) throw new Error("parity report must not be a .pen file");
+  const parityReportSource = await readFile(parityReportPath, "utf8");
+  const parityReport = JSON.parse(parityReportSource);
+  if (parityReport.passed !== true) throw new Error("parity report did not pass");
+  for (const dimension of ["screens", "components", "instances"]) {
+    if (parityReport.coverage?.[dimension]?.percent !== 100) throw new Error(`parity coverage is not 100% for ${dimension}`);
+  }
+  if (parityReport.coverage?.manualComponents !== 0) throw new Error("parity report contains manual components");
   const visual = [];
   for (const item of parseReports(options.reports)) {
     const path = resolve(item.path);
@@ -61,6 +71,7 @@ export async function recordValidation(options = {}) {
     });
   }
   const projectRelativeLayoutReport = relative(projectRoot, layoutReportPath);
+  const projectRelativeParityReport = relative(projectRoot, parityReportPath);
   const manifest = {
     schemaVersion: 1,
     writer: "pencil-mcp-evidence",
@@ -76,7 +87,14 @@ export async function recordValidation(options = {}) {
       coherenceViolations: layoutReport.coherenceViolations.length,
       report: projectRelativeLayoutReport.startsWith("..") ? layoutReportPath : projectRelativeLayoutReport,
       checksum: checksum(layoutReportSource),
-      gates: ["Pencil MCP snapshot_layout", "pairwise top-level geometry", "role-prefixed semantic labels", "resolved shell and content coherence"]
+      gates: ["Pencil MCP snapshot_layout", "pairwise top-level geometry", "semantic labels with explicit prefixes only for sections, states, and notes", "resolved shell and content coherence"]
+    },
+    parity: {
+      passed: true,
+      coverage: parityReport.coverage,
+      report: projectRelativeParityReport.startsWith("..") ? parityReportPath : projectRelativeParityReport,
+      checksum: checksum(parityReportSource),
+      gates: ["catalog capture provenance", "code counterpart checksums", "reusable Pen.dev roots", "cataloged ref instances", "100% screen coverage", "zero manual components"]
     },
     visual
   };

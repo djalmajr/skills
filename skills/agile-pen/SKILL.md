@@ -1,6 +1,6 @@
 ---
 name: agile-pen
-description: Create and maintain traceable application prototypes exclusively in Pen.dev using deterministic shadcn and Dice UI source renderers, pen-capture, ADS manifests, reusable .pen refs, project-owned DESIGN.md identity, explicit interaction-state frames, functional sections, and paired notes. Use when asked to create or edit a .pen prototype, work in Pen.dev, build a Pen.dev design system, capture official components into editable .pen layers, or align product documentation with a .pen artifact before implementation. Do not use for browser-based HTML prototypes; use agile-proto for those.
+description: Create and maintain traceable application prototypes exclusively in Pen.dev with fail-closed prototype-to-code parity, deterministic official or community shadcn-compatible registry captures, ADS manifests, reusable .pen refs, project-owned DESIGN.md identity, explicit interaction-state frames, functional sections, and paired notes. Use when asked to create or edit a .pen prototype, work in Pen.dev, build a Pen.dev design system, capture components into editable .pen layers, or align product documentation with a .pen artifact before implementation. Do not use for browser-based HTML prototypes; use agile-proto for those.
 ---
 
 # Agile prototyping with Pen.dev
@@ -59,7 +59,7 @@ Use these canonical names:
 
 ```text
 Section · <number or domain> · <functional group>
-Screen · <primary screen name>
+<primary screen name>
 State · <alternate or transient state name>
 Note · <Screen or state name>
 Captured · <source> · <component> · <example>
@@ -72,6 +72,14 @@ Reserve non-overlapping rectangles for every top-level section, screen, state, n
 Treat every screen as a coherent shell. In a horizontal application shell, sidebar and main-content roots must resolve to the full screen height; in a vertical shell, header/body/footer widths must resolve to the full screen width. Primary content regions and repeated columns must stretch to the available axis after accounting for deliberate header, padding, and footer insets. Do not leave unexplained dead space, truncate one region while a peer fills the shell, or allow equivalent states to use conflicting shell dimensions. Apply size overrides to a component instance when adapting it to a screen; do not mutate the faithful captured origin solely to fit one composition.
 
 ## Deterministic component workflow
+
+Prototype-to-code parity is non-negotiable. Do not draw a component-shaped structure directly in a screen and call it equivalent to shadcn. Every meaningful reusable UI component must follow this complete chain:
+
+```text
+registry item -> capture manifest + lock -> reusable Pen.dev root -> ref instance -> screen/state -> project code + checksum
+```
+
+The component may come from official shadcn, Dice UI, or an explicitly identified community registry. If no registry component exists, create the real project component first, register its provenance and checksum, then capture it; do not prototype an implementation-less custom primitive. Layout-only grouping frames and product content are not components, but all interactive controls, navigation primitives, feedback surfaces, data displays, and reusable compositions are.
 
 Before creating a custom primitive:
 
@@ -123,7 +131,7 @@ Before creating a custom primitive:
    ```
 
 6. Apply the generated batch with Pencil MCP, preserve the returned reusable root ID, and instantiate it in screens with Pencil `ref` nodes. Use slots or descendant replacements only when the captured component explicitly exposes a composition point.
-7. Add a custom reusable primitive only when neither official registry has a structural equivalent.
+7. Add a custom reusable primitive only when neither official registry nor a reviewed community registry has a structural equivalent. Implement and catalog the project-owned code counterpart before inserting it into Pen.dev.
 
 Component slices are the primary discovery surface. Put a full-width category section immediately above each set of slices, with the category name and a short description. Each slice focuses on one component and contains roughly 5–10 complete, realistic examples covering distinct facets such as core use, layout, validation, complex composition, dynamic behavior, disabled state, feedback, and submission states.
 
@@ -138,6 +146,8 @@ Every promoted example must:
 - record source, route, selector, renderer hash, preset, checksums, and Pencil evidence IDs in generated manifests.
 
 Follow [references/component-slices.md](references/component-slices.md) for taxonomy, slice anatomy, example selection, and acceptance gates.
+
+Follow [references/parity.md](references/parity.md) for the mandatory catalog/evidence schemas and the 100% parity gate. A visual resemblance, shared name, token match, or layout pass is not proof of code parity.
 
 ## Screen and state workflow
 
@@ -159,6 +169,8 @@ Use realistic mock data, but keep unknown integrations and endpoint details in n
 Before completion:
 
 ```bash
+node <agile-pen-skill>/scripts/ads.mjs audit-parity \
+  --input design/generated/prototype-evidence.json --project .
 node <agile-pen-skill>/scripts/ads.mjs verify --project .
 node <agile-pen-skill>/scripts/validate-pen-assets.mjs .
 ```
@@ -176,6 +188,7 @@ Then use Pencil to:
 - confirm every Pen.dev layer has a concise semantic label without a duplicated node ID;
 - confirm every screen has exactly one paired note;
 - inspect reusable components, real `ref` nodes, and slot usage;
+- inspect every screen/state, reusable root, and `ref` node with a complete Pencil MCP `batch_get`; record any component-shaped structure that is not a cataloged `ref` in `prototype-evidence.json.manualComponents` so the parity audit rejects it;
 - confirm curated examples fill their card width and retain approved geometry;
 - confirm the catalog and visible prototype copy use `en-US` unless the project explicitly declares another locale;
 - confirm every captured/example root and screen clips overflow intentionally;
@@ -198,7 +211,8 @@ node <agile-pen-skill>/scripts/ads.mjs record-validation \
   --project . --screen <screen-id> \
   --refs <source:component:component-node:instance-node,...> \
   --reports <capture-id=report.json,...> \
-  --layout-report design/generated/layout-audit.report.json
+  --layout-report design/generated/layout-audit.report.json \
+  --parity-report design/generated/parity-audit.report.json
 ```
 
 Generate that report from a JSON snapshot created from Pencil MCP `batch_get` before recording validation:
@@ -208,6 +222,6 @@ node <agile-pen-skill>/scripts/ads.mjs audit-layout \
   --input design/generated/layout-evidence.json --project .
 ```
 
-Do not complete the skill while the audit reports a root overlap, invalid geometry, incoherent shell/content sizing, missing role prefix, or a label that duplicates the Pen.dev node ID.
+Do not complete the skill while the audit reports a root overlap, invalid geometry, incoherent shell/content sizing, an invalid semantic label, a label that duplicates the Pen.dev node ID, less than 100% screen/component/instance parity, a stale code checksum, an uncataloged reusable/ref, or any manual component.
 
 Do not report interactive behavior as implemented: Pen.dev documents the observable states and transitions that production code must later implement.

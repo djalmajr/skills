@@ -52,7 +52,11 @@ export async function ingestCapture(options = {}) {
     throw new Error("batch does not contain a Pencil MCP insertion program");
   }
   const source = String(options.source);
-  if (!["shadcn", "dice-ui"].includes(source)) throw new Error(`unsupported capture source: ${source}`);
+  if (!["shadcn", "dice-ui", "community"].includes(source)) throw new Error(`unsupported capture source: ${source}`);
+  const registry = options.registry
+    ? String(options.registry)
+    : source === "shadcn" ? "@shadcn" : source === "dice-ui" ? "@diceui" : null;
+  if (!registry) throw new Error("community captures require --registry");
   const component = slug(options.component);
   const example = slug(options.example);
   const id = `${source}-${component}-${example}`;
@@ -86,6 +90,7 @@ export async function ingestCapture(options = {}) {
   const entry = {
     id,
     source,
+    registry,
     component,
     example,
     category: options.category ? slug(options.category) : null,

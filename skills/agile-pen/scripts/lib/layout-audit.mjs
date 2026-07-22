@@ -5,10 +5,11 @@ import { dirname, join, resolve } from "node:path";
 const checksum = value => createHash("sha256").update(value).digest("hex");
 const prefixes = {
   section: "Section · ",
-  screen: "Screen · ",
   state: "State · ",
   note: "Note · "
 };
+
+const reservedPrefixes = ["Section · ", "State · ", "Note · ", "Captured · ", "Component · ", "Example/"];
 
 function finiteGeometry(node) {
   return [node.x, node.y, node.width, node.height].every(Number.isFinite) && node.width > 0 && node.height > 0;
@@ -23,6 +24,7 @@ function intersection(a, b) {
 function validRoleName(node) {
   const name = String(node.name);
   if (!name || name.endsWith(` (${node.id})`) || name.endsWith(` (#${node.id})`)) return false;
+  if (node.role === "screen") return !reservedPrefixes.some(prefix => name.startsWith(prefix));
   if (prefixes[node.role]) return name.startsWith(prefixes[node.role]);
   if (node.role === "component") return /^(Captured · |Component · |Example\/)/.test(name);
   return false;
