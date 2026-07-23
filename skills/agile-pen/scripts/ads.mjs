@@ -11,6 +11,7 @@ import { ingestCapture } from "./lib/ingest.mjs";
 import { recordValidation } from "./lib/validation.mjs";
 import { runLayoutAudit } from "./lib/layout-audit.mjs";
 import { runParityAudit, verifyPrototypeParity } from "./lib/parity.mjs";
+import { buildPrototypeEvidence, initializePrototype, reconcilePrototype, registerPrototypeComponent } from "./lib/prototype-reconcile.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const assetsDir = resolve(scriptDir, "../assets/pencil");
@@ -89,6 +90,21 @@ export function normalizeDesign(design) {
   const iconLibrary = requireString(pencil.iconLibrary, "pencil.iconLibrary");
   if (!allowedIconLibraries.has(iconLibrary)) throw new Error(`unsupported pencil.iconLibrary: ${iconLibrary}`);
   for (const role of requiredIconRoles) requireString(icons[role], `pencil.icons.${role}`);
+  const optionalColors = {
+    secondary: "--secondary",
+    secondaryForeground: "--secondary-foreground",
+    popover: "--popover",
+    popoverForeground: "--popover-foreground",
+    ring: "--ring",
+    sidebar: "--sidebar",
+    sidebarForeground: "--sidebar-foreground",
+    sidebarPrimary: "--sidebar-primary",
+    sidebarPrimaryForeground: "--sidebar-primary-foreground",
+    sidebarAccent: "--sidebar-accent",
+    sidebarAccentForeground: "--sidebar-accent-foreground",
+    sidebarBorder: "--sidebar-border",
+    sidebarRing: "--sidebar-ring"
+  };
   return {
     "--background": {type: "color", value: requireColor(colors.background, "colors.background")},
     "--foreground": {type: "color", value: requireColor(colors.foreground, "colors.foreground")},
@@ -109,6 +125,9 @@ export function normalizeDesign(design) {
     "--warning-soft": {type: "color", value: requireColor(colors.warningSoft, "colors.warningSoft")},
     "--info": {type: "color", value: requireColor(colors.info, "colors.info")},
     "--info-soft": {type: "color", value: requireColor(colors.infoSoft, "colors.infoSoft")},
+    ...Object.fromEntries(Object.entries(optionalColors)
+      .filter(([key]) => colors[key] !== undefined)
+      .map(([key, token]) => [token, {type: "color", value: requireColor(colors[key], `colors.${key}`)}])),
     "--font-primary": {type: "string", value: requireString(typography.primary, "typography.primary")},
     "--font-secondary": {type: "string", value: requireString(typography.secondary, "typography.secondary")},
     "--radius-sm": {type: "number", value: requireNumber(radii.sm, "radii.sm")},
@@ -246,6 +265,10 @@ Commands:
   catalog sync [--sources shadcn,dice-ui] [--cli-version ${DEFAULT_SHADCN_CLI_VERSION}]
   materialize (--components shadcn:sidebar,dice-ui:kanban | --shadcn-command "yarn dlx shadcn@latest add login-03") [--base base] [--preset nova|<preset-code>] [--cli-version ${DEFAULT_SHADCN_CLI_VERSION}] [--project <path>] [--cache <override-path>]
   ingest --capture <capture.json> --tree <tree.json> --batch <batch.js> --source <shadcn|dice-ui|community> --component <name> --example <name> [--registry <id>] [--category <id>] [--recipe <id>] [--screenshot <png>] [--renderer-lock <json>] [--project <path>]
+  prototype init --path <product.pen> --project <path>
+  prototype register-component --capture <capture-id> --component-node <reusable-node-id> (--code <project-relative-path,...> | --demo-url <url> --install-command <safe-shadcn-add> [--registry-url <url>] | --reference-image <project-relative-image> --repository-url <url> --component-reference <name> [--install-command <safe-shadcn-add>]) --theme-bindings <project-relative-json> [--id <component-id>] [--registry <registry-id>] --project <path>
+  prototype build-evidence --input <complete-pencil-mcp-inventory.json> --project <path>
+  prototype reconcile --input <complete-pencil-mcp-inventory.json> --project <path>
   audit-layout --input <pencil-mcp-layout-evidence.json> --project <path>
   audit-parity --input <pencil-mcp-prototype-evidence.json> --project <path>
   record-validation --project <path> --screen <id> --refs <source:component:componentNode:instanceNode,...> --reports <capture-id=report.json,...> --layout-report <layout-audit.report.json> --parity-report <parity-audit.report.json>
@@ -281,6 +304,20 @@ export async function main(argv = process.argv.slice(2)) {
   }
   if (command === "ingest") {
     const result = await ingestCapture(options);
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  if (command === "prototype") {
+    const subcommand = positionals[0];
+    const handlers = {
+      "init": initializePrototype,
+      "register-component": registerPrototypeComponent,
+      "build-evidence": buildPrototypeEvidence,
+      "reconcile": reconcilePrototype
+    };
+    const handler = handlers[subcommand];
+    if (!handler) throw new Error(`unknown prototype command: ${subcommand ?? ""}`);
+    const result = await handler(options);
     console.log(JSON.stringify(result, null, 2));
     return;
   }

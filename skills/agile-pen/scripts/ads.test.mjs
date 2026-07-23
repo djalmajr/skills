@@ -6,13 +6,15 @@ import { join } from "node:path";
 import test from "node:test";
 import { main, normalizeDesign, parseDesignMarkdown } from "./ads.mjs";
 import { buildInventory, buildSnapshot, run } from "./lib/catalog.mjs";
-import { parseComponentKeys, registryUiImports, rendererHash, rendererRequest, resolveRegistryStyle, resolveRendererCacheRoot } from "./lib/renderer.mjs";
+import { parseComponentKeys, registryUiImports, rendererComponentsConfig, rendererHash, rendererRequest, resolveRegistryStyle, resolveRendererCacheRoot } from "./lib/renderer.mjs";
 import { installRegistryCommandHarness } from "./lib/registry-harness.mjs";
 import { parseShadcnAddCommand } from "./lib/shadcn-command.mjs";
 import { ingestCapture } from "./lib/ingest.mjs";
 import { recordValidation } from "./lib/validation.mjs";
 import { auditLayoutEvidence } from "./lib/layout-audit.mjs";
 import { runParityAudit, verifyPrototypeParity } from "./lib/parity.mjs";
+import { buildPrototypeEvidence, initializePrototype, reconcilePrototype, registerPrototypeComponent } from "./lib/prototype-reconcile.mjs";
+import { resolveProjectPaths } from "./lib/project-paths.mjs";
 import { PEN_CAPTURE_PACKAGE, PEN_CAPTURE_REGISTRY, PEN_CAPTURE_VERSION, normalizeGeneratedBatchLabels, parsePenCaptureArgs, penCaptureCacheRoot } from "./pen-capture.mjs";
 import { blockCategory, officialPageBlocks } from "./validate-shadcn-blocks.mjs";
 
@@ -39,9 +41,20 @@ test("infers undeclared UI dependencies from official registry block imports", (
 });
 
 test("uses the official new-york-v4 style for registry examples", () => {
-  const snapshots = [{items:[{name:"command-demo",type:"registry:example",addCommandArgument:"@shadcn/command-demo"}]}];
+  const snapshots = [{source:"shadcn",items:[{name:"command-demo",type:"registry:example",addCommandArgument:"@shadcn/command-demo"}]}];
   assert.equal(resolveRegistryStyle({requestedItems:["command-demo"]}, snapshots), "new-york-v4");
   assert.equal(resolveRegistryStyle({requestedItems:["dashboard-01"]}, snapshots), undefined);
+});
+
+test("keeps the selected radix preset for Dice UI registry examples", () => {
+  const snapshots = [{source:"dice-ui",items:[{name:"data-table-demo",type:"registry:example",addCommandArgument:"@diceui/data-table-demo"}]}];
+  assert.equal(resolveRegistryStyle({requestedItems:["data-table-demo"]}, snapshots), undefined);
+});
+
+test("uses the current style-independent Dice UI registry endpoint", () => {
+  const config = rendererComponentsConfig({style:"radix-nova",registries:{"@other":"https://example.test/{name}.json"}});
+  assert.equal(config.registries["@diceui"], "https://diceui.com/r/{name}.json");
+  assert.equal(config.registries["@other"], "https://example.test/{name}.json");
 });
 
 test("parses and normalizes the neutral DESIGN.md", async () => {
@@ -49,6 +62,7 @@ test("parses and normalizes the neutral DESIGN.md", async () => {
   const variables = normalizeDesign(parseDesignMarkdown(source));
   assert.equal(variables["--icon-library"].value, "lucide");
   assert.equal(variables["--background"].value, "#FFFFFF");
+  assert.equal(variables["--sidebar"].value, "#FAFAFA");
 });
 
 test("rejects a missing semantic icon role", async () => {
@@ -114,7 +128,7 @@ test("normalizes component keys and includes preset resolution in the renderer h
 test("keeps the renderer cache inside the target project by default", async () => {
   const project = await mkdtemp(join(tmpdir(), "ads-renderer-cache-"));
   try {
-    assert.equal(resolveRendererCacheRoot({project}), join(project, "design/generated/renderer-cache"));
+    assert.equal(resolveRendererCacheRoot({project}), join(project, ".cache/agile-pen/renderer"));
     assert.equal(resolveRendererCacheRoot({project, cache:join(project, "custom-cache")}), join(project, "custom-cache"));
   } finally {
     await rm(project, {recursive:true, force:true});
@@ -128,7 +142,7 @@ test("pins pen-capture from GitHub Packages in the target project cache", () => 
   assert.equal(PEN_CAPTURE_PACKAGE, "@djalmajr/pen-capture");
   assert.equal(PEN_CAPTURE_VERSION, "0.1.6");
   assert.equal(PEN_CAPTURE_REGISTRY, "https://npm.pkg.github.com");
-  assert.equal(penCaptureCacheRoot(parsed.project), "/tmp/work/fixture/design/generated/tools/pen-capture/0.1.6");
+  assert.equal(penCaptureCacheRoot(parsed.project), "/tmp/work/fixture/.cache/agile-pen/pen-capture/0.1.6");
 });
 
 test("removes duplicated Pen.dev node IDs from generated batch labels", () => {
@@ -256,14 +270,15 @@ test("ingests neutral capture artifacts without reading or writing a .pen file",
 test("records semantic, layout and visual evidence without accessing a .pen file", async () => {
   const project = await mkdtemp(join(tmpdir(), "ads-validation-"));
   try {
-    const generated = join(project, "design/generated");
-    await mkdir(generated, {recursive:true});
-    await writeFile(join(generated, "renderer.lock.json"), `${JSON.stringify({rendererHash:"renderer-1"})}\n`);
-    const report = join(generated, "report.json");
+    const paths = resolveProjectPaths(project);
+    await mkdir(paths.contracts, {recursive:true});
+    await mkdir(paths.evidence, {recursive:true});
+    await writeFile(join(paths.contracts, "renderer.lock.json"), `${JSON.stringify({rendererHash:"renderer-1"})}\n`);
+    const report = join(paths.evidence, "report.json");
     await writeFile(report, `${JSON.stringify({normalizedRmse:0.08,gates:{passed:true,sameSize:true,maxRmse:0.15}})}\n`);
-    const layoutReport = join(generated, "layout-audit.report.json");
+    const layoutReport = join(paths.evidence, "layout-audit.report.json");
     await writeFile(layoutReport, `${JSON.stringify({passed:true,overlaps:[],namingViolations:[],geometryViolations:[],coherenceViolations:[]})}\n`);
-    const parityReport = join(generated, "parity-audit.report.json");
+    const parityReport = join(paths.evidence, "parity-audit.report.json");
     await writeFile(parityReport, `${JSON.stringify({passed:true,coverage:{screens:{percent:100},components:{percent:100},instances:{percent:100},manualComponents:0}})}\n`);
     const result = await recordValidation({project, screen:"board", refs:"shadcn:sidebar:component-1:instance-1", reports:`sidebar=${report}`, "layout-report":layoutReport, "parity-report":parityReport});
     assert.equal(result.manifest.semantic.refs[0].componentNodeId, "component-1");
@@ -281,17 +296,24 @@ test("requires and verifies 100% prototype-to-code catalog parity", async () => 
   // Mutation captured: a manual component, uncataloged ref, or changed code counterpart makes parity fail closed.
   const project = await mkdtemp(join(tmpdir(), "ads-parity-"));
   try {
-    const generated = join(project, "design/generated");
+    const paths = resolveProjectPaths(project);
     const codePath = join(project, "app/src/components/ui/button.tsx");
     const codeSource = "export function Button(){ return null }\n";
+    const themePath = join(project, "design/theme-bindings/button.json");
+    const themeSource = `${JSON.stringify({schemaVersion:1,source:"DESIGN.md",descendants:{"button-surface":{fill:"$--primary"}}})}\n`;
     await mkdir(join(project, "app/src/components/ui"), {recursive:true});
-    await mkdir(generated, {recursive:true});
+    await mkdir(join(project, "design/system"), {recursive:true});
+    await mkdir(join(project, "design/theme-bindings"), {recursive:true});
+    await mkdir(paths.contracts, {recursive:true});
+    await mkdir(paths.evidence, {recursive:true});
     await writeFile(codePath, codeSource);
+    await writeFile(themePath, themeSource);
+    await writeFile(join(project, "design/system/pencil-variables.json"), `${JSON.stringify({schemaVersion:1,source:"DESIGN.md",variables:{"--primary":{type:"color",value:"#000000"}}})}\n`);
     await writeFile(join(project, "design-system.lock.json"), `${JSON.stringify({prototype:{path:"product.pen"}})}\n`);
-    await writeFile(join(generated, "components.manifest.json"), `${JSON.stringify({schemaVersion:1,components:[{id:"shadcn-button-default",source:"shadcn"}]})}\n`);
-    await writeFile(join(generated, "capture.lock.json"), `${JSON.stringify({schemaVersion:1,components:[{id:"shadcn-button-default"}]})}\n`);
-    await writeFile(join(generated, "prototype.catalog.json"), `${JSON.stringify({
-      schemaVersion:1,
+    await writeFile(join(paths.contracts, "components.manifest.json"), `${JSON.stringify({schemaVersion:1,components:[{id:"shadcn-button-default",source:"shadcn"}]})}\n`);
+    await writeFile(join(paths.contracts, "capture.lock.json"), `${JSON.stringify({schemaVersion:1,components:[{id:"shadcn-button-default"}]})}\n`);
+    await writeFile(join(paths.contracts, "prototype.catalog.json"), `${JSON.stringify({
+      schemaVersion:2,
       prototype:"product.pen",
       components:[{
         id:"button",
@@ -299,20 +321,29 @@ test("requires and verifies 100% prototype-to-code catalog parity", async () => 
         registry:"@shadcn/button",
         captureId:"shadcn-button-default",
         componentNodeId:"component-button",
+        theme:{source:"DESIGN.md",path:"design/theme-bindings/button.json",checksum:createHash("sha256").update(themeSource).digest("hex"),descendants:{"button-surface":{fill:"$--primary"}}},
         code:[{path:"app/src/components/ui/button.tsx",checksum:createHash("sha256").update(codeSource).digest("hex")}]
       }],
       screens:[{nodeId:"screen-projects",name:"Projects",instances:[{nodeId:"instance-button",componentId:"button"}]}]
     })}\n`);
     const evidence = {
-      schemaVersion:1,
+      schemaVersion:2,
       source:"Pencil MCP batch_get",
       prototype:"product.pen",
       screens:[{nodeId:"screen-projects",name:"Projects"}],
       reusable:[{nodeId:"component-button",name:"Captured · shadcn · button · default"}],
-      refs:[{nodeId:"instance-button",refNodeId:"component-button",screenNodeId:"screen-projects"}],
+      refs:[{nodeId:"instance-button",refNodeId:"component-button",screenNodeId:"screen-projects",descendants:{"button-surface":{fill:"$--primary"}}}],
+      inspection:{
+        complete:true,
+        nodeCount:3,
+        componentCandidates:[
+          {nodeId:"component-button",name:"Captured · shadcn · button · default",type:"frame",reusable:true},
+          {nodeId:"instance-button",name:"Primary action",type:"ref",refNodeId:"component-button",screenNodeId:"screen-projects"}
+        ]
+      },
       manualComponents:[]
     };
-    await writeFile(join(generated, "prototype-evidence.json"), `${JSON.stringify(evidence)}\n`);
+    await writeFile(join(paths.evidence, "prototype-evidence.json"), `${JSON.stringify(evidence)}\n`);
     const report = await verifyPrototypeParity({project});
     assert.equal(report.passed, true);
     assert.equal(report.coverage.screens.percent, 100);
@@ -321,16 +352,171 @@ test("requires and verifies 100% prototype-to-code catalog parity", async () => 
     const persisted = await runParityAudit({project});
     assert.equal(JSON.parse(await readFile(persisted.output, "utf8")).passed, true);
 
-    await writeFile(join(generated, "prototype-evidence.json"), `${JSON.stringify({...evidence,manualComponents:[{nodeId:"manual-button"}]})}\n`);
+    await writeFile(join(paths.evidence, "prototype-evidence.json"), `${JSON.stringify({...evidence,manualComponents:[{nodeId:"manual-button"}]})}\n`);
     await assert.rejects(() => verifyPrototypeParity({project}), /manual Pen\.dev components are forbidden/);
-    await writeFile(join(generated, "prototype-evidence.json"), `${JSON.stringify({
+    await writeFile(join(paths.evidence, "prototype-evidence.json"), `${JSON.stringify({
       ...evidence,
-      refs:[...evidence.refs,{nodeId:"instance-uncataloged",refNodeId:"component-button",screenNodeId:"screen-projects"}]
+      inspection:{...evidence.inspection,componentCandidates:[
+        ...evidence.inspection.componentCandidates,
+        {nodeId:"fake-mapped-button",name:"Mapped · shadcn · Button",type:"frame"}
+      ]}
+    })}\n`);
+    await assert.rejects(() => verifyPrototypeParity({project}), /labels are not capture evidence/);
+    await writeFile(join(paths.evidence, "prototype-evidence.json"), `${JSON.stringify({
+      ...evidence,
+      inspection:{...evidence.inspection,componentCandidates:[
+        ...evidence.inspection.componentCandidates,
+        {nodeId:"manual-input",name:"Search input",type:"frame"}
+      ]}
+    })}\n`);
+    await assert.rejects(() => verifyPrototypeParity({project}), /manual Pen\.dev component candidate is forbidden/);
+    await writeFile(join(paths.evidence, "prototype-evidence.json"), `${JSON.stringify({...evidence,inspection:{...evidence.inspection,complete:false}})}\n`);
+    await assert.rejects(() => verifyPrototypeParity({project}), /inspection\.complete must be true/);
+    await writeFile(join(paths.evidence, "prototype-evidence.json"), `${JSON.stringify({
+      ...evidence,
+      refs:[...evidence.refs,{nodeId:"instance-uncataloged",refNodeId:"component-button",screenNodeId:"screen-projects"}],
+      inspection:{...evidence.inspection,componentCandidates:[
+        ...evidence.inspection.componentCandidates,
+        {nodeId:"instance-uncataloged",name:"Secondary action",type:"ref",refNodeId:"component-button",screenNodeId:"screen-projects"}
+      ]}
     })}\n`);
     await assert.rejects(() => verifyPrototypeParity({project}), /uncataloged Pen\.dev ref instance/);
-    await writeFile(join(generated, "prototype-evidence.json"), `${JSON.stringify(evidence)}\n`);
+    await writeFile(join(paths.evidence, "prototype-evidence.json"), `${JSON.stringify(evidence)}\n`);
     await writeFile(codePath, "export function Button(){ return 'changed' }\n");
     await assert.rejects(() => verifyPrototypeParity({project}), /code counterpart changed/);
+  } finally {
+    await rm(project, {recursive:true,force:true});
+  }
+});
+
+test("initializes, registers and reconciles a complete Pencil MCP prototype inventory", async () => {
+  const project = await mkdtemp(join(tmpdir(), "ads-prototype-reconcile-"));
+  try {
+    const paths = resolveProjectPaths(project);
+    const codePath = join(project, "app/src/components/ui/kanban.tsx");
+    await mkdir(join(project, "app/src/components/ui"), {recursive:true});
+    await mkdir(join(project, "design/system"), {recursive:true});
+    await mkdir(join(project, "design/theme-bindings"), {recursive:true});
+    await mkdir(paths.contracts, {recursive:true});
+    await mkdir(paths.evidence, {recursive:true});
+    await writeFile(codePath, "export function Kanban(){ return null }\n");
+    await writeFile(join(project, "design/system/pencil-variables.json"), `${JSON.stringify({schemaVersion:1,source:"DESIGN.md",variables:{"--sidebar":{type:"color",value:"#FAFAFA"}}})}\n`);
+    await writeFile(join(project, "design/theme-bindings/kanban.json"), `${JSON.stringify({schemaVersion:1,source:"DESIGN.md",descendants:{"column-surface":{fill:"$--sidebar"}}})}\n`);
+    await writeFile(join(project, "design-system.lock.json"), `${JSON.stringify({schemaVersion:2,writer:"pencil-mcp-only"})}\n`);
+    await writeFile(join(paths.contracts, "components.manifest.json"), `${JSON.stringify({schemaVersion:1,components:[{
+      id:"dice-ui-kanban-board",source:"dice-ui",registry:"@diceui",component:"kanban"
+    }]})}\n`);
+    await writeFile(join(paths.contracts, "capture.lock.json"), `${JSON.stringify({schemaVersion:1,components:[{id:"dice-ui-kanban-board"}]})}\n`);
+    await writeFile(join(paths.contracts, "prototype.catalog.json"), `${JSON.stringify({schemaVersion:1,prototype:"product.pen",components:[],screens:[]})}\n`);
+    await initializePrototype({project,path:"product.pen"});
+    assert.equal(JSON.parse(await readFile(join(paths.contracts, "prototype.catalog.json"), "utf8")).schemaVersion, 2);
+    await writeFile(join(paths.contracts, "generated-kanban.tsx"), "export function GeneratedKanban(){ return null }\n");
+    await assert.rejects(() => registerPrototypeComponent({
+      project,
+      capture:"dice-ui-kanban-board",
+      "component-node":"component-kanban",
+      code:"design/contracts/generated-kanban.tsx",
+      "theme-bindings":"design/theme-bindings/kanban.json"
+    }), /code counterpart must be project source/);
+    await writeFile(join(project, "design/theme-bindings/kanban.json"), `${JSON.stringify({schemaVersion:1,source:"DESIGN.md",descendants:{"column-surface":{fill:"$--missing"}}})}\n`);
+    await assert.rejects(() => registerPrototypeComponent({
+      project,
+      capture:"dice-ui-kanban-board",
+      "component-node":"component-kanban",
+      code:"app/src/components/ui/kanban.tsx",
+      "theme-bindings":"design/theme-bindings/kanban.json"
+    }), /token absent from DESIGN\.md/);
+    await writeFile(join(project, "design/theme-bindings/kanban.json"), `${JSON.stringify({schemaVersion:1,source:"DESIGN.md",descendants:{"column-surface":{fill:"$--sidebar"}}})}\n`);
+    const registration = await registerPrototypeComponent({
+      project,
+      capture:"dice-ui-kanban-board",
+      "component-node":"component-kanban",
+      code:"app/src/components/ui/kanban.tsx",
+      "theme-bindings":"design/theme-bindings/kanban.json"
+    });
+    assert.equal(registration.entry.registry, "@diceui/kanban");
+    assert.equal(registration.entry.componentNodeId, "component-kanban");
+    assert.equal(registration.entry.implementation.mode, "installed");
+    assert.match(registration.entry.code[0].checksum, /^[a-f0-9]{64}$/);
+    await assert.rejects(() => registerPrototypeComponent({
+      project,
+      capture:"dice-ui-kanban-board",
+      "component-node":"component-kanban",
+      "theme-bindings":"design/theme-bindings/kanban.json"
+    }), /either --code, one --demo-url, or one --reference-image/);
+    const referencedRegistration = await registerPrototypeComponent({
+      project,
+      capture:"dice-ui-kanban-board",
+      "component-node":"component-kanban",
+      "demo-url":"https://diceui.com/docs/components/radix/kanban",
+      "registry-url":"https://diceui.com/r/kanban.json",
+      "install-command":"bunx --bun shadcn@latest add @diceui/kanban",
+      "theme-bindings":"design/theme-bindings/kanban.json"
+    });
+    assert.equal(referencedRegistration.entry.implementation.mode, "catalog-reference");
+    assert.equal(referencedRegistration.entry.implementation.demoUrl, "https://diceui.com/docs/components/radix/kanban");
+    assert.equal(referencedRegistration.entry.implementation.installCommand, "bunx --bun shadcn@latest add @diceui/kanban");
+    assert.equal(referencedRegistration.entry.code, undefined);
+    await mkdir(join(project, "design/references"), {recursive:true});
+    await writeFile(join(project, "design/references/kanban.png"), "image evidence");
+    const imageRegistration = await registerPrototypeComponent({
+      project,
+      capture:"dice-ui-kanban-board",
+      "component-node":"component-kanban",
+      "reference-image":"design/references/kanban.png",
+      "repository-url":"https://github.com/example/kanban",
+      "component-reference":"Kanban board",
+      "theme-bindings":"design/theme-bindings/kanban.json"
+    });
+    assert.equal(imageRegistration.entry.implementation.evidence.kind, "user-image");
+    assert.equal(imageRegistration.entry.implementation.evidence.association, "user-attested");
+    assert.match(imageRegistration.entry.implementation.evidence.checksum, /^[a-f0-9]{64}$/);
+    assert.equal(imageRegistration.entry.implementation.installCommand, undefined);
+
+    const inventoryPath = join(project, "prototype-inventory.json");
+    const inventory = {
+      schemaVersion:2,
+      source:"Pencil MCP batch_get",
+      prototype:"product.pen",
+      complete:true,
+      topLevelNodeCount:2,
+      nodeCount:4,
+      screens:[{nodeId:"screen-board",name:"Project board"}],
+      roots:[
+        {id:"component-kanban",name:"Captured · dice-ui · kanban · board",type:"frame",reusable:true,children:[
+          {id:"column-surface",name:"Column surface",type:"frame",fill:"$--sidebar",children:[]}
+        ]},
+        {id:"screen-board",name:"Project board",type:"frame",children:[
+          {id:"instance-board",name:"Tasks board",type:"ref",ref:"component-kanban",descendants:{}}
+        ]}
+      ]
+    };
+    await writeFile(inventoryPath, `${JSON.stringify(inventory)}\n`);
+    const reconciled = await reconcilePrototype({project,input:inventoryPath});
+    assert.equal(reconciled.report.passed, true);
+    const catalog = JSON.parse(await readFile(join(paths.contracts, "prototype.catalog.json"), "utf8"));
+    assert.deepEqual(catalog.screens[0].instances, [{nodeId:"instance-board",componentId:"dice-ui-kanban-board"}]);
+    const evidence = JSON.parse(await readFile(join(paths.evidence, "prototype-evidence.json"), "utf8"));
+    assert.equal(evidence.inspection.nodeCount, 4);
+    assert.equal(evidence.reusable[0].descendants["column-surface"].fill, "$--sidebar");
+    assert.equal(evidence.manualComponents.length, 0);
+
+    await writeFile(inventoryPath, `${JSON.stringify({...inventory,roots:[
+      inventory.roots[0],
+      {...inventory.roots[1],children:[{id:"instance-board",name:"Tasks board",type:"ref",ref:"component-kanban",descendants:{"column-surface":{fill:"$--background"}}}]}
+    ]})}\n`);
+    await assert.rejects(() => reconcilePrototype({project,input:inventoryPath}), /theme binding mismatch/);
+    await writeFile(inventoryPath, `${JSON.stringify(inventory)}\n`);
+
+    await writeFile(inventoryPath, `${JSON.stringify({...inventory,nodeCount:5,roots:[
+      ...inventory.roots,
+      {id:"manual-button",name:"Pending capture · shadcn · Button",type:"frame",children:[]}
+    ],topLevelNodeCount:3})}\n`);
+    await assert.rejects(() => reconcilePrototype({project,input:inventoryPath}), /manual Pen\.dev components are forbidden/);
+    await writeFile(inventoryPath, `${JSON.stringify({...inventory,nodeCount:2,roots:[
+      {id:"screen-board",name:"Project board",type:"frame",children:"..."}
+    ],topLevelNodeCount:1})}\n`);
+    await assert.rejects(() => buildPrototypeEvidence({project,input:inventoryPath}), /prototype inventory is truncated/);
   } finally {
     await rm(project, {recursive:true,force:true});
   }
@@ -361,12 +547,17 @@ test("rejects top-level overlap and role naming violations from Pencil MCP evide
   assert.equal(failed.overlaps.length, 1);
   assert.deepEqual(failed.namingViolations, ["note-a"]);
   const alignedNodes = [base.nodes[0],{...base.nodes[1],name:"Note · A",x:0,y:160}];
-  const passed = auditLayoutEvidence({...base,nodes:alignedNodes,coherenceChecks:[{id:"shell",type:"equal",values:[720,720],tolerance:0}]});
+  const widthFill = {id:"screen-a-content-width",type:"fills-axis",scopeId:"screen-a",targetId:"screen-a/main",axis:"width",containerSize:100,startInset:0,endInset:0,size:100,tolerance:0};
+  const passed = auditLayoutEvidence({...base,nodes:alignedNodes,coherenceChecks:[{id:"shell",type:"equal",values:[720,720],tolerance:0},widthFill]});
   assert.equal(passed.passed, true);
   const duplicatedId = auditLayoutEvidence({...base,nodes:[{...alignedNodes[0],name:"A (screen-a)"},alignedNodes[1]]});
   assert.deepEqual(duplicatedId.namingViolations,["screen-a"]);
-  const incoherent = auditLayoutEvidence({...base,nodes:alignedNodes,coherenceChecks:[{id:"shell",type:"equal",values:[720,680],tolerance:0}]});
+  const incoherent = auditLayoutEvidence({...base,nodes:alignedNodes,coherenceChecks:[{id:"shell",type:"equal",values:[720,680],tolerance:0},widthFill]});
   assert.deepEqual(incoherent.coherenceViolations,["shell"]);
+  const missingWidthEvidence = auditLayoutEvidence({...base,nodes:alignedNodes,coherenceChecks:[{id:"shell",type:"equal",values:[720,720],tolerance:0}]});
+  assert.deepEqual(missingWidthEvidence.coherenceViolations,["missing-width-fill:screen-a"]);
+  const deadSpace = auditLayoutEvidence({...base,nodes:alignedNodes,coherenceChecks:[{...widthFill,size:72}]});
+  assert.deepEqual(deadSpace.coherenceViolations,["screen-a-content-width","missing-width-fill:screen-a"]);
 });
 
 test("lists component slices and filters their examples", async () => {

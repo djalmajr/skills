@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
+import { resolveProjectPaths } from "./project-paths.mjs";
 
 const checksum = value => createHash("sha256").update(value).digest("hex");
 
@@ -35,8 +36,8 @@ export async function recordValidation(options = {}) {
   if (!options.project) throw new Error("record-validation requires --project");
   if (!options.screen) throw new Error("record-validation requires --screen");
   const projectRoot = resolve(String(options.project));
-  const generatedRoot = join(projectRoot, "design/generated");
-  const rendererLockPath = join(generatedRoot, "renderer.lock.json");
+  const projectPaths = resolveProjectPaths(projectRoot);
+  const rendererLockPath = join(projectPaths.contracts, "renderer.lock.json");
   const rendererLock = JSON.parse(await readFile(rendererLockPath, "utf8"));
   if (!options["layout-report"]) throw new Error("record-validation requires --layout-report");
   const layoutReportPath = resolve(String(options["layout-report"]));
@@ -98,7 +99,7 @@ export async function recordValidation(options = {}) {
     },
     visual
   };
-  const output = join(generatedRoot, "validation.manifest.json");
+  const output = join(projectPaths.evidence, "validation.manifest.json");
   await writeJsonAtomic(output, manifest);
   return {output, manifest};
 }

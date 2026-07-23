@@ -14,6 +14,7 @@ import {
 import { FIXTURE_HARNESS_VERSION, installFixtureHarness } from "./fixtures.mjs";
 import { installRegistryCommandHarness, REGISTRY_HARNESS_VERSION } from "./registry-harness.mjs";
 import { parseShadcnAddCommand } from "./shadcn-command.mjs";
+import { resolveProjectPaths } from "./project-paths.mjs";
 
 export const deterministicEnvironment = Object.freeze({
   locale: "en-US",
@@ -78,11 +79,19 @@ export function rendererRequest({cliVersion, template, base, preset, components,
 export function resolveRegistryStyle(command, snapshots) {
   if (!command) return undefined;
   const requested = new Set(command.requestedItems);
-  const examples = snapshots.flatMap(snapshot => snapshot.items ?? []).filter(item =>
+  const examples = snapshots.flatMap(snapshot => snapshot.source === "shadcn" ? snapshot.items ?? [] : []).filter(item =>
     item.type === "registry:example" &&
     (requested.has(item.name) || requested.has(item.addCommandArgument))
   );
   return examples.length ? "new-york-v4" : undefined;
+}
+
+export function rendererComponentsConfig(config, {registryStyle} = {}) {
+  return {
+    ...config,
+    ...(registryStyle ? {style: registryStyle} : {}),
+    registries: {...config.registries, "@diceui": "https://diceui.com/r/{name}.json"}
+  };
 }
 
 export function rendererHash(request, resolvedPreset, registryItemsChecksum) {
@@ -93,7 +102,7 @@ export function rendererHash(request, resolvedPreset, registryItemsChecksum) {
 
 export function resolveRendererCacheRoot(options = {}) {
   const projectRoot = resolve(options.project ?? process.cwd());
-  return resolve(options.cache ?? join(projectRoot, "design/generated/renderer-cache"));
+  return resolve(options.cache ?? resolveProjectPaths(projectRoot).rendererCache);
 }
 
 function assertComponentsExist(components, inventory) {
@@ -168,11 +177,9 @@ async function materializeFresh({cacheRoot, request, requestHash, projectRoot}) 
       "--yes",
       "--silent"
     ], {cliVersion: request.cliVersion});
-    if (request.registryStyle) {
-      const componentsPath = join(app, "components.json");
-      const componentsConfig = await readJson(componentsPath);
-      await writeJsonAtomic(componentsPath, {...componentsConfig, style: request.registryStyle});
-    }
+    const componentsPath = join(app, "components.json");
+    const componentsConfig = await readJson(componentsPath);
+    await writeJsonAtomic(componentsPath, rendererComponentsConfig(componentsConfig, {registryStyle: request.registryStyle}));
     const argumentsToAdd = request.shadcnCommand?.args ?? request.components.map(registryArgument);
     if (argumentsToAdd.length) {
       await runShadcn(["add", ...argumentsToAdd, "--cwd", app, "--yes", "--silent"], {cliVersion: request.cliVersion});
@@ -222,9 +229,9 @@ async function materializeFresh({cacheRoot, request, requestHash, projectRoot}) 
 }
 
 async function publishRendererReference({projectRoot, cacheRoot, lock}) {
-  const output = resolve(projectRoot, "design/generated");
-  await writeJsonAtomic(join(output, "renderer.lock.json"), lock);
-  await writeJsonAtomic(join(output, "renderer.manifest.json"), {
+  const paths = resolveProjectPaths(projectRoot);
+  await writeJsonAtomic(join(paths.contracts, "renderer.lock.json"), lock);
+  await writeJsonAtomic(join(paths.cache, "renderer.manifest.json"), {
     schemaVersion: 1,
     rendererHash: lock.rendererHash,
     cacheRoot,

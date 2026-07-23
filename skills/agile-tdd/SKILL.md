@@ -145,12 +145,14 @@ For front-end work backed by a Pen.dev prototype, inspect `design-system.lock.js
    node <agile-pen-skill>/scripts/ads.mjs verify --project <project-root>
    ```
 
-2. Read `design/generated/prototype.catalog.json`, `design/generated/parity-audit.report.json`, and `design/generated/validation.manifest.json`.
-3. Resolve every component instance needed by the target screen/state through `screen.instances[].componentId` to its catalog entry, capture provenance, registry, and checksum-locked `code[].path` counterpart.
-4. Reuse or compose those mapped code counterparts. Do not recreate a shadcn, Dice UI, community-registry, or project-owned primitive under another name.
-5. Stop before Red if the gate fails, coverage is below 100%, a manual component exists, a target screen/ref is absent, or a mapped code checksum is stale. Return the prototype to Agile-Pen for reconciliation; do not guess from visual similarity.
+2. Read the durable implementation contract at `design/contracts/prototype.catalog.json`, its capture provenance in `design/contracts/components.manifest.json` and `design/contracts/capture.lock.json`, and the generated proof at `design/evidence/prototype-evidence.json`, `design/evidence/parity-audit.report.json`, and `design/evidence/validation.manifest.json`.
+3. Select the exact target `screens[]` entry by its stable Pen.dev node ID. Resolve every required `screen.instances[].componentId` to exactly one catalog component, then follow its `captureId`, registry identity, theme-binding contract, and implementation mode. Names and visual similarity are never resolution keys.
+4. For `implementation.mode: installed`, import or compose only the checksum-locked `code[].path` counterparts. Verify their checksums through the Agile-Pen gate before writing tests or implementation.
+5. For `implementation.mode: catalog-reference`, use only the recorded exact `installCommand`/`requestedItems`, or the recorded repository plus `componentReference` when the evidence is a user-attested image. After installation, promote that same catalog entry to `installed` with project-relative source paths and current checksums; never create an unrelated local approximation.
+6. Reuse or compose those resolved counterparts. Do not recreate a shadcn, Dice UI, community-registry, or project-owned primitive under another name.
+7. Stop before Red if the gate fails, coverage is below 100%, a manual component exists, a target screen/ref is absent, a catalog reference is incomplete, or a mapped code checksum is stale. Return the prototype to Agile-Pen for reconciliation; do not guess from labels, screenshots, DOM shape, or visual similarity.
 
-The parity catalog decides component identity and code location. TDD still decides observable behavior: test the screen flow, validation, permissions, state changes, and integration contracts rather than the internal markup of the mapped design-system component.
+The parity catalog decides component identity and code location. `design/evidence` proves what is present in the current prototype but never replaces the contract. TDD still decides observable behavior: test the screen flow, validation, permissions, state changes, and integration contracts rather than the internal markup of the mapped design-system component.
 
 ### 2. Choose the right test type
 

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { materializeRenderer } from "./lib/renderer.mjs";
 
 const BLOCK_FAMILIES = Object.freeze(["dashboard", "sidebar", "login", "signup"]);
-const DEFAULT_REPORT_DIRECTORY = "design/generated/compatibility/shadcn-blocks";
+const DEFAULT_REPORT_DIRECTORY = ".cache/agile-pen/compatibility/shadcn-blocks";
 
 function parseArgs(argv) {
   const options = {resume:true, keepApps:false};

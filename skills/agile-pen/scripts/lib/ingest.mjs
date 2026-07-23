@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, extname, join, relative, resolve } from "node:path";
+import { resolveProjectPaths } from "./project-paths.mjs";
 
 function checksum(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -61,15 +62,15 @@ export async function ingestCapture(options = {}) {
   const example = slug(options.example);
   const id = `${source}-${component}-${example}`;
   const projectRoot = resolve(options.project ?? process.cwd());
+  const projectPaths = resolveProjectPaths(projectRoot);
   const rendererLockPath = options["renderer-lock"]
     ? resolve(String(options["renderer-lock"]))
-    : join(projectRoot, "design/generated/renderer.lock.json");
+    : join(projectPaths.contracts, "renderer.lock.json");
   if (!existsSync(rendererLockPath)) throw new Error(`renderer lock is missing: ${rendererLockPath}`);
   const rendererLockSource = await readFile(rendererLockPath, "utf8");
   const rendererLock = JSON.parse(rendererLockSource);
   if (!rendererLock.rendererHash || !rendererLock.preset?.resolved) throw new Error("renderer lock is incomplete");
-  const generatedRoot = join(projectRoot, "design/generated");
-  const artifactRoot = join(generatedRoot, "captures", id);
+  const artifactRoot = join(projectPaths.captures, id);
   await mkdir(artifactRoot, {recursive: true});
   const paths = {
     capture: join(artifactRoot, `${id}.capture.json`),
@@ -108,10 +109,10 @@ export async function ingestCapture(options = {}) {
     namingConvention: "Semantic label",
     writer: "pencil-mcp-only",
     artifacts: {
-      capture: relative(generatedRoot, paths.capture),
-      tree: relative(generatedRoot, paths.tree),
-      batch: relative(generatedRoot, paths.batch),
-      screenshot: screenshot ? relative(generatedRoot, screenshot) : null
+      capture: relative(projectPaths.evidence, paths.capture),
+      tree: relative(projectPaths.evidence, paths.tree),
+      batch: relative(projectPaths.evidence, paths.batch),
+      screenshot: screenshot ? relative(projectPaths.evidence, screenshot) : null
     },
     checksums: {
       capture: checksum(captureSource),
@@ -121,7 +122,7 @@ export async function ingestCapture(options = {}) {
     },
     stats: tree.stats
   };
-  const manifestPath = join(generatedRoot, "components.manifest.json");
+  const manifestPath = join(projectPaths.contracts, "components.manifest.json");
   const manifest = existsSync(manifestPath)
     ? await readJson(manifestPath)
     : {schemaVersion: 1, components: []};
@@ -135,6 +136,6 @@ export async function ingestCapture(options = {}) {
     components: manifest.components.map(item => ({id: item.id, checksums: item.checksums}))
   };
   const lock = {...lockPayload, checksum: checksum(JSON.stringify(lockPayload))};
-  await writeJsonAtomic(join(generatedRoot, "capture.lock.json"), lock);
-  return {entry, manifest: manifestPath, lock: join(generatedRoot, "capture.lock.json")};
+  await writeJsonAtomic(join(projectPaths.contracts, "capture.lock.json"), lock);
+  return {entry, manifest: manifestPath, lock: join(projectPaths.contracts, "capture.lock.json")};
 }

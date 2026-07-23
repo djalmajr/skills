@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { resolveProjectPaths } from "./project-paths.mjs";
 
 const checksum = value => createHash("sha256").update(value).digest("hex");
 const prefixes = {
@@ -54,6 +55,7 @@ export function auditLayoutEvidence(evidence) {
     }
   }
   const coherenceViolations = [];
+  const horizontalFillScopes = new Set();
   for (const check of evidence.coherenceChecks ?? []) {
     if (check.type === "equal") {
       const values = check.values ?? [];
@@ -64,13 +66,31 @@ export function auditLayoutEvidence(evidence) {
       continue;
     }
     if (check.type === "fills-axis") {
-      const trailingGap = check.containerSize - check.start - check.size;
-      if (![check.containerSize, check.start, check.size, check.maxTrailingGap].every(Number.isFinite) || trailingGap < 0 || trailingGap > check.maxTrailingGap) {
+      const startInset = Number(check.startInset ?? check.start);
+      const endInset = Number(check.endInset ?? 0);
+      const tolerance = Number(check.tolerance ?? check.maxTrailingGap);
+      const expectedSize = check.containerSize - startInset - endInset;
+      const validIdentity = typeof check.scopeId === "string" && ids.has(check.scopeId) && typeof check.targetId === "string" && check.targetId.length > 0;
+      const validAxis = check.axis === "width" || check.axis === "height";
+      const validGeometry = [check.containerSize, startInset, endInset, check.size, tolerance].every(Number.isFinite)
+        && startInset >= 0
+        && endInset >= 0
+        && tolerance >= 0
+        && expectedSize > 0
+        && Math.abs(check.size - expectedSize) <= tolerance;
+      if (!validIdentity || !validAxis || !validGeometry) {
         coherenceViolations.push(check.id);
+      } else if (check.axis === "width") {
+        horizontalFillScopes.add(check.scopeId);
       }
       continue;
     }
     coherenceViolations.push(check.id ?? "unknown-check");
+  }
+  for (const node of evidence.nodes) {
+    if ((node.role === "screen" || node.role === "state") && !horizontalFillScopes.has(node.id)) {
+      coherenceViolations.push(`missing-width-fill:${node.id}`);
+    }
   }
   return {
     schemaVersion: 1,
@@ -91,7 +111,7 @@ export async function runLayoutAudit(options = {}) {
   if (input.endsWith(".pen")) throw new Error("audit-layout input must not be a .pen file");
   const source = await readFile(input, "utf8");
   const report = auditLayoutEvidence(JSON.parse(source));
-  const output = join(resolve(String(options.project)), "design/generated/layout-audit.report.json");
+  const output = join(resolveProjectPaths(String(options.project)).evidence, "layout-audit.report.json");
   await mkdir(dirname(output), {recursive: true});
   const temporary = `${output}.tmp-${process.pid}`;
   await writeFile(temporary, `${JSON.stringify({...report, evidenceChecksum: checksum(source)}, null, 2)}\n`, "utf8");

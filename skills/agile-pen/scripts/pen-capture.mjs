@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveProjectPaths } from "./lib/project-paths.mjs";
 
 export const PEN_CAPTURE_PACKAGE = "@djalmajr/pen-capture";
 export const PEN_CAPTURE_VERSION = "0.1.6";
@@ -44,7 +45,7 @@ export function parsePenCaptureArgs(argv, cwd = process.cwd()) {
 }
 
 export function penCaptureCacheRoot(project) {
-  return join(resolve(project), "design/generated/tools/pen-capture", PEN_CAPTURE_VERSION);
+  return join(resolveProjectPaths(project).penCaptureCache, PEN_CAPTURE_VERSION);
 }
 
 export function normalizeGeneratedBatchLabels(source) {

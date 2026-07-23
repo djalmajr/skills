@@ -49,3 +49,4 @@ temp/
 presentation/slides.pdf
 **/renderer-cache/
 **/design/generated/tools/
+**/.cache/agile-pen/

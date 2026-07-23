@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { buildInventory, catalogDir, catalogSources, stableJson } from "./lib/catalog.mjs";
+import { resolveProjectPaths } from "./lib/project-paths.mjs";
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
@@ -34,9 +35,9 @@ requireCondition(officialCount === 105, `expected 105 official registry:ui compo
 
 const project = process.argv[2] ? resolve(process.argv[2]) : null;
 if (project) {
-  const generated = join(project, "design/generated");
-  const componentManifestPath = join(generated, "components.manifest.json");
-  const captureLockPath = join(generated, "capture.lock.json");
+  const projectPaths = resolveProjectPaths(project);
+  const componentManifestPath = join(projectPaths.contracts, "components.manifest.json");
+  const captureLockPath = join(projectPaths.contracts, "capture.lock.json");
   if (existsSync(componentManifestPath) || existsSync(captureLockPath)) {
     requireCondition(existsSync(componentManifestPath) && existsSync(captureLockPath), "generated capture manifest and lock must exist together");
     const manifest = await readJson(componentManifestPath);
@@ -49,13 +50,13 @@ if (project) {
       requireCondition(component.namingConvention === "Semantic label", `${component.id}: invalid naming convention`);
       for (const [kind, relativePath] of Object.entries(component.artifacts)) {
         if (!relativePath) continue;
-        const path = join(generated, relativePath);
+        const path = join(projectPaths.evidence, relativePath);
         requireCondition(existsSync(path), `${component.id}: missing ${kind} artifact`);
         requireCondition(component.checksums[kind] === checksum(await readFile(path)), `${component.id}: ${kind} checksum mismatch`);
       }
     }
   }
-  const validationPath = join(generated, "validation.manifest.json");
+  const validationPath = join(projectPaths.evidence, "validation.manifest.json");
   if (existsSync(validationPath)) {
     const validation = await readJson(validationPath);
     requireCondition(validation.writer === "pencil-mcp-evidence", "validation manifest writer must be pencil-mcp-evidence");
