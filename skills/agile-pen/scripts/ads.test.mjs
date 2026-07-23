@@ -501,18 +501,47 @@ test("initializes, registers and reconciles a complete Pencil MCP prototype inve
     assert.equal(evidence.reusable[0].descendants["column-surface"].fill, "$--sidebar");
     assert.equal(evidence.manualComponents.length, 0);
 
+    const partialInventory = {
+      ...inventory,
+      nodeCount:6,
+      roots:[
+        inventory.roots[0],
+        {id:"component-unregistered",name:"Captured · community · timeline",type:"frame",reusable:true,children:[]},
+        {...inventory.roots[1],children:[
+          ...inventory.roots[1].children,
+          {id:"instance-unregistered",name:"Timeline",type:"ref",ref:"component-unregistered",descendants:{}}
+        ]}
+      ],
+      topLevelNodeCount:3
+    };
+    await writeFile(inventoryPath, `${JSON.stringify(partialInventory)}\n`);
+    const partial = await reconcilePrototype({project,input:inventoryPath});
+    assert.equal(partial.report.advisory, true);
+    assert.match(partial.warnings[0].message, /unregistered reusable root/);
+    assert.deepEqual(
+      JSON.parse(await readFile(join(paths.contracts, "prototype.catalog.json"), "utf8")).screens[0].instances,
+      [{nodeId:"instance-board",componentId:"dice-ui-kanban-board"}]
+    );
+    await assert.rejects(() => reconcilePrototype({project,input:inventoryPath,strict:true}), /unregistered reusable root/);
+
     await writeFile(inventoryPath, `${JSON.stringify({...inventory,roots:[
       inventory.roots[0],
       {...inventory.roots[1],children:[{id:"instance-board",name:"Tasks board",type:"ref",ref:"component-kanban",descendants:{"column-surface":{fill:"$--background"}}}]}
     ]})}\n`);
-    await assert.rejects(() => reconcilePrototype({project,input:inventoryPath}), /theme binding mismatch/);
+    const themeWarning = await reconcilePrototype({project,input:inventoryPath});
+    assert.equal(themeWarning.report.passed, false);
+    assert.match(themeWarning.warnings[0].message, /theme binding mismatch/);
+    await assert.rejects(() => reconcilePrototype({project,input:inventoryPath,strict:true}), /theme binding mismatch/);
     await writeFile(inventoryPath, `${JSON.stringify(inventory)}\n`);
 
     await writeFile(inventoryPath, `${JSON.stringify({...inventory,nodeCount:5,roots:[
       ...inventory.roots,
       {id:"manual-button",name:"Pending capture · shadcn · Button",type:"frame",children:[]}
     ],topLevelNodeCount:3})}\n`);
-    await assert.rejects(() => reconcilePrototype({project,input:inventoryPath}), /manual Pen\.dev components are forbidden/);
+    const manualWarning = await reconcilePrototype({project,input:inventoryPath});
+    assert.equal(manualWarning.report.advisory, true);
+    assert.match(manualWarning.warnings[0].message, /manual Pen\.dev components are forbidden/);
+    await assert.rejects(() => reconcilePrototype({project,input:inventoryPath,strict:true}), /manual Pen\.dev components are forbidden/);
     await writeFile(inventoryPath, `${JSON.stringify({...inventory,nodeCount:2,roots:[
       {id:"screen-board",name:"Project board",type:"frame",children:"..."}
     ],topLevelNodeCount:1})}\n`);
@@ -522,7 +551,7 @@ test("initializes, registers and reconciles a complete Pencil MCP prototype inve
   }
 });
 
-test("ads verify fails closed when a registered prototype has no parity catalog", async () => {
+test("ads verify reports missing parity artifacts for a registered prototype", async () => {
   // Mutation captured: registering a prototype without its catalog turns a previously valid ADS project red.
   const project = await mkdtemp(join(tmpdir(), "ads-parity-required-"));
   try {

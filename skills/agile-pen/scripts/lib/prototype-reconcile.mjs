@@ -386,9 +386,19 @@ export async function reconcilePrototype(options = {}) {
   const context = await prototypeContext(String(options.project));
   const componentByNode = new Map(context.catalog.components.map(component => [component.componentNodeId, component]));
   const refsByScreen = new Map(built.evidence.screens.map(screen => [screen.nodeId, []]));
+  const warnings = [];
   for (const ref of built.evidence.refs) {
     const component = componentByNode.get(ref.refNodeId);
-    if (!component) throw new Error(`prototype ref points to an unregistered reusable root: ${ref.nodeId} -> ${ref.refNodeId}`);
+    if (!component) {
+      warnings.push({
+        code: "unregistered-reusable-root",
+        nodeId: ref.nodeId,
+        refNodeId: ref.refNodeId,
+        screenNodeId: ref.screenNodeId,
+        message: `prototype ref points to an unregistered reusable root: ${ref.nodeId} -> ${ref.refNodeId}`
+      });
+      continue;
+    }
     refsByScreen.get(ref.screenNodeId).push({nodeId: ref.nodeId, componentId: component.id});
   }
   context.catalog.screens = built.evidence.screens.map(screen => ({
@@ -396,6 +406,33 @@ export async function reconcilePrototype(options = {}) {
     instances: refsByScreen.get(screen.nodeId).sort((left, right) => left.nodeId.localeCompare(right.nodeId))
   }));
   await writeJsonAtomic(context.catalogPath, context.catalog);
-  const audit = await runParityAudit({project: context.projectRoot, input: built.output});
-  return {catalog: context.catalogPath, evidence: built.output, audit: audit.output, report: audit.report};
+  let audit = null;
+  try {
+    audit = await runParityAudit({project: context.projectRoot, input: built.output});
+  } catch (error) {
+    warnings.push({
+      code: "parity-audit",
+      message: error instanceof Error ? error.message : String(error)
+    });
+  }
+  const report = audit?.report ?? {
+    schemaVersion: PARITY_SCHEMA_VERSION,
+    prototype: context.prototype,
+    passed: false,
+    advisory: true,
+    warnings
+  };
+  const reportPath = join(context.projectPaths.evidence, "prototype-reconciliation.report.json");
+  await writeJsonAtomic(reportPath, report);
+  if (options.strict === true && warnings.length) {
+    throw new Error(`prototype reconciliation found ${warnings.length} warning(s): ${warnings.map(item => item.message).join("; ")}`);
+  }
+  return {
+    catalog: context.catalogPath,
+    evidence: built.output,
+    audit: audit?.output ?? null,
+    reconciliation: reportPath,
+    report,
+    warnings
+  };
 }

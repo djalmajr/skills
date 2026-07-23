@@ -4,8 +4,8 @@ export function resolveProjectPaths(project = process.cwd()) {
   const root = resolve(project);
   const design = join(root, "design");
   const contracts = join(design, "contracts");
-  const evidence = join(design, "evidence");
   const cache = join(root, ".cache", "agile-pen");
+  const evidence = join(cache, "evidence");
   return {
     root,
     design,

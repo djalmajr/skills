@@ -1,6 +1,6 @@
 ---
 name: agile-pen
-description: Create and maintain traceable application prototypes exclusively in Pen.dev with fail-closed prototype-to-code parity, deterministic official or community shadcn-compatible registry captures, ADS manifests, reusable .pen refs, project-owned DESIGN.md identity, explicit interaction-state frames, functional sections, and paired notes. Use when asked to create or edit a .pen prototype, work in Pen.dev, build a Pen.dev design system, capture components into editable .pen layers, or align product documentation with a .pen artifact before implementation. Do not use for browser-based HTML prototypes; use agile-proto for those.
+description: Create and maintain traceable application prototypes exclusively in Pen.dev with auditable prototype-to-code mapping, deterministic official or community shadcn-compatible registry captures, ADS manifests, reusable .pen refs, project-owned DESIGN.md identity, explicit interaction-state frames, functional sections, and paired notes. Use when asked to create or edit a .pen prototype, work in Pen.dev, build a Pen.dev design system, capture components into editable .pen layers, or align product documentation with a .pen artifact before implementation. Do not use for browser-based HTML prototypes; use agile-proto for those.
 ---
 
 # Agile prototyping with Pen.dev
@@ -86,7 +86,7 @@ The component may come from official shadcn, Dice UI, or an explicitly identifie
 
 Before creating a custom primitive:
 
-0. Establish a fail-closed baseline before editing. Use Pencil MCP `batch_get` to inspect every top-level screen/state, every reusable root, every `ref`, and every component-intent name (including `Mapped ·`, `Instance/`, Button, Input, Select, Dialog, Table, Tabs, Card, Sidebar, Avatar, Badge, Progress, and equivalent localized names). A component-shaped frame is manual until the inspection proves it is either a captured reusable root or a real `ref` to one. Never accept a layer name, visual resemblance, or agent-authored catalog entry as that proof.
+0. Establish an auditable baseline before editing. Use Pencil MCP `batch_get` to inspect every top-level screen/state, every reusable root, every `ref`, and every component-intent name (including `Mapped ·`, `Instance/`, Button, Input, Select, Dialog, Table, Tabs, Card, Sidebar, Avatar, Badge, Progress, and equivalent localized names). A component-shaped frame is manual until the inspection proves it is either a captured reusable root or a real `ref` to one. Never accept a layer name, visual resemblance, or agent-authored catalog entry as that proof.
 
 1. Run `node <agile-pen-skill>/scripts/ads.mjs catalog sync --sources shadcn,dice-ui` when refreshing the pinned official registry snapshots.
 2. Discover the component with `components`, `slices`, or `examples`. HTM UI may organize the taxonomy, but it is never a visual capture source.
@@ -175,14 +175,14 @@ After adding or replacing refs, obtain a complete unresolved Pencil MCP `batch_g
 
 ```bash
 node <agile-pen-skill>/scripts/ads.mjs prototype reconcile \
-  --input design/evidence/pencil-mcp-prototype-inventory.json --project .
+  --input .cache/agile-pen/evidence/pencil-mcp-prototype-inventory.json --project .
 ```
 
-`prototype reconcile` generates `prototype-evidence.json`, derives every screen-to-ref mapping, updates `prototype.catalog.json`, and runs the parity audit in one command. It rejects a missing top-level root, a mismatched node count, any `children: "..."` truncation, an unregistered reusable target, a manual component candidate, stale installed code, an invalid catalog reference, or an uncataloged ref. Never hand-maintain the `screens[].instances` mapping.
+`prototype reconcile` generates `prototype-evidence.json`, derives every resolvable screen-to-ref mapping, updates `prototype.catalog.json`, and runs the parity audit in one command. By default it returns structured warnings for unregistered reusable targets, manual component candidates, stale installed code, invalid catalog references, and uncataloged refs while preserving every valid partial mapping. Use `--strict` only when the user or project policy explicitly requires a blocking quality gate. A missing top-level root, mismatched node count, or `children: "..."` truncation remains an invalid inventory because it cannot support a trustworthy scan. Never hand-maintain the `screens[].instances` mapping.
 
 Component slices are the primary discovery surface. Put a full-width category section immediately above each set of slices, with the category name and a short description. Each slice focuses on one component and contains roughly 5–10 complete, realistic examples covering distinct facets such as core use, layout, validation, complex composition, dynamic behavior, disabled state, feedback, and submission states.
 
-Do not require or distribute a shared `components.lib.pen`. Keep durable implementation contracts under `design/contracts`, immutable capture and audit evidence under `design/evidence`, and reproducible renderer/tool output under the ignored `.cache/agile-pen`. Capture only the components requested by the prototype, keep their reusable roots directly in the project `.pen`, and consume them through local refs.
+Do not require or distribute a shared `components.lib.pen`. Keep durable implementation contracts under `design/contracts`. Keep reproducible captures, raw Pencil inventories, audit reports, screenshots, renderer applications, tools, and other generated evidence under the ignored `.cache/agile-pen`; never version them merely to preserve a previous run. Capture only the components requested by the prototype, keep their reusable roots directly in the project `.pen`, and consume them through local refs.
 
 Every promoted example must:
 
@@ -217,7 +217,7 @@ Before completion:
 
 ```bash
 node <agile-pen-skill>/scripts/ads.mjs prototype reconcile \
-  --input design/evidence/pencil-mcp-prototype-inventory.json --project .
+  --input .cache/agile-pen/evidence/pencil-mcp-prototype-inventory.json --project .
 node <agile-pen-skill>/scripts/ads.mjs verify --project .
 node <agile-pen-skill>/scripts/validate-pen-assets.mjs .
 ```
@@ -261,15 +261,15 @@ node <agile-pen-skill>/scripts/ads.mjs record-validation \
   --project . --screen <screen-id> \
   --refs <source:component:component-node:instance-node,...> \
   --reports <capture-id=report.json,...> \
-  --layout-report design/evidence/layout-audit.report.json \
-  --parity-report design/evidence/parity-audit.report.json
+  --layout-report .cache/agile-pen/evidence/layout-audit.report.json \
+  --parity-report .cache/agile-pen/evidence/parity-audit.report.json
 ```
 
 Generate that report from a JSON snapshot created from Pencil MCP `batch_get` before recording validation:
 
 ```bash
 node <agile-pen-skill>/scripts/ads.mjs audit-layout \
-  --input design/evidence/layout-evidence.json --project .
+  --input .cache/agile-pen/evidence/layout-evidence.json --project .
 ```
 
 For every changed screen and state, record the primary content width from the same Pencil MCP snapshot. `containerSize` is the available parent width, `startInset` and `endInset` are deliberate insets, and `size` is the resolved target width. The check must identify both its top-level scope and measured descendant:
@@ -289,6 +289,6 @@ For every changed screen and state, record the primary content width from the sa
 }
 ```
 
-Do not complete the skill while `prototype reconcile` or `ads verify` is red, or while the audit reports a root overlap, invalid geometry, incoherent shell/content sizing, an invalid semantic label, a label that duplicates the Pen.dev node ID, less than 100% screen/component/instance parity, a stale installed-code checksum, an invalid demo/registry/install reference, an uncataloged reusable/ref, or any manual component. Report the work as partial or blocked instead of treating a correctly failing gate as completion.
+Do not claim 100% parity while `prototype reconcile` or `ads verify` is red, or while the audit reports a root overlap, invalid geometry, incoherent shell/content sizing, an invalid semantic label, a label that duplicates the Pen.dev node ID, incomplete screen/component/instance mapping, a stale installed-code checksum, an invalid demo/registry/install reference, an uncataloged reusable/ref, or any manual component. Complete the requested prototype work when it is otherwise usable, report these findings as warnings and follow-up debt, and never present them as a reason that downstream implementation must stop unless the user or repository has explicitly enabled a strict gate.
 
 Do not report interactive behavior as implemented: Pen.dev documents the observable states and transitions that production code must later implement.

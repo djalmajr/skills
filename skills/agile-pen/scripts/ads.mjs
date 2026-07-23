@@ -268,7 +268,7 @@ Commands:
   prototype init --path <product.pen> --project <path>
   prototype register-component --capture <capture-id> --component-node <reusable-node-id> (--code <project-relative-path,...> | --demo-url <url> --install-command <safe-shadcn-add> [--registry-url <url>] | --reference-image <project-relative-image> --repository-url <url> --component-reference <name> [--install-command <safe-shadcn-add>]) --theme-bindings <project-relative-json> [--id <component-id>] [--registry <registry-id>] --project <path>
   prototype build-evidence --input <complete-pencil-mcp-inventory.json> --project <path>
-  prototype reconcile --input <complete-pencil-mcp-inventory.json> --project <path>
+  prototype reconcile --input <complete-pencil-mcp-inventory.json> --project <path> [--strict]
   audit-layout --input <pencil-mcp-layout-evidence.json> --project <path>
   audit-parity --input <pencil-mcp-prototype-evidence.json> --project <path>
   record-validation --project <path> --screen <id> --refs <source:component:componentNode:instanceNode,...> --reports <capture-id=report.json,...> --layout-report <layout-audit.report.json> --parity-report <parity-audit.report.json>

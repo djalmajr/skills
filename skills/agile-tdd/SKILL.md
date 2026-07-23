@@ -137,22 +137,49 @@ Explore the code to understand:
 - What is already covered (check existing tests)
 - Which business rule IDs, acceptance criteria, or prototype flows the change must satisfy
 
-For front-end work backed by a Pen.dev prototype, inspect `design-system.lock.json` before starting Red. When it declares `prototype.path`:
+For front-end work, discover every prototype source that actually exists before starting Red. A project may use a Pen.dev `.pen`, an Agile-Proto browser prototype, both, or neither. Prototype metadata improves component selection; it never grants or withholds permission to implement.
 
-1. Run the sibling Agile-Pen gate:
+### Pen.dev source
+
+When `design-system.lock.json` declares `prototype.path`:
+
+1. Run the sibling Agile-Pen diagnostic as a best-effort inspection:
 
    ```bash
    node <agile-pen-skill>/scripts/ads.mjs verify --project <project-root>
    ```
 
-2. Read the durable implementation contract at `design/contracts/prototype.catalog.json`, its capture provenance in `design/contracts/components.manifest.json` and `design/contracts/capture.lock.json`, and the generated proof at `design/evidence/prototype-evidence.json`, `design/evidence/parity-audit.report.json`, and `design/evidence/validation.manifest.json`.
+   A non-zero result is a warning about mapping coverage or drift, not an implementation blocker. Record the message and continue with the evidence that is available.
+
+2. When present, read the durable implementation contract at `design/contracts/prototype.catalog.json` and its capture provenance in `design/contracts/components.manifest.json` and `design/contracts/capture.lock.json`. Generated proof under `.cache/agile-pen/evidence/` is useful when available but is intentionally absent from a clean clone.
 3. Select the exact target `screens[]` entry by its stable Pen.dev node ID. Resolve every required `screen.instances[].componentId` to exactly one catalog component, then follow its `captureId`, registry identity, theme-binding contract, and implementation mode. Names and visual similarity are never resolution keys.
 4. For `implementation.mode: installed`, import or compose only the checksum-locked `code[].path` counterparts. Verify their checksums through the Agile-Pen gate before writing tests or implementation.
 5. For `implementation.mode: catalog-reference`, use only the recorded exact `installCommand`/`requestedItems`, or the recorded repository plus `componentReference` when the evidence is a user-attested image. After installation, promote that same catalog entry to `installed` with project-relative source paths and current checksums; never create an unrelated local approximation.
-6. Reuse or compose those resolved counterparts. Do not recreate a shadcn, Dice UI, community-registry, or project-owned primitive under another name.
-7. Stop before Red if the gate fails, coverage is below 100%, a manual component exists, a target screen/ref is absent, a catalog reference is incomplete, or a mapped code checksum is stale. Return the prototype to Agile-Pen for reconciliation; do not guess from labels, screenshots, DOM shape, or visual similarity.
+6. Reuse or compose resolved counterparts where the mapping exists. Missing coverage, manual components, stale checksums, or incomplete catalog entries must be reported as warnings and implementation debt; they do not prevent Red/Green/Refactor.
 
-The parity catalog decides component identity and code location. `design/evidence` proves what is present in the current prototype but never replaces the contract. TDD still decides observable behavior: test the screen flow, validation, permissions, state changes, and integration contracts rather than the internal markup of the mapped design-system component.
+### Agile-Proto source
+
+Discover browser prototypes in established project locations such as `planning/*/proto/` and `{app}/client-proto/`. Read their stable scene IDs/routes and inspect actual `htm-ui/<module>.js` imports. Those imports are direct component evidence:
+
+- `htm-ui/button.js` maps to the maintained HTM UI Button module;
+- prototype-specific files under `components/` are compositions, not a copied primitive catalog;
+- custom markup without a maintained import is an unresolved mapping warning, not a reason to stop.
+
+Use the prototype's observable behavior and route flow as interaction evidence. Confirm production equivalents from the target app's installed component system and repository conventions rather than mechanically copying prototype-only markup.
+
+### When both sources exist
+
+Build a combined source map for the target story or screen:
+
+1. match by stable planning/story/requirement IDs and screen/scene purpose;
+2. use explicit Pen catalog entries for exact `.pen` component identities;
+3. use Agile-Proto imports and runtime interactions for browser behavior and HTM UI identities;
+4. prefer an already installed production component when either source maps to it;
+5. when sources disagree, warn and choose the source closest to the target acceptance criteria and current product code. Ask the user only when the disagreement changes user-visible behavior or scope materially.
+
+Never refuse implementation solely because a prototype is absent, incomplete, stale, manual, or represented in more than one format. The AI should use every available signal, state its confidence where useful, and proceed with the best supported component choice.
+
+The parity catalog improves component identity and code location where available. `.cache/agile-pen/evidence` can prove what was inspected in the current local `.pen`; Agile-Proto source imports and interactions prove what is present in the browser prototype. TDD still decides observable behavior: test the screen flow, validation, permissions, state changes, and integration contracts rather than the internal markup of a design-system component.
 
 ### 2. Choose the right test type
 

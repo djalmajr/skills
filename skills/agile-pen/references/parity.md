@@ -1,6 +1,6 @@
 # Pen.dev-to-code parity contract
 
-Parity is a release gate, not a documentation convention. A configured prototype passes only when every meaningful reusable UI component and every instance used by a screen has either verified installed project code or a deterministic catalog reference that Agile TDD can install later.
+Parity is an auditable health signal, not an authorization gate. A configured prototype reaches 100% only when every meaningful reusable UI component and every instance used by a screen has either verified installed project code or a deterministic catalog reference that Agile TDD can install later. Incomplete coverage must produce clear warnings and partial mappings, never an automatic refusal to implement.
 
 Schema version 2 makes the complete Pencil MCP inventory and generated reconciliation mandatory. Version 1 catalogs/evidence are intentionally rejected; re-run `prototype init`, register the captured roots, and run `prototype reconcile` to migrate instead of editing the JSON by hand.
 
@@ -20,7 +20,7 @@ Durable contracts live under `design/contracts`:
 - `prototype.catalog.json`: intended component, screen, instance, and code mappings;
 - `renderer.lock.json`: deterministic fallback-renderer identity when materialization was required.
 
-Auditable proof lives under `design/evidence`:
+Reproducible proof lives under the Git-ignored `.cache/agile-pen/evidence`:
 
 - `captures/`: promoted capture payloads, source images, converted trees, and inert Pencil MCP batches;
 - `prototype-evidence.json`: current Pencil MCP `batch_get` evidence;
@@ -28,9 +28,9 @@ Auditable proof lives under `design/evidence`:
 - `layout-evidence.json` and `layout-audit.report.json`: measured layout evidence;
 - `validation.manifest.json`: final semantic, layout, visual, and parity evidence.
 
-Reproducible installations, browsers, renderer applications, package caches, logs, and compatibility runs live only under the Git-ignored `.cache/agile-pen`. Never commit them.
+Reproducible installations, captures, raw Pencil inventories, audit reports, screenshots, browsers, renderer applications, package caches, logs, and compatibility runs live only under the Git-ignored `.cache/agile-pen`. Never commit them. The versioned `design/contracts` files retain the durable component identity, provenance, install/code mapping, and checksums needed by a future implementation agent.
 
-`design-system.lock.json` must declare `prototype.path`. Once it does, `ads verify` fails closed if any parity artifact is absent or stale.
+`design-system.lock.json` must declare `prototype.path`. Once it does, `ads verify` returns non-zero if a parity artifact is absent or stale so CI and reviewers can measure the debt. Downstream implementation treats that result as advisory unless the user or repository explicitly opts into strict enforcement.
 
 Initialize that contract before editing the prototype:
 
@@ -180,21 +180,21 @@ Run in this order:
 
 ```bash
 node <agile-pen-skill>/scripts/ads.mjs audit-parity \
-  --input design/evidence/prototype-evidence.json --project .
+  --input .cache/agile-pen/evidence/prototype-evidence.json --project .
 
 node <agile-pen-skill>/scripts/ads.mjs record-validation \
   --project . --screen <screen-id> \
   --refs <source:component:component-node:instance-node,...> \
   --reports <capture-id=report.json,...> \
-  --layout-report design/evidence/layout-audit.report.json \
-  --parity-report design/evidence/parity-audit.report.json
+  --layout-report .cache/agile-pen/evidence/layout-audit.report.json \
+  --parity-report .cache/agile-pen/evidence/parity-audit.report.json
 
 node <agile-pen-skill>/scripts/ads.mjs verify --project .
 ```
 
-The required result is exactly 100% for screens, reusable components, and ref instances, with zero manual components. A token, layout, or screenshot pass is not a parity pass.
+The ideal result is exactly 100% for screens, reusable components, and ref instances, with zero manual components. A token, layout, or screenshot pass is not a parity pass. Lower coverage is reported honestly but remains usable as partial implementation guidance.
 
-The audit verifies code checksums in `installed` mode. In `catalog-reference` mode it rejects missing or unsafe install commands, invalid demo/registry URLs, claimed local code, and requested-item drift. Agile TDD must consume that contract, install the exact item, and then promote the catalog entry to `installed` with checksums as part of implementation.
+The audit verifies code checksums in `installed` mode. In `catalog-reference` mode it reports missing or unsafe install commands, invalid demo/registry URLs, claimed local code, and requested-item drift. Agile TDD consumes valid mappings when available, warns about invalid or missing mappings, and may install the exact recorded item before promoting the catalog entry to `installed` with checksums. It does not refuse unrelated implementation because coverage is incomplete.
 
 For `user-image` evidence, the audit instead verifies the image path/checksum, the explicit `user-attested` association, repository URL, and component reference. A safe install command is validated when supplied but is not mandatory when the repository is the implementation source.
 
@@ -228,7 +228,7 @@ node <agile-pen-skill>/scripts/ads.mjs prototype register-component \
 
 Installed code paths and the theme-binding path must be project-relative and already exist. ADS calculates and persists their SHA-256 checksums. Catalog-reference mode requires an absolute HTTP(S) demo URL and a safe supported `shadcn add` command; the registry URL is recorded when available. The capture must already exist in both `components.manifest.json` and `capture.lock.json` in either mode.
 
-The theme-binding file is source-owned and fail-closed:
+The theme-binding file is source-owned and strictly validated when present:
 
 ```json
 {
@@ -243,7 +243,7 @@ The theme-binding file is source-owned and fail-closed:
 
 Keep the reusable captured root faithful to its registry source. Apply product identity on `ref` descendants and enumerate every semantic adaptation in this contract. Registration rejects literal values or tokens absent from `design/system/pencil-variables.json`; reconciliation rejects missing or different instance overrides; verification rejects changed contract checksums.
 
-Then create `design/evidence/pencil-mcp-prototype-inventory.json` from complete, unresolved Pencil MCP `batch_get` results. Its roots must contain every top-level node reported by `get_editor_state`, with all descendants expanded:
+Then create `.cache/agile-pen/evidence/pencil-mcp-prototype-inventory.json` from complete, unresolved Pencil MCP `batch_get` results. Its roots must contain every top-level node reported by `get_editor_state`, with all descendants expanded:
 
 ```json
 {
@@ -285,22 +285,24 @@ Then create `design/evidence/pencil-mcp-prototype-inventory.json` from complete,
 }
 ```
 
-`nodeCount` is the exact flattened node count, not an estimate. `topLevelNodeCount` must equal the number returned by `get_editor_state` and the number of entries in `roots`. Any MCP truncation marker such as `children: "..."` is forbidden. For a component-shaped frame whose semantic name does not match the built-in intent patterns, add `"componentCandidate": true`; it will be reported as manual and block reconciliation.
+`nodeCount` is the exact flattened node count, not an estimate. `topLevelNodeCount` must equal the number returned by `get_editor_state` and the number of entries in `roots`. Any MCP truncation marker such as `children: "..."` is forbidden. For a component-shaped frame whose semantic name does not match the built-in intent patterns, add `"componentCandidate": true`; it will be reported as a reconciliation warning.
 
-Run the atomic generator and gate:
+Run the atomic generator:
 
 ```bash
 node <agile-pen-skill>/scripts/ads.mjs prototype reconcile \
-  --input design/evidence/pencil-mcp-prototype-inventory.json \
+  --input .cache/agile-pen/evidence/pencil-mcp-prototype-inventory.json \
   --project .
 ```
+
+The default mode preserves all valid mappings and emits structured warnings for gaps. Add `--strict` only when the user or repository explicitly requests blocking parity enforcement.
 
 The command:
 
 1. flattens and validates the complete Pencil MCP inventory;
 2. generates `prototype-evidence.json`;
-3. resolves each `ref` through its registered reusable root;
+3. resolves each `ref` through its registered reusable root when a mapping exists and warns otherwise;
 4. generates `screens[].instances` in `prototype.catalog.json`;
-5. runs `audit-parity` and writes `parity-audit.report.json`.
+5. runs `audit-parity`; on complete coverage it writes `parity-audit.report.json`, and otherwise writes `prototype-reconciliation.report.json` with advisory findings.
 
-Use `prototype build-evidence` only to inspect an incomplete/red reconciliation during diagnosis. Successful completion requires `prototype reconcile` followed by `ads verify`.
+Use `prototype build-evidence` only to inspect an incomplete reconciliation during diagnosis. Run `prototype reconcile` and `ads verify` before claiming complete parity; otherwise report their warnings and continue with the valid mappings that remain.

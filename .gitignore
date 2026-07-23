@@ -50,3 +50,5 @@ presentation/slides.pdf
 **/renderer-cache/
 **/design/generated/tools/
 **/.cache/agile-pen/
+**/design/generated/
+**/design/evidence/

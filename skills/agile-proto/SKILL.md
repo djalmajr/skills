@@ -100,6 +100,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "htm-ui/card.js";
 
 Use `https://djalmajr.github.io/htm-ui/components/<slug>` for docs and `https://cdn.jsdelivr.net/gh/djalmajr/htm-ui@main/packages/ui/<module>.js` for the runtime source. Never infer the API from React shadcn.
 
+## Implementation handoff
+
+The browser prototype is self-describing implementation evidence: stable scene IDs and routes identify flows, while explicit `htm-ui/<module>.js` imports identify maintained primitives. Do not add a second mandatory catalog merely to duplicate those imports.
+
+An Agile-Proto browser prototype may coexist with a Pen.dev `.pen` in the same initiative. Neither format invalidates the other:
+
+- Agile-Proto is usually the stronger signal for observable browser interactions and HTM UI module identity.
+- A Pen.dev catalog is usually the stronger signal for exact captured-component provenance and design-layer identity.
+- When both exist, implementation agents combine the evidence by planning/story IDs and screen purpose, warn about material disagreements, and continue with the best-supported production component.
+- Missing or incomplete mappings are implementation warnings, never automatic blockers.
+
 ## Scene pattern
 
 Each scene lives in its own file and is registered in `SCENES` with a stable `id` and `path`. Render it inside `AppShell` unless it is intentionally fullscreen.
