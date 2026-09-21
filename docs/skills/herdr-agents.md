@@ -32,7 +32,7 @@ roles/<role>.md  ──▶  spawn (pane split + agent start)  ──▶  dispatc
   `mode`, `timeout`) and a prompt body, like omp's `.omp/agents/*.md`. A
   project overrides any role by dropping `.agents/herdr-roles/<role>.md`.
 - **Kinds** are Herdr agent kinds (`codex`, `claude`, `grok`, `agy`, …). The
-  defaults follow the role matrix: research on `agy`, implementation on
+  defaults follow the role matrix: research on `grok`, implementation on
   `codex`, mechanical work on `grok`, review on `claude`.
 - **Briefs** follow `templates/brief.md`: goal, owned files, forbidden files,
   local sources, applicable rules, allowed checks, report format. Workers
@@ -111,8 +111,8 @@ notify=on
 ## Models and harness choice
 
 Demanding work (code, UI, reviews, security, nested orchestration) goes to
-`claude` or `codex`; `cursor`, `grok` and `agy` take mapping, mechanical
-edits and cheap second passes. Models are configured per kind and position
+`claude` or `codex`; research goes to `grok`; `cursor` and `agy` take
+mechanical edits and cheap second passes. Models are configured per kind and position
 (`model.claude.orchestrator=fable`, `model.claude.worker=opus`,
 `model.codex.worker=gpt-5`, `model.cursor.worker=grok|muse`,
 `model.agy.worker=gemini|opus`) as aliases or regexes that resolve to the

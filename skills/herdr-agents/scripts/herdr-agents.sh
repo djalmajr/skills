@@ -496,8 +496,8 @@ owns git. Load the skill (\`/herdr-agents\`) before planning such work.
   including code the orchestrator wrote itself (pick that kind by hand).
 - The only completion signal is the worker's report file (\`dispatch\`,
   \`wait\`, \`status\`); never poll agent state by hand.
-- Demanding work goes to \`claude\`/\`codex\`; \`cursor\`, \`grok\` and \`agy\` take
-  mapping, mechanical edits and second passes.
+- Demanding work goes to \`claude\`/\`codex\`; research (\`scouter\`, \`researcher\`)
+  goes to \`grok\`; \`cursor\` and \`agy\` take mechanical edits and second passes.
 - Project roles override the skill's in \`.agents/herdr-roles/<role>.md\`;
   project config in \`.agents/herdr-agents.conf\`; scratch state in
   \`.herdr-agents/\` (git-ignored). Skill path: \`$SKILL_DIR\`.

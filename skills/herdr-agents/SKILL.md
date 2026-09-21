@@ -79,8 +79,8 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 
 | Role | Default kind | Effort | Mode | Use for |
 |---|---|---|---|---|
-| `scouter` | agy | medium | read-only | Map code, find paths, compressed findings for handoff |
-| `researcher` | agy | medium | read-only | Source-verified answers about external libraries/APIs |
+| `scouter` | grok | high | read-only | Map code, find paths, compressed findings for handoff |
+| `researcher` | grok | high | read-only | Source-verified answers about external libraries/APIs |
 | `planner` | claude | high | read-only | Decision-ready plan for a large or unfamiliar objective: options, one recommendation, slices, risks, questions; the orchestrator still decides |
 | `designer` | codex | high | edit | UI work under the project design system (tokens, states, a11y) |
 | `implementer` | codex | high | edit | Production code for one slice with per-item report |
@@ -92,9 +92,10 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 
 **Which kind for which work.** Demanding work (production code, UI under a
 design contract, reviews, security, nested orchestration) goes to `claude`
-or `codex`. `cursor`, `grok` and `agy` take the simpler jobs: mapping code,
-mechanical edits, second passes, cheap verification. The role defaults
-encode this; keep it when overriding.
+or `codex`. **Research goes to `grok`** (`scouter`, `researcher`): it is
+particularly good at surveys and its plan has headroom, so it runs at
+`high`. `cursor` and `agy` take mechanical edits, second passes and cheap
+verification. The role defaults encode this; keep it when overriding.
 
 Definitions live in [roles/](roles/). Resolution order: project
 `.agents/herdr-roles/<role>.md` → this skill's `roles/<role>.md`. `--kind`

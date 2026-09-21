@@ -1,8 +1,8 @@
 ---
 name: researcher
 description: Answers questions about external libraries, frameworks, and APIs by reading their source and official docs. Source-verified, version-pinned answers.
-kind: agy
-alternatives: [grok, cursor]
+kind: grok
+alternatives: [agy, cursor]
 effort: medium
 mode: read-only
 timeout: 600000
