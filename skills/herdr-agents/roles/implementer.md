@@ -1,9 +1,9 @@
 ---
 name: implementer
 description: Production code for exactly one slice — owned files only, tests first when the brief asks, per-item report with three states.
-kind: codex
-alternatives: [claude, grok]
-effort: high
+kind: grok
+alternatives: [cursor, codex, claude]
+effort: xhigh
 mode: edit
 timeout: 1800000
 ---

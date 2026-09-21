@@ -213,9 +213,20 @@ cmd_role() {
 # ---------- kinds ----------
 
 kind_family() { case "$1" in claude) echo anthropic ;; codex) echo openai ;; grok) echo xai ;; agy|gemini) echo google ;; *) echo unknown ;; esac; }
+# agent_family <kind> [resolved model]: the family the reviewer rule compares.
+# Multi-model harnesses (cursor) take it from the model id: cursor running
+# grok-4.7 is xai, the same family as the `grok` kind.
+agent_family() {
+  local fam; fam="$(kind_family "$1")"
+  if [ "$fam" = unknown ] && [ -n "${2:-}" ]; then
+    case "$2" in *grok*) fam=xai ;; gpt-*|*codex*|*-sol-*|*-luna-*) fam=openai ;; claude-*) fam=anthropic ;; gemini-*) fam=google ;; esac
+  fi
+  printf '%s\n' "$fam"
+}
 kind_exe() { case "$1" in cursor) echo cursor-agent ;; *) echo "$1" ;; esac; }
 effort_rank() { case "$1" in low) echo 1 ;; medium) echo 2 ;; high) echo 3 ;; xhigh) echo 4 ;; max) echo 5 ;; *) echo 0 ;; esac; }
-kind_effort_ceiling() { case "$1" in claude) echo max ;; codex|cursor) echo xhigh ;; grok|agy|gemini) echo high ;; *) echo "" ;; esac; }
+# grok: `--reasoning-effort xhigh|high|medium|low` (verified 2026-09-21, grok 1.0.40, grok-4.7).
+kind_effort_ceiling() { case "$1" in claude) echo max ;; codex|cursor|grok) echo xhigh ;; agy|gemini) echo high ;; *) echo "" ;; esac; }
 
 clamp_to() { # <effort> <ceiling>
   [ -n "$2" ] || { printf '%s\n' "$1"; return; }
@@ -332,9 +343,10 @@ codex_model_ceiling() {
 cmd_models() { local k="${1:?kind}"; model_ids "$k" | version_sort_desc; }
 cmd_model() {
   local kind="${1:?kind}" spec="${2:?spec}" effort="${3:-}" r; r="$(resolve_model "$kind" "$spec" "$effort")"
-  jq -n --arg kind "$kind" --arg spec "$spec" --arg effort "$effort" --arg model "$r" \
+  local args; args="$( { kind_model_args "$kind" "$r" "$effort"; kind_effort_args "$kind" "$effort" "$r"; } 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
+  jq -n --arg kind "$kind" --arg spec "$spec" --arg effort "$effort" --arg model "$r" --arg family "$(agent_family "$kind" "$r")" --arg args "$args" \
     --arg ceiling "$([ "$kind" = codex ] && codex_model_ceiling "$r" || kind_effort_ceiling "$kind")" \
-    '{kind:$kind,spec:$spec,effort:$effort,model:$model,effort_ceiling:$ceiling}'
+    '{kind:$kind,spec:$spec,effort:$effort,model:$model,family:$family,effort_ceiling:$ceiling,agent_args:$args}'
 }
 
 # approvals: ask (agent default) | edits (auto-accept file edits) | full (no
@@ -389,8 +401,10 @@ kind_context_args() {
 cmd_kinds() {
   printf '%-8s %-13s %-10s %-8s %s\n' KIND EXECUTABLE FAMILY EFFORT INSTALLED
   local k
+  local fam
   for k in claude codex grok agy gemini cursor; do
-    printf '%-8s %-13s %-10s %-8s %s\n' "$k" "$(kind_exe "$k")" "$(kind_family "$k")" "$(kind_effort_ceiling "$k")" \
+    fam="$(kind_family "$k")"; [ "$k" = cursor ] && fam="by model"
+    printf '%-8s %-13s %-10s %-8s %s\n' "$k" "$(kind_exe "$k")" "$fam" "$(kind_effort_ceiling "$k")" \
       "$(command -v "$(kind_exe "$k")" >/dev/null && echo yes || echo no)"
   done
 }
@@ -1141,7 +1155,7 @@ cmd_spawn() {
     if existing="$(find_reusable "$role" "$kind" "$cwd" "$name")"; then
       local eline; eline="$(roster_line "$existing")"
       jq -n --arg name "$existing" --arg pane "$(printf '%s' "$eline" | cut -f2)" --arg kind "$kind" --arg role "$role" \
-        --arg family "$(kind_family "$kind")" \
+        --arg family "$(printf '%s' "$eline" | cut -f5)" \
         '{name:$name,pane_id:$pane,kind:$kind,role:$role,family:$family,reused:true,status:"ready"}'
       warn "reusing idle worker '$existing' ($kind, $role); its session already holds earlier briefs"
       return 0
@@ -1204,9 +1218,10 @@ cmd_spawn() {
     restore_focus "$pane" "$direction"
   fi
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$pane" "$kind" "$role" "$(kind_family "$kind")" "$created" "$cwd" "$(now)" >> "$(state_dir)/agents.tsv"
+  local family; family="$(agent_family "$kind" "$model")"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$pane" "$kind" "$role" "$family" "$created" "$cwd" "$(now)" >> "$(state_dir)/agents.tsv"
   if [ "$placement" = herd ]; then herd_tabs_relabel >/dev/null 2>&1 || warn "relabel of the herd tabs failed (see friction)"; fi
-  jq -n --arg name "$name" --arg pane "$pane" --arg kind "$kind" --arg role "$role" --arg family "$(kind_family "$kind")" --argjson created "$created" \
+  jq -n --arg name "$name" --arg pane "$pane" --arg kind "$kind" --arg role "$role" --arg family "$family" --argjson created "$created" \
     --arg args "${agent_args[*]+"${agent_args[*]}"}" --arg status "$([ "$blocked" = 1 ] && echo blocked_at_startup || echo ready)" \
     --arg effort "${effort:-default}" --arg model "${model:-default}" --arg model_spec "${model_spec:-}" --arg approvals "${approvals:-ask}" --arg layout "$layout" --arg placement "$placement" \
     '{name:$name,pane_id:$pane,kind:$kind,role:$role,family:$family,created_pane:($created==1),layout:$layout,placement:$placement,effort:$effort,model:$model,model_spec:$model_spec,approvals:$approvals,agent_args:$args,status:$status}'

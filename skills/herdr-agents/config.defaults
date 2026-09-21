@@ -79,9 +79,11 @@ worker_context=full
 
 # Effort per kind, applied when neither the flag nor role.<role>.effort sets
 # one (beats the role file's default). Use it to spend budget where there is
-# headroom: grok and cursor plans are rarely exhausted, so they run high.
-effort.grok=high
-effort.cursor=high
+# headroom: grok 4.7 (and cursor running it) has `xhigh` and a plan that is
+# rarely exhausted, so both run at the top. Roles that want less say so
+# (tasker: low) — role.<role>.effort beats this.
+effort.grok=xhigh
+effort.cursor=xhigh
 
 # Global effort ceiling applied after the kind's own ceiling: low|medium|high|xhigh|max.
 max_effort=max
@@ -141,4 +143,6 @@ model.codex.orchestrator=astra
 model.codex.worker=sol|gpt-5
 model.cursor.worker=grok|muse
 model.agy.worker=gemini|opus
+# Newest grok (4.7 today). `grok-4.7-build-fast` is the quick variant: a
+# sensible role.tasker.model when volume matters more than depth.
 model.grok.worker=grok

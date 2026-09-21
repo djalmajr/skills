@@ -2,7 +2,7 @@
 name: scouter
 description: Fast read-only codebase research. Returns compressed, path-anchored findings another agent can use without re-reading everything.
 kind: grok
-alternatives: [agy, codex]
+alternatives: [cursor, agy]
 effort: high
 mode: read-only
 timeout: 300000

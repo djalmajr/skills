@@ -83,27 +83,33 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 | `researcher` | grok | high | read-only | Source-verified answers about external libraries/APIs |
 | `planner` | claude | high | read-only | Decision-ready plan for a large or unfamiliar objective: options, one recommendation, slices, risks, questions; the orchestrator still decides |
 | `designer` | agy | high | edit | UI work under the project design system (tokens, states, a11y) |
-| `implementer` | codex | high | edit | Production code for one slice with per-item report |
+| `implementer` | grok | xhigh | edit | Production code for one slice with per-item report |
 | `tasker` | grok | low | edit | Mechanical edits in volume with an exact contract |
-| `reviewer` | claude | high | read-only | Patch-anchored correctness findings before push |
+| `reviewer` | codex | high | read-only | Patch-anchored correctness findings before push |
 | `security-reviewer` | claude | high | read-only | Evidence-backed vulnerability findings |
 | `inspector` | agy | high | read-only | Screenshots in both themes, UX findings, no fixes |
 | `sub-orchestrator` | claude | medium | read-only | Runs this skill from another pane; never codex sandboxed (socket blocked) |
 
-**Which kind for which work.** Demanding work (production code, UI under a
-design contract, reviews, security, nested orchestration) goes to `claude`
-or `codex`. **Research goes to `grok`** (`scouter`, `researcher`): it is
-particularly good at surveys and its plan has headroom, so it runs at
-`high`. **Visual work goes to `agy`** (`designer`, `inspector`): it reads screens
-well. `cursor` takes mechanical edits,
-second passes and cheap verification. The role defaults encode this; keep
-it when overriding.
+**Which kind for which work** (policy of 2026-09-21). **Heavy work goes to
+`grok`** — production code (`implementer`, `xhigh`), edits in volume
+(`tasker`), surveys and research (`scouter`, `researcher`): grok 4.7 has
+`xhigh` reasoning and a plan with headroom. Order of preference for that
+work: `grok` > `cursor` (running grok 4.7 too) > `codex` > `claude`.
+**Judgement and leadership go to `codex` and `claude`** — `reviewer`
+(codex), `security-reviewer` (claude), `planner` and `sub-orchestrator`
+(claude), and the orchestrator itself. **Visual work goes to `agy`**
+(`designer`, `inspector`): it reads screens well. The one rule that does
+not move: the reviewer of a slice comes from **another family** than its
+implementer, and cursor running grok is the xai family like `grok` — so
+reviewers default to codex/claude, never grok/cursor. The role defaults
+encode this; keep it when overriding.
 
 Definitions live in [roles/](roles/). Resolution order: project
 `.agents/herdr-roles/<role>.md` → this skill's `roles/<role>.md`. `--kind`
 at spawn time overrides the frontmatter default. Kinds map to model
-families (`references/kinds.md`); a reviewer must come from a **different
-family** than the implementer of the same slice. The script refuses to
+families (`references/kinds.md`; for `cursor` the family comes from the
+resolved model id — `grok-4.7-xhigh` is xai); a reviewer must come from a
+**different family** than the implementer of the same slice. The script refuses to
 dispatch a reviewer whose family matches a live edit agent unless
 `--allow-same-family` is passed. It cannot see code the orchestrator wrote
 itself: in that case pick a reviewer kind from another family by hand.
@@ -114,8 +120,9 @@ Role frontmatter, config and `spawn` flags share three knobs. Precedence,
 highest first: flag → config `role.<role>.<knob>` → config
 `effort.<kind>` (effort only) → role frontmatter → config
 `model.<kind>.<position>` → config `model.<kind>` → the CLI's own
-default. Shipped: `effort.grok=high`, `effort.cursor=high`, because those
-plans are rarely exhausted; spend budget where there is headroom. A project overrides any of it in `.agents/herdr-agents.conf`
+default. Shipped: `effort.grok=xhigh`, `effort.cursor=xhigh` (grok 4.7
+accepts `--reasoning-effort xhigh|high|medium|low`), because those plans
+are rarely exhausted; spend budget where there is headroom. A project overrides any of it in `.agents/herdr-agents.conf`
 without copying role files.
 
 **Models track the latest release.** A model value is an exact id, a CLI
@@ -143,8 +150,8 @@ the chosen model's advertised reasoning levels, not from the kind.
 
 - **`effort`** is one normalized ladder, `low < medium < high < xhigh < max`,
   translated to each CLI's own flag and **clamped** to what the kind
-  supports (`kinds` prints the ceiling: claude `max`; codex and cursor
-  `xhigh`; grok, agy, gemini `high`). Asking for `max` on `agy` yields
+  supports (`kinds` prints the ceiling: claude `max`; codex, cursor and
+  grok `xhigh`; agy, gemini `high`). Asking for `max` on `agy` yields
   `high` with a warning. **No effort anywhere means the agent's own
   configured default** (for example Codex `model_reasoning_effort` in
   `~/.codex/config.toml`); the skill never guesses one.

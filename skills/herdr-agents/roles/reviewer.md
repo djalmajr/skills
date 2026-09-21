@@ -1,8 +1,8 @@
 ---
 name: reviewer
 description: Code review for correctness — patch-anchored, evidence-backed findings the author would want fixed before merge. Read-only.
-kind: claude
-alternatives: [agy, grok, codex]
+kind: codex
+alternatives: [claude]
 effort: high
 mode: read-only
 timeout: 900000

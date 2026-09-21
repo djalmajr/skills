@@ -2,7 +2,7 @@
 name: security-reviewer
 description: Read-only security review of a change or area — authn/authz, input handling, secrets, injection, data exposure — with evidence and CWE references.
 kind: claude
-alternatives: [codex, agy]
+alternatives: [codex]
 effort: high
 mode: read-only
 timeout: 900000

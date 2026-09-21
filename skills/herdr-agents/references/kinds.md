@@ -8,10 +8,10 @@ column is what the reviewer-vs-implementer rule compares.
 |---|---|---|---|---|---|---|
 | `claude` | `claude` | anthropic | max | `--effort <low…max>` | `--model` | `--permission-mode bypassPermissions --settings '{"enableAllProjectMcpServers":true}'` |
 | `codex` | `codex` | openai | xhigh | `-c model_reasoning_effort="<level>"` | `-m` | `-s workspace-write -a never` |
-| `grok` | `grok` | xai | high | `--reasoning-effort` | `--model` | `--permission-mode bypassPermissions --always-approve` |
+| `grok` | `grok` | xai | xhigh | `--reasoning-effort <xhigh|high|medium|low>` (alias `--effort`) | `--model` | `--permission-mode bypassPermissions --always-approve` |
 | `agy` | `agy` | google | high | `--effort <low|medium|high>` | `--model` | `--dangerously-skip-permissions` |
 | `gemini` | `gemini` | google | high | `--effort` (assumed like agy) | `--model` | not mapped |
-| `cursor` | `cursor-agent` | unknown | xhigh | none: suffix of the model id (`gpt-5.3-codex-high`) | `--model` | `--trust --force --approve-mcps` |
+| `cursor` | `cursor-agent` | by model (`grok-*` → xai, `gpt-*`/`*codex*` → openai, `claude-*` → anthropic, `gemini-*` → google) | xhigh | none: suffix of the model id (`grok-4.7-xhigh`) | `--model` | `--trust --force --approve-mcps` |
 | `copilot` | `copilot` | mixed | — | not mapped | not mapped | not mapped |
 
 `approvals: edits` maps to claude `--permission-mode acceptEdits`, codex
@@ -25,8 +25,17 @@ Validated on 2026-09-20 with a read-only scouter brief on every kind above
 except `gemini` and `copilot` (not installed on the test machine).
 | `opencode`, `omp`, `pi`, `kilo`, `kimi`, `qwen`, `droid`, `amp`, `cursor`, `kiro`, `devin`, `cline`, `hermes`, `letta`, `mastracode`, `qodercli`, `maki`, `muse` | various | mixed | Family unknown to this skill; the same-family check is skipped |
 
-The script's family table is in `scripts/herdr-agents.sh` (`kind_family`).
-Extend it when you add a kind with a stable model family.
+The script's family table is in `scripts/herdr-agents.sh` (`kind_family`;
+`agent_family` adds the model-id inference for multi-model harnesses such
+as cursor). Extend it when you add a kind with a stable model family.
+
+Grok effort levels verified on 2026-09-21 (grok 1.0.40, models `grok-4.7`,
+`grok-4.7-build-fast`, `grok-4.6`): `--reasoning-effort xhigh` is accepted
+by all three; `extra-high`, `x-high`, `extra_high` are rejected with
+"use one of: xhigh, high, medium, low". Policy since then: heavy work
+(implementer, tasker, scouter, researcher) → grok > cursor (grok 4.7) >
+codex > claude; review/security/planning/orchestration → codex/claude;
+visual → agy.
 
 ## Install notes
 
