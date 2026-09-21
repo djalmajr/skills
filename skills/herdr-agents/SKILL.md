@@ -213,8 +213,11 @@ keys it sets:
 5. command-line flags
 
 `$S config` prints every effective value with its source. Keys:
-`orchestrator_name`, `regrid`, `layout` (`split` grid in the caller's tab, or `tab` for a dedicated `herd`
-tab), `brief_lint` (`warn|strict|off`), `reuse_workers`
+`orchestrator_name`, `layout` (`split`: panes in the caller's tab until it is
+full, then herd tabs; `tab`: herd tabs only), `split_max_panes` (panes per
+tab, caller included; default 6), `split_min_pane` (smallest pane a spawn may
+leave, fraction of the tab; default 0.18), `regrid` (exact grids after every
+spawn/release), `brief_lint` (`warn|strict|off`), `reuse_workers`
 (`on`: `spawn` returns an idle worker of the same role, kind and cwd whose
 last report exists instead of opening a pane; `--reuse`/`--fresh` override
 per call; a reused worker keeps earlier briefs in context), `feedback` +
@@ -245,7 +248,8 @@ $S collect impl                             # prints the report file (or recent 
 $S run scouter <brief.md>                    # spawn + dispatch + collect in one call
 $S wait a b [--any] [--timeout MS]         # block on report files
 $S friction                                # errors/warnings of this workspace (review at end)
-$S regrid                                  # layout=tab: rebuild the herd tab as an exact grid
+$S regrid                                  # exact grids: caller's tab (split) + every herd tab
+$S layout-plan                             # where the next spawn lands (anchor, direction, overflow reason)
 $S status a b                              # non-blocking completion check
 $S config                                  # effective configuration and sources
 $S roster                                  # live agents with role/kind/pane/state/report
@@ -268,18 +272,27 @@ compares its model family with every live edit agent this skill spawned
 `--allow-same-family`. Code written by the orchestrator itself is invisible
 to this check; choose the reviewer kind by hand then.
 
-`spawn` places workers on a **grid** over the caller's tab: target columns
-= ⌈√(panes + 1)⌉; while there are fewer columns than that it splits the
-widest pane to the right, otherwise it splits down the tallest pane of the
-column with the fewest panes (three workers → 2×2, five → 3×2;
-`--direction` overrides). In `layout=split` panes already open are not
-moved (the caller's own pane cannot be moved safely). In `layout=tab` the
-herd tab is rebuilt as an **exact grid** after every spawn and release
-(`regrid`, config `regrid=on`): workers are moved into a fresh tab with
-computed split ratios, columns = ⌈√n⌉, rows balanced. There is no cap on
-workers: open as many as the work needs. `spawn` retries for a few
-seconds while the new shell reaches its prompt, starts the agent with
-`--no-focus`, and gives focus back to the caller. `--ratio` is passed through to `herdr pane split` unchanged.
+`spawn` in `layout=split` keeps workers in the caller's tab **without
+cramming it**: the candidate (caller + this skill's workers in the tab)
+with the largest area is halved on its longer side (`--ratio 0.5`; width
+fraction ≥ height fraction → `right`, else `down`), then `regrid` rebuilds
+the tab as an **exact grid** over caller + workers — the caller stays
+top-left in the least crowded column (3 cells: caller full height, two
+workers stacked; 6 cells: 3×2). When the tab holds `split_max_panes` panes
+(default 6 = caller + 5), or no pane can be halved without going below
+`split_min_pane` (default 0.18 of the tab), the worker **overflows** into
+the `herd` tab, then `herd-2`, `herd-3`… as each fills (`spawn` prints
+`placement: split|herd`; `layout-plan` shows the decision and why).
+`release --close` frees the slot, so the next spawn lands in the caller's
+tab again. `layout=tab` uses the herd tabs only. Every herd tab is rebuilt
+as an exact grid too (columns = ⌈√n⌉, rows balanced). Workers pass through
+a temporary `herd-park` tab during a caller-tab regrid because Herdr
+refuses to move a pane inside its own tab; agents keep running. There is
+no cap on workers overall: open as many as the work needs. `spawn` retries
+for a few seconds while the new shell reaches its prompt, starts the agent
+with `--no-focus`, and gives focus back to the caller. Explicit
+`--direction`/`--ratio` split the chosen (or, when the tab is full, the
+caller's) pane as asked and skip the automatic regrid for that call.
 Anything after `--` goes to the agent CLI (`herdr agent start … -- <args>`).
 `dispatch` writes a composed prompt (role body + brief + report contract) to
 the state dir and sends a one-line pointer to it, so long briefs never
@@ -351,9 +364,10 @@ and warning is also appended to `<state>/friction.log` (`$S friction`).
 - **Workers have their own command guards.** A Codex guardian on this kind
   of setup rejects `rm -f`-style commands regardless of approvals. Briefs
   describe outcomes, not destructive shell idioms.
-- **Layout.** Grid placement keeps panes usable up to about six workers on
-  a wide tab; beyond that, or when the caller must stay large, set
-  `layout=tab`.
+- **Layout.** The caller's tab never holds more than `split_max_panes`
+  panes (6 → a 3×2 grid on a wide tab); later workers go to `herd`,
+  `herd-2`… Lower it (4 → 2×2) when the caller must stay large, or set
+  `layout=tab` to keep the caller's tab untouched.
 
 State (briefs, reports, roster) lives **inside the project**, under
 `<repo>/.herdr-agents/<workspace-id>/`, and the script adds that path to

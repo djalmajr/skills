@@ -15,7 +15,9 @@
 #   herdr-agents.sh roles | kinds | config
 #   herdr-agents.sh models <kind>                 # ids the CLI lists, newest first
 #   herdr-agents.sh model <kind> <spec> [effort]  # how a model spec resolves
-#   herdr-agents.sh regrid                        # rebuild the herd tab as an exact grid (layout=tab)
+#   herdr-agents.sh regrid                        # exact grids: caller tab (layout=split) + every herd tab
+#   herdr-agents.sh layout-plan [--layout FILE] [--me P] [--mine "P…"]
+#                                                 # where the next split-layout spawn would go, and why
 #   herdr-agents.sh role <name>
 #   herdr-agents.sh spawn <role> [--name N] [--kind K] [--direction right|down]
 #                          [--ratio F] [--cwd DIR] [--pane ID] [--timeout MS]
@@ -116,7 +118,7 @@ cfg_source() {
 cmd_config() {
   printf '%-18s %-30s %s\n' KEY VALUE SOURCE
   local k
-  for k in orchestrator_name layout regrid reuse_workers worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
+  for k in orchestrator_name layout regrid split_max_panes split_min_pane reuse_workers worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
   for k in $(compgen -v | grep -E '^CFG_(args|role|model|effort)_' | sed 's/^CFG_//'); do
@@ -451,6 +453,11 @@ cmd_doctor() {
   local d; d="$(state_root 2>/dev/null || true)"
   if [ -n "$d" ]; then mkdir -p "$d" 2>/dev/null && [ -w "$d" ] && say ok "state dir writable: $d" || say warn "state dir not writable: $d"; fi
   case "$(cfg layout split)" in split|tab) say ok "config: layout=$(cfg layout) approvals=$(cfg approvals) auto_approve=$(cfg auto_approve) reuse_workers=$(cfg reuse_workers) worker_context=$(cfg worker_context)" ;; *) say warn "config: invalid layout '$(cfg layout)' (split|tab)" ;; esac
+  local cap; cap="$(cfg split_max_panes 6)"
+  if ! printf '%s' "$cap" | grep -Eq '^[0-9]+$'; then say warn "config: split_max_panes='$cap' is not a number (using 6)"
+  elif [ "$cap" -lt 2 ]; then say warn "config: split_max_panes=$cap leaves no room next to the caller; every worker will overflow into herd tabs (set 2 or more)"
+  else say ok "config: split_max_panes=$cap split_min_pane=$(split_min)"; fi
+  printf '%s' "$(cfg split_min_pane 0.18)" | grep -Eq '^0?\.[0-9]+$' || say warn "config: split_min_pane='$(cfg split_min_pane)' must be a fraction like 0.18 (using 0.18)"
   # Instruction block + hooks: without them the orchestrator forgets to delegate
   # when a prompt does not say "herd" or "workers" (observed: a three-repo
   # survey done by hand). `setup` writes both.
@@ -637,29 +644,82 @@ auto_direction_for() { # <pane-id or empty for current>
   if [ -n "$w" ] && [ -n "$h" ] && [ "$w" -ge 160 ] && [ "$w" -ge $((h * 2)) ]; then echo right; else echo down; fi
 }
 
-# pick_split_anchor → "<pane_id>\t<direction>". Aims at a balanced grid in
-# the caller's tab over the caller + this skill's workers: target columns =
-# ceil(sqrt(pane count + 1)). If there are fewer columns than the target, the
-# widest pane is split to the right; otherwise the tallest pane of the column
-# with the fewest panes is split down. Three workers around a wide caller end
-# as 2x2, five as 3x2. Existing panes are not moved (Herdr `pane move` could
-# regrid them; not done yet).
+# split_cap / split_min: validated `split_max_panes` (panes per tab, caller
+# included) and `split_min_pane` (smallest pane a split may leave, as a
+# fraction of the tab). Bad values fall back to the defaults; `doctor` warns.
+split_cap() { local v; v="$(cfg split_max_panes 6)"; printf '%s' "$v" | grep -Eq '^[0-9]+$' && printf '%s\n' "$v" || echo 6; }
+split_min() { local v; v="$(cfg split_min_pane 0.18)"; printf '%s' "$v" | grep -Eq '^0?\.[0-9]+$' && printf '%s\n' "$v" || echo 0.18; }
+
+# split_anchor_from_layout <layout-json> <me> <" mine "> <cap> <min>
+# → "<pane_id>\t<right|down>" or "overflow\t<full|min>". Pure function over
+# a `herdr pane layout` document: candidates are the caller plus this
+# skill's workers in that tab; sizes are fractions of the tab area so the
+# rule does not depend on the terminal's cell aspect. `full`: the tab already
+# holds `cap` candidates. `min`: no candidate can be halved without leaving a
+# pane thinner than `min`. Otherwise the candidate with the largest area is
+# split on its longer side (width fraction ≥ height fraction → right); ties
+# go to a worker before the caller, then top-left first. Fractions are
+# rounded to 2 decimals so a 107/106-column pair counts as a tie.
+split_anchor_from_layout() {
+  printf '%s' "$1" | jq -r --arg me "$2" --arg mine "$3" --arg cap "$4" --arg min "$5" '
+    .result.layout as $L
+    | ($L.area // {width: ([$L.panes[] | .rect.x + .rect.width] | max), height: ([$L.panes[] | .rect.y + .rect.height] | max)}) as $A
+    | [ $L.panes[] | .pane_id as $p | select($p==$me or ($mine | contains(" " + $p + " ")))
+        | {pane_id: $p, me: ($p==$me), x: .rect.x, y: .rect.y, w: (.rect.width / $A.width * 100 | round / 100), h: (.rect.height / $A.height * 100 | round / 100)} ]
+    | if length == 0 then empty
+      elif length >= ($cap | tonumber) then "overflow\tfull"
+      else map(. + {area: (.w * .h), long: ([.w, .h] | max)}) | map(select(.long / 2 >= ($min | tonumber)))
+        | if length == 0 then "overflow\tmin"
+          else (sort_by(-.area, .me, .y, .x) | .[0]) | "\(.pane_id)\t\(if .w >= .h then "right" else "down" end)" end
+      end'
+}
+
+# pick_split_anchor → "<pane_id>\t<direction>" | "overflow\t<reason>" for the caller's tab.
 pick_split_anchor() {
-  local layout mine
+  local layout out
   layout="$(herdr pane layout --current 2>/dev/null || true)"
   [ -n "$layout" ] || { printf '%s\tright\n' "${HERDR_PANE_ID:-}"; return; }
-  mine="$(roster_rows | cut -f2 | tr '\n' ' ')"
-  printf '%s' "$layout" | jq -r --arg me "${HERDR_PANE_ID:-}" --arg mine " $mine " '
-    [ .result.layout.panes[] | .pane_id as $p | select($p==$me or ($mine | contains(" " + $p + " "))) ]
-    | . as $panes
-    | ($panes | length + 1) as $n
-    | ([range(1;9)] | map(select(. * . >= $n)) | .[0]) as $target_cols
-    | ($panes | group_by(.rect.x)) as $cols
-    | if ($cols | length) < $target_cols then
-        ($panes | sort_by(-.rect.width, .rect.y) | .[0]) | "\(.pane_id)\tright"
-      else
-        ($cols | sort_by(length, .[0].rect.x) | .[0] | sort_by(-.rect.height) | .[0]) | "\(.pane_id)\tdown"
-      end'
+  out="$(split_anchor_from_layout "$layout" "${HERDR_PANE_ID:-}" " $(roster_rows | cut -f2 | tr '\n' ' ') " "$(split_cap)" "$(split_min)")"
+  [ -n "$out" ] && printf '%s\n' "$out" || printf '%s\tright\n' "${HERDR_PANE_ID:-}"
+}
+
+# cmd_layout_plan: explain the next split-layout placement. Live (current tab
+# + roster) by default; `--layout FILE` (or `-`) evaluates a saved
+# `herdr pane layout` document instead, with `--me` / `--mine` naming the panes.
+cmd_layout_plan() {
+  local file="" me="${HERDR_PANE_ID:-}" mine="" layout out anchor dir
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --layout) file="$2"; shift 2 ;;
+      --me) me="$2"; shift 2 ;;
+      --mine) mine="$2"; shift 2 ;;
+      *) die "layout-plan: unknown option $1" 2 ;;
+    esac
+  done
+  if [ -n "$file" ]; then
+    if [ "$file" = - ]; then layout="$(cat)"; else layout="$(cat "$file")" || die "layout-plan: cannot read $file" 2; fi
+  else
+    require_env; layout="$(herdr pane layout --current)" || die "pane layout failed" 4
+    [ -n "$mine" ] || mine="$(roster_rows | cut -f2 | tr '\n' ' ')"
+  fi
+  out="$(split_anchor_from_layout "$layout" "$me" " $mine " "$(split_cap)" "$(split_min)")"
+  [ -n "$out" ] || out="$me"$'\t'right
+  IFS=$'\t' read -r anchor dir <<< "$out"
+  printf '%s' "$layout" | jq -c --arg anchor "$anchor" --arg dir "$dir" --arg me "$me" --arg mine " $mine " --argjson cap "$(split_cap)" --argjson min "$(split_min)" '
+    .result.layout as $L
+    | ($L.area // {width: ([$L.panes[] | .rect.x + .rect.width] | max), height: ([$L.panes[] | .rect.y + .rect.height] | max)}) as $A
+    | {placement: (if $anchor == "overflow" then "herd" else "split" end),
+       anchor: (if $anchor == "overflow" then null else $anchor end),
+       direction: (if $anchor == "overflow" then null else $dir end),
+       reason: (if $anchor == "overflow" then $dir else "largest-area" end),
+       cap: $cap, min_pane: $min,
+       candidates: [ $L.panes[] | .pane_id as $p | select($p==$me or ($mine | contains(" " + $p + " ")))
+         | {pane_id: $p, caller: ($p==$me), width: (.rect.width / $A.width * 1000 | round / 1000), height: (.rect.height / $A.height * 1000 | round / 1000)} ]}
+    | . + {grid: (if .placement == "split" then ((.candidates | length) + 1) else null end)}' \
+  | { read -r plan; g="$(printf '%s' "$plan" | jq -r '.grid // empty')"
+      if [ -n "$g" ]; then read -r cols sizes <<< "$(grid_sizes "$g")"
+        printf '%s' "$plan" | jq -c --argjson n "$g" --argjson cols "$cols" --arg sizes "$sizes" '.grid = {cells:$n, cols:$cols, rows_per_col:($sizes | split(" ") | map(tonumber))}'
+      else printf '%s\n' "$plan"; fi; }
 }
 
 restore_focus() { # <new pane> <split direction>
@@ -669,28 +729,57 @@ restore_focus() { # <new pane> <split direction>
   [ -n "$back" ] && herdr pane focus --direction "$back" --pane "$1" >/dev/null 2>&1 || true
 }
 
-# herd_tab_pane <cwd> → prints "<pane_id>\t<created>" for a worker pane inside the herd tab
-herd_tab_pane() {
-  local cwd="$1" sd tab tabinfo split anchor dir
-  sd="$(state_dir)"
-  tab="$(cat "$sd/herd-tab" 2>/dev/null || true)"
-  if [ -n "$tab" ] && ! herdr tab get "$tab" >/dev/null 2>&1; then tab=""; fi
-  if [ -z "$tab" ]; then
-    tabinfo="$(herdr tab create --workspace "$(workspace_id)" --cwd "$cwd" --label herd --no-focus)" || die "tab create failed" 4
-    tab="$(printf '%s' "$tabinfo" | jq -r '.result.tab.tab_id')"
-    printf '%s\n' "$tab" > "$sd/herd-tab"
-    printf '%s\t1\n' "$(printf '%s' "$tabinfo" | jq -r '.result.root_pane.pane_id')"
-    return
-  fi
-  # split the last worker pane living in that tab
-  anchor="$(herdr pane list --workspace "$(workspace_id)" | jq -r --arg t "$tab" '[.result.panes[] | select(.tab_id==$t)] | last | .pane_id // empty')"
-  [ -n "$anchor" ] || { printf '%s\t1\n' "$(herdr tab get "$tab" | jq -r '.result.root_pane.pane_id // empty')"; return; }
-  dir="$(auto_direction_for "$anchor")"
-  split="$(herdr pane split "$anchor" --direction "$dir" --cwd "$cwd" --no-focus)" || die "pane split failed" 4
-  printf '%s\t1\n' "$(printf '%s' "$split" | jq -r '.result.pane.pane_id')"
+# ---------- herd tabs ----------
+# Overflow tabs: `herd`, then `herd-2`, `herd-3`… Their ids live one per line
+# in <state>/herd-tab, in order; dead tabs are pruned on read.
+
+herd_tab_label() { [ "$1" -eq 0 ] && echo herd || echo "herd-$(( $1 + 1 ))"; }
+herd_tabs() {
+  local f t live=""
+  f="$(state_dir)/herd-tab"
+  [ -f "$f" ] || return 0
+  while IFS= read -r t; do [ -n "$t" ] && herdr tab get "$t" >/dev/null 2>&1 && live="$live$t"$'\n'; done < "$f"
+  printf '%s' "$live" > "$f"
+  printf '%s' "$live"
+}
+# roster_panes_in_tab <pane-list-json> <tab> → this skill's live worker panes in <tab>, roster order
+roster_panes_in_tab() {
+  local live="$1" tab="$2" name pane
+  while IFS=$'\t' read -r name pane _rest; do
+    [ -n "$name" ] || continue
+    printf '%s' "$live" | jq -e --arg p "$pane" --arg t "$tab" 'any(.[]; .pane_id==$p and .tab_id==$t)' >/dev/null || continue
+    herdr agent get "$name" >/dev/null 2>&1 && printf '%s\n' "$pane"
+  done < <(roster_rows)
 }
 
-# ---------- regrid (herd tab) ----------
+# herd_tab_pane <cwd> → "<pane_id>\t1": a pane in the first herd tab holding
+# fewer than `split_max_panes` of this skill's workers; opens the next tab
+# (`herd`, `herd-2`, …) when every existing one is full.
+herd_tab_pane() {
+  local cwd="$1" sd ws live tab n idx=0 anchor dir split tabinfo cap
+  sd="$(state_dir)"; ws="$(workspace_id)"; cap="$(split_cap)"
+  live="$(herdr pane list --workspace "$ws" | jq -c '.result.panes')"
+  while IFS= read -r tab; do
+    [ -n "$tab" ] || continue
+    n="$(roster_panes_in_tab "$live" "$tab" | grep -c . || true)"
+    if [ "$n" -lt "$cap" ]; then
+      # split the last pane living in that tab
+      anchor="$(printf '%s' "$live" | jq -r --arg t "$tab" '[.[] | select(.tab_id==$t)] | last | .pane_id // empty')"
+      [ -n "$anchor" ] || { printf '%s\t1\n' "$(herdr tab get "$tab" | jq -r '.result.root_pane.pane_id // empty')"; return; }
+      dir="$(auto_direction_for "$anchor")"
+      split="$(herdr pane split "$anchor" --direction "$dir" --cwd "$cwd" --no-focus)" || die "pane split failed" 4
+      printf '%s\t1\n' "$(printf '%s' "$split" | jq -r '.result.pane.pane_id')"
+      return
+    fi
+    idx=$((idx+1))
+  done < <(herd_tabs)
+  tabinfo="$(herdr tab create --workspace "$ws" --cwd "$cwd" --label "$(herd_tab_label "$idx")" --no-focus)" || die "tab create failed" 4
+  tab="$(printf '%s' "$tabinfo" | jq -r '.result.tab.tab_id')"
+  printf '%s\n' "$tab" >> "$sd/herd-tab"
+  printf '%s\t1\n' "$(printf '%s' "$tabinfo" | jq -r '.result.root_pane.pane_id')"
+}
+
+# ---------- regrid ----------
 
 # move_pane <pane> <tab> <split> <target> <ratio> → prints the pane's id after the move
 move_pane() {
@@ -703,62 +792,111 @@ roster_replace_pane() { # <old> <new>
   awk -F'\t' -v OFS='\t' -v o="$1" -v n="$2" '$2==o {$2=n} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 }
 
-# cmd_regrid: rebuild the herd tab as an exact grid (cols = ceil(sqrt(n)),
-# balanced rows) by moving every worker into a fresh tab with computed split
-# ratios. Two passes: column heads first (right splits, so every column spans
-# the full height), then the rows of each column (down splits). Pane ids are
-# preserved by `pane move` inside a workspace; the old tab closes itself once
-# its last pane leaves. Only for layout=tab: the caller's own pane cannot be
-# moved safely, so split layout keeps the insertion heuristic.
-cmd_regrid() {
-  [ "$(cfg layout split)" = tab ] || { printf 'regrid applies to layout=tab only (split layout uses grid-oriented insertion)\n'; return 0; }
-  local sd ws root panes=() name pane n cols c j m extra base idx tabinfo newtab rootpane ratio newid
-  sd="$(state_dir)"; ws="$(workspace_id)"; root="$(project_root)"
-  while IFS=$'\t' read -r name pane _rest; do
-    [ -n "$name" ] || continue
-    herdr agent get "$name" >/dev/null 2>&1 && panes+=("$name:$pane")
-  done < <(roster_rows)
-  n="${#panes[@]}"
-  [ "$n" -ge 2 ] || return 0
-  cols=1; while [ $((cols*cols)) -lt "$n" ]; do cols=$((cols+1)); done
-  base=$((n / cols)); extra=$((n % cols))
-  tabinfo="$(herdr tab create --workspace "$ws" --cwd "$root" --label herd --no-focus)" || die "tab create failed" 4
-  newtab="$(printf '%s' "$tabinfo" | jq -r '.result.tab.tab_id')"; rootpane="$(printf '%s' "$tabinfo" | jq -r '.result.root_pane.pane_id')"
-  # column sizes and head indexes
-  local sizes=() heads=() ncols=0; idx=0
-  for c in $(seq 0 $((cols-1))); do
-    m=$base; [ "$c" -lt "$extra" ] && m=$((m+1))
-    [ "$m" -gt 0 ] || continue
-    sizes+=("$m"); heads+=("$idx"); idx=$((idx+m)); ncols=$((ncols+1))
+# grid_sizes <n> → "<cols> <rows of col 0> <rows of col 1> …": cols = ⌈√n⌉,
+# rows balanced; the extra rows go to the LAST columns so cell 0 (the caller
+# in split layout) keeps the least crowded column (3 cells → caller full
+# height on the left, two workers stacked on the right).
+grid_sizes() {
+  local n="$1" cols=1 base extra c m out
+  [ "$n" -ge 1 ] || { echo 0; return; }
+  while [ $((cols*cols)) -lt "$n" ]; do cols=$((cols+1)); done
+  base=$((n / cols)); extra=$((n % cols)); out="$cols"
+  for ((c=0; c<cols; c++)); do m=$base; [ "$c" -ge $((cols-extra)) ] && m=$((m+1)); out="$out $m"; done
+  printf '%s\n' "$out"
+}
+
+# build_grid <tab> <cell0> <cell…>: cell0 already fills <tab>; the other
+# cells are moved in as an exact grid (grid_sizes) in two passes — column
+# heads first (right splits, ratio 1/remaining columns, so every column spans
+# the full height), then the rows of each column (down splits). `--ratio` is
+# the share the target keeps. Prints "<old>\t<new>" for every pane id that
+# changed (none inside a workspace, measured). Loops are arithmetic: BSD
+# `seq 1 0` counts down instead of printing nothing.
+build_grid() {
+  local tab="$1"; shift
+  local cells=("$@") n cols sizes=() heads=() c j idx=0 m prev pane newid ratio
+  n="${#cells[@]}"
+  read -r cols _ <<< "$(grid_sizes "$n")"; read -r -a sizes <<< "$(grid_sizes "$n" | cut -d' ' -f2-)"
+  for ((c=0; c<cols; c++)); do heads+=("$idx"); idx=$((idx+${sizes[$c]})); done
+  prev="${cells[0]}"
+  for ((c=1; c<cols; c++)); do
+    idx="${heads[$c]}"; pane="${cells[$idx]}"
+    ratio="$(awk -v k=$((cols-c+1)) 'BEGIN{printf "%.4f", 1/k}')"
+    newid="$(move_pane "$pane" "$tab" right "$prev" "$ratio")" || return 1
+    if [ -n "$newid" ] && [ "$newid" != "$pane" ]; then printf '%s\t%s\n' "$pane" "$newid"; cells[$idx]="$newid"; fi
+    prev="${cells[$idx]}"
   done
-  # pass 1: column heads, left to right, each taking 1/(remaining columns) of the previous head
-  local prev=""
-  for c in $(seq 0 $((ncols-1))); do
-    idx="${heads[$c]}"; pane="${panes[$idx]#*:}"; name="${panes[$idx]%%:*}"
-    if [ "$c" = 0 ]; then
-      newid="$(move_pane "$pane" "$newtab" right "$rootpane" 0.5)" || die "regrid: move of $name failed" 4
-      herdr pane close "$rootpane" >/dev/null 2>&1 || true
-    else
-      ratio="$(awk -v k=$((ncols-c+1)) 'BEGIN{printf "%.4f", 1/k}')"
-      newid="$(move_pane "$pane" "$newtab" right "$prev" "$ratio")" || die "regrid: move of $name failed" 4
-    fi
-    [ -n "$newid" ] && [ "$newid" != "$pane" ] && { roster_replace_pane "$pane" "$newid"; panes[$idx]="$name:$newid"; pane="$newid"; }
-    prev="$pane"
-  done
-  # pass 2: rows inside each column, top to bottom
-  for c in $(seq 0 $((ncols-1))); do
-    m="${sizes[$c]}"; idx="${heads[$c]}"; prev="${panes[$idx]#*:}"
-    for j in $(seq 1 $((m-1))); do
-      idx=$((idx+1)); pane="${panes[$idx]#*:}"; name="${panes[$idx]%%:*}"
+  for ((c=0; c<cols; c++)); do
+    m="${sizes[$c]}"; idx="${heads[$c]}"; prev="${cells[$idx]}"
+    for ((j=1; j<m; j++)); do
+      idx=$((idx+1)); pane="${cells[$idx]}"
       ratio="$(awk -v k=$((m-j+1)) 'BEGIN{printf "%.4f", 1/k}')"
-      newid="$(move_pane "$pane" "$newtab" down "$prev" "$ratio")" || die "regrid: move of $name failed" 4
-      [ -n "$newid" ] && [ "$newid" != "$pane" ] && { roster_replace_pane "$pane" "$newid"; panes[$idx]="$name:$newid"; pane="$newid"; }
-      prev="$pane"
+      newid="$(move_pane "$pane" "$tab" down "$prev" "$ratio")" || return 1
+      if [ -n "$newid" ] && [ "$newid" != "$pane" ]; then printf '%s\t%s\n' "$pane" "$newid"; cells[$idx]="$newid"; fi
+      prev="${cells[$idx]}"
     done
   done
-  printf '%s\n' "$newtab" > "$sd/herd-tab"
+}
+apply_grid() { # <tab> <cell0> <cell…> — build_grid + roster update
+  local out old new
+  out="$(build_grid "$@")" || return 1
+  while IFS=$'\t' read -r old new; do if [ -n "$old" ]; then roster_replace_pane "$old" "$new"; fi; done <<< "$out"
+  return 0
+}
+
+# park_panes <pane…> → id of a temporary tab the panes were moved into.
+# Herdr refuses to move a pane inside its own tab (`reason: same_tab`), so a
+# regrid of the caller's tab moves the workers out first: the tab collapses
+# to the caller alone, then build_grid brings them back around it and the
+# park tab closes itself when its last pane leaves. Foreground processes
+# survive both moves (measured with a running command and live agents).
+park_panes() {
+  local first="$1" out park p; shift
+  out="$(herdr pane move "$first" --new-tab --label herd-park --no-focus)" || return 1
+  park="$(printf '%s' "$out" | jq -r '.result.move_result.pane.tab_id // empty')"; [ -n "$park" ] || return 1
+  for p in "$@"; do herdr pane move "$p" --tab "$park" --split down --target-pane "$first" --ratio 0.5 --no-focus >/dev/null || return 1; done
+  printf '%s\n' "$park"
+}
+
+# cmd_regrid: exact grids everywhere this skill placed panes.
+#   * layout=split — the caller's tab: the caller stays (cell 0, top-left,
+#     least crowded column), its workers are parked and moved back as a grid
+#     over caller + workers (cols = ⌈√(n+1)⌉). Panes of other origins keep
+#     their place in the split tree.
+#   * every herd tab (`herd`, `herd-2`, …): workers move into a fresh tab with
+#     the same label; the old tab closes itself once its last pane leaves.
+# Pane ids are preserved inside a workspace; the roster is updated anyway.
+cmd_regrid() {
+  local sd ws root layout live tab p panes=() tabinfo newtab rootpane newid idx=0 kept="" summary="[]" park
+  sd="$(state_dir)"; ws="$(workspace_id)"; root="$(project_root)"; layout="$(cfg layout split)"
+  live="$(herdr pane list --workspace "$ws" | jq -c '.result.panes')"
+  if [ "$layout" = split ] && [ -n "${HERDR_TAB_ID:-}" ] && [ -n "${HERDR_PANE_ID:-}" ]; then
+    panes=(); while IFS= read -r p; do [ -n "$p" ] && panes+=("$p"); done < <(roster_panes_in_tab "$live" "$HERDR_TAB_ID")
+    if [ "${#panes[@]}" -ge 1 ]; then
+      park="$(park_panes "${panes[@]}")" || die "regrid: could not park the workers of tab $HERDR_TAB_ID in a temporary tab" 4
+      apply_grid "$HERDR_TAB_ID" "$HERDR_PANE_ID" "${panes[@]}" || die "regrid: a move back into $HERDR_TAB_ID failed; remaining workers are alive in tab $park (label herd-park)" 4
+      summary="$(printf '%s' "$summary" | jq -c --arg t "$HERDR_TAB_ID" --argjson n $(( ${#panes[@]} + 1 )) --argjson cols "$(grid_sizes $(( ${#panes[@]} + 1 )) | cut -d' ' -f1)" '. + [{tab:$t,label:"caller",panes:$n,cols:$cols}]')"
+    fi
+  fi
+  while IFS= read -r tab; do
+    [ -n "$tab" ] || continue
+    panes=(); while IFS= read -r p; do [ -n "$p" ] && panes+=("$p"); done < <(roster_panes_in_tab "$live" "$tab")
+    if [ "${#panes[@]}" -ge 2 ]; then
+      tabinfo="$(herdr tab create --workspace "$ws" --cwd "$root" --label "$(herd_tab_label "$idx")" --no-focus)" || die "tab create failed" 4
+      newtab="$(printf '%s' "$tabinfo" | jq -r '.result.tab.tab_id')"; rootpane="$(printf '%s' "$tabinfo" | jq -r '.result.root_pane.pane_id')"
+      printf '%s\n' "$newtab" >> "$sd/herd-tab"   # tracked at once: a failed move must not orphan the tab
+      newid="$(move_pane "${panes[0]}" "$newtab" right "$rootpane" 0.5)" || die "regrid: move of ${panes[0]} failed; remaining workers are alive in tab $tab" 4
+      herdr pane close "$rootpane" >/dev/null 2>&1 || true
+      if [ -n "$newid" ] && [ "$newid" != "${panes[0]}" ]; then roster_replace_pane "${panes[0]}" "$newid"; panes[0]="$newid"; fi
+      apply_grid "$newtab" "${panes[@]}" || die "regrid: a move into $newtab failed; remaining workers are alive in tab $tab" 4
+      summary="$(printf '%s' "$summary" | jq -c --arg t "$newtab" --arg l "$(herd_tab_label "$idx")" --argjson n "${#panes[@]}" --argjson cols "$(grid_sizes "${#panes[@]}" | cut -d' ' -f1)" '. + [{tab:$t,label:$l,panes:$n,cols:$cols}]')"
+      tab="$newtab"
+    fi
+    kept="$kept$tab"$'\n'; idx=$((idx+1))
+  done < <(herd_tabs)
+  [ -f "$sd/herd-tab" ] && printf '%s' "$kept" > "$sd/herd-tab"
   [ -n "${HERDR_TAB_ID:-}" ] && herdr tab focus "$HERDR_TAB_ID" >/dev/null 2>&1 || true
-  jq -n --arg tab "$newtab" --argjson n "$n" --argjson cols "$ncols" '{herd_tab:$tab,panes:$n,cols:$cols,rows:(($n + $cols - 1) / $cols | floor)}'
+  printf '%s' "$summary" | jq -c '{regridded: .}'
 }
 
 # ---------- spawn ----------
@@ -865,21 +1003,27 @@ cmd_spawn() {
   if [ -n "$extra" ]; then local extra_arr=(); read -r -a extra_arr <<< "$extra"; built_args+=("${extra_arr[@]}"); fi
   agent_args=("${built_args[@]+"${built_args[@]}"}" "${agent_args[@]+"${agent_args[@]}"}")
 
-  local created=0 split caller_focused layout
+  local created=0 split caller_focused layout placement=given auto_regrid=0
   layout="$(cfg layout split)"
   caller_focused="$(herdr pane current --current 2>/dev/null | jq -r '.result.pane.focused // false')"
   if [ -z "$pane" ]; then
-    if [ "$layout" = tab ]; then
+    local anchor=overflow auto_dir=layout
+    # split layout: largest pane of caller + workers in this tab, unless the
+    # tab is full (split_max_panes) or no pane can be halved (split_min_pane)
+    # → overflow into the herd tabs like layout=tab. Explicit --direction
+    # forces a split of the caller's pane and skips the automatic regrid.
+    [ "$layout" = tab ] || IFS=$'\t' read -r anchor auto_dir < <(pick_split_anchor)
+    if [ "$anchor" = overflow ] && [ -n "$direction" ]; then anchor="${HERDR_PANE_ID:-}"; fi
+    if [ "$anchor" = overflow ] || [ -z "$anchor" ]; then
+      [ "$layout" = tab ] || warn "caller tab has no room for another pane ($auto_dir); placing '$name' in a herd tab"
       IFS=$'\t' read -r pane created < <(herd_tab_pane "$cwd")
-      direction=""
+      direction=""; placement=herd; auto_regrid=1
     else
-      local anchor auto_dir
-      IFS=$'\t' read -r anchor auto_dir < <(pick_split_anchor)
+      [ -z "$direction" ] && [ -z "$ratio" ] && auto_regrid=1
       [ -n "$direction" ] || direction="$auto_dir"
-      [ -n "$anchor" ] || anchor="${HERDR_PANE_ID:-}"
-      split="$(herdr pane split "$anchor" --direction "$direction" --cwd "$cwd" --no-focus ${ratio:+--ratio "$ratio"})" || die "pane split failed" 4
+      split="$(herdr pane split "$anchor" --direction "$direction" --cwd "$cwd" --no-focus --ratio "${ratio:-0.5}")" || die "pane split failed" 4
       pane="$(printf '%s' "$split" | jq -r '.result.pane.pane_id')"
-      created=1
+      created=1; placement="split"
     fi
   fi
 
@@ -893,16 +1037,16 @@ cmd_spawn() {
     printf '%s\n' "$start" >&2; die "agent start failed for $name ($kind) in pane $pane; pane left open for inspection" 4
   done
   if [ "$caller_focused" = true ]; then
-    if [ "$layout" = tab ] && [ -n "${HERDR_TAB_ID:-}" ]; then herdr tab focus "$HERDR_TAB_ID" >/dev/null 2>&1 || true; fi
+    if [ "$placement" = herd ] && [ -n "${HERDR_TAB_ID:-}" ]; then herdr tab focus "$HERDR_TAB_ID" >/dev/null 2>&1 || true; fi
     restore_focus "$pane" "$direction"
   fi
 
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$pane" "$kind" "$role" "$(kind_family "$kind")" "$created" "$cwd" "$(now)" >> "$(state_dir)/agents.tsv"
   jq -n --arg name "$name" --arg pane "$pane" --arg kind "$kind" --arg role "$role" --arg family "$(kind_family "$kind")" --argjson created "$created" \
     --arg args "${agent_args[*]+"${agent_args[*]}"}" --arg status "$([ "$blocked" = 1 ] && echo blocked_at_startup || echo ready)" \
-    --arg effort "${effort:-default}" --arg model "${model:-default}" --arg model_spec "${model_spec:-}" --arg approvals "${approvals:-ask}" --arg layout "$layout" \
-    '{name:$name,pane_id:$pane,kind:$kind,role:$role,family:$family,created_pane:($created==1),layout:$layout,effort:$effort,model:$model,model_spec:$model_spec,approvals:$approvals,agent_args:$args,status:$status}'
-  if [ "$(cfg layout split)" = tab ] && [ "$(cfg regrid on)" = on ] && [ "$created" = 1 ]; then cmd_regrid >/dev/null 2>&1 || warn "regrid after spawn failed; panes left as inserted"; fi
+    --arg effort "${effort:-default}" --arg model "${model:-default}" --arg model_spec "${model_spec:-}" --arg approvals "${approvals:-ask}" --arg layout "$layout" --arg placement "$placement" \
+    '{name:$name,pane_id:$pane,kind:$kind,role:$role,family:$family,created_pane:($created==1),layout:$layout,placement:$placement,effort:$effort,model:$model,model_spec:$model_spec,approvals:$approvals,agent_args:$args,status:$status}'
+  if [ "$auto_regrid" = 1 ] && [ "$(cfg regrid on)" = on ]; then (cmd_regrid) >/dev/null 2>&1 || warn "regrid after spawn failed; panes left as inserted (see friction)"; fi
   if [ "$blocked" = 1 ]; then
     warn "agent '$name' is blocked during startup (update prompt, login, trust dialog…). Screen follows; ask the user before answering it, then: herdr agent send-keys $name <keys>; herdr agent wait $name --timeout 60000"
     herdr agent read "$name" --source visible --lines 40 2>/dev/null || true
@@ -1189,7 +1333,7 @@ cmd_release() {
   fi
   roster_remove "$agent"
   rm -f "$(state_dir)/last-report-$agent" "$(state_dir)/wait/$agent".*
-  if [ "$close" = 1 ] && [ "$(cfg layout split)" = tab ] && [ "$(cfg regrid on)" = on ]; then cmd_regrid >/dev/null 2>&1 || true; fi
+  if [ "$close" = 1 ] && [ "$(cfg regrid on)" = on ]; then (cmd_regrid) >/dev/null 2>&1 || warn "regrid after release failed; panes left as they are (see friction)"; fi
   if git -C "$cwd" worktree list 2>/dev/null | grep -q '/\.worktrees/'; then
     printf 'leftover worktrees (not removed):\n'; git -C "$cwd" worktree list | grep '/\.worktrees/'
   fi
@@ -1263,6 +1407,7 @@ main() {
     doctor) cmd_doctor ;;
     setup) cmd_setup "$@" ;;
     regrid) require_env; cmd_regrid ;;
+    layout-plan) cmd_layout_plan "$@" ;;
     config) cmd_config ;;
     role) cmd_role "$@" ;;
     spawn) require_env; cmd_spawn "$@" ;;
@@ -1279,4 +1424,5 @@ main() {
     *) die "unknown command '$cmd'" 2 ;;
   esac
 }
-main "$@"
+# HERDR_AGENTS_LIB=1: source the functions without running a command (tests).
+[ "${HERDR_AGENTS_LIB:-}" = 1 ] || main "$@"

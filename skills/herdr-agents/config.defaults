@@ -8,12 +8,28 @@
 # rosters and the Herdr sidebar show who leads. Suffixed -2, -3 when taken.
 orchestrator_name=orchestrator
 
-# Where workers live: `split` = grid-placed panes in the caller's tab (target
-# columns = ceil(sqrt(pane count))); `tab` = one dedicated tab labelled `herd`.
+# Where workers live: `split` = panes in the caller's tab (the largest pane of
+# caller + workers is halved on its longer side) until the tab is full, then
+# the herd tabs; `tab` = the herd tabs only (`herd`, then `herd-2`, …).
 layout=split
 
-# With layout=tab, rebuild the herd tab as an exact grid after every spawn and
-# release (`regrid`): on | off.
+# Panes per tab before new workers overflow into the next herd tab. In the
+# caller's tab the caller counts (6 = caller + 5 workers, a 3x2 grid); herd
+# tabs hold that many workers. `release --close` frees the slot again.
+split_max_panes=6
+
+# Smallest pane a spawn may leave, as a fraction of the tab's width/height
+# (0.18 ≈ 38 columns or 10 rows on a 213x57 tab). When no pane of caller +
+# workers can be halved without going below it, the worker overflows into a
+# herd tab even under split_max_panes.
+split_min_pane=0.18
+
+# Rebuild exact grids after every spawn and release (`regrid`): on | off. In
+# the caller's tab the caller stays top-left in the least crowded column and
+# the workers are re-placed around it (they pass through a temporary tab —
+# Herdr cannot move a pane inside its own tab); every herd tab is rebuilt as
+# columns = ceil(sqrt(n)), rows balanced. Explicit `spawn --direction/--ratio`
+# skips the automatic regrid for that call.
 regrid=on
 
 # Reuse an idle worker of the same role, kind and cwd whose last report is

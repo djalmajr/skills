@@ -123,6 +123,43 @@ you should do. Read this before changing the script or adding a kind.
   longer side (2x2 with three workers on a wide tab). `layout=tab` moves
   workers to their own tab when the caller must stay large.
 
+## One column became a stack of strips while another stayed whole (2026-09-21)
+
+- **Seen:** after a few `release --close`, the operator's tab had the caller
+  full height on the left and 3–4 thin strips on the right.
+- **Cause:** the anchor was chosen by counting columns (`group_by(x)`), not
+  by area, and released panes were never re-placed in `layout=split`.
+- **Now:** the anchor is the candidate with the largest **area** (fractions
+  of the tab, rounded to 2 decimals so 107/106-column pairs tie; a worker
+  wins a tie over the caller), halved on its longer side; a pane that would
+  end below `split_min_pane` is never split. After every spawn/release,
+  `regrid` rebuilds the caller's tab as an exact grid over caller + workers,
+  caller top-left in the least crowded column. Panes of other origins in
+  the tab keep their slot in the split tree. `layout-plan` prints the
+  decision (`anchor`, `direction`, `reason: largest-area|full|min`, grid).
+- **Capacity:** `split_max_panes` (default 6, caller included) per tab.
+  Beyond it, or when nothing can be halved above `split_min_pane`, the
+  worker goes to `herd`, then `herd-2`… (ids one per line in
+  `<state>/herd-tab`, dead tabs pruned on read). `release --close` in the
+  caller's tab frees the slot; workers are not pulled back from herd tabs.
+
+## `regrid` in the caller's tab: Herdr refuses same-tab moves
+
+- **Measured:** `herdr pane move P --tab <its own tab> --split … --target-pane C`
+  returns `changed: false, reason: same_tab`.
+- **Now:** the workers are moved to a temporary tab (`herd-park`) first —
+  the caller's tab collapses to the caller alone — then moved back around
+  the caller with computed ratios; the park tab closes itself when its last
+  pane leaves. Pane ids are preserved inside a workspace and foreground
+  processes survive (measured with `sleep` and live agents). If a move back
+  fails, the error names the park tab: the workers are alive there;
+  `herdr pane move <pane> --tab <caller tab> --split down --target-pane
+  <caller>` brings one back by hand.
+- **Gotcha (fixed):** BSD `seq 1 0` prints `1 0` instead of nothing, so a
+  column with a single row crashed pass 2 (`cells[idx]: unbound`); the grid
+  loops are arithmetic now. `regrid` failures inside `spawn`/`release` run
+  in a subshell and only warn (see `friction`).
+
 ## Worker in a worktree cannot write the report
 
 - **Cause:** the report path is under the main repo; sandboxes limit the
@@ -193,7 +230,8 @@ you should do. Read this before changing the script or adding a kind.
    (expect a clamp warning) → `dispatch` (waits on the report) → `collect`
    → `release --close`. Watch for: startup dialogs, report written to the
    right path, focus back in the caller, `friction` empty afterwards.
-4. Grid placement keeps up to about six workers usable on a 181×57 tab.
+4. The caller's tab holds at most `split_max_panes` panes (6 → 3×2 on a
+   213×57 tab, 71×28 cells); later workers overflow into `herd`, `herd-2`…
 
 ## `setup` rerun emptied AGENTS.md (fixed)
 
