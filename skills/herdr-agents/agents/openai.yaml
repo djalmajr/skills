@@ -1,0 +1,4 @@
+interface:
+  display_name: "Herdr Agents"
+  short_description: "Role agents (design, review, implement…) orchestrated through Herdr"
+  default_prompt: "Inside Herdr, decompose the objective into slices, spawn the right role agents in sibling panes, dispatch self-contained briefs, collect the file-based reports, integrate, review with a different model family, and run the gates before committing."
