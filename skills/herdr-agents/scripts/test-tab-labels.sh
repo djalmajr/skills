@@ -145,4 +145,14 @@ grep -q -- '--tab-label) tab_label="$2"' "$SKILL_SCRIPT" || fail 'spawn: --tab-l
 grep -q 'herd_tab_pane "$cwd" "$tab_label" "$role"' "$SKILL_SCRIPT" || fail 'spawn: --tab-label not passed to herd_tab_pane'
 grep -q -- '--approvals|--tab-label)' "$SKILL_SCRIPT" || fail 'run: --tab-label option is not forwarded to spawn'
 
+# --- run --no-wait returns after dispatch instead of collecting too early ---
+cmd_spawn() { printf '{"name":"runner"}\n'; }
+cmd_dispatch() { printf 'dispatch:%s\n' "$*"; }
+cmd_collect() { printf 'collect:%s\n' "$*"; }
+OUT="$(cmd_run reviewer /tmp/brief.md --no-wait)"
+grep -q '^dispatch:runner /tmp/brief.md --no-wait$' <<< "$OUT" || fail "run --no-wait did not dispatch: $OUT"
+grep -q '^collect:' <<< "$OUT" && fail "run --no-wait collected before the worker finished: $OUT"
+OUT="$(cmd_run reviewer /tmp/brief.md)"
+grep -q '^collect:runner$' <<< "$OUT" || fail "waiting run did not collect: $OUT"
+
 echo 'tab-label checks passed'

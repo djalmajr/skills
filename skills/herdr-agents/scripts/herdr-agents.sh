@@ -1670,14 +1670,15 @@ cmd_clean() {
 
 cmd_run() {
   local role="${1:?role}" brief="${2:?brief.md}"; shift 2
-  local spawn_args=() dispatch_args=()
+  local spawn_args=() dispatch_args=() no_wait=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --) shift; spawn_args+=(-- "$@"); break ;;
       --name|--kind|--direction|--ratio|--cwd|--pane|--effort|--model|--approvals|--tab-label) spawn_args+=("$1" "$2"); shift 2 ;;
       --reuse|--fresh) spawn_args+=("$1"); shift ;;
       --timeout) dispatch_args+=("$1" "$2"); shift 2 ;;
-      --allow-same-family|--no-wait) dispatch_args+=("$1"); shift ;;
+      --allow-same-family) dispatch_args+=("$1"); shift ;;
+      --no-wait) no_wait=1; dispatch_args+=("$1"); shift ;;
       *) die "run: unknown option $1" 2 ;;
     esac
   done
@@ -1686,7 +1687,7 @@ cmd_run() {
   name="$(printf '%s' "$spawned" | jq -r .name)"
   printf '%s\n' "$spawned"
   cmd_dispatch "$name" "$brief" "${dispatch_args[@]+"${dispatch_args[@]}"}" || true
-  cmd_collect "$name" || true
+  [ "$no_wait" = 1 ] || cmd_collect "$name" || true
 }
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; }
