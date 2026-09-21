@@ -158,6 +158,18 @@ you should do. Read this before changing the script or adding a kind.
   cwd, started. `reuse_workers` once compared the family with the cwd.
   Read columns by name in comments when adding code.
 
+## `regrid` produced a full-width bottom row instead of a grid
+
+- **Cause:** filling column 0 (down splits) before creating the other column
+  heads; the later right split only divided the top-left pane.
+- **Facts about `herdr pane move` (measured):** pane ids are preserved inside
+  a workspace; `--split down --target-pane X` splits only X; `--ratio` is the
+  share kept by the target; the source tab closes itself when its last pane
+  leaves (`closed_tab_id`). Never close the old tab by hand: a pane that
+  failed to move would die with it.
+- **Now:** two passes — all column heads with right splits (ratio
+  1/remaining columns), then each column's rows with down splits.
+
 ## Validating a new or updated kind
 
 1. `herdr agent` must list the kind; the executable must be in `PATH`

@@ -4,9 +4,17 @@
 # Environment variables HERDR_AGENTS_<KEY> win over both; command flags win over all.
 # Format: key=value, one per line, `#` comments. Dots in keys are allowed (args.codex=…).
 
+# Name given to the caller's own agent (the orchestrator) by `init`/`spawn`, so
+# rosters and the Herdr sidebar show who leads. Suffixed -2, -3 when taken.
+orchestrator_name=orchestrator
+
 # Where workers live: `split` = grid-placed panes in the caller's tab (target
 # columns = ceil(sqrt(pane count))); `tab` = one dedicated tab labelled `herd`.
 layout=split
+
+# With layout=tab, rebuild the herd tab as an exact grid after every spawn and
+# release (`regrid`): on | off.
+regrid=on
 
 # Reuse an idle worker of the same role, kind and cwd whose last report is
 # already written instead of opening a new pane: on | off. `spawn --reuse` /

@@ -47,13 +47,15 @@ roles/<role>.md  ──▶  spawn (pane split + agent start)  ──▶  dispatc
   at spawn time (one agent), a project override in
   `.agents/herdr-roles/<role>.md` (one repo), or by editing the skill's file
   (everywhere).
-- **Names:** spawned agents are named after the role (`reviewer`,
-  `reviewer-2`, …) unless you pass `--name`.
+- **Names:** `init` renames the caller to `orchestrator`; spawned agents
+  are named after the role (`reviewer`, `reviewer-2`, …) unless you pass
+  `--name`; a nested one is `sub-orchestrator`.
 
 ## Commands
 
 ```bash
 S=~/.agents/skills/herdr-agents/scripts/herdr-agents.sh
+$S init                              # you become `orchestrator`
 $S roles
 $S spawn implementer                 # sibling pane, same cwd, focus stays with you
 $S dispatch implementer brief.md     # waits for idle/done/blocked

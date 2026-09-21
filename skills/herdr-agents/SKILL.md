@@ -47,13 +47,25 @@ to a file.
 ## Preconditions
 
 ```bash
-test "${HERDR_ENV:-}" = 1 && command -v herdr jq >/dev/null
+test "${HERDR_ENV:-}" = 1 && command -v herdr jq >/dev/null && $S init
 ```
 
 If the check fails, say you are not inside Herdr (or `jq` is missing) and
 stop. Never control a Herdr session from outside Herdr. The `herdr` skill
 (`herdr --skill`) is the authority for CLI syntax; this skill adds the role
 layer on top of it and never replaces it.
+
+## Names: who is who in the roster
+
+Run `$S init` first. It renames the caller's own agent to `orchestrator`
+(config `orchestrator_name`; `orchestrator-2` when taken) so the Herdr
+sidebar and `roster` show who leads, and prints the context (pane, tab,
+workspace, layout, state dir). `spawn` does the same rename lazily.
+
+Workers are named after their role: `scout`, `implementer`, `reviewer`…;
+a second worker of the same role becomes `implementer-2`. Pass `--name` for
+something more telling (`impl-auth`, `rev-ui`). A nested orchestrator uses
+the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 
 ## Roles
 
@@ -67,6 +79,7 @@ layer on top of it and never replaces it.
 | `reviewer` | claude | high | read-only | Patch-anchored correctness findings before push |
 | `security-reviewer` | claude | high | read-only | Evidence-backed vulnerability findings |
 | `qa-visual` | claude | medium | read-only | Screenshots in both themes, UX findings, no fixes |
+| `sub-orchestrator` | claude | medium | read-only | Runs this skill from another pane; never codex sandboxed (socket blocked) |
 
 Definitions live in [roles/](roles/). Resolution order: project
 `.agents/herdr-roles/<role>.md` → this skill's `roles/<role>.md`. `--kind`
@@ -155,7 +168,7 @@ keys it sets:
 5. command-line flags
 
 `$S config` prints every effective value with its source. Keys:
-`layout` (`split` grid in the caller's tab, or `tab` for a dedicated `herd`
+`orchestrator_name`, `regrid`, `layout` (`split` grid in the caller's tab, or `tab` for a dedicated `herd`
 tab), `brief_lint` (`warn|strict|off`), `reuse_workers`
 (`on`: `spawn` returns an idle worker of the same role, kind and cwd whose
 last report exists instead of opening a pane; `--reuse`/`--fresh` override
@@ -176,6 +189,7 @@ All mechanics go through `scripts/herdr-agents.sh` (needs `bash`, `jq`):
 
 ```bash
 S=<path-to-this-skill>/scripts/herdr-agents.sh
+$S init                                    # name yourself `orchestrator`, print context
 $S roles                                   # available roles and their sources
 $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
@@ -184,6 +198,7 @@ $S collect impl                             # prints the report file (or recent 
 $S run scout <brief.md>                    # spawn + dispatch + collect in one call
 $S wait a b [--any] [--timeout MS]         # block on report files
 $S friction                                # errors/warnings of this workspace (review at end)
+$S regrid                                  # layout=tab: rebuild the herd tab as an exact grid
 $S status a b                              # non-blocking completion check
 $S config                                  # effective configuration and sources
 $S roster                                  # live agents with role/kind/pane/state/report
@@ -210,8 +225,12 @@ to this check; choose the reviewer kind by hand then.
 = ⌈√(panes + 1)⌉; while there are fewer columns than that it splits the
 widest pane to the right, otherwise it splits down the tallest pane of the
 column with the fewest panes (three workers → 2×2, five → 3×2;
-`--direction` overrides). Panes already open are not moved. There is no
-cap on workers: open as many as the work needs. `spawn` retries for a few
+`--direction` overrides). In `layout=split` panes already open are not
+moved (the caller's own pane cannot be moved safely). In `layout=tab` the
+herd tab is rebuilt as an **exact grid** after every spawn and release
+(`regrid`, config `regrid=on`): workers are moved into a fresh tab with
+computed split ratios, columns = ⌈√n⌉, rows balanced. There is no cap on
+workers: open as many as the work needs. `spawn` retries for a few
 seconds while the new shell reaches its prompt, starts the agent with
 `--no-focus`, and gives focus back to the caller. `--ratio` is passed through to `herdr pane split` unchanged.
 Anything after `--` goes to the agent CLI (`herdr agent start … -- <args>`).

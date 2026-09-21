@@ -8,7 +8,9 @@
 # commits, pushes, or closes panes it did not create.
 #
 # Usage:
+#   herdr-agents.sh init                          # name the caller `orchestrator`, print context
 #   herdr-agents.sh roles | kinds | config
+#   herdr-agents.sh regrid                        # rebuild the herd tab as an exact grid (layout=tab)
 #   herdr-agents.sh role <name>
 #   herdr-agents.sh spawn <role> [--name N] [--kind K] [--direction right|down]
 #                          [--ratio F] [--cwd DIR] [--pane ID] [--timeout MS]
@@ -109,7 +111,7 @@ cfg_source() {
 cmd_config() {
   printf '%-18s %-30s %s\n' KEY VALUE SOURCE
   local k
-  for k in layout reuse_workers brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
+  for k in orchestrator_name layout regrid reuse_workers brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
   for k in $(compgen -v | grep -E '^CFG_(args|role)_' | sed 's/^CFG_//'); do
@@ -312,6 +314,31 @@ live_worker_count() {
   printf '%s\n' "$n"
 }
 
+# ---------- orchestrator identity ----------
+
+caller_agent_name() { herdr agent get "${HERDR_PANE_ID:-}" 2>/dev/null | jq -r '.result.agent.name // empty' 2>/dev/null || true; }
+
+# ensure_orchestrator_name: the caller's own agent is named after
+# `orchestrator_name` (default `orchestrator`) so rosters and sidebars show who
+# leads. Idempotent; silent when the caller pane hosts no recognized agent.
+ensure_orchestrator_name() {
+  [ -n "${HERDR_PANE_ID:-}" ] || return 0
+  local want cur n; want="$(cfg orchestrator_name orchestrator)"
+  herdr agent get "$HERDR_PANE_ID" >/dev/null 2>&1 || return 0
+  cur="$(caller_agent_name)"
+  case "$cur" in "$want"|"$want"-*) printf '%s\n' "$cur"; return 0 ;; esac
+  n="$(unique_name "$want")"
+  herdr agent rename "$HERDR_PANE_ID" "$n" >/dev/null 2>&1 || { warn "could not rename the caller agent to '$n'"; return 0; }
+  printf '%s\n' "$n"
+}
+
+cmd_init() {
+  local n; n="$(ensure_orchestrator_name)"
+  jq -n --arg name "${n:-}" --arg pane "${HERDR_PANE_ID:-}" --arg tab "${HERDR_TAB_ID:-}" --arg ws "$(workspace_id)" \
+    --arg layout "$(cfg layout split)" --arg state "$(state_dir)" \
+    '{orchestrator:$name,pane_id:$pane,tab_id:$tab,workspace_id:$ws,layout:$layout,state_dir:$state}'
+}
+
 # ---------- layout ----------
 
 auto_direction_for() { # <pane-id or empty for current>
@@ -377,6 +404,77 @@ herd_tab_pane() {
   printf '%s\t1\n' "$(printf '%s' "$split" | jq -r '.result.pane.pane_id')"
 }
 
+# ---------- regrid (herd tab) ----------
+
+# move_pane <pane> <tab> <split> <target> <ratio> → prints the pane's id after the move
+move_pane() {
+  local out; out="$(herdr pane move "$1" --tab "$2" --split "$3" --target-pane "$4" --ratio "$5" --no-focus)" || return 1
+  printf '%s' "$out" | jq -r '.result.move_result.pane.pane_id // .result.pane.pane_id // empty'
+}
+roster_replace_pane() { # <old> <new>
+  [ "$1" = "$2" ] || [ -z "$2" ] && return 0
+  local f; f="$(state_dir)/agents.tsv"
+  awk -F'\t' -v OFS='\t' -v o="$1" -v n="$2" '$2==o {$2=n} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+}
+
+# cmd_regrid: rebuild the herd tab as an exact grid (cols = ceil(sqrt(n)),
+# balanced rows) by moving every worker into a fresh tab with computed split
+# ratios. Two passes: column heads first (right splits, so every column spans
+# the full height), then the rows of each column (down splits). Pane ids are
+# preserved by `pane move` inside a workspace; the old tab closes itself once
+# its last pane leaves. Only for layout=tab: the caller's own pane cannot be
+# moved safely, so split layout keeps the insertion heuristic.
+cmd_regrid() {
+  [ "$(cfg layout split)" = tab ] || { printf 'regrid applies to layout=tab only (split layout uses grid-oriented insertion)\n'; return 0; }
+  local sd ws root panes=() name pane n cols c j m extra base idx tabinfo newtab rootpane ratio newid
+  sd="$(state_dir)"; ws="$(workspace_id)"; root="$(project_root)"
+  while IFS=$'\t' read -r name pane _rest; do
+    [ -n "$name" ] || continue
+    herdr agent get "$name" >/dev/null 2>&1 && panes+=("$name:$pane")
+  done < <(roster_rows)
+  n="${#panes[@]}"
+  [ "$n" -ge 2 ] || return 0
+  cols=1; while [ $((cols*cols)) -lt "$n" ]; do cols=$((cols+1)); done
+  base=$((n / cols)); extra=$((n % cols))
+  tabinfo="$(herdr tab create --workspace "$ws" --cwd "$root" --label herd --no-focus)" || die "tab create failed" 4
+  newtab="$(printf '%s' "$tabinfo" | jq -r '.result.tab.tab_id')"; rootpane="$(printf '%s' "$tabinfo" | jq -r '.result.root_pane.pane_id')"
+  # column sizes and head indexes
+  local sizes=() heads=() ncols=0; idx=0
+  for c in $(seq 0 $((cols-1))); do
+    m=$base; [ "$c" -lt "$extra" ] && m=$((m+1))
+    [ "$m" -gt 0 ] || continue
+    sizes+=("$m"); heads+=("$idx"); idx=$((idx+m)); ncols=$((ncols+1))
+  done
+  # pass 1: column heads, left to right, each taking 1/(remaining columns) of the previous head
+  local prev=""
+  for c in $(seq 0 $((ncols-1))); do
+    idx="${heads[$c]}"; pane="${panes[$idx]#*:}"; name="${panes[$idx]%%:*}"
+    if [ "$c" = 0 ]; then
+      newid="$(move_pane "$pane" "$newtab" right "$rootpane" 0.5)" || die "regrid: move of $name failed" 4
+      herdr pane close "$rootpane" >/dev/null 2>&1 || true
+    else
+      ratio="$(awk -v k=$((ncols-c+1)) 'BEGIN{printf "%.4f", 1/k}')"
+      newid="$(move_pane "$pane" "$newtab" right "$prev" "$ratio")" || die "regrid: move of $name failed" 4
+    fi
+    [ -n "$newid" ] && [ "$newid" != "$pane" ] && { roster_replace_pane "$pane" "$newid"; panes[$idx]="$name:$newid"; pane="$newid"; }
+    prev="$pane"
+  done
+  # pass 2: rows inside each column, top to bottom
+  for c in $(seq 0 $((ncols-1))); do
+    m="${sizes[$c]}"; idx="${heads[$c]}"; prev="${panes[$idx]#*:}"
+    for j in $(seq 1 $((m-1))); do
+      idx=$((idx+1)); pane="${panes[$idx]#*:}"; name="${panes[$idx]%%:*}"
+      ratio="$(awk -v k=$((m-j+1)) 'BEGIN{printf "%.4f", 1/k}')"
+      newid="$(move_pane "$pane" "$newtab" down "$prev" "$ratio")" || die "regrid: move of $name failed" 4
+      [ -n "$newid" ] && [ "$newid" != "$pane" ] && { roster_replace_pane "$pane" "$newid"; panes[$idx]="$name:$newid"; pane="$newid"; }
+      prev="$pane"
+    done
+  done
+  printf '%s\n' "$newtab" > "$sd/herd-tab"
+  [ -n "${HERDR_TAB_ID:-}" ] && herdr tab focus "$HERDR_TAB_ID" >/dev/null 2>&1 || true
+  jq -n --arg tab "$newtab" --argjson n "$n" --argjson cols "$ncols" '{herd_tab:$tab,panes:$n,cols:$cols,rows:(($n + $cols - 1) / $cols | floor)}'
+}
+
 # ---------- spawn ----------
 
 # find_reusable <role> <kind> <cwd> [name] → name of a live, idle worker of the
@@ -418,11 +516,15 @@ cmd_spawn() {
       *) die "spawn: unknown option $1" 2 ;;
     esac
   done
+  ensure_orchestrator_name >/dev/null
   local f role_key; f="$(resolve_role "$role")"; role_key="$(printf '%s' "$role" | tr '-' '_')"
   [ -n "$kind" ] || kind="$(cfg "role_${role_key}_kind")"
   [ -n "$kind" ] || kind="$(fm_get "$f" kind)"
   [ -n "$kind" ] || die "role $role has no default kind; pass --kind" 3
   command -v "$(kind_exe "$kind")" >/dev/null || warn "executable '$(kind_exe "$kind")' not found in PATH; herdr agent start may fail"
+  if [ "$role" = sub-orchestrator ] && [ "$kind" = codex ]; then
+    case "$(cfg args_codex)" in *danger-full-access*) ;; *) warn "sub-orchestrator on codex: its sandbox blocks the Herdr socket (every 'herdr' call fails with Operation not permitted). Use --kind claude, or set args.codex=-s danger-full-access if you accept that." ;; esac
+  fi
   [ -n "$effort" ] || effort="$(fm_get "$f" effort)"
   [ -n "$model" ] || model="$(fm_get "$f" model)"
   [ -n "$approvals" ] || approvals="$(fm_get "$f" approvals)"
@@ -498,6 +600,7 @@ cmd_spawn() {
     --arg args "${agent_args[*]+"${agent_args[*]}"}" --arg status "$([ "$blocked" = 1 ] && echo blocked_at_startup || echo ready)" \
     --arg effort "${effort:-default}" --arg model "${model:-default}" --arg approvals "${approvals:-ask}" --arg layout "$layout" \
     '{name:$name,pane_id:$pane,kind:$kind,role:$role,family:$family,created_pane:($created==1),layout:$layout,effort:$effort,model:$model,approvals:$approvals,agent_args:$args,status:$status}'
+  if [ "$(cfg layout split)" = tab ] && [ "$(cfg regrid on)" = on ] && [ "$created" = 1 ]; then cmd_regrid >/dev/null 2>&1 || warn "regrid after spawn failed; panes left as inserted"; fi
   if [ "$blocked" = 1 ]; then
     warn "agent '$name' is blocked during startup (update prompt, login, trust dialog…). Screen follows; ask the user before answering it, then: herdr agent send-keys $name <keys>; herdr agent wait $name --timeout 60000"
     herdr agent read "$name" --source visible --lines 40 2>/dev/null || true
@@ -781,6 +884,7 @@ cmd_release() {
   fi
   roster_remove "$agent"
   rm -f "$(state_dir)/last-report-$agent" "$(state_dir)/wait/$agent".*
+  if [ "$close" = 1 ] && [ "$(cfg layout split)" = tab ] && [ "$(cfg regrid on)" = on ]; then cmd_regrid >/dev/null 2>&1 || true; fi
   if git -C "$cwd" worktree list 2>/dev/null | grep -q '/\.worktrees/'; then
     printf 'leftover worktrees (not removed):\n'; git -C "$cwd" worktree list | grep '/\.worktrees/'
   fi
@@ -841,13 +945,15 @@ main() {
   CURRENT_CMD="$cmd"
   load_config
   case "$cmd" in
-    spawn|dispatch|wait|status|collect|run|roster|release|clean|friction)
+    spawn|dispatch|wait|status|collect|run|roster|release|clean|friction|init|regrid)
       if [ "${HERDR_ENV:-}" = 1 ] && command -v herdr >/dev/null && command -v jq >/dev/null; then FRICTION_LOG="$(state_dir)/friction.log"; fi ;;
   esac
   case "$cmd" in
     roles) cmd_roles ;;
     kinds) cmd_kinds ;;
     env) cmd_env ;;
+    init) require_env; cmd_init ;;
+    regrid) require_env; cmd_regrid ;;
     config) cmd_config ;;
     role) cmd_role "$@" ;;
     spawn) require_env; cmd_spawn "$@" ;;
