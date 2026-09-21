@@ -33,7 +33,7 @@ roles/<role>.md  ──▶  spawn (pane split + agent start)  ──▶  dispatc
   project overrides any role by dropping `.agents/herdr-roles/<role>.md`.
 - **Kinds** are Herdr agent kinds (`codex`, `claude`, `grok`, `agy`, …). The
   defaults follow the role matrix: research on `grok`, implementation on
-  `codex`, visual QA on `agy`, mechanical work on `grok`, review on `claude`.
+  `codex`, design and visual QA on `agy`, mechanical work on `grok`, review on `claude`.
 - **Briefs** follow `templates/brief.md`: goal, owned files, forbidden files,
   local sources, applicable rules, allowed checks, report format. Workers
   never commit or push.
@@ -111,7 +111,7 @@ notify=on
 ## Models and harness choice
 
 Demanding work (code, UI, reviews, security, nested orchestration) goes to
-`claude` or `codex`; research goes to `grok`; visual QA goes to `agy`;
+`claude` or `codex`; research goes to `grok`; design and visual QA go to `agy`;
 `cursor` takes mechanical edits and cheap second passes. Models are configured per kind and position
 (`model.claude.orchestrator=fable`, `model.claude.worker=opus`,
 `model.codex.worker=gpt-5`, `model.cursor.worker=grok|muse`,

@@ -82,7 +82,7 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 | `scouter` | grok | high | read-only | Map code, find paths, compressed findings for handoff |
 | `researcher` | grok | high | read-only | Source-verified answers about external libraries/APIs |
 | `planner` | claude | high | read-only | Decision-ready plan for a large or unfamiliar objective: options, one recommendation, slices, risks, questions; the orchestrator still decides |
-| `designer` | codex | high | edit | UI work under the project design system (tokens, states, a11y) |
+| `designer` | agy | high | edit | UI work under the project design system (tokens, states, a11y) |
 | `implementer` | codex | high | edit | Production code for one slice with per-item report |
 | `tasker` | grok | low | edit | Mechanical edits in volume with an exact contract |
 | `reviewer` | claude | high | read-only | Patch-anchored correctness findings before push |
@@ -94,8 +94,8 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 design contract, reviews, security, nested orchestration) goes to `claude`
 or `codex`. **Research goes to `grok`** (`scouter`, `researcher`): it is
 particularly good at surveys and its plan has headroom, so it runs at
-`high`. **Visual work goes to `agy`** (`inspector`, and `designer` as first
-alternative): it reads screens well. `cursor` takes mechanical edits,
+`high`. **Visual work goes to `agy`** (`designer`, `inspector`): it reads screens
+well. `cursor` takes mechanical edits,
 second passes and cheap verification. The role defaults encode this; keep
 it when overriding.
 
