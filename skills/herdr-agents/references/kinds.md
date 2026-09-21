@@ -35,11 +35,12 @@ herdr integration install claude
 herdr integration install codex
 # grok and agy: screen detection only, no integration target needed
 
-# The official `herdr` skill: take it from the installed binary, not from
-# `npx skills add ogulcancelik/herdr` (that copies the whole repo and goes
-# stale). Re-run after every `herdr update`.
-mkdir -p ~/.agents/skills/herdr && herdr --skill > ~/.agents/skills/herdr/SKILL.md
-ln -sfn ../../.agents/skills/herdr ~/.claude/skills/herdr
+# The official `herdr` skill lives at skills/herdr in herdrdev/herdr and is
+# the same text the binary prints with `herdr --skill`. Install it globally
+# and update it together with Herdr:
+bunx skills add herdrdev/herdr --skill herdr -g -y
+bunx skills update herdr -g          # after `herdr update`
+# Offline fallback: herdr --skill > ~/.agents/skills/herdr/SKILL.md
 ```
 
 `omp` is a separate multi-model harness with its own role system
