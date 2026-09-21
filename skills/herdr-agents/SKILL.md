@@ -364,7 +364,11 @@ you can write the brief — is done by the orchestrator directly. Rule of
 thumb: if writing the brief takes longer than making the change, make the
 change. Delegate multi-file slices, UI under a design contract, anything
 touching auth, secrets or input handling, work that parallelizes, and any
-change that needs a reviewer. Product code you write yourself still gets a
+change that needs a reviewer. Research is delegated too: reading more
+than a handful of files, another repository, or several tools' conventions
+to inform a decision is `scout` work; the orchestrator asks for a report
+with a recommendation and decides on it, instead of doing the survey
+itself and burning its own context. Product code you write yourself still gets a
 `reviewer` from another model family before push; the family check cannot
 see your own edits, so pick that reviewer's kind by hand.
 
