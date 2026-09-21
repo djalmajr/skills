@@ -521,9 +521,11 @@ owns git. Load the skill (\`/herdr-agents\`) before planning such work.
   including code the orchestrator wrote itself (pick that kind by hand).
 - The only completion signal is the worker's report file (\`dispatch\`,
   \`wait\`, \`status\`); never poll agent state by hand.
-- Demanding work goes to \`claude\`/\`codex\`; research (\`scouter\`, \`researcher\`)
-  goes to \`grok\`; visual work (\`designer\`, \`inspector\`) goes to \`agy\`; \`cursor\` takes
-  mechanical edits and second passes.
+- Heavy work (implementation, mechanical edits, research) goes to \`grok\`
+  first, then \`cursor\` (grok models), then \`codex\`, then \`claude\`; review,
+  security, planning and orchestration stay on \`codex\`/\`claude\` (a reviewer
+  is always another model family than the implementer); visual work
+  (\`designer\`, \`inspector\`) goes to \`agy\`.
 - Project roles override the skill's in \`.agents/herdr-roles/<role>.md\`;
   project config in \`.agents/herdr-agents.conf\`; scratch state in
   \`.herdr-agents/\` (git-ignored).
