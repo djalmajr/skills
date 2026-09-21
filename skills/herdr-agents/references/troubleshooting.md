@@ -205,9 +205,3 @@ temp file, the rewrite aborts on awk failure, and the result must be
 non-empty and contain the end marker before it replaces the target.
 **Rule for the script:** never `mv` a generated file over user content
 without checking that generation succeeded and produced what you expect.
-
-## Roles renamed to agent nouns (2026-09-21)
-
-`mechanic` → `tasker`, `scout` → `scouter`, `qa-visual` → `inspector`,
-`librarian` → `researcher`. No aliases: an old name fails with `unknown
-role` (exit 3), and `roles` lists the current ones.
