@@ -105,6 +105,19 @@ reuse_workers=on
 notify=on
 ```
 
+## Models and harness choice
+
+Demanding work (code, UI, reviews, security, nested orchestration) goes to
+`claude` or `codex`; `cursor`, `grok` and `agy` take mapping, mechanical
+edits and cheap second passes. Models are configured per kind and position
+(`model.claude.orchestrator=fable`, `model.claude.worker=opus`,
+`model.codex.worker=gpt-5`, `model.cursor.worker=grok|muse`,
+`model.agy.worker=gemini|opus`) as aliases or regexes that resolve to the
+newest matching id the CLI lists, so new releases are picked up without
+edits. Projects override any of it, per kind or per role
+(`role.reviewer.model=…`, `role.reviewer.effort=…`, `role.reviewer.kind=…`),
+in `.agents/herdr-agents.conf`.
+
 ## Approvals without a human
 
 `--approvals full` maps to each CLI's non-interactive flags. When a dialog

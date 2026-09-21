@@ -81,6 +81,12 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 | `qa-visual` | claude | medium | read-only | Screenshots in both themes, UX findings, no fixes |
 | `sub-orchestrator` | claude | medium | read-only | Runs this skill from another pane; never codex sandboxed (socket blocked) |
 
+**Which kind for which work.** Demanding work (production code, UI under a
+design contract, reviews, security, nested orchestration) goes to `claude`
+or `codex`. `cursor`, `grok` and `agy` take the simpler jobs: mapping code,
+mechanical edits, second passes, cheap verification. The role defaults
+encode this; keep it when overriding.
+
 Definitions live in [roles/](roles/). Resolution order: project
 `.agents/herdr-roles/<role>.md` → this skill's `roles/<role>.md`. `--kind`
 at spawn time overrides the frontmatter default. Kinds map to model
@@ -92,9 +98,33 @@ itself: in that case pick a reviewer kind from another family by hand.
 
 ## Effort, model, approvals
 
-Role frontmatter and `spawn` flags share three knobs. Flags win over the
-role; a project override (`.agents/herdr-roles/<role>.md`) wins over the
-skill's role file.
+Role frontmatter, config and `spawn` flags share three knobs. Precedence,
+highest first: flag → config `role.<role>.<knob>` → role frontmatter →
+config `model.<kind>.<position>` → config `model.<kind>` → the CLI's own
+default. A project overrides any of it in `.agents/herdr-agents.conf`
+without copying role files.
+
+**Models track the latest release.** A model value is an exact id, a CLI
+alias (Claude: `fable`, `opus`, `sonnet` already mean "latest"), or a
+regex over the ids the CLI lists (`cursor-agent --list-models`,
+`agy models`, `grok models`, the Codex model cache); `a|b` tries
+alternatives in order. A regex resolves to the **newest** matching model
+at spawn time, so `opus` keeps meaning the newest Opus. Position is
+`orchestrator` for the `sub-orchestrator` role and `worker` for everything
+else. Shipped defaults:
+
+```ini
+model.claude.orchestrator=fable     model.claude.worker=opus
+model.codex.orchestrator=astra      model.codex.worker=gpt-5
+model.cursor.worker=grok|muse       model.agy.worker=gemini|opus
+model.grok.worker=grok
+```
+
+The top-level orchestrator is not spawned by the skill; launch it yourself
+with the same intent (`claude --model fable`, `codex -m gpt-6-astra`).
+`$S model <kind> <spec> [effort]` shows how a value resolves; `$S models
+<kind>` lists the ids newest first. For Codex the effort ceiling comes from
+the chosen model's advertised reasoning levels, not from the kind.
 
 - **`effort`** is one normalized ladder, `low < medium < high < xhigh < max`,
   translated to each CLI's own flag and **clamped** to what the kind

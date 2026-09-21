@@ -82,3 +82,18 @@ notify=off
 # in `feedback_repo` with the scenario (templates/issue.md): on | ask | off.
 feedback=ask
 feedback_repo=djalmajr/skills
+
+# Models. `model.<kind>.orchestrator` applies to the sub-orchestrator role,
+# `model.<kind>.worker` to every other role, `model.<kind>` to both. A value is
+# an exact id, a CLI alias (claude: fable|opus|sonnet = latest), or a regex over
+# the ids the CLI lists; `a|b` tries alternatives in order. Regexes resolve to
+# the NEWEST matching model at spawn time, so these defaults track new
+# releases without edits. Per role: role.<role>.model / role.<role>.effort /
+# role.<role>.kind. Check with: herdr-agents.sh model <kind> <spec> [effort].
+model.claude.orchestrator=fable
+model.claude.worker=opus
+model.codex.orchestrator=astra
+model.codex.worker=sol|gpt-5
+model.cursor.worker=grok|muse
+model.agy.worker=gemini|opus
+model.grok.worker=grok

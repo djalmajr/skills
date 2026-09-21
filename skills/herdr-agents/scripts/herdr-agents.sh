@@ -10,6 +10,8 @@
 # Usage:
 #   herdr-agents.sh init                          # name the caller `orchestrator`, print context
 #   herdr-agents.sh roles | kinds | config
+#   herdr-agents.sh models <kind>                 # ids the CLI lists, newest first
+#   herdr-agents.sh model <kind> <spec> [effort]  # how a model spec resolves
 #   herdr-agents.sh regrid                        # rebuild the herd tab as an exact grid (layout=tab)
 #   herdr-agents.sh role <name>
 #   herdr-agents.sh spawn <role> [--name N] [--kind K] [--direction right|down]
@@ -114,7 +116,7 @@ cmd_config() {
   for k in orchestrator_name layout regrid reuse_workers brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
-  for k in $(compgen -v | grep -E '^CFG_(args|role)_' | sed 's/^CFG_//'); do
+  for k in $(compgen -v | grep -E '^CFG_(args|role|model)_' | sed 's/^CFG_//'); do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
   printf '\nlayers read:%s\n' "${CFG_SOURCES:- (none)}"
@@ -229,7 +231,7 @@ kind_effort_args() {
     claude) printf -- '--effort\n%s\n' "$effort" ;;
     codex) printf -- '-c\nmodel_reasoning_effort="%s"\n' "$effort" ;;
     grok) printf -- '--reasoning-effort\n%s\n' "$effort" ;;
-    agy|gemini) printf -- '--effort\n%s\n' "$effort" ;;
+    agy|gemini) case "$model" in *-low|*-medium|*-high|*-xhigh|*-max|*-minimal) ;; *) printf -- '--effort\n%s\n' "$effort" ;; esac ;;
     cursor)
       if [ -n "$model" ]; then printf -- '--model\n%s\n' "$(cursor_model_with_effort "$model" "$effort")"
       else warn "cursor ignores --effort without --model (pick an id from: cursor-agent --list-models)"; fi ;;
@@ -246,6 +248,86 @@ kind_model_args() {
     cursor) [ -n "$effort" ] && return 0; printf -- '--model\n%s\n' "$model" ;;
     *) warn "no model mapping for kind '$kind'; model ignored" ;;
   esac
+}
+
+# ---------- model resolution ----------
+# A model spec is an exact id, a CLI alias, or a case-insensitive regex over
+# the ids the CLI lists; `a|b` tries alternatives in order. Regex specs
+# resolve to the NEWEST matching model (version numbers compared field by
+# field), so "opus" or "gemini" always mean the latest one installed.
+
+EFFORT_SUFFIX_RE='-(minimal|low|medium|high|xhigh|max)(-fast)?$'
+
+models_cache_file() { printf '%s/herdr-agents-models-%s.txt\n' "${TMPDIR:-/tmp}" "$1"; }
+
+# model_ids <kind> → one id per line (cached for 1h); empty for kinds without a list
+model_ids() {
+  local kind="$1" f; f="$(models_cache_file "$kind")"
+  if [ -s "$f" ] && [ -n "$(find "$f" -mmin -60 2>/dev/null)" ]; then cat "$f"; return; fi
+  local out=""
+  case "$kind" in
+    codex) out="$(jq -r '.models[]?.slug // empty' "$HOME/.codex/models_cache.json" 2>/dev/null || true)" ;;
+    cursor) out="$(timeout 20 cursor-agent --list-models 2>/dev/null | awk '/^[a-z0-9.-]+ - /{print $1}' || true)" ;;
+    agy) out="$(timeout 30 agy models 2>/dev/null | awk 'NF>=2 && $1 ~ /^[a-z0-9.-]+$/ {print $1}' || true)" ;;
+    grok) out="$(timeout 20 grok models 2>/dev/null | grep -oE 'grok-[0-9][0-9a-z.-]*' | sort -u || true)" ;;
+    *) out="" ;;
+  esac
+  [ -n "$out" ] && printf '%s\n' "$out" > "$f"
+  printf '%s\n' "$out"
+}
+
+# version_sort_desc: stdin ids → newest first (numeric fields compared left to right)
+version_sort_desc() {
+  awk '{
+    id=$0; key=""; n=split(id, parts, /[^0-9]+/)
+    for (i=1;i<=n;i++) if (parts[i]!="") key=key sprintf("%06d.", parts[i])
+    print key "\t" id
+  }' | sort -t$'\t' -k1,1r -k2,2 | cut -f2
+}
+
+# resolve_model <kind> <spec> <effort> → id (spec unchanged when the kind has no list or nothing matches)
+resolve_model() {
+  local kind="$1" spec="$2" effort="$3" ids alt base cand
+  [ -n "$spec" ] || return 0
+  ids="$(model_ids "$kind")"
+  [ -n "$ids" ] || { printf '%s\n' "$spec"; return; }
+  local IFS_save="$IFS"; IFS='|'; set -- $spec; IFS="$IFS_save"
+  for alt in "$@"; do
+    alt="$(printf '%s' "$alt" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [ -n "$alt" ] || continue
+    if printf '%s\n' "$ids" | grep -qx "$alt"; then printf '%s\n' "$alt"; return; fi
+    case "$kind" in
+      cursor|agy)
+        base="$(printf '%s\n' "$ids" | sed -E "s/$EFFORT_SUFFIX_RE//" | sort -u | grep -iE -- "$alt" | grep -v -- '-fast$' | version_sort_desc | head -n1 || true)"
+        [ -n "$base" ] || continue
+        if [ -n "$effort" ] && printf '%s\n' "$ids" | grep -qx "$base-$effort"; then printf '%s-%s\n' "$base" "$effort"; return; fi
+        if printf '%s\n' "$ids" | grep -qx "$base"; then printf '%s\n' "$base"; return; fi
+        for cand in max xhigh high medium low minimal; do
+          [ -n "$effort" ] && [ "$(effort_rank "$cand")" -gt "$(effort_rank "$effort")" ] && continue
+          printf '%s\n' "$ids" | grep -qx "$base-$cand" && { printf '%s-%s\n' "$base" "$cand"; return; }
+        done
+        printf '%s\n' "$ids" | grep -E "^$base-" | head -n1; return ;;
+      *)
+        cand="$(printf '%s\n' "$ids" | grep -iE -- "$alt" | version_sort_desc | head -n1 || true)"
+        [ -n "$cand" ] && { printf '%s\n' "$cand"; return; } ;;
+    esac
+  done
+  warn "no $kind model matches '$spec'; passing it through unchanged"
+  printf '%s\n' "$spec"
+}
+
+# codex_model_ceiling <slug> → highest reasoning effort the cached model advertises
+codex_model_ceiling() {
+  jq -r --arg m "$1" '.models[]? | select(.slug==$m) | [.supported_reasoning_levels[]?.effort] | join(" ")' "$HOME/.codex/models_cache.json" 2>/dev/null \
+    | tr ' ' '\n' | awk '{r=0} $0=="low"{r=1} $0=="medium"{r=2} $0=="high"{r=3} $0=="xhigh"{r=4} $0=="max"{r=5} r>best{best=r;name=$0} END{print name}'
+}
+
+cmd_models() { local k="${1:?kind}"; model_ids "$k" | version_sort_desc; }
+cmd_model() {
+  local kind="${1:?kind}" spec="${2:?spec}" effort="${3:-}" r; r="$(resolve_model "$kind" "$spec" "$effort")"
+  jq -n --arg kind "$kind" --arg spec "$spec" --arg effort "$effort" --arg model "$r" \
+    --arg ceiling "$([ "$kind" = codex ] && codex_model_ceiling "$r" || kind_effort_ceiling "$kind")" \
+    '{kind:$kind,spec:$spec,effort:$effort,model:$model,effort_ceiling:$ceiling}'
 }
 
 # approvals: ask (agent default) | edits (auto-accept file edits) | full (no
@@ -525,8 +607,14 @@ cmd_spawn() {
   if [ "$role" = sub-orchestrator ] && [ "$kind" = codex ]; then
     case "$(cfg args_codex)" in *danger-full-access*) ;; *) warn "sub-orchestrator on codex: its sandbox blocks the Herdr socket (every 'herdr' call fails with Operation not permitted). Use --kind claude, or set args.codex=-s danger-full-access if you accept that." ;; esac
   fi
+  local position=worker; [ "$role" = sub-orchestrator ] && position=orchestrator
+  [ -n "$effort" ] || effort="$(cfg "role_${role_key}_effort")"
   [ -n "$effort" ] || effort="$(fm_get "$f" effort)"
-  [ -n "$model" ] || model="$(fm_get "$f" model)"
+  local model_spec="$model"
+  [ -n "$model_spec" ] || model_spec="$(cfg "role_${role_key}_model")"
+  [ -n "$model_spec" ] || model_spec="$(fm_get "$f" model)"
+  [ -n "$model_spec" ] || model_spec="$(cfg "model_${kind}_${position}")"
+  [ -n "$model_spec" ] || model_spec="$(cfg "model_${kind}")"
   [ -n "$approvals" ] || approvals="$(fm_get "$f" approvals)"
   [ -n "$approvals" ] || approvals="$(cfg approvals ask)"
   [ -n "$timeout" ] || timeout="$(cfg spawn_timeout 60000)"
@@ -534,6 +622,13 @@ cmd_spawn() {
     has_word "$EFFORT_LADDER" "$effort" || die "invalid effort '$effort' (low|medium|high|xhigh|max)" 2
     local clamped; clamped="$(clamp_to "$(clamp_to "$effort" "$(kind_effort_ceiling "$kind")")" "$(cfg max_effort)")"
     [ "$clamped" = "$effort" ] || { warn "effort '$effort' clamped to '$clamped' (kind ceiling $(kind_effort_ceiling "$kind"), max_effort $(cfg max_effort max))"; effort="$clamped"; }
+  fi
+  if [ -n "$model_spec" ]; then
+    model="$(resolve_model "$kind" "$model_spec" "$effort")"
+    if [ "$kind" = codex ] && [ -n "$effort" ]; then
+      local mc; mc="$(codex_model_ceiling "$model")"
+      if [ -n "$mc" ] && [ "$(effort_rank "$effort")" -gt "$(effort_rank "$mc")" ]; then warn "codex model $model supports up to '$mc'; effort '$effort' clamped"; effort="$mc"; fi
+    fi
   fi
 
   [ -n "$reuse" ] || reuse="$(cfg reuse_workers off)"
@@ -598,8 +693,8 @@ cmd_spawn() {
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$pane" "$kind" "$role" "$(kind_family "$kind")" "$created" "$cwd" "$(now)" >> "$(state_dir)/agents.tsv"
   jq -n --arg name "$name" --arg pane "$pane" --arg kind "$kind" --arg role "$role" --arg family "$(kind_family "$kind")" --argjson created "$created" \
     --arg args "${agent_args[*]+"${agent_args[*]}"}" --arg status "$([ "$blocked" = 1 ] && echo blocked_at_startup || echo ready)" \
-    --arg effort "${effort:-default}" --arg model "${model:-default}" --arg approvals "${approvals:-ask}" --arg layout "$layout" \
-    '{name:$name,pane_id:$pane,kind:$kind,role:$role,family:$family,created_pane:($created==1),layout:$layout,effort:$effort,model:$model,approvals:$approvals,agent_args:$args,status:$status}'
+    --arg effort "${effort:-default}" --arg model "${model:-default}" --arg model_spec "${model_spec:-}" --arg approvals "${approvals:-ask}" --arg layout "$layout" \
+    '{name:$name,pane_id:$pane,kind:$kind,role:$role,family:$family,created_pane:($created==1),layout:$layout,effort:$effort,model:$model,model_spec:$model_spec,approvals:$approvals,agent_args:$args,status:$status}'
   if [ "$(cfg layout split)" = tab ] && [ "$(cfg regrid on)" = on ] && [ "$created" = 1 ]; then cmd_regrid >/dev/null 2>&1 || warn "regrid after spawn failed; panes left as inserted"; fi
   if [ "$blocked" = 1 ]; then
     warn "agent '$name' is blocked during startup (update prompt, login, trust dialog…). Screen follows; ask the user before answering it, then: herdr agent send-keys $name <keys>; herdr agent wait $name --timeout 60000"
@@ -952,6 +1047,8 @@ main() {
     roles) cmd_roles ;;
     kinds) cmd_kinds ;;
     env) cmd_env ;;
+    models) cmd_models "$@" ;;
+    model) cmd_model "$@" ;;
     init) require_env; cmd_init ;;
     regrid) require_env; cmd_regrid ;;
     config) cmd_config ;;
