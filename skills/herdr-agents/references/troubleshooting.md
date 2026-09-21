@@ -206,3 +206,10 @@ non-empty and contain the end marker before it replaces the target.
 **Rule for the script:** never `mv` a generated file over user content
 without checking that generation succeeded and produced what you expect.
 
+## Role renamed: `mechanic` → `tasker` (2026-09-21)
+
+The bulk-edit role is `tasker`. `resolve_role` still accepts `mechanic`
+with a warning so old briefs and configs keep working; project overrides
+should live in `.agents/herdr-roles/tasker.md` and config keys use
+`role.tasker.*`.
+

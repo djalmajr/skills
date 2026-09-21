@@ -50,7 +50,7 @@
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EDIT_ROLES="implementer designer mechanic"
+EDIT_ROLES="implementer designer tasker"
 REVIEW_ROLES="reviewer security-reviewer"
 EFFORT_LADDER="low medium high xhigh max"
 
@@ -162,6 +162,8 @@ role_dirs() {
 
 resolve_role() {
   local role="$1" d
+  # Renamed roles: accept the old name once, with a warning.
+  case "$role" in mechanic) warn "role 'mechanic' was renamed to 'tasker'; use the new name"; role=tasker ;; esac
   while IFS= read -r d; do
     [ -f "$d/$role.md" ] && { printf '%s\n' "$d/$role.md"; return; }
   done < <(role_dirs)

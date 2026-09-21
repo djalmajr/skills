@@ -2,7 +2,7 @@
 name: herdr-agents
 description: >
   Run an omp-style team of role agents (scout, planner, designer, implementer,
-  mechanic, reviewer, security-reviewer, librarian, qa-visual) inside Herdr. The calling
+  tasker, reviewer, security-reviewer, librarian, qa-visual) inside Herdr. The calling
   agent stays the orchestrator: it spawns one CLI agent per role in sibling
   panes, dispatches self-contained briefs, collects file-based reports, and
   owns integration, gates, and git. Use when running inside Herdr
@@ -84,7 +84,7 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 | `planner` | claude | high | read-only | Decision-ready plan for a large or unfamiliar objective: options, one recommendation, slices, risks, questions; the orchestrator still decides |
 | `designer` | codex | high | edit | UI work under the project design system (tokens, states, a11y) |
 | `implementer` | codex | high | edit | Production code for one slice with per-item report |
-| `mechanic` | grok | low | edit | Mechanical edits in volume with an exact contract |
+| `tasker` | grok | low | edit | Mechanical edits in volume with an exact contract |
 | `reviewer` | claude | high | read-only | Patch-anchored correctness findings before push |
 | `security-reviewer` | claude | high | read-only | Evidence-backed vulnerability findings |
 | `qa-visual` | claude | medium | read-only | Screenshots in both themes, UX findings, no fixes |
@@ -260,7 +260,7 @@ name in `dispatch`, `collect`, and `release`; never pane IDs.
 
 **Reviewer family check.** `dispatch` of a `reviewer` or `security-reviewer`
 compares its model family with every live edit agent this skill spawned
-(`implementer`, `designer`, `mechanic`). Same family → exit 5 unless
+(`implementer`, `designer`, `tasker`). Same family → exit 5 unless
 `--allow-same-family`. Code written by the orchestrator itself is invisible
 to this check; choose the reviewer kind by hand then.
 
@@ -387,7 +387,7 @@ see your own edits, so pick that reviewer's kind by hand.
    probable slices, unknown code area, or a planning artifact requested) →
    `planner` first; its report feeds your decomposition and never replaces
    it. Research → `scout`/`librarian`. UI → `designer`. Code →
-   `implementer`. Bulk mechanical → `mechanic`. Every slice that changes
+   `implementer`. Bulk mechanical → `tasker`. Every slice that changes
    code gets a `reviewer` from another model family; auth/secrets/input
    handling also gets `security-reviewer`; visible UI also gets `qa-visual`.
 4. **Write one brief per slice** from [templates/brief.md](templates/brief.md):

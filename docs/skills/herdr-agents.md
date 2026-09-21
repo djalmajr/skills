@@ -1,7 +1,7 @@
 # herdr-agents
 
 Give the calling agent an **omp-style team**: one CLI agent per role
-(`scout`, `librarian`, `designer`, `implementer`, `mechanic`, `reviewer`,
+(`scout`, `librarian`, `designer`, `implementer`, `tasker`, `reviewer`,
 `security-reviewer`, `qa-visual`, `planner`) running in [Herdr](https://herdr.dev) panes.
 The caller stays the orchestrator: it decomposes, writes briefs, dispatches,
 collects file-based reports, integrates, runs the gates, and owns git.

@@ -1,5 +1,5 @@
 ---
-name: mechanic
+name: tasker
 description: Mechanical edits in volume with an exact contract — renames, moves, key insertions, import rewrites. No decisions.
 kind: grok
 alternatives: [agy, cursor]

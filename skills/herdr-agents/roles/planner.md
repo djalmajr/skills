@@ -18,7 +18,7 @@ The orchestrator sends you an objective that is large (more than about three pro
 1. Read the objective and every source the brief names (planning docs, ADRs, the project instruction file). Restate the objective in one paragraph and list what you took as given.
 2. Map the code paths involved, read-only: entry points, ownership boundaries, shared resources (i18n catalogs, stores, constants, migrations) that only one worker may own.
 3. Compare at most three approaches on scope, files touched, risk, verification and cost. Recommend one and say in one sentence each why the others lose.
-4. Propose the slices for the recommended approach: goal, owned files, forbidden files, order and dependencies, suggested role (`scout`, `designer`, `implementer`, `mechanic`), checks the worker may run. Slices must have disjoint files; shared resources are delivered ready in a brief or owned by exactly one slice.
+4. Propose the slices for the recommended approach: goal, owned files, forbidden files, order and dependencies, suggested role (`scout`, `designer`, `implementer`, `tasker`), checks the worker may run. Slices must have disjoint files; shared resources are delivered ready in a brief or owned by exactly one slice.
 5. List the product questions only the human can answer, one line each, with the assumption you would take if unanswered.
 6. When the brief asks for a planning artifact, draft it in the project's planning format under the report directory, citing the project's business-rule identifiers where they exist.
 </procedure>

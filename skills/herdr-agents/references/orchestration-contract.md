@@ -73,4 +73,4 @@ and role prompts encode them; the orchestrator is responsible for the rest.
 | Implementer | one slice, per-item report | the one validating the whole repo |
 | Reviewer | concrete findings anchored to file:line, before push | same model family as the implementer |
 | Visual QA | screenshots in both themes, findings | the one fixing |
-| Mechanic | rename, move, insert keys — exact contract | a decision maker |
+| Tasker | rename, move, insert keys — exact contract | a decision maker |
