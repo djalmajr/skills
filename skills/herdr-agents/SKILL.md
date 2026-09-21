@@ -57,10 +57,15 @@ layer on top of it and never replaces it.
 
 ## Names: who is who in the roster
 
-Run `$S init` first. It renames the caller's own agent to `orchestrator`
+Run `$S init` first. It runs `doctor` (advisory: inside Herdr, `jq`,
+Herdr client vs server version, the **official `herdr` skill present and
+identical to `herdr --skill`**, kinds in `PATH`, state dir writable,
+config sane), then renames the caller's own agent to `orchestrator`
 (config `orchestrator_name`; `orchestrator-2` when taken) so the Herdr
 sidebar and `roster` show who leads, and prints the context (pane, tab,
-workspace, layout, state dir). `spawn` does the same rename lazily.
+workspace, layout, state dir). Act on `warn` lines before spawning; a
+stale official skill means the CLI syntax you read may be wrong. `spawn`
+does the rename lazily.
 
 Workers are named after their role: `scout`, `implementer`, `reviewer`…;
 a second worker of the same role becomes `implementer-2`. Pass `--name` for
@@ -221,7 +226,8 @@ All mechanics go through `scripts/herdr-agents.sh` (needs `bash`, `jq`):
 
 ```bash
 S=<path-to-this-skill>/scripts/herdr-agents.sh
-$S init                                    # name yourself `orchestrator`, print context
+$S init                                    # doctor + name yourself `orchestrator`, print context
+$S doctor                                  # advisory environment check
 $S roles                                   # available roles and their sources
 $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]

@@ -8,7 +8,8 @@
 # commits, pushes, or closes panes it did not create.
 #
 # Usage:
-#   herdr-agents.sh init                          # name the caller `orchestrator`, print context
+#   herdr-agents.sh init                          # doctor + name the caller `orchestrator`, print context
+#   herdr-agents.sh doctor                        # advisory environment check (herdr, official skill, kinds, state)
 #   herdr-agents.sh roles | kinds | config
 #   herdr-agents.sh models <kind>                 # ids the CLI lists, newest first
 #   herdr-agents.sh model <kind> <spec> [effort]  # how a model spec resolves
@@ -426,7 +427,34 @@ ensure_orchestrator_name() {
   printf '%s\n' "$n"
 }
 
+# cmd_doctor: advisory environment check (never blocks). Run by `init`.
+cmd_doctor() {
+  local ok=0 warnv=0 f cli srv
+  say() { printf '%-6s %s\n' "$1" "$2"; [ "$1" = warn ] && warnv=$((warnv+1)) || ok=$((ok+1)); }
+  [ "${HERDR_ENV:-}" = 1 ] && say ok "inside Herdr (HERDR_ENV=1)" || say warn "HERDR_ENV != 1: not inside a Herdr pane"
+  command -v jq >/dev/null && say ok "jq $(jq --version 2>/dev/null)" || say warn "jq missing"
+  if command -v herdr >/dev/null; then
+    cli="$(herdr --version 2>/dev/null | awk '{print $2}')"
+    srv="$(herdr status server 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
+    if [ -n "$srv" ] && [ "$srv" != "$cli" ]; then say warn "herdr client $cli vs server $srv: restart the server (herdr update --handoff) so CLI and server agree"; else say ok "herdr $cli"; fi
+  else say warn "herdr CLI not in PATH"; fi
+  # official skill: present and identical to what the binary ships
+  f=""; for f in "$HOME/.agents/skills/herdr/SKILL.md" "$HOME/.claude/skills/herdr/SKILL.md"; do [ -f "$f" ] && break; f=""; done
+  if [ -z "$f" ]; then say warn "official herdr skill not installed: bunx skills add herdrdev/herdr --skill herdr -g -y"
+  elif command -v herdr >/dev/null && ! herdr --skill 2>/dev/null | diff -q - "$f" >/dev/null 2>&1; then say warn "official herdr skill at $f differs from 'herdr --skill' (stale after herdr update?): bunx skills update herdr -g"
+  else say ok "official herdr skill matches the binary ($f)"; fi
+  local k exe missing=""
+  for k in claude codex grok agy cursor; do exe="$(kind_exe "$k")"; command -v "$exe" >/dev/null || missing="$missing $k"; done
+  [ -z "$missing" ] && say ok "kinds installed: claude codex grok agy cursor" || say warn "kinds not in PATH:$missing (roles defaulting to them will fail to start)"
+  local d; d="$(state_root 2>/dev/null || true)"
+  if [ -n "$d" ]; then mkdir -p "$d" 2>/dev/null && [ -w "$d" ] && say ok "state dir writable: $d" || say warn "state dir not writable: $d"; fi
+  case "$(cfg layout split)" in split|tab) say ok "config: layout=$(cfg layout) approvals=$(cfg approvals) auto_approve=$(cfg auto_approve) reuse_workers=$(cfg reuse_workers) worker_context=$(cfg worker_context)" ;; *) say warn "config: invalid layout '$(cfg layout)' (split|tab)" ;; esac
+  printf '%s ok, %s warning(s)\n' "$ok" "$warnv"
+  return 0
+}
+
 cmd_init() {
+  cmd_doctor >&2
   local n; n="$(ensure_orchestrator_name)"
   jq -n --arg name "${n:-}" --arg pane "${HERDR_PANE_ID:-}" --arg tab "${HERDR_TAB_ID:-}" --arg ws "$(workspace_id)" \
     --arg layout "$(cfg layout split)" --arg state "$(state_dir)" \
@@ -1068,6 +1096,7 @@ main() {
     models) cmd_models "$@" ;;
     model) cmd_model "$@" ;;
     init) require_env; cmd_init ;;
+    doctor) cmd_doctor ;;
     regrid) require_env; cmd_regrid ;;
     config) cmd_config ;;
     role) cmd_role "$@" ;;
