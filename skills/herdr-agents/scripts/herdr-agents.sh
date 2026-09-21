@@ -1674,7 +1674,7 @@ cmd_run() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --) shift; spawn_args+=(-- "$@"); break ;;
-      --name|--kind|--direction|--ratio|--cwd|--pane|--effort|--model|--approvals) spawn_args+=("$1" "$2"); shift 2 ;;
+      --name|--kind|--direction|--ratio|--cwd|--pane|--effort|--model|--approvals|--tab-label) spawn_args+=("$1" "$2"); shift 2 ;;
       --reuse|--fresh) spawn_args+=("$1"); shift ;;
       --timeout) dispatch_args+=("$1" "$2"); shift 2 ;;
       --allow-same-family|--no-wait) dispatch_args+=("$1"); shift ;;
