@@ -1,0 +1,113 @@
+# herdr-agents defaults. Copy the keys you want to change into
+#   ~/.config/herdr-agents/config          (user-wide)
+#   <repo>/.agents/herdr-agents.conf       (per project, wins over user)
+# Environment variables HERDR_AGENTS_<KEY> win over both; command flags win over all.
+# Format: key=value, one per line, `#` comments. Dots in keys are allowed (args.codex=…).
+
+# Name given to the caller's own agent (the orchestrator) by `init`/`spawn`, so
+# rosters and the Herdr sidebar show who leads. Suffixed -2, -3 when taken.
+orchestrator_name=orchestrator
+
+# Where workers live: `split` = grid-placed panes in the caller's tab (target
+# columns = ceil(sqrt(pane count))); `tab` = one dedicated tab labelled `herd`.
+layout=split
+
+# With layout=tab, rebuild the herd tab as an exact grid after every spawn and
+# release (`regrid`): on | off.
+regrid=on
+
+# Reuse an idle worker of the same role, kind and cwd whose last report is
+# already written instead of opening a new pane: on | off. `spawn --reuse` /
+# `--fresh` override per call. A reused worker keeps its earlier briefs in
+# context; prefer `off` when slices must not share context.
+reuse_workers=off
+
+# Brief structure check on dispatch (Goal, Owned files, Forbidden, Report, a
+# no-commit line): warn | strict | off.
+brief_lint=warn
+
+# Default approvals for roles that do not set one: ask | edits | full.
+approvals=ask
+
+# When a worker blocks on an approval dialog (tools, edits, MCP), answer it with
+# the CLI's default "yes" option and keep waiting: on | off. It approves
+# whatever the worker asks, so use it only with kinds that run in a sandbox
+# or with `approvals: full` already narrowing what can prompt. Every answer is
+# counted in the dispatch JSON (`auto_approved`) and logged under
+# <state>/wait/<agent>.approvals.log.
+auto_approve=off
+
+# Upper bound of auto-approved dialogs per dispatch before giving up (blocked).
+max_auto_approvals=20
+
+# How much project context a worker loads: full | lean. `lean` tells the
+# worker (in the composed prompt) not to read CLAUDE.md/AGENTS.md, ai-memory
+# rules or wiki pages unless the brief names them, and where the CLI has a
+# switch it is passed too (codex: project_doc_max_bytes=0; claude: no skill
+# catalog — CLAUDE.md itself still loads, Claude Code has no OAuth-safe
+# switch). Briefs must then quote every rule that applies.
+worker_context=full
+
+# Effort per kind, applied when neither the flag nor role.<role>.effort sets
+# one (beats the role file's default). Use it to spend budget where there is
+# headroom: grok and cursor plans are rarely exhausted, so they run high.
+effort.grok=high
+effort.cursor=high
+
+# Global effort ceiling applied after the kind's own ceiling: low|medium|high|xhigh|max.
+max_effort=max
+
+# Reviewer vs edit-agent model-family check: strict (refuse, exit 5) | warn | off.
+family_check=strict
+
+# Seconds the visible screen must stay unchanged, with the agent not `working`,
+# before a wait gives up on a worker that never wrote its report.
+settled_grace=45
+
+# Milliseconds `spawn` waits for the agent CLI to become interactive.
+spawn_timeout=60000
+
+# Milliseconds `dispatch`/`wait` allow per brief when the role sets no `timeout`.
+dispatch_timeout=900000
+
+# State root: briefs, reports, roster. Relative paths are under the repo root.
+# Must be writable by every worker sandbox (Codex denies .agents/ and .codex/).
+state_dir=.herdr-agents
+
+# Language the workers must write reports in (empty = language of the brief).
+report_language=
+
+# Herdr toast when a report lands: on | off.
+notify=off
+
+# Native args always appended for a kind (after the skill's own flags, before `--`).
+# Example (you accept the risk): args.codex=--dangerously-bypass-hook-trust
+# args.codex=
+# args.claude=
+# args.grok=
+# args.agy=
+# args.cursor=
+
+# Kind override per role without copying the role file. Example: role.reviewer.kind=grok
+# role.reviewer.kind=
+
+# Improvement feedback. When the orchestrator hits friction in this skill
+# (wrong mapping, a kind misbehaving, a missing command), it files an issue
+# in `feedback_repo` with the scenario (templates/issue.md): on | ask | off.
+feedback=ask
+feedback_repo=djalmajr/skills
+
+# Models. `model.<kind>.orchestrator` applies to the sub-orchestrator role,
+# `model.<kind>.worker` to every other role, `model.<kind>` to both. A value is
+# an exact id, a CLI alias (claude: fable|opus|sonnet = latest), or a regex over
+# the ids the CLI lists; `a|b` tries alternatives in order. Regexes resolve to
+# the NEWEST matching model at spawn time, so these defaults track new
+# releases without edits. Per role: role.<role>.model / role.<role>.effort /
+# role.<role>.kind. Check with: herdr-agents.sh model <kind> <spec> [effort].
+model.claude.orchestrator=fable
+model.claude.worker=opus
+model.codex.orchestrator=astra
+model.codex.worker=sol|gpt-5
+model.cursor.worker=grok|muse
+model.agy.worker=gemini|opus
+model.grok.worker=grok

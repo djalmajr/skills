@@ -82,6 +82,7 @@ A few patterns recur across real sessions:
 | One executable plan for a single change | `/agile-story` |
 | One plan with checklist, clipboard copy, and paste-ready goal prompt | `/plan-goal` |
 | TDD coaching or enforcement install | `/agile-tdd` |
+| A team of role agents (design, review, implement) inside Herdr | `/herdr-agents` |
 | Validate a planning artifact or review code | `/agile-refinement` |
 | Daily / period / closure status | `/agile-status` |
 | Sprint ceremony | `/agile-sprint`, `/agile-review` (includes metrics), `/agile-retro` |
