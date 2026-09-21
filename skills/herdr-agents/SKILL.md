@@ -2,7 +2,7 @@
 name: herdr-agents
 description: >
   Run an omp-style team of role agents (scouter, planner, designer, implementer,
-  tasker, reviewer, security-reviewer, librarian, inspector) inside Herdr. The calling
+  tasker, reviewer, security-reviewer, researcher, inspector) inside Herdr. The calling
   agent stays the orchestrator: it spawns one CLI agent per role in sibling
   panes, dispatches self-contained briefs, collects file-based reports, and
   owns integration, gates, and git. Use when running inside Herdr
@@ -80,7 +80,7 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 | Role | Default kind | Effort | Mode | Use for |
 |---|---|---|---|---|
 | `scouter` | agy | medium | read-only | Map code, find paths, compressed findings for handoff |
-| `librarian` | agy | medium | read-only | Source-verified answers about external libraries/APIs |
+| `researcher` | agy | medium | read-only | Source-verified answers about external libraries/APIs |
 | `planner` | claude | high | read-only | Decision-ready plan for a large or unfamiliar objective: options, one recommendation, slices, risks, questions; the orchestrator still decides |
 | `designer` | codex | high | edit | UI work under the project design system (tokens, states, a11y) |
 | `implementer` | codex | high | edit | Production code for one slice with per-item report |
@@ -386,7 +386,7 @@ see your own edits, so pick that reviewer's kind by hand.
 3. **Pick roles.** Large or unfamiliar objective (more than about three
    probable slices, unknown code area, or a planning artifact requested) →
    `planner` first; its report feeds your decomposition and never replaces
-   it. Research → `scouter`/`librarian`. UI → `designer`. Code →
+   it. Research → `scouter`/`researcher`. UI → `designer`. Code →
    `implementer`. Bulk mechanical → `tasker`. Every slice that changes
    code gets a `reviewer` from another model family; auth/secrets/input
    handling also gets `security-reviewer`; visible UI also gets `inspector`.

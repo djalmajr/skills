@@ -167,6 +167,7 @@ resolve_role() {
     mechanic)  warn "role 'mechanic' was renamed to 'tasker'; use the new name"; role=tasker ;;
     scout)     warn "role 'scout' was renamed to 'scouter'; use the new name"; role=scouter ;;
     qa-visual) warn "role 'qa-visual' was renamed to 'inspector'; use the new name"; role=inspector ;;
+    librarian) warn "role 'librarian' was renamed to 'researcher'; use the new name"; role=researcher ;;
   esac
   while IFS= read -r d; do
     [ -f "$d/$role.md" ] && { printf '%s\n' "$d/$role.md"; return; }

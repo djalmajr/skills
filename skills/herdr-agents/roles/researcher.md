@@ -1,5 +1,5 @@
 ---
-name: librarian
+name: researcher
 description: Answers questions about external libraries, frameworks, and APIs by reading their source and official docs. Source-verified, version-pinned answers.
 kind: agy
 alternatives: [grok, cursor]

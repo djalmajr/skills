@@ -208,7 +208,8 @@ without checking that generation succeeded and produced what you expect.
 
 ## Roles renamed to agent nouns (2026-09-21)
 
-`mechanic` → `tasker`, `scout` → `scouter`, `qa-visual` → `inspector`.
+`mechanic` → `tasker`, `scout` → `scouter`, `qa-visual` → `inspector`,
+`librarian` → `researcher`.
 `resolve_role` still accepts the old names with a warning so old briefs
 keep working; project overrides and config keys use the new names
 (`.agents/herdr-roles/tasker.md`, `role.inspector.kind`, …).
