@@ -27,6 +27,23 @@ transport. The orchestrator decomposes, briefs, waits, integrates, verifies,
 and commits. Workers implement, research, or review one slice each and report
 to a file.
 
+## Non-negotiables (each one is a mistake that was actually made)
+
+1. **The report file is the completion signal.** Use `dispatch` (waits),
+   `wait`, or `status`. Never hand-roll a loop over `herdr agent get`.
+2. **Never `release --close` a worker whose report is missing** while it is
+   working. The script refuses; `--force` is for a worker you are abandoning.
+3. **Every brief has Goal, Owned files, Forbidden, Report and a no-commit
+   line.** `dispatch` lints it (`brief_lint=warn|strict`). Credentials, URLs
+   and seeds named in a brief must be verified first (`git grep`, seed
+   script), not guessed.
+4. **Reviewer from another model family** than the implementers, before push.
+5. **State never under `.agents/` or `.codex/`** (Codex sandbox denies them).
+6. **Nested orchestrators must not be sandboxed Codex**: its sandbox blocks
+   the Herdr socket. Use `claude` (or Codex with its sandbox disabled).
+7. **Read `$S friction` at the end of every run** and file what the skill
+   caused as an issue (see "Improving this skill").
+
 ## Preconditions
 
 ```bash
@@ -94,6 +111,65 @@ Unattended runs (the usual case for a herd) need `--approvals full` or
 `approvals: full` in a project role override. Roles ship with `ask` so a
 fresh install never bypasses prompts silently.
 
+**Auto-approval as a fallback.** When a worker still blocks (a kind without
+a full mapping, a dialog `full` does not cover, or `ask` on purpose),
+`auto_approve=on` makes `dispatch`/`wait` send the CLI's default "yes" keys
+and keep waiting, up to `max_auto_approvals` per dispatch. Each answer is
+counted in the dispatch JSON (`auto_approved`) and logged under
+`<state>/wait/<agent>.approvals.log`. It approves whatever the worker asks,
+so pair it with sandboxed kinds or narrow `approvals`. With it off, a
+blocked worker is reported (`blocked`, exit 7) and a human decides.
+
+## Detecting completion (the only reliable signal is the report file)
+
+Herdr reports lifecycle *state*, not turns; every integration flickers
+`idle`/`done` mid-task. The skill therefore treats **the report file** as
+the completion signal and gives you three ways to observe it. Never write
+your own polling loop over `herdr agent get`.
+
+```bash
+$S dispatch impl brief.md            # blocks until impl's report exists (default)
+$S dispatch a brief-a.md --no-wait   # fan out…
+$S dispatch b brief-b.md --no-wait
+$S wait a b                          # …then block until every report exists
+$S wait a b --any                    # or until the first one lands
+$S status a b                        # non-blocking: done | working | blocked | no-report-yet
+```
+
+`wait` prints one JSON line per agent (`done`, `blocked`, `settled-no-report`,
+`gone`, `timeout`) and exits 0 only when all reports exist (7 blocked, 6
+settled/gone, 9 timeout). A report counts as done once its size stops
+changing between two polls. `notify=on` in the config raises a Herdr toast
+per finished worker. `roster` shows a `REPORT` column (`none | pending |
+ready`) for a quick glance.
+
+## Configuration
+
+Plain `key=value` files, read in this order, each layer overriding only the
+keys it sets:
+
+1. `config.defaults` in the skill (documented defaults)
+2. `~/.config/herdr-agents/config` — user-wide
+3. `<repo>/.agents/herdr-agents.conf` — per project
+4. `HERDR_AGENTS_<KEY>` environment variables
+5. command-line flags
+
+`$S config` prints every effective value with its source. Keys:
+`layout` (`split` grid in the caller's tab, or `tab` for a dedicated `herd`
+tab), `brief_lint` (`warn|strict|off`), `reuse_workers`
+(`on`: `spawn` returns an idle worker of the same role, kind and cwd whose
+last report exists instead of opening a pane; `--reuse`/`--fresh` override
+per call; a reused worker keeps earlier briefs in context), `feedback` +
+`feedback_repo` (see "Improving this skill"), `approvals`
+(default for roles without one), `auto_approve` + `max_auto_approvals`
+(answer a worker's approval dialog with the CLI's default "yes" and keep
+waiting; off by default, see below), `max_effort`
+(global ceiling), `family_check` (`strict|warn|off`), `settled_grace`,
+`spawn_timeout`, `dispatch_timeout`, `state_dir`, `report_language`,
+`notify`, `args.<kind>` (native flags always appended, the place for
+hook-trust or workspace-trust bypasses you accept), `role.<role>.kind`
+(swap the kind of a role without copying its file).
+
 ## Commands
 
 All mechanics go through `scripts/herdr-agents.sh` (needs `bash`, `jq`):
@@ -106,7 +182,11 @@ $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
 $S dispatch impl <brief.md> [--timeout 900000]   # role prompt + brief → agent, waits
 $S collect impl                             # prints the report file (or recent output)
 $S run scout <brief.md>                    # spawn + dispatch + collect in one call
-$S roster                                  # live agents with role/kind/pane/state
+$S wait a b [--any] [--timeout MS]         # block on report files
+$S friction                                # errors/warnings of this workspace (review at end)
+$S status a b                              # non-blocking completion check
+$S config                                  # effective configuration and sources
+$S roster                                  # live agents with role/kind/pane/state/report
 $S release impl [--close]                  # forget the agent; --close closes a pane we created
 $S clean [--older-than 7]                  # drop gone agents, delete old briefs/reports
 $S kinds                                   # kind → executable, family, effort ceiling
@@ -126,15 +206,21 @@ compares its model family with every live edit agent this skill spawned
 `--allow-same-family`. Code written by the orchestrator itself is invisible
 to this check; choose the reviewer kind by hand then.
 
-`spawn` splits the calling pane (`right` when it is wide, `down` otherwise,
-or `--direction`), starts the agent with `--no-focus`, and gives focus back
-to the caller. `--ratio` is passed through to `herdr pane split` unchanged.
+`spawn` places workers on a **grid** over the caller's tab: target columns
+= ⌈√(panes + 1)⌉; while there are fewer columns than that it splits the
+widest pane to the right, otherwise it splits down the tallest pane of the
+column with the fewest panes (three workers → 2×2, five → 3×2;
+`--direction` overrides). Panes already open are not moved. There is no
+cap on workers: open as many as the work needs. `spawn` retries for a few
+seconds while the new shell reaches its prompt, starts the agent with
+`--no-focus`, and gives focus back to the caller. `--ratio` is passed through to `herdr pane split` unchanged.
 Anything after `--` goes to the agent CLI (`herdr agent start … -- <args>`).
 `dispatch` writes a composed prompt (role body + brief + report contract) to
 the state dir and sends a one-line pointer to it, so long briefs never
 depend on terminal paste limits. Exit codes: 2 usage/env, 3 unknown
-role/agent, 4 Herdr failure, 5 same-family reviewer, 6 report missing
-(terminal fallback printed), 7 agent blocked at startup.
+role/agent, 4 Herdr failure, 5 same-family reviewer, 6 settled without
+report, 7 agent blocked (startup or approval), 9 wait timeout. Every error
+and warning is also appended to `<state>/friction.log` (`$S friction`).
 
 ## What is implicit (read once)
 
@@ -162,22 +248,26 @@ role/agent, 4 Herdr failure, 5 same-family reviewer, 6 report missing
   workspace do not see these agents; two orchestrators in the same
   workspace share the roster. Nothing is deleted automatically; run `clean`.
 - **Waits track state, not turns.** Herdr can report `idle`/`done` while a
-  worker is mid-task (Codex does this during MCP calls). `dispatch`
-  therefore keeps waiting for the report file until the agent is not
-  `working` **and** its screen has not changed for
-  `HERDR_AGENTS_SETTLED_GRACE` seconds (45), or the timeout is spent.
-  `timeout` means "check again", not "lost".
+  worker is mid-task (Codex does this during MCP calls). `dispatch` and
+  `wait` therefore wait for the report file until the agent is not
+  `working` **and** its screen has not changed for `settled_grace` seconds
+  (45), or the timeout is spent. `timeout` means "run `wait` again", not
+  "lost".
+- **`approvals: ask` does not guarantee a prompt.** It means the CLI's own
+  default; a Claude Code with `defaultMode: auto` never blocks. To force
+  manual approval pass the native flag after `--`.
 - **Timeouts.** `spawn` waits 60 s for readiness (`--timeout`). `dispatch`
   uses the role's `timeout` frontmatter (ms), else 15 min. The report file
   is the source of truth, whatever `wait_status` says.
 - **`release` without `--close` leaves the agent running.** `--close` ends
   it by closing the pane. Panes passed with `--pane` are never closed.
   `run` does not release.
-- **Worktrees are yours to create.** Use `herdr worktree create` and pass
-  the path with `--cwd`; the state dir stays in the main repo. A worker in a
-  worktree must still be able to write the report path (Codex allows `/tmp`
-  and its own cwd; the main repo may be outside its sandbox), so set
-  `HERDR_AGENTS_DIR` to a shared writable location for worktree runs.
+- **Worktrees are yours to create.** `git worktree add .worktrees/<slug>`
+  (or `herdr worktree create`) and pass the path with `--cwd`. The roster
+  stays in the main repo; a worker whose cwd is not the repo root gets its
+  brief and report routed through `$TMPDIR/herdr-agents/<ws>/reports/`,
+  which every known sandbox can write. You merge its diff back yourself
+  (`git -C <worktree> diff | git apply`, or cherry-pick).
 - **Detection quality varies by kind.** `claude` and `codex` have Herdr
   integrations; `grok` and `agy` are screen-detected, so `idle`/`done` is
   less reliable for them and `unknown` is common.
@@ -190,9 +280,9 @@ role/agent, 4 Herdr failure, 5 same-family reviewer, 6 report missing
 - **Workers have their own command guards.** A Codex guardian on this kind
   of setup rejects `rm -f`-style commands regardless of approvals. Briefs
   describe outcomes, not destructive shell idioms.
-- **Layout budget.** Two workers per tab keep panes usable; more than that
-  produces columns too narrow for a TUI. Spawn in batches, or ask the user
-  for a new tab.
+- **Layout.** Grid placement keeps panes usable up to about six workers on
+  a wide tab; beyond that, or when the caller must stay large, set
+  `layout=tab`.
 
 State (briefs, reports, roster) lives **inside the project**, under
 `<repo>/.herdr-agents/<workspace-id>/`, and the script adds that path to
@@ -259,10 +349,42 @@ Use the harness's structured-question tool when:
   other kind is installed (options: accept, swap kind, skip review).
 - Releasing would close panes with unread output or worktrees with
   uncommitted changes.
+- `feedback=ask` and you have an improvement issue to file (show the title
+  and the scenario summary; options: file it, skip, edit).
 
 Ask free-form for the objective when `$ARGUMENTS` is empty. In no-pause
 mode, record these as *Open questions* in the final report and proceed with
 the recommended option.
+
+## Improving this skill (file an issue when you hit friction)
+
+The orchestrator is the first to notice when this skill gets in the way: a
+kind mapping that is wrong, a wait that lied, a command you needed and did
+not have, a role prompt that made a worker misbehave. Turn that into an
+issue on the skill's repo so the maintainer can improve it incrementally.
+
+- **When:** any friction caused by the skill itself (not by the project or
+  the worker's task). `$S friction` lists every error and warning the
+  script produced in this workspace; review it at the end of the run. One
+  issue per distinct problem; check
+  `gh issue list --repo <feedback_repo> --search "<keywords>" --label herdr-agents`
+  first to avoid duplicates.
+- **Policy** is the `feedback` config key: `ask` (default) — tell the user
+  what you would file and file it only after they agree; `on` — file it
+  directly and mention it in your final message; `off` — never file, just
+  describe the friction in your final message.
+- **How:** fill [templates/issue.md](templates/issue.md) (scenario, what
+  happened with exact error text or JSON line, what was expected, the
+  output of `$S env` and `$S config`, evidence paths, optional proposed
+  change), then:
+
+  ```bash
+  gh issue create --repo "$(bash $S config | awk '$1=="feedback_repo"{print $2}')" \
+    --title "herdr-agents: <one line>" --label herdr-agents --body-file /tmp/herdr-agents-issue.md
+  ```
+
+  Redact secrets and customer data from evidence. Never paste a full report
+  from a private repo; quote the lines that show the problem.
 
 ## Safety
 

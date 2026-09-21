@@ -87,6 +87,77 @@ you should do. Read this before changing the script or adding a kind.
   not own. The mapping deliberately excludes them. Users pass such flags
   after `--` when they accept the risk.
 
+## Orchestrator never noticed the workers were done
+
+- **Symptom:** workers finished in 20 s; the orchestrator polled for two
+  minutes.
+- **Cause:** a hand-written loop watching `agent get` for a specific state
+  (`blocked`) instead of the report file. The file is the contract.
+- **Now:** `dispatch` (default wait), `wait <agents…>`, `status <agents…>`.
+  Never poll state by hand.
+
+## `approvals: ask` did not block
+
+- **Cause:** `ask` is the CLI's own default. On a machine where Claude Code
+  runs with `defaultMode: auto`, nothing prompts. Forcing a prompt requires
+  the native flag (`-- --permission-mode manual`).
+
+## `bunx skills add` cannot install from a branch
+
+- The `skills` CLI has no branch/ref option and mis-parses
+  `…/tree/<branch>` URLs (`Remote branch feat not found`). Install smoke
+  tests only after merging to the default branch.
+
+## `spawn` fails with `agent_pane_busy` right after the split
+
+- **Cause:** the new pane's shell had not reached its prompt (zsh init with
+  plugins takes 1–3 s) when `agent start` ran.
+- **Now:** `spawn` retries `agent start` once per second for 15 s on that
+  error before giving up.
+
+## Three workers ended up stacked in one column
+
+- **Cause:** always splitting the caller pane; after the first right split
+  the caller is narrow, so every later split goes down.
+- **Now:** `spawn` splits the largest pane among caller + workers along its
+  longer side (2x2 with three workers on a wide tab). `layout=tab` moves
+  workers to their own tab when the caller must stay large.
+
+## Worker in a worktree cannot write the report
+
+- **Cause:** the report path is under the main repo; sandboxes limit the
+  worker to its own cwd (+ `/tmp`).
+- **Now:** when the roster cwd differs from the repo root, `dispatch` routes
+  brief and report through `$TMPDIR/herdr-agents/<ws>/reports/`.
+
+## `wait` reported `blocked` once for a worker that went on working
+
+- **Cause:** approval UIs flash briefly; a single `blocked` sample is not
+  proof.
+- **Now:** two consecutive probes (≈6 s) are required. With
+  `auto_approve=on` the default option is sent and the wait continues.
+
+## Nested orchestrator on Codex: `Operation not permitted`
+
+- **Cause:** the Codex `workspace-write` sandbox blocks the Herdr control
+  socket, so every `herdr …` call from inside a Codex pane fails.
+- **Do:** run nested orchestrators on `claude` (validated), or Codex with
+  its sandbox disabled via `args.codex` if you accept that.
+
+## QA worker stopped at sign-in
+
+- **Cause:** the orchestrator wrote guessed credentials into the brief. The
+  seed script (`scripts/seed-dev.ts`) defines the real ones.
+- **Do:** verify every credential, URL, port and fixture named in a brief
+  before dispatching (`git grep`, read the seed). Cheap for you, expensive
+  for a worker that has to stop.
+
+## Roster column mix-ups
+
+- `agents.tsv` columns are: name, pane, kind, role, family, created_pane,
+  cwd, started. `reuse_workers` once compared the family with the cwd.
+  Read columns by name in comments when adding code.
+
 ## Validating a new or updated kind
 
 1. `herdr agent` must list the kind; the executable must be in `PATH`
@@ -96,8 +167,7 @@ you should do. Read this before changing the script or adding a kind.
    `kinds.md`.
 3. Smoke: a 15-line read-only brief (`scout`) asking for one constant and its
    reader in the current repo. `spawn --approvals full --effort <ceiling+1>`
-   (expect a clamp warning) → `dispatch --no-wait` → poll for the report →
-   `collect` → `release --close`. Watch for: startup dialogs, report written
-   to the right path, focus back in the caller.
-4. Two workers at a time keep panes usable (≈90×28 cells on a 181×57 tab);
-   four parallel splits produce unusable columns.
+   (expect a clamp warning) → `dispatch` (waits on the report) → `collect`
+   → `release --close`. Watch for: startup dialogs, report written to the
+   right path, focus back in the caller, `friction` empty afterwards.
+4. Grid placement keeps up to about six workers usable on a 181×57 tab.

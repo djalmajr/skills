@@ -88,6 +88,58 @@ edit agent (exit 5) unless `--allow-same-family` is given.
   not share context.
 - `release --close` ends the agent; without `--close` it keeps running.
 
+## Configuration
+
+`key=value` files layered as skill defaults → `~/.config/herdr-agents/config`
+(global) → `<repo>/.agents/herdr-agents.conf` (project) → `HERDR_AGENTS_<KEY>`
+→ flags. `herdr-agents.sh config` shows the effective values and where each
+came from. Typical project file:
+
+```ini
+layout=split
+approvals=full
+auto_approve=off
+reuse_workers=on
+notify=on
+```
+
+## Approvals without a human
+
+`--approvals full` maps to each CLI's non-interactive flags. When a dialog
+still appears, `auto_approve=on` in the config answers it with the CLI's
+default "yes" and keeps waiting (bounded by `max_auto_approvals`, every
+answer logged). Off by default: a blocked worker is reported and a person
+decides.
+
+## Guard rails
+
+Lessons from real runs are enforced by the script, not just documented:
+`release --close` refuses to kill a worker mid-task, `dispatch` lints the
+brief structure, the reviewer family check is strict by default, and every
+error or warning lands in `herdr-agents.sh friction` for review at the end of
+a run.
+
+## Waiting for workers
+
+The report file is the completion signal. `dispatch` waits for it by
+default; `wait a b c` blocks on several; `status a b c` is the non-blocking
+check; `roster` shows a `REPORT` column. Do not poll Herdr agent states by
+hand: they flicker `idle`/`done` mid-task.
+
+## Reusing workers
+
+`reuse_workers=on` (or `spawn --reuse`) hands back an idle worker of the same
+role, kind and cwd whose last report is already written, instead of opening
+a new pane. Cheaper and keeps the worker's context; use `--fresh` when a
+slice must start clean.
+
+## Feeding improvements back
+
+When the skill itself causes friction, the orchestrator files an issue on
+`feedback_repo` (default `djalmajr/skills`) using `templates/issue.md`, with
+the scenario, the exact error, the environment (`herdr-agents.sh env`) and
+the effective config. `feedback=ask|on|off` decides whether it asks first.
+
 ## Orchestrator responsibilities
 
 The skill enforces the transport and the report contract. The orchestrator
