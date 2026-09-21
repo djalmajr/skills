@@ -99,9 +99,11 @@ itself: in that case pick a reviewer kind from another family by hand.
 ## Effort, model, approvals
 
 Role frontmatter, config and `spawn` flags share three knobs. Precedence,
-highest first: flag → config `role.<role>.<knob>` → role frontmatter →
-config `model.<kind>.<position>` → config `model.<kind>` → the CLI's own
-default. A project overrides any of it in `.agents/herdr-agents.conf`
+highest first: flag → config `role.<role>.<knob>` → config
+`effort.<kind>` (effort only) → role frontmatter → config
+`model.<kind>.<position>` → config `model.<kind>` → the CLI's own
+default. Shipped: `effort.grok=high`, `effort.cursor=high`, because those
+plans are rarely exhausted; spend budget where there is headroom. A project overrides any of it in `.agents/herdr-agents.conf`
 without copying role files.
 
 **Models track the latest release.** A model value is an exact id, a CLI
@@ -276,8 +278,13 @@ and warning is also appended to `<state>/friction.log` (`$S friction`).
 - **The role is the first message, not a system prompt.** The worker still
   obeys its own harness: the project's `CLAUDE.md`/`AGENTS.md`, its hooks,
   skills, MCP servers, and memory. When the role and the repo instructions
-  conflict, the worker's harness decides, not this skill. Expect workers to
-  spend their first minute reading project rules.
+  conflict, the worker's harness decides, not this skill. With
+  `worker_context=full` expect workers to spend their first minute reading
+  project rules and memory. `worker_context=lean` cuts that: the composed
+  prompt forbids reading instruction files unless the brief names them,
+  Codex gets `project_doc_max_bytes=0`, Claude gets no skill catalog.
+  Lean only works when the brief quotes every rule that applies, which is
+  what the brief template asks for anyway.
 - **Permissions belong to the worker.** A CLI in its default approval mode
   stops on the first approval and the wait returns `blocked`. Use
   `--approvals full` (or `edits`) for unattended runs; anything the mapping

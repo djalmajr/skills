@@ -118,6 +118,14 @@ edits. Projects override any of it, per kind or per role
 (`role.reviewer.model=…`, `role.reviewer.effort=…`, `role.reviewer.kind=…`),
 in `.agents/herdr-agents.conf`.
 
+## Token budget
+
+`worker_context=lean` stops workers from reading `CLAUDE.md`/`AGENTS.md`,
+memory and skills before the task (Codex: `project_doc_max_bytes=0`); the
+brief must quote the rules that apply. `effort.<kind>` spends budget where
+there is headroom (shipped: grok and cursor on high). `reuse_workers=on`
+avoids paying the startup cost again for the same role.
+
 ## Approvals without a human
 
 `--approvals full` maps to each CLI's non-interactive flags. When a dialog

@@ -170,6 +170,17 @@ you should do. Read this before changing the script or adding a kind.
 - **Now:** two passes — all column heads with right splits (ratio
   1/remaining columns), then each column's rows with down splits.
 
+## `worker_context=lean` (partial, measured 2026-09-20)
+
+- Claude worker: 22 s to report instead of ~40 s, no ai-memory reads; the
+  project `CLAUDE.md` is still injected by the harness (`--bare` would skip
+  it but only works with an API key, not OAuth).
+- Codex worker: 53 s instead of 2.5–4 min, but `-c project_doc_max_bytes=0`
+  did not stop the `# AGENTS.md instructions` injection and the worker still
+  read the global ai-memory rules because `~/.codex/AGENTS.md` tells it to.
+  Open: find the effective Codex switch (or trim the global AGENTS.md).
+  `codex exec` does not accept `-a`; use `--ask-for-approval` there.
+
 ## Validating a new or updated kind
 
 1. `herdr agent` must list the kind; the executable must be in `PATH`

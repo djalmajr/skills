@@ -40,6 +40,20 @@ auto_approve=off
 # Upper bound of auto-approved dialogs per dispatch before giving up (blocked).
 max_auto_approvals=20
 
+# How much project context a worker loads: full | lean. `lean` tells the
+# worker (in the composed prompt) not to read CLAUDE.md/AGENTS.md, ai-memory
+# rules or wiki pages unless the brief names them, and where the CLI has a
+# switch it is passed too (codex: project_doc_max_bytes=0; claude: no skill
+# catalog — CLAUDE.md itself still loads, Claude Code has no OAuth-safe
+# switch). Briefs must then quote every rule that applies.
+worker_context=full
+
+# Effort per kind, applied when neither the flag nor role.<role>.effort sets
+# one (beats the role file's default). Use it to spend budget where there is
+# headroom: grok and cursor plans are rarely exhausted, so they run high.
+effort.grok=high
+effort.cursor=high
+
 # Global effort ceiling applied after the kind's own ceiling: low|medium|high|xhigh|max.
 max_effort=max
 

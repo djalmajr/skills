@@ -2,7 +2,7 @@
 name: mechanic
 description: Mechanical edits in volume with an exact contract — renames, moves, key insertions, import rewrites. No decisions.
 kind: grok
-alternatives: [codex]
+alternatives: [agy, cursor]
 effort: low
 mode: edit
 timeout: 900000

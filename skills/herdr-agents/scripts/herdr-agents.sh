@@ -113,10 +113,10 @@ cfg_source() {
 cmd_config() {
   printf '%-18s %-30s %s\n' KEY VALUE SOURCE
   local k
-  for k in orchestrator_name layout regrid reuse_workers brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
+  for k in orchestrator_name layout regrid reuse_workers worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
-  for k in $(compgen -v | grep -E '^CFG_(args|role|model)_' | sed 's/^CFG_//'); do
+  for k in $(compgen -v | grep -E '^CFG_(args|role|model|effort)_' | sed 's/^CFG_//'); do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
   printf '\nlayers read:%s\n' "${CFG_SOURCES:- (none)}"
@@ -367,6 +367,18 @@ cmd_env() {
     "$(cfg layout)" "$(cfg reuse_workers)" "$(cfg approvals)" "$(cfg auto_approve)" "$(cfg family_check)" "$(cfg brief_lint)"
 }
 
+# kind_context_args <kind> <full|lean>: lean keeps the worker from loading
+# project instruction files and skill catalogs where the CLI has a switch.
+# The composed prompt carries the same instruction for every kind.
+kind_context_args() {
+  [ "$2" = lean ] || return 0
+  case "$1" in
+    codex) printf -- '-c\nproject_doc_max_bytes=0\n' ;;      # AGENTS.md not injected
+    claude) printf -- '--disable-slash-commands\n' ;;         # no skill catalog; CLAUDE.md still loads (no OAuth-safe switch)
+    *) ;;
+  esac
+}
+
 cmd_kinds() {
   printf '%-8s %-13s %-10s %-8s %s\n' KIND EXECUTABLE FAMILY EFFORT INSTALLED
   local k
@@ -609,6 +621,7 @@ cmd_spawn() {
   fi
   local position=worker; [ "$role" = sub-orchestrator ] && position=orchestrator
   [ -n "$effort" ] || effort="$(cfg "role_${role_key}_effort")"
+  [ -n "$effort" ] || effort="$(cfg "effort_${kind}")"
   [ -n "$effort" ] || effort="$(fm_get "$f" effort)"
   local model_spec="$model"
   [ -n "$model_spec" ] || model_spec="$(cfg "role_${role_key}_model")"
@@ -649,7 +662,9 @@ cmd_spawn() {
   agent_name_taken "$name" && die "agent name '$name' is already live" 3
 
   local built_args=() extra a
+  local wctx; wctx="$(cfg worker_context full)"
   while IFS= read -r a; do [ -n "$a" ] && built_args+=("$a"); done < <(
+    kind_context_args "$kind" "$wctx"
     kind_approval_args "$kind" "$approvals"
     kind_model_args "$kind" "$model" "$effort"
     kind_effort_args "$kind" "$effort" "$model"
@@ -896,6 +911,9 @@ cmd_dispatch() {
     printf -- '- Write your report as Markdown to `%s` (create parent directories if needed) following the `<report>` section of your role and the per-item states done / partial / skipped + reason.\n' "$report"
     [ -n "$lang" ] && printf -- '- Write the report in %s.\n' "$lang"
     printf -- '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n'
+    if [ "$(cfg worker_context full)" = lean ]; then
+      printf -- '- This brief is self-contained. Do NOT read CLAUDE.md, AGENTS.md, ai-memory rules, wiki pages or other project instruction files unless the brief names them explicitly; the rules that apply are quoted in the brief. Start on the task immediately.\n'
+    fi
     printf -- '- Do not commit, push, tag, or open pull requests.\n'
     printf -- '- When finished, reply in the terminal with exactly the report path and nothing else.\n'
   } > "$composed"
