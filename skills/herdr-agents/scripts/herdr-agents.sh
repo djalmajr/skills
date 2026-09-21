@@ -30,7 +30,7 @@
 #   herdr-agents.sh dispatch <agent> <brief.md> [--role R] [--timeout MS]
 #                          [--no-wait] [--allow-same-family]
 #   herdr-agents.sh wait <agent>... [--timeout MS] [--any]
-#   herdr-agents.sh status <agent>...
+#   herdr-agents.sh status <agent>...             # gone = agent_not_found; unavailable = agent get failed (exit 4)
 #   herdr-agents.sh collect <agent> [--lines N]
 #   herdr-agents.sh run <role> <brief.md> [spawn/dispatch options] [-- <agent args>]
 #   herdr-agents.sh roster
@@ -48,9 +48,10 @@
 #   <skill>/config.defaults → ~/.config/herdr-agents/config
 #   → <repo>/.agents/herdr-agents.conf → HERDR_AGENTS_<KEY> → flags
 #
-# Exit codes: 2 usage/env · 3 unknown role/agent · 4 Herdr failure · 5 same-
-# family reviewer · 6 settled without report · 7 agent blocked (startup or
-# approval) · 9 wait timeout.
+# Exit codes: 2 usage/env · 3 unknown role/agent · 4 Herdr failure (includes
+# `herdr agent get` transport/permission errors reported as `unavailable`) ·
+# 5 same-family reviewer · 6 settled without report or agent really gone ·
+# 7 agent blocked (startup or approval) · 9 wait timeout.
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -417,7 +418,64 @@ unique_name() { local base="$1" n="$1" i=2; while agent_name_taken "$n"; do n="$
 roster_rows() { grep -v '^#' "$(state_dir)/agents.tsv" 2>/dev/null || true; }
 roster_line() { roster_rows | awk -F'\t' -v n="$1" '$1==n' | tail -n1; }
 roster_remove() { local f; f="$(state_dir)/agents.tsv"; awk -F'\t' -v n="$1" '$1!=n' "$f" > "$f.tmp" && mv "$f.tmp" "$f"; }
-agent_state() { herdr agent get "$1" 2>/dev/null | jq -r '.result.agent.agent_status // "gone"' 2>/dev/null || echo gone; }
+
+# One line, printable, no tabs. Keeps the cause; drops control characters.
+sanitize_cause() {
+  local s
+  s="$(printf '%s' "$1" | tr '\n\r\t' '   ' | tr -cd '[:print:]' | sed 's/  */ /g; s/^ //; s/ $//')"
+  [ "${#s}" -le 200 ] || s="${s:0:200}"
+  printf '%s' "$s"
+}
+
+# split_agent_state <raw> — sets STATE and CAUSE. Bash dynamic scope: the
+# caller must `local STATE CAUSE` (or accept globals).
+split_agent_state() {
+  STATE="${1%%$'\t'*}"
+  CAUSE=""
+  case "$1" in *$'\t'*) CAUSE="${1#*$'\t'}" ;; esac
+}
+
+# agent_state <target>
+# stdout: <herdr agent_status> | gone | unavailable<TAB><sanitized cause>
+# Always exits 0 after classifying, so command substitutions stay safe under
+# set -e. `gone` is only `agent_not_found`. PermissionDenied, a down server,
+# and any other failed `herdr agent get` are `unavailable` — never `gone`.
+agent_state() {
+  local target="$1" errfile out rc=0 raw="" code="" msg="" status="" cause=""
+  errfile="$(mktemp "${TMPDIR:-/tmp}/herdr-agent-get.XXXXXX")" || {
+    printf 'unavailable\t%s\n' "could not store herdr agent get stderr"
+    return 0
+  }
+  out="$(herdr agent get "$target" 2>"$errfile")" && rc=0 || rc=$?
+  raw="$(cat "$errfile" 2>/dev/null || true)"
+  rm -f "$errfile"
+  [ -n "$raw" ] || raw="$out"
+  if printf '%s' "$raw" | jq -e '.error.code' >/dev/null 2>&1; then
+    code="$(printf '%s' "$raw" | jq -r '.error.code // empty' 2>/dev/null || true)"
+    msg="$(printf '%s' "$raw" | jq -r '.error.message // empty' 2>/dev/null || true)"
+  fi
+  if [ "$code" = agent_not_found ]; then
+    printf '%s\n' gone
+    return 0
+  fi
+  if [ "$rc" -eq 0 ] && [ -z "$code" ]; then
+    status="$(printf '%s' "$out" | jq -r '.result.agent.agent_status // empty' 2>/dev/null || true)"
+    if [ -n "$status" ]; then
+      printf '%s\n' "$status"
+      return 0
+    fi
+    raw="agent get returned no agent_status"
+  fi
+  if [ -n "$code" ]; then
+    cause="$(sanitize_cause "$code: $msg")"
+  else
+    [ -n "$raw" ] || raw="herdr agent get failed (exit $rc)"
+    cause="$(sanitize_cause "$raw")"
+  fi
+  [ -n "$cause" ] || cause="herdr agent get failed (exit $rc)"
+  printf 'unavailable\t%s\n' "$cause"
+  return 0
+}
 
 live_worker_count() {
   local live n=0 name pane
@@ -834,11 +892,15 @@ roster_roles_in_tab() {
 }
 # roster_panes_in_tab <pane-list-json> <tab> → this skill's live worker panes in <tab>, roster order
 roster_panes_in_tab() {
-  local live="$1" tab="$2" name pane
+  local live="$1" tab="$2" name pane raw STATE CAUSE
   while IFS=$'\t' read -r name pane _rest; do
     [ -n "$name" ] || continue
     printf '%s' "$live" | jq -e --arg p "$pane" --arg t "$tab" 'any(.[]; .pane_id==$p and .tab_id==$t)' >/dev/null || continue
-    herdr agent get "$name" >/dev/null 2>&1 && printf '%s\n' "$pane"
+    # A failed query is not absence: keep the pane so regrid does not drop a live worker.
+    raw="$(agent_state "$name")"
+    split_agent_state "$raw"
+    [ "$STATE" = gone ] && continue
+    printf '%s\n' "$pane"
   done < <(roster_rows)
 }
 
@@ -1077,10 +1139,13 @@ cmd_regrid() {
 
 # ---------- spawn ----------
 
-# find_reusable <role> <kind> <cwd> [name] → name of a live, idle worker of the
-# same role/kind/cwd whose last report already exists (nothing pending).
+# find_reusable <role> <kind> <cwd> [name]
+# stdout: the worker name, or `unavailable<TAB>cause<TAB>name` when a match
+# cannot be queried. Exit 0 reused, 4 query failed (do not spawn a copy),
+# 1 nothing to reuse. An idle match wins over an unqueryable sibling.
 find_reusable() {
-  local role="$1" kind="$2" cwd="$3" want="${4:-}" sd name pane k r c st rep
+  local role="$1" kind="$2" cwd="$3" want="${4:-}" sd name pane k r c rep raw
+  local STATE CAUSE blocked_name="" blocked_cause=""
   sd="$(state_dir)"
   while IFS=$'\t' read -r name pane k r _fam _created c _rest; do
     [ -n "$name" ] || continue
@@ -1088,9 +1153,18 @@ find_reusable() {
     [ "$r" = "$role" ] && [ "$k" = "$kind" ] && [ "$c" = "$cwd" ] || continue
     rep="$(cat "$sd/last-report-$name" 2>/dev/null || true)"
     [ -z "$rep" ] || [ -s "$rep" ] || continue
-    st="$(agent_state "$name")"
-    case "$st" in idle|done) printf '%s\n' "$name"; return 0 ;; esac
+    raw="$(agent_state "$name")"
+    split_agent_state "$raw"
+    if [ "$STATE" = unavailable ]; then
+      [ -n "$blocked_name" ] || { blocked_name="$name"; blocked_cause="$CAUSE"; }
+      continue
+    fi
+    case "$STATE" in idle|done) printf '%s\n' "$name"; return 0 ;; esac
   done < <(roster_rows)
+  if [ -n "$blocked_name" ]; then
+    printf 'unavailable\t%s\t%s\n' "$blocked_cause" "$blocked_name"
+    return 4
+  fi
   return 1
 }
 
@@ -1153,14 +1227,18 @@ cmd_spawn() {
 
   [ -n "$reuse" ] || reuse="$(cfg reuse_workers off)"
   if [ "$reuse" = on ] && [ -z "$pane" ]; then
-    local existing
-    if existing="$(find_reusable "$role" "$kind" "$cwd" "$name")"; then
+    local existing reuse_rc=0
+    existing="$(find_reusable "$role" "$kind" "$cwd" "$name")" && reuse_rc=0 || reuse_rc=$?
+    if [ "$reuse_rc" -eq 0 ]; then
       local eline; eline="$(roster_line "$existing")"
       jq -n --arg name "$existing" --arg pane "$(printf '%s' "$eline" | cut -f2)" --arg kind "$kind" --arg role "$role" \
         --arg family "$(printf '%s' "$eline" | cut -f5)" \
         '{name:$name,pane_id:$pane,kind:$kind,role:$role,family:$family,reused:true,status:"ready"}'
       warn "reusing idle worker '$existing' ($kind, $role); its session already holds earlier briefs"
       return 0
+    fi
+    if [ "$reuse_rc" -eq 4 ]; then
+      die "worker '$(printf '%s' "$existing" | cut -f3)' matches this role, kind and cwd but herdr agent get failed ($(printf '%s' "$existing" | cut -f2)). Not spawning a replacement; it may still be live." 4
     fi
   fi
 
@@ -1264,10 +1342,11 @@ try_auto_approve() {
   return 0
 }
 
-# probe_agent <agent> <report> → one of: done | blocked | working | settled | gone | pending
+# probe_agent <agent> <report> → done | blocked | working | settled | gone | pending
+# or `unavailable<TAB><cause>` when `herdr agent get` itself failed.
 # Keeps per-agent screen/settled bookkeeping under <state>/wait/.
 probe_agent() {
-  local agent="$1" report="$2" sd st screen last_screen since now_s grace
+  local agent="$1" report="$2" sd st screen last_screen since now_s grace raw STATE CAUSE
   sd="$(state_dir)"; grace="$(cfg settled_grace 45)"
   if [ -s "$report" ]; then
     # wait for the file size to stop changing (worker may still be writing)
@@ -1276,8 +1355,11 @@ probe_agent() {
     [ "$size" = "$prev" ] && { echo "done"; return; }
     echo pending; return
   fi
-  st="$(agent_state "$agent")"
-  [ "$st" = gone ] && { echo gone; return; }
+  raw="$(agent_state "$agent")"
+  split_agent_state "$raw"
+  [ "$STATE" = gone ] && { echo gone; return; }
+  [ "$STATE" = unavailable ] && { printf '%s\n' "$raw"; return; }
+  st="$STATE"
   if [ "$st" = blocked ]; then
     # Detection can flag a transient approval UI; require two consecutive
     # blocked probes before acting. With auto_approve=on the default option
@@ -1305,7 +1387,7 @@ notify_done() { [ "$(cfg notify off)" = on ] && herdr notification show "herdr-a
 # wait_for <timeout_ms> <any:0|1> <agent>... → prints one JSON line per agent; exit 0 all done
 wait_for() {
   local timeout_ms="$1" any="$2"; shift 2
-  local agents=("$@") deadline pending remaining a r st done_n=0 rc=0
+  local agents=("$@") deadline pending remaining a r st tag cause done_n=0 rc=0
   deadline=$(( $(date +%s) + timeout_ms / 1000 ))
   local sd; sd="$(state_dir)"
   for a in "${agents[@]}"; do rm -f "$sd/wait/$a.size"; done
@@ -1315,11 +1397,17 @@ wait_for() {
     for a in ${remaining}; do
       r="$(cat "$sd/last-report-$a" 2>/dev/null || true)"
       st="$(probe_agent "$a" "$r")"
-      case "$st" in
+      tag="${st%%$'\t'*}"
+      case "$tag" in
         done) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"done",report:$r}'; notify_done "$a" "$r"; done_n=$((done_n+1)); [ "$any" = 1 ] && return 0 ;;
-        blocked) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"blocked",report:$r}'; rc=7 ;;
-        gone) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"gone",report:$r}'; rc=6 ;;
+        blocked) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"blocked",report:$r}'; [ "$rc" != 4 ] && rc=7 ;;
+        gone) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"gone",report:$r}'; [ "$rc" != 4 ] && rc=6 ;;
         settled) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"settled-no-report",report:$r}'; [ "$rc" = 0 ] && rc=6 ;;
+        unavailable)
+          cause=""; case "$st" in *$'\t'*) cause="${st#*$'\t'}" ;; esac
+          jq -n -c --arg a "$a" --arg r "$r" --arg e "$cause" '{agent:$a,status:"unavailable",report:$r,error:$e}'
+          warn "agent '$a': herdr agent get failed: $cause"
+          rc=4 ;;
         *) pending="$pending $a " ;;
       esac
     done
@@ -1346,12 +1434,31 @@ cmd_wait() {
 
 cmd_status() {
   [ $# -gt 0 ] || die "status: give at least one agent name" 2
-  local a r st sd; sd="$(state_dir)"
+  local a r sd raw STATE CAUSE rc=0
+  sd="$(state_dir)"
   for a in "$@"; do
     r="$(cat "$sd/last-report-$a" 2>/dev/null || true)"
-    if [ -s "$r" ]; then st="done"; elif [ -z "$(roster_line "$a")" ]; then st=unknown-agent; else st="$(agent_state "$a")"; [ "$st" = idle ] || [ "$st" = "done" ] && st=no-report-yet; fi
-    printf '%s\t%s\t%s\n' "$a" "$st" "$r"
+    CAUSE=""
+    if [ -s "$r" ]; then
+      STATE=done
+    elif [ -z "$(roster_line "$a")" ]; then
+      STATE=unknown-agent
+    else
+      raw="$(agent_state "$a")"
+      split_agent_state "$raw"
+      if [ "$STATE" = idle ] || [ "$STATE" = done ]; then STATE=no-report-yet; fi
+      if [ "$STATE" = unavailable ]; then
+        rc=4
+        warn "agent '$a': herdr agent get failed: $CAUSE"
+      fi
+    fi
+    if [ -n "$CAUSE" ]; then
+      printf '%s\t%s\t%s\t%s\n' "$a" "$STATE" "$r" "$CAUSE"
+    else
+      printf '%s\t%s\t%s\n' "$a" "$STATE" "$r"
+    fi
   done
+  return "$rc"
 }
 
 # ---------- dispatch ----------
@@ -1438,7 +1545,7 @@ cmd_dispatch() {
   rm -f "$sd/wait/$agent.size" "$sd/wait/$agent.screen" "$sd/wait/$agent.since" "$sd/wait/$agent.blocked" "$sd/wait/$agent.approvals"
 
   local text="Read the file $composed in full and execute it. It contains your role, your brief, and your report contract. When finished, write your report to $report and reply with exactly that path and nothing else."
-  local result status="submitted"
+  local result status="submitted" qerr=""
   if ! result="$(herdr agent prompt "$agent" "$text" 2>&1)"; then
     status=error
     jq -n --arg agent "$agent" --arg role "$role" --arg kind "$kind" --arg composed "$composed" --arg report "$report" --arg raw "$result" \
@@ -1450,6 +1557,7 @@ cmd_dispatch() {
     local out rc=0
     out="$(wait_for "$timeout" 0 "$agent")" || rc=$?
     status="$(printf '%s' "$out" | jq -r '.status' | tail -n1)"
+    qerr="$(printf '%s' "$out" | jq -r '.error // empty' | tail -n1)"
   fi
   jq -n --arg agent "$agent" --arg role "$role" --arg kind "$kind" --arg composed "$composed" --arg report "$report" \
     --arg status "$status" --argjson report_exists "$([ -s "$report" ] && echo true || echo false)" \
@@ -1460,6 +1568,7 @@ cmd_dispatch() {
     timeout) warn "timeout waiting for the report of '$agent'; it may still be working. Run: herdr-agents.sh wait $agent"; return 9 ;;
     settled-no-report) warn "agent '$agent' settled without writing $report; collect will fall back to terminal output"; return 6 ;;
     gone) warn "agent '$agent' is no longer live"; return 6 ;;
+    unavailable) warn "agent '$agent': herdr agent get failed${qerr:+: $qerr}. The worker may still be live; do not spawn a replacement."; return 4 ;;
   esac
   return 0
 }
@@ -1470,9 +1579,17 @@ cmd_collect() {
   local agent="${1:?agent}"; shift
   local lines=120
   while [ $# -gt 0 ]; do case "$1" in --lines) lines="$2"; shift 2 ;; *) die "collect: unknown option $1" 2 ;; esac; done
-  local sd report; sd="$(state_dir)"
+  local sd report raw STATE CAUSE; sd="$(state_dir)"
   report="$(cat "$sd/last-report-$agent" 2>/dev/null || true)"
   if [ -n "$report" ] && [ -s "$report" ]; then printf '<!-- report: %s -->\n' "$report"; cat "$report"; return 0; fi
+  if [ -n "$(roster_line "$agent")" ]; then
+    raw="$(agent_state "$agent")"
+    split_agent_state "$raw"
+    if [ "$STATE" = unavailable ]; then
+      warn "no report file yet for '$agent', and herdr agent get failed: $CAUSE. The worker may still be live."
+      return 4
+    fi
+  fi
   warn "no report file yet for '$agent' (expected ${report:-<none dispatched>}); falling back to recent terminal output"
   herdr agent read "$agent" --source recent-unwrapped --lines "$lines"
   return 6
@@ -1507,9 +1624,16 @@ cmd_release() {
   local line; line="$(roster_line "$agent")"
   [ -n "$line" ] || die "agent '$agent' is not in the roster" 3
   local pane created cwd; pane="$(printf '%s' "$line" | cut -f2)"; created="$(printf '%s' "$line" | cut -f6)"; cwd="$(printf '%s' "$line" | cut -f7)"
-  local r; r="$(cat "$(state_dir)/last-report-$agent" 2>/dev/null || true)"
-  if [ "$close" = 1 ] && [ -n "$r" ] && [ ! -s "$r" ] && [ "$(agent_state "$agent")" = working ] && [ "$force" != 1 ]; then
-    die "agent '$agent' is still working and has not written $r; closing now discards its work. Run 'wait $agent' first, or release --close --force" 3
+  local r raw STATE CAUSE; r="$(cat "$(state_dir)/last-report-$agent" 2>/dev/null || true)"
+  if [ "$force" != 1 ] && { [ -z "$r" ] || [ ! -s "$r" ]; }; then
+    raw="$(agent_state "$agent")"
+    split_agent_state "$raw"
+    if [ "$STATE" = unavailable ]; then
+      die "agent '$agent': herdr agent get failed ($CAUSE). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force." 4
+    fi
+    if [ "$close" = 1 ] && [ -n "$r" ] && [ "$STATE" = working ]; then
+      die "agent '$agent' is still working and has not written $r; closing now discards its work. Run 'wait $agent' first, or release --close --force" 3
+    fi
   fi
   if [ "$close" = 1 ]; then
     if [ "$created" = 1 ]; then herdr pane close "$pane" >/dev/null && printf 'closed pane %s\n' "$pane"

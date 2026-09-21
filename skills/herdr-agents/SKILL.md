@@ -198,13 +198,17 @@ $S dispatch a brief-a.md --no-wait   # fan out…
 $S dispatch b brief-b.md --no-wait
 $S wait a b                          # …then block until every report exists
 $S wait a b --any                    # or until the first one lands
-$S status a b                        # non-blocking: done | working | blocked | no-report-yet
+$S status a b                        # non-blocking: done | working | blocked | no-report-yet | gone | unavailable
 ```
 
 `wait` prints one JSON line per agent (`done`, `blocked`, `settled-no-report`,
-`gone`, `timeout`) and exits 0 only when all reports exist (7 blocked, 6
-settled/gone, 9 timeout). A report counts as done once its size stops
-changing between two polls. `notify=on` in the config raises a Herdr toast
+`gone`, `unavailable`, `timeout`) and exits 0 only when all reports exist
+(7 blocked, 6 settled/`gone`, 4 `unavailable`, 9 timeout). `gone` is only
+`agent_not_found`. `unavailable` is a permission or transport failure of
+`herdr agent get` (cause on stderr and in JSON `error`): retry or restore
+access; do not spawn a replacement, and do not `release` or `release --close`
+without `--force` while the query is unavailable. A report counts as done
+once its size stops changing between two polls. `notify=on` in the config raises a Herdr toast
 per finished worker. `roster` shows a `REPORT` column (`none | pending |
 ready`) for a quick glance.
 
@@ -328,7 +332,7 @@ automatic label); `roster` shows the `TAB` of every worker.
 `dispatch` writes a composed prompt (role body + brief + report contract) to
 the state dir and sends a one-line pointer to it, so long briefs never
 depend on terminal paste limits. Exit codes: 2 usage/env, 3 unknown
-role/agent, 4 Herdr failure, 5 same-family reviewer, 6 settled without
+role/agent, 4 Herdr failure (`unavailable`), 5 same-family reviewer, 6 settled without
 report, 7 agent blocked (startup or approval), 9 wait timeout. Every error
 and warning is also appended to `<state>/friction.log` (`$S friction`).
 
