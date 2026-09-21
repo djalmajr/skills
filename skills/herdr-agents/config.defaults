@@ -10,7 +10,7 @@ orchestrator_name=orchestrator
 
 # Where workers live: `split` = panes in the caller's tab (the largest pane of
 # caller + workers is halved on its longer side) until the tab is full, then
-# the herd tabs; `tab` = the herd tabs only (`herd`, then `herd-2`, …).
+# the herd tabs; `tab` = the herd tabs only (labelled by herd_label).
 layout=split
 
 # Panes per tab before new workers overflow into the next herd tab. In the
@@ -31,6 +31,19 @@ split_min_pane=0.18
 # columns = ceil(sqrt(n)), rows balanced. Explicit `spawn --direction/--ratio`
 # skips the automatic regrid for that call.
 regrid=on
+
+# Label of the herd tabs (where workers overflow). A template over {roles}
+# (distinct roles in the tab, arrival order, abbreviated: impl rev insp des
+# scout res task sec sub plan; project roles keep their file name), {n}
+# (workers in the tab), {i} (tab position from 2, empty on the first) and
+# {orch} (orchestrator name). Recomputed after every spawn/release/regrid,
+# cut to herd_label_max characters; a label an earlier tab already shows gets
+# " 2", " 3"… (`impl+rev`, `impl+rev 2`). Keep it short: the sidebar shows
+# about 16 characters. `spawn --tab-label` and `tab-label` pin a manual label
+# instead (name the slice or wave: "onda 2"), and a tab renamed in Herdr by
+# hand is respected too.
+herd_label={roles}
+herd_label_max=16
 
 # Reuse an idle worker of the same role, kind and cwd whose last report is
 # already written instead of opening a new pane: on | off. `spawn --reuse` /

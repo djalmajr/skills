@@ -72,15 +72,17 @@ expect 'layout-plan grid after spawn' "$(printf '%s' "$PLAN" | jq -c '.grid')" '
 PLAN="$(printf '%s' "$FULL" | bash "$SKILL_SCRIPT" layout-plan --layout - --me C --mine 'A B D E F')"
 expect 'layout-plan overflow' "$(printf '%s' "$PLAN" | jq -r '.placement + " " + .reason')" 'herd full'
 
-# --- herd tabs: first tab with room, else the next label ------------------
+# --- herd tabs: first tab with room, else a new tab named after the role ---
 # Fake herdr: two herd tabs exist (t1 full with 6 workers, t2 with 2), the
-# roster lists them all; `tab create` and `pane split` log what they were asked.
+# roster lists them all; `tab create`, `tab rename` and `pane split` log what
+# they were asked. Label composition itself is covered by test-tab-labels.sh.
 FAKE="$TEST_ROOT/bin"; mkdir -p "$FAKE"; LOG="$TEST_ROOT/herdr.log"
 cat > "$FAKE/herdr" <<FAKE_EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$LOG"
 case "\$1 \$2" in
-  "tab get") case "\$3" in t1|t2) echo '{"result":{"tab":{"tab_id":"'"\$3"'"},"root_pane":{"pane_id":"r"}}}' ;; *) echo '{"error":"tab_not_found"}'; exit 1 ;; esac ;;
+  "tab get") case "\$3" in t1|t2|t3) echo '{"result":{"tab":{"tab_id":"'"\$3"'","label":"herd"},"root_pane":{"pane_id":"r"}}}' ;; *) echo '{"error":"tab_not_found"}'; exit 1 ;; esac ;;
+  "tab rename") echo '{"result":{}}' ;;
   "pane list") echo '{"result":{"panes":[{"pane_id":"w1","tab_id":"t1"},{"pane_id":"w2","tab_id":"t1"},{"pane_id":"w3","tab_id":"t1"},{"pane_id":"w4","tab_id":"t1"},{"pane_id":"w5","tab_id":"t1"},{"pane_id":"w6","tab_id":"t1"},{"pane_id":"w7","tab_id":"t2"},{"pane_id":"w8","tab_id":"t2"}]}}' ;;
   "agent get") echo '{"result":{"agent":{"name":"'"\$3"'"}}}' ;;
   "pane layout") echo '{"result":{"layout":{"panes":[{"pane_id":"w8","rect":{"x":0,"y":0,"width":213,"height":28}}]}}}' ;;
@@ -91,19 +93,17 @@ esac
 FAKE_EOF
 chmod +x "$FAKE/herdr"
 STATE="$TEST_ROOT/state"; mkdir -p "$STATE/ws"
-printf 't1\nt2\ndead-tab\n' > "$STATE/ws/herd-tab"
+printf 't1\nt2\ndead-tab\n' > "$STATE/ws/herd-tab"   # old one-column format
 { printf '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\n'; for i in 1 2 3 4 5 6 7 8; do printf 'a%s\tw%s\tclaude\tscouter\tanthropic\t1\t/tmp\tnow\n' "$i" "$i"; done; } > "$STATE/ws/agents.tsv"
 export PATH="$FAKE:$PATH" HERDR_AGENTS_DIR="$STATE" HERDR_WORKSPACE_ID=ws
 export HERDR_AGENTS_SPLIT_MAX_PANES=6
 expect 'second herd tab has room → split its last pane' "$(herd_tab_pane /tmp)" $'new-split\t1'
 grep -q '^pane split w8 --direction right' "$LOG" || fail "expected a split of the last pane of t2, log: $(cat "$LOG")"
-expect 'dead tab pruned from state' "$(tr '\n' ' ' < "$STATE/ws/herd-tab")" 't1 t2 '
+expect 'dead tab pruned, old format migrated' "$(tr '\n\t' ' ,' < "$STATE/ws/herd-tab")" 't1,herd,auto t2,herd,auto '
 : > "$LOG"
 export HERDR_AGENTS_SPLIT_MAX_PANES=2
-expect 'every herd tab full → new tab' "$(herd_tab_pane /tmp)" $'new-root\t1'
-grep -q 'tab create .*--label herd-3' "$LOG" || fail "expected a tab labelled herd-3, log: $(cat "$LOG")"
-expect 'new tab recorded' "$(tr '\n' ' ' < "$STATE/ws/herd-tab")" 't1 t2 t3 '
-expect 'label of the first herd tab' "$(herd_tab_label 0)" herd
-expect 'label of the fourth herd tab' "$(herd_tab_label 3)" herd-4
+expect 'every herd tab full → new tab' "$(herd_tab_pane /tmp "" implementer)" $'new-root\t1'
+grep -q 'tab create .*--label impl' "$LOG" || fail "expected a tab labelled impl, log: $(cat "$LOG")"
+expect 'new tab recorded' "$(tr '\n\t' ' ,' < "$STATE/ws/herd-tab")" 't1,herd,auto t2,herd,auto t3,impl,auto '
 
 echo 'layout checks passed'

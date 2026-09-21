@@ -217,7 +217,9 @@ keys it sets:
 full, then herd tabs; `tab`: herd tabs only), `split_max_panes` (panes per
 tab, caller included; default 6), `split_min_pane` (smallest pane a spawn may
 leave, fraction of the tab; default 0.18), `regrid` (exact grids after every
-spawn/release), `brief_lint` (`warn|strict|off`), `reuse_workers`
+spawn/release), `herd_label` + `herd_label_max` (template and length of the
+automatic herd-tab labels; default `{roles}` → `impl+rev`, 16 characters;
+see "Herd tab labels"), `brief_lint` (`warn|strict|off`), `reuse_workers`
 (default `on`: `spawn` returns an idle worker of the same role, kind and
 cwd whose last report exists instead of opening a pane; `--reuse`/`--fresh`
 override per call; a reused worker keeps earlier briefs in context, so pass
@@ -250,6 +252,9 @@ $S run scouter <brief.md>                    # spawn + dispatch + collect in one
 $S wait a b [--any] [--timeout MS]         # block on report files
 $S friction                                # errors/warnings of this workspace (review at end)
 $S regrid                                  # exact grids: caller's tab (split) + every herd tab
+$S tab-label                               # herd tabs: id, label, auto|manual
+$S tab-label "onda 2" [--tab ID]           # pin a label (newest herd tab, or --tab); --auto goes back
+$S spawn reviewer --tab-label "onda 2"     # place the worker in the herd tab of that name (created if needed)
 $S layout-plan                             # where the next spawn lands (anchor, direction, overflow reason)
 $S status a b                              # non-blocking completion check
 $S config                                  # effective configuration and sources
@@ -282,11 +287,13 @@ top-left in the least crowded column (3 cells: caller full height, two
 workers stacked; 6 cells: 3×2). When the tab holds `split_max_panes` panes
 (default 6 = caller + 5), or no pane can be halved without going below
 `split_min_pane` (default 0.18 of the tab), the worker **overflows** into
-the `herd` tab, then `herd-2`, `herd-3`… as each fills (`spawn` prints
+a herd tab — the first with room, else a new one, labelled after the
+roles in it (`impl+rev`) or the wave you name (`spawn` prints
 `placement: split|herd`; `layout-plan` shows the decision and why).
 `release --close` frees the slot, so the next spawn lands in the caller's
 tab again. `layout=tab` uses the herd tabs only. Every herd tab is rebuilt
-as an exact grid too (columns = ⌈√n⌉, rows balanced). Workers pass through
+as an exact grid too (columns = ⌈√n⌉, rows balanced), keeping its label.
+Workers pass through
 a temporary `herd-park` tab during a caller-tab regrid because Herdr
 refuses to move a pane inside its own tab; agents keep running. There is
 no cap on workers overall: open as many as the work needs. `spawn` retries
@@ -295,6 +302,22 @@ with `--no-focus`, and gives focus back to the caller. Explicit
 `--direction`/`--ratio` split the chosen (or, when the tab is full, the
 caller's) pane as asked and skip the automatic regrid for that call.
 Anything after `--` goes to the agent CLI (`herdr agent start … -- <args>`).
+**Herd tab labels.** A herd tab is named after what runs in it, not
+`herd-2`. Automatic labels come from `herd_label` (default `{roles}`: the
+distinct roles in the tab, arrival order, abbreviated — `impl`, `rev`,
+`insp`, `des`, `scout`, `res`, `task`, `sec`, `sub`, `plan`; project roles
+keep their file name — so `impl+rev`; a repeat becomes `impl+rev 2`; also
+`{n}` workers, `{i}` tab position from 2, `{orch}`), cut to
+`herd_label_max` (16) characters, and are recomputed after every
+`spawn`/`release`/`regrid`. **When the work has a name, name the tab after
+the slice or wave, not the role**: `spawn <role> --tab-label "onda 2"`
+puts the worker in the herd tab of that label (created when missing,
+regardless of room in the caller's tab; a full one spills into
+`onda 2 ·2`), and `$S tab-label "paridade"` pins the label of the newest
+herd tab (`--tab ID` for another). Keep labels ≤ 16 characters — the
+sidebar cuts the rest. Pinned labels and tabs renamed by hand in Herdr
+are `manual` and never overwritten (`tab-label --auto` returns a tab to the
+automatic label); `roster` shows the `TAB` of every worker.
 `dispatch` writes a composed prompt (role body + brief + report contract) to
 the state dir and sends a one-line pointer to it, so long briefs never
 depend on terminal paste limits. Exit codes: 2 usage/env, 3 unknown
@@ -366,9 +389,10 @@ and warning is also appended to `<state>/friction.log` (`$S friction`).
   of setup rejects `rm -f`-style commands regardless of approvals. Briefs
   describe outcomes, not destructive shell idioms.
 - **Layout.** The caller's tab never holds more than `split_max_panes`
-  panes (6 → a 3×2 grid on a wide tab); later workers go to `herd`,
-  `herd-2`… Lower it (4 → 2×2) when the caller must stay large, or set
-  `layout=tab` to keep the caller's tab untouched.
+  panes (6 → a 3×2 grid on a wide tab); later workers go to herd tabs
+  labelled after their roles (`impl+rev`) or after the wave you name with
+  `--tab-label`. Lower it (4 → 2×2) when the caller must stay large, or
+  set `layout=tab` to keep the caller's tab untouched.
 
 State (briefs, reports, roster) lives **inside the project**, under
 `<repo>/.herdr-agents/<workspace-id>/`, and the script adds that path to

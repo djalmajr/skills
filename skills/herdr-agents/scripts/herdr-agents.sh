@@ -16,6 +16,8 @@
 #   herdr-agents.sh models <kind>                 # ids the CLI lists, newest first
 #   herdr-agents.sh model <kind> <spec> [effort]  # how a model spec resolves
 #   herdr-agents.sh regrid                        # exact grids: caller tab (layout=split) + every herd tab
+#   herdr-agents.sh tab-label [<text>] [--tab ID] [--auto]
+#                                                 # list herd tabs / pin a tab's label / back to automatic
 #   herdr-agents.sh layout-plan [--layout FILE] [--me P] [--mine "P…"]
 #                                                 # where the next split-layout spawn would go, and why
 #   herdr-agents.sh role <name>
@@ -23,7 +25,7 @@
 #                          [--ratio F] [--cwd DIR] [--pane ID] [--timeout MS]
 #                          [--effort low|medium|high|xhigh|max] [--model M]
 #                          [--approvals ask|edits|full] [--reuse|--fresh]
-#                          [-- <native agent args>]
+#                          [--tab-label TEXT] [-- <native agent args>]
 #   herdr-agents.sh env                          # environment block for a feedback issue
 #   herdr-agents.sh dispatch <agent> <brief.md> [--role R] [--timeout MS]
 #                          [--no-wait] [--allow-same-family]
@@ -118,7 +120,7 @@ cfg_source() {
 cmd_config() {
   printf '%-18s %-30s %s\n' KEY VALUE SOURCE
   local k
-  for k in orchestrator_name layout regrid split_max_panes split_min_pane reuse_workers worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
+  for k in orchestrator_name layout regrid split_max_panes split_min_pane herd_label herd_label_max reuse_workers worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
   for k in $(compgen -v | grep -E '^CFG_(args|role|model|effort)_' | sed 's/^CFG_//'); do
@@ -458,6 +460,8 @@ cmd_doctor() {
   elif [ "$cap" -lt 2 ]; then say warn "config: split_max_panes=$cap leaves no room next to the caller; every worker will overflow into herd tabs (set 2 or more)"
   else say ok "config: split_max_panes=$cap split_min_pane=$(split_min)"; fi
   printf '%s' "$(cfg split_min_pane 0.18)" | grep -Eq '^0?\.[0-9]+$' || say warn "config: split_min_pane='$(cfg split_min_pane)' must be a fraction like 0.18 (using 0.18)"
+  if ! printf '%s' "$(cfg herd_label_max 16)" | grep -Eq '^[0-9]+$'; then say warn "config: herd_label_max='$(cfg herd_label_max)' is not a number (using 16)"
+  else say ok "config: herd_label='$(cfg herd_label '{roles}')' herd_label_max=$(herd_label_max)"; fi
   # Instruction block + hooks: without them the orchestrator forgets to delegate
   # when a prompt does not say "herd" or "workers" (observed: a three-repo
   # survey done by hand). `setup` writes both.
@@ -730,17 +734,87 @@ restore_focus() { # <new pane> <split direction>
 }
 
 # ---------- herd tabs ----------
-# Overflow tabs: `herd`, then `herd-2`, `herd-3`… Their ids live one per line
-# in <state>/herd-tab, in order; dead tabs are pruned on read.
+# Overflow tabs. <state>/herd-tab holds one tab per line, in order:
+#   <tab_id>\t<label>\t<auto|manual>
+# `auto` labels are composed from the roles living in the tab (config
+# `herd_label`, default `{roles}` → `impl+rev`, a repeat gets ` 2`, ` 3`…,
+# cut to `herd_label_max` characters) and rewritten after every spawn,
+# release and regrid. `manual` labels (`spawn --tab-label`, `tab-label`, or
+# a rename done in Herdr itself) are kept: on every read, a tab whose live
+# label differs from the last one this skill wrote is switched to manual.
+# Old one-column files (ids only) are migrated on read: a live label that
+# still looks like `herd`/`herd-N` is auto, anything else was renamed by
+# hand. Dead tabs are pruned on read. An unknown label is stored as `-`
+# (`read` with a tab IFS would swallow an empty field).
 
-herd_tab_label() { [ "$1" -eq 0 ] && echo herd || echo "herd-$(( $1 + 1 ))"; }
-herd_tabs() {
-  local f t live=""
+role_abbrev() { case "$1" in implementer) echo impl ;; reviewer) echo rev ;; inspector) echo insp ;; designer) echo des ;; scouter) echo scout ;; researcher) echo res ;; tasker) echo task ;; security-reviewer) echo sec ;; sub-orchestrator) echo sub ;; planner) echo plan ;; *) printf '%s\n' "$1" ;; esac; }
+herd_label_max() { local v; v="$(cfg herd_label_max 16)"; printf '%s' "$v" | grep -Eq '^[0-9]+$' && printf '%s\n' "$v" || echo 16; }
+has_line() { printf '%s' "$1" | grep -Fxq -- "$2"; }
+herd_tab_line() { printf '%s\t%s\t%s\n' "$1" "${2:--}" "$3"; }
+
+# herd_tab_entries → the live "<tab>\t<label>\t<mode>" lines (migrated,
+# drift-checked, pruned) and rewrites the file with them.
+herd_tab_entries() {
+  local f t label mode info cur live=""
   f="$(state_dir)/herd-tab"
   [ -f "$f" ] || return 0
-  while IFS= read -r t; do [ -n "$t" ] && herdr tab get "$t" >/dev/null 2>&1 && live="$live$t"$'\n'; done < "$f"
+  while IFS=$'\t' read -r t label mode; do
+    [ -n "$t" ] || continue
+    [ "$label" != - ] || label=""
+    info="$(herdr tab get "$t" 2>/dev/null)" || continue
+    cur="$(printf '%s' "$info" | jq -r '.result.tab.label // empty' 2>/dev/null || true)"
+    if [ -z "$mode" ]; then
+      if [ -z "$cur" ] || printf '%s' "$cur" | grep -Eq '^herd(-[0-9]+)?$'; then mode=auto; else mode=manual; fi
+      label="$cur"
+    elif [ "$mode" = auto ] && [ -n "$label" ] && [ -n "$cur" ] && [ "$cur" != "$label" ]; then
+      mode=manual; label="$cur"   # renamed in Herdr: respect it
+    fi
+    live="$live$(herd_tab_line "$t" "$label" "$mode")"$'\n'
+  done < "$f"
   printf '%s' "$live" > "$f"
   printf '%s' "$live"
+}
+herd_tabs() { herd_tab_entries | cut -f1; }
+herd_tab_set() { # <tab> <label> <mode> — upsert one entry, order kept
+  local f t l m out="" found=0
+  f="$(state_dir)/herd-tab"; [ -f "$f" ] || : > "$f"
+  while IFS=$'\t' read -r t l m; do
+    [ -n "$t" ] || continue
+    if [ "$t" = "$1" ]; then out="$out$(herd_tab_line "$1" "$2" "$3")"$'\n'; found=1; else out="$out$(herd_tab_line "$t" "$l" "$m")"$'\n'; fi
+  done < "$f"
+  [ "$found" = 1 ] || out="$out$(herd_tab_line "$1" "$2" "$3")"$'\n'
+  printf '%s' "$out" > "$f"
+}
+
+# compose_herd_label <template> "<roles, arrival order>" <position> [orch]:
+# {roles} = distinct abbreviated roles joined by "+", {n} = workers, {i} =
+# tab position from 2 (empty on the first tab), {orch} = orchestrator name.
+compose_herd_label() {
+  local tpl="$1" roles="$2" i="${3:-1}" orch="${4:-}" r a seen="" out="" n=0
+  for r in $roles; do n=$((n+1)); a="$(role_abbrev "$r")"; has_word "$seen" "$a" && continue; seen="$seen $a"; out="${out:+$out+}$a"; done
+  [ "$i" -gt 1 ] 2>/dev/null || i=""
+  tpl="${tpl//\{roles\}/$out}"; tpl="${tpl//\{n\}/$n}"; tpl="${tpl//\{i\}/$i}"; tpl="${tpl//\{orch\}/$orch}"
+  printf '%s' "$tpl" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; echo
+}
+# herd_auto_label <base> "<labels already used, one per line>" → the base cut
+# to herd_label_max, with " 2", " 3"… when an earlier tab already shows it.
+herd_auto_label() {
+  local base="$1" taken="$2" max cand k=2 suffix=""
+  max="$(herd_label_max)"; [ -n "$base" ] || base=herd
+  cand="$(printf '%s' "${base:0:$max}" | sed 's/[[:space:]+·]*$//')"
+  while has_line "$taken" "$cand"; do
+    suffix=" $k"; cand="$(printf '%s' "${base:0:$((max - ${#suffix}))}" | sed 's/[[:space:]+·]*$//')$suffix"; k=$((k+1))
+  done
+  printf '%s\n' "$cand"
+}
+# roster_roles_in_tab <pane-list-json> <tab> → roles of this skill's workers whose pane sits in <tab>, roster order
+roster_roles_in_tab() {
+  local live="$1" tab="$2" name pane kind role
+  while IFS=$'\t' read -r name pane kind role _rest; do
+    [ -n "$name" ] || continue
+    printf '%s' "$live" | jq -e --arg p "$pane" --arg t "$tab" 'any(.[]; .pane_id==$p and .tab_id==$t)' >/dev/null || continue
+    printf '%s\n' "$role"
+  done < <(roster_rows)
 }
 # roster_panes_in_tab <pane-list-json> <tab> → this skill's live worker panes in <tab>, roster order
 roster_panes_in_tab() {
@@ -752,31 +826,114 @@ roster_panes_in_tab() {
   done < <(roster_rows)
 }
 
-# herd_tab_pane <cwd> → "<pane_id>\t1": a pane in the first herd tab holding
-# fewer than `split_max_panes` of this skill's workers; opens the next tab
-# (`herd`, `herd-2`, …) when every existing one is full.
+# herd_tabs_relabel: recompute the `auto` labels from the roles living in
+# each herd tab and rename the tabs that changed; manual entries are kept.
+herd_tabs_relabel() {
+  local live entries t label mode idx=0 taken="" roles base want cur tpl orch=""
+  live="$(herdr pane list --workspace "$(workspace_id)" | jq -c '.result.panes')"
+  entries="$(herd_tab_entries)"
+  tpl="$(cfg herd_label '{roles}')"
+  case "$tpl" in *'{orch}'*) orch="$(caller_agent_name)"; [ -n "$orch" ] || orch="$(cfg orchestrator_name orchestrator)" ;; esac
+  while IFS=$'\t' read -r t label mode; do
+    [ -n "$t" ] || continue
+    [ "$label" != - ] || label=""
+    idx=$((idx+1))
+    if [ "$mode" = auto ]; then
+      roles="$(roster_roles_in_tab "$live" "$t" | tr '\n' ' ')"
+      base="$(compose_herd_label "$tpl" "$roles" "$idx" "$orch")"
+      want="$(herd_auto_label "$base" "$taken")"
+      cur="$(herdr tab get "$t" 2>/dev/null | jq -r '.result.tab.label // empty' 2>/dev/null || true)"
+      if [ "$want" != "$cur" ]; then herdr tab rename "$t" "$want" >/dev/null 2>&1 || warn "tab rename $t → '$want' failed"; fi
+      label="$want"
+    fi
+    taken="$taken$label"$'\n'
+    herd_tab_set "$t" "$label" "$mode"
+  done <<< "$entries"
+}
+
+# herd_tab_split <tab> <cwd> → "<pane_id>\t1": a new pane split off the last pane of <tab>
+herd_tab_split() {
+  local tab="$1" cwd="$2" live anchor dir split
+  live="$(herdr pane list --workspace "$(workspace_id)" | jq -c '.result.panes')"
+  anchor="$(printf '%s' "$live" | jq -r --arg t "$tab" '[.[] | select(.tab_id==$t)] | last | .pane_id // empty')"
+  [ -n "$anchor" ] || { printf '%s\t1\n' "$(herdr tab get "$tab" | jq -r '.result.root_pane.pane_id // empty')"; return; }
+  dir="$(auto_direction_for "$anchor")"
+  split="$(herdr pane split "$anchor" --direction "$dir" --cwd "$cwd" --no-focus)" || die "pane split failed" 4
+  printf '%s\t1\n' "$(printf '%s' "$split" | jq -r '.result.pane.pane_id')"
+}
+
+# herd_tab_pane <cwd> [label] [role] → "<pane_id>\t1": a pane in a herd tab
+# holding fewer than `split_max_panes` of this skill's workers. With <label>
+# (spawn --tab-label) the tab showing that label is used or created and
+# pinned as manual; when it is full the next one is "<label> ·2", "·3"….
+# Without it, the first tab with room in order, else a new `auto` tab
+# provisionally labelled after <role> (relabelled once the roster knows it).
 herd_tab_pane() {
-  local cwd="$1" sd ws live tab n idx=0 anchor dir split tabinfo cap
+  local cwd="$1" want="${2:-}" role="${3:-}" sd ws live tab label mode n k=2 cand tabinfo cap new_label new_mode
   sd="$(state_dir)"; ws="$(workspace_id)"; cap="$(split_cap)"
   live="$(herdr pane list --workspace "$ws" | jq -c '.result.panes')"
-  while IFS= read -r tab; do
-    [ -n "$tab" ] || continue
-    n="$(roster_panes_in_tab "$live" "$tab" | grep -c . || true)"
-    if [ "$n" -lt "$cap" ]; then
-      # split the last pane living in that tab
-      anchor="$(printf '%s' "$live" | jq -r --arg t "$tab" '[.[] | select(.tab_id==$t)] | last | .pane_id // empty')"
-      [ -n "$anchor" ] || { printf '%s\t1\n' "$(herdr tab get "$tab" | jq -r '.result.root_pane.pane_id // empty')"; return; }
-      dir="$(auto_direction_for "$anchor")"
-      split="$(herdr pane split "$anchor" --direction "$dir" --cwd "$cwd" --no-focus)" || die "pane split failed" 4
-      printf '%s\t1\n' "$(printf '%s' "$split" | jq -r '.result.pane.pane_id')"
-      return
-    fi
-    idx=$((idx+1))
-  done < <(herd_tabs)
-  tabinfo="$(herdr tab create --workspace "$ws" --cwd "$cwd" --label "$(herd_tab_label "$idx")" --no-focus)" || die "tab create failed" 4
+  if [ -n "$want" ]; then
+    cand="$want"
+    while :; do
+      tab="$(herd_tab_entries | awk -F'\t' -v l="$cand" '$2==l {print $1; exit}')"
+      [ -n "$tab" ] || break
+      n="$(roster_panes_in_tab "$live" "$tab" | grep -c . || true)"
+      if [ "$n" -lt "$cap" ]; then herd_tab_set "$tab" "$cand" manual; herd_tab_split "$tab" "$cwd"; return; fi
+      cand="$want ·$k"; k=$((k+1))
+    done
+    new_label="$cand"; new_mode=manual
+  else
+    while IFS=$'\t' read -r tab label mode; do
+      [ -n "$tab" ] || continue
+      n="$(roster_panes_in_tab "$live" "$tab" | grep -c . || true)"
+      if [ "$n" -lt "$cap" ]; then herd_tab_split "$tab" "$cwd"; return; fi
+    done < <(herd_tab_entries)
+    new_label="$(herd_auto_label "$([ -n "$role" ] && role_abbrev "$role")" "$(herd_tab_entries | cut -f2)")"; new_mode=auto
+  fi
+  tabinfo="$(herdr tab create --workspace "$ws" --cwd "$cwd" --label "$new_label" --no-focus)" || die "tab create failed" 4
   tab="$(printf '%s' "$tabinfo" | jq -r '.result.tab.tab_id')"
-  printf '%s\n' "$tab" >> "$sd/herd-tab"
+  herd_tab_set "$tab" "$new_label" "$new_mode"
   printf '%s\t1\n' "$(printf '%s' "$tabinfo" | jq -r '.result.root_pane.pane_id')"
+}
+
+# cmd_tab_label [<text>] [--tab ID] [--auto]: no text → list the herd tabs
+# (id, label, mode). With text → rename that tab and pin the label (manual);
+# `--auto` → back to the composed label. Default target: the caller's tab
+# when it is a herd tab (sub-orchestrator), else the newest herd tab.
+cmd_tab_label() {
+  local text="" tab="" auto=0 t label mode entries
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --tab) tab="$2"; shift 2 ;;
+      --auto) auto=1; shift ;;
+      --*) die "tab-label: unknown option $1" 2 ;;
+      *) text="${text:+$text }$1"; shift ;;
+    esac
+  done
+  entries="$(herd_tab_entries)"
+  if [ -z "$text" ] && [ "$auto" = 0 ]; then
+    printf '%-10s %-18s %s\n' TAB LABEL MODE
+    while IFS=$'\t' read -r t label mode; do [ -n "$t" ] && printf '%-10s %-18s %s\n' "$t" "$label" "$mode"; done <<< "$entries"
+    [ -n "$entries" ] || printf '(no herd tab yet)\n'
+    return 0
+  fi
+  [ -n "$entries" ] || die "tab-label: no herd tab yet (workers overflow into one when the caller's tab is full)" 3
+  if [ -z "$tab" ]; then
+    if [ -n "${HERDR_TAB_ID:-}" ] && printf '%s' "$entries" | cut -f1 | grep -Fxq "$HERDR_TAB_ID"; then tab="$HERDR_TAB_ID"
+    else tab="$(printf '%s' "$entries" | tail -n1 | cut -f1)"; fi
+  fi
+  printf '%s' "$entries" | cut -f1 | grep -Fxq "$tab" || die "tab-label: $tab is not a herd tab of this workspace (see: tab-label)" 3
+  if [ "$auto" = 1 ]; then
+    herd_tab_set "$tab" "" auto
+    herd_tabs_relabel
+    label="$(herd_tab_entries | awk -F'\t' -v t="$tab" '$1==t {print $2}')"; mode=auto
+  else
+    [ "${#text}" -le "$(herd_label_max)" ] || warn "label '$text' is longer than $(herd_label_max) characters; the sidebar will cut it"
+    herdr tab rename "$tab" "$text" >/dev/null || die "tab rename failed" 4
+    herd_tab_set "$tab" "$text" manual
+    label="$text"; mode=manual
+  fi
+  jq -n --arg tab "$tab" --arg label "$label" --arg mode "$mode" '{tab:$tab,label:$label,mode:$mode}'
 }
 
 # ---------- regrid ----------
@@ -863,11 +1020,12 @@ park_panes() {
 #     least crowded column), its workers are parked and moved back as a grid
 #     over caller + workers (cols = ⌈√(n+1)⌉). Panes of other origins keep
 #     their place in the split tree.
-#   * every herd tab (`herd`, `herd-2`, …): workers move into a fresh tab with
-#     the same label; the old tab closes itself once its last pane leaves.
+#   * every herd tab: workers move into a fresh tab with the same label (and
+#     label mode); the old tab closes itself once its last pane leaves. Auto
+#     labels are recomputed at the end.
 # Pane ids are preserved inside a workspace; the roster is updated anyway.
 cmd_regrid() {
-  local sd ws root layout live tab p panes=() tabinfo newtab rootpane newid idx=0 kept="" summary="[]" park
+  local sd ws root layout live tab label mode p panes=() tabinfo newtab rootpane newid kept="" summary="[]" park
   sd="$(state_dir)"; ws="$(workspace_id)"; root="$(project_root)"; layout="$(cfg layout split)"
   live="$(herdr pane list --workspace "$ws" | jq -c '.result.panes')"
   if [ "$layout" = split ] && [ -n "${HERDR_TAB_ID:-}" ] && [ -n "${HERDR_PANE_ID:-}" ]; then
@@ -878,23 +1036,25 @@ cmd_regrid() {
       summary="$(printf '%s' "$summary" | jq -c --arg t "$HERDR_TAB_ID" --argjson n $(( ${#panes[@]} + 1 )) --argjson cols "$(grid_sizes $(( ${#panes[@]} + 1 )) | cut -d' ' -f1)" '. + [{tab:$t,label:"caller",panes:$n,cols:$cols}]')"
     fi
   fi
-  while IFS= read -r tab; do
+  while IFS=$'\t' read -r tab label mode; do
     [ -n "$tab" ] || continue
+    [ "$label" != - ] || label=""
     panes=(); while IFS= read -r p; do [ -n "$p" ] && panes+=("$p"); done < <(roster_panes_in_tab "$live" "$tab")
     if [ "${#panes[@]}" -ge 2 ]; then
-      tabinfo="$(herdr tab create --workspace "$ws" --cwd "$root" --label "$(herd_tab_label "$idx")" --no-focus)" || die "tab create failed" 4
+      tabinfo="$(herdr tab create --workspace "$ws" --cwd "$root" --label "${label:-herd}" --no-focus)" || die "tab create failed" 4
       newtab="$(printf '%s' "$tabinfo" | jq -r '.result.tab.tab_id')"; rootpane="$(printf '%s' "$tabinfo" | jq -r '.result.root_pane.pane_id')"
-      printf '%s\n' "$newtab" >> "$sd/herd-tab"   # tracked at once: a failed move must not orphan the tab
+      herd_tab_set "$newtab" "$label" "$mode"   # tracked at once: a failed move must not orphan the tab
       newid="$(move_pane "${panes[0]}" "$newtab" right "$rootpane" 0.5)" || die "regrid: move of ${panes[0]} failed; remaining workers are alive in tab $tab" 4
       herdr pane close "$rootpane" >/dev/null 2>&1 || true
       if [ -n "$newid" ] && [ "$newid" != "${panes[0]}" ]; then roster_replace_pane "${panes[0]}" "$newid"; panes[0]="$newid"; fi
       apply_grid "$newtab" "${panes[@]}" || die "regrid: a move into $newtab failed; remaining workers are alive in tab $tab" 4
-      summary="$(printf '%s' "$summary" | jq -c --arg t "$newtab" --arg l "$(herd_tab_label "$idx")" --argjson n "${#panes[@]}" --argjson cols "$(grid_sizes "${#panes[@]}" | cut -d' ' -f1)" '. + [{tab:$t,label:$l,panes:$n,cols:$cols}]')"
+      summary="$(printf '%s' "$summary" | jq -c --arg t "$newtab" --arg l "${label:-herd}" --argjson n "${#panes[@]}" --argjson cols "$(grid_sizes "${#panes[@]}" | cut -d' ' -f1)" '. + [{tab:$t,label:$l,panes:$n,cols:$cols}]')"
       tab="$newtab"
     fi
-    kept="$kept$tab"$'\n'; idx=$((idx+1))
-  done < <(herd_tabs)
+    kept="$kept$(herd_tab_line "$tab" "$label" "$mode")"$'\n'
+  done < <(herd_tab_entries)
   [ -f "$sd/herd-tab" ] && printf '%s' "$kept" > "$sd/herd-tab"
+  herd_tabs_relabel || warn "regrid: relabel of the herd tabs failed"
   [ -n "${HERDR_TAB_ID:-}" ] && herdr tab focus "$HERDR_TAB_ID" >/dev/null 2>&1 || true
   printf '%s' "$summary" | jq -c '{regridded: .}'
 }
@@ -921,10 +1081,11 @@ find_reusable() {
 cmd_spawn() {
   local role="${1:?role}"; shift
   local name="" kind="" direction="" ratio="" cwd="$PWD" pane="" timeout=""
-  local effort="" model="" approvals="" agent_args=() reuse=""
+  local effort="" model="" approvals="" agent_args=() reuse="" tab_label=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --) shift; agent_args=("$@"); break ;;
+      --tab-label) tab_label="$2"; shift 2 ;;
       --reuse) reuse=on; shift ;;
       --fresh) reuse=off; shift ;;
       --effort) effort="$2"; shift 2 ;;
@@ -1006,17 +1167,19 @@ cmd_spawn() {
   local created=0 split caller_focused layout placement=given auto_regrid=0
   layout="$(cfg layout split)"
   caller_focused="$(herdr pane current --current 2>/dev/null | jq -r '.result.pane.focused // false')"
+  [ -z "$tab_label" ] || [ -z "$pane" ] || warn "--tab-label ignored: --pane places the worker in a given pane"
   if [ -z "$pane" ]; then
     local anchor=overflow auto_dir=layout
     # split layout: largest pane of caller + workers in this tab, unless the
     # tab is full (split_max_panes) or no pane can be halved (split_min_pane)
     # → overflow into the herd tabs like layout=tab. Explicit --direction
     # forces a split of the caller's pane and skips the automatic regrid.
-    [ "$layout" = tab ] || IFS=$'\t' read -r anchor auto_dir < <(pick_split_anchor)
-    if [ "$anchor" = overflow ] && [ -n "$direction" ]; then anchor="${HERDR_PANE_ID:-}"; fi
+    # --tab-label always goes to the herd tab of that name.
+    [ "$layout" = tab ] || [ -n "$tab_label" ] || IFS=$'\t' read -r anchor auto_dir < <(pick_split_anchor)
+    if [ "$anchor" = overflow ] && [ -n "$direction" ] && [ -z "$tab_label" ]; then anchor="${HERDR_PANE_ID:-}"; fi
     if [ "$anchor" = overflow ] || [ -z "$anchor" ]; then
-      [ "$layout" = tab ] || warn "caller tab has no room for another pane ($auto_dir); placing '$name' in a herd tab"
-      IFS=$'\t' read -r pane created < <(herd_tab_pane "$cwd")
+      [ "$layout" = tab ] || [ -n "$tab_label" ] || warn "caller tab has no room for another pane ($auto_dir); placing '$name' in a herd tab"
+      IFS=$'\t' read -r pane created < <(herd_tab_pane "$cwd" "$tab_label" "$role")
       direction=""; placement=herd; auto_regrid=1
     else
       [ -z "$direction" ] && [ -z "$ratio" ] && auto_regrid=1
@@ -1042,6 +1205,7 @@ cmd_spawn() {
   fi
 
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$pane" "$kind" "$role" "$(kind_family "$kind")" "$created" "$cwd" "$(now)" >> "$(state_dir)/agents.tsv"
+  if [ "$placement" = herd ]; then herd_tabs_relabel >/dev/null 2>&1 || warn "relabel of the herd tabs failed (see friction)"; fi
   jq -n --arg name "$name" --arg pane "$pane" --arg kind "$kind" --arg role "$role" --arg family "$(kind_family "$kind")" --argjson created "$created" \
     --arg args "${agent_args[*]+"${agent_args[*]}"}" --arg status "$([ "$blocked" = 1 ] && echo blocked_at_startup || echo ready)" \
     --arg effort "${effort:-default}" --arg model "${model:-default}" --arg model_spec "${model_spec:-}" --arg approvals "${approvals:-ask}" --arg layout "$layout" --arg placement "$placement" \
@@ -1298,20 +1462,23 @@ cmd_collect() {
 }
 
 cmd_roster() {
-  local sd live; sd="$(state_dir)"; live="$(live_agents_json)"
-  printf '%-20s %-18s %-8s %-8s %-9s %-16s %s\n' NAME ROLE KIND PANE STATE REPORT CWD
+  local sd live ws panes tabs; sd="$(state_dir)"; live="$(live_agents_json)"; ws="$(workspace_id)"
+  panes="$(herdr pane list --workspace "$ws" 2>/dev/null | jq -c '.result.panes // []' 2>/dev/null || echo '[]')"
+  tabs="$(herdr tab list --workspace "$ws" 2>/dev/null | jq -c '.result.tabs // []' 2>/dev/null || echo '[]')"
+  tab_of() { printf '%s' "$panes" | jq -r --argjson tabs "$tabs" --arg p "$1" '[.[] | select(.pane_id==$p)][0].tab_id as $t | [$tabs[] | select(.tab_id==$t)][0].label // $t // "-" | .[0:16]'; }
+  printf '%-20s %-18s %-8s %-8s %-16s %-9s %-16s %s\n' NAME ROLE KIND PANE TAB STATE REPORT CWD
   roster_rows | while IFS=$'\t' read -r name pane kind role family created cwd _started; do
     [ -n "$name" ] || continue
     state="$(printf '%s' "$live" | jq -r --arg n "$name" --arg p "$pane" '[.[] | select((.name // "")==$n or .pane_id==$p)][0] | .agent_status // "gone"')"
     r="$(cat "$sd/last-report-$name" 2>/dev/null || true)"
     rep="none"; [ -n "$r" ] && { [ -s "$r" ] && rep=ready || rep=pending; }
-    printf '%-20s %-18s %-8s %-8s %-9s %-16s %s\n' "$name" "$role" "$kind" "$pane" "$state" "$rep" "$cwd"
+    printf '%-20s %-18s %-8s %-8s %-16s %-9s %-16s %s\n' "$name" "$role" "$kind" "$pane" "$(tab_of "$pane")" "$state" "$rep" "$cwd"
   done
   printf '\n# other live agents (not spawned by this skill)\n'
   printf '%s' "$live" | jq -r '.[] | "\(.name // "-")\t\(.agent)\t\(.pane_id)\t\(.agent_status)"' 2>/dev/null \
     | while IFS=$'\t' read -r n a p s; do
         roster_rows | awk -F'\t' -v p="$p" '$2==p' | grep -q . && continue
-        printf '%-20s %-18s %-8s %-8s %-9s\n' "$n" "-" "$a" "$p" "$s"
+        printf '%-20s %-18s %-8s %-8s %-16s %-9s\n' "$n" "-" "$a" "$p" "$(tab_of "$p")" "$s"
       done
   printf '\nlayout=%s reuse_workers=%s auto_approve=%s\n' "$(cfg layout split)" "$(cfg reuse_workers off)" "$(cfg auto_approve off)"
 }
@@ -1333,7 +1500,8 @@ cmd_release() {
   fi
   roster_remove "$agent"
   rm -f "$(state_dir)/last-report-$agent" "$(state_dir)/wait/$agent".*
-  if [ "$close" = 1 ] && [ "$(cfg regrid on)" = on ]; then (cmd_regrid) >/dev/null 2>&1 || warn "regrid after release failed; panes left as they are (see friction)"; fi
+  if [ "$close" = 1 ] && [ "$(cfg regrid on)" = on ]; then (cmd_regrid) >/dev/null 2>&1 || warn "regrid after release failed; panes left as they are (see friction)"
+  else herd_tabs_relabel >/dev/null 2>&1 || warn "relabel of the herd tabs failed (see friction)"; fi
   if git -C "$cwd" worktree list 2>/dev/null | grep -q '/\.worktrees/'; then
     printf 'leftover worktrees (not removed):\n'; git -C "$cwd" worktree list | grep '/\.worktrees/'
   fi
@@ -1394,7 +1562,7 @@ main() {
   CURRENT_CMD="$cmd"
   load_config
   case "$cmd" in
-    spawn|dispatch|wait|status|collect|run|roster|release|clean|friction|init|regrid)
+    spawn|dispatch|wait|status|collect|run|roster|release|clean|friction|init|regrid|tab-label)
       if [ "${HERDR_ENV:-}" = 1 ] && command -v herdr >/dev/null && command -v jq >/dev/null; then FRICTION_LOG="$(state_dir)/friction.log"; fi ;;
   esac
   case "$cmd" in
@@ -1407,6 +1575,7 @@ main() {
     doctor) cmd_doctor ;;
     setup) cmd_setup "$@" ;;
     regrid) require_env; cmd_regrid ;;
+    tab-label) require_env; cmd_tab_label "$@" ;;
     layout-plan) cmd_layout_plan "$@" ;;
     config) cmd_config ;;
     role) cmd_role "$@" ;;

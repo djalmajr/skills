@@ -139,9 +139,28 @@ you should do. Read this before changing the script or adding a kind.
   decision (`anchor`, `direction`, `reason: largest-area|full|min`, grid).
 - **Capacity:** `split_max_panes` (default 6, caller included) per tab.
   Beyond it, or when nothing can be halved above `split_min_pane`, the
-  worker goes to `herd`, then `herd-2`… (ids one per line in
-  `<state>/herd-tab`, dead tabs pruned on read). `release --close` in the
+  worker goes to a herd tab (`<state>/herd-tab`: `tab_id`, label, `auto|manual`
+  per line, dead tabs pruned on read). `release --close` in the
   caller's tab frees the slot; workers are not pulled back from herd tabs.
+
+## Herd tabs were all called `herd`, `herd-2`… (2026-09-21)
+
+- **Seen:** with two waves running, the operator could not tell which tab
+  held what and renamed one by hand to `onda 2`; the next regrid would
+  have renamed it back.
+- **Now:** automatic labels are composed from the roles in the tab
+  (`herd_label`, default `{roles}` → `impl+rev`, `impl+rev 2`; cut to
+  `herd_label_max` = 16) and recomputed after every spawn/release/regrid.
+  `spawn --tab-label "onda 2"` / `tab-label "onda 2"` pin a manual label.
+  Before recomputing, the skill compares the live label with the last one
+  it wrote (stored in `<state>/herd-tab`): a difference means a rename done
+  in Herdr, and the tab becomes `manual`. `tab-label --auto` reverts.
+- **Gotchas:** the state file stores an unknown label as `-` (a tab-separated
+  empty field is swallowed by `read`); `--tab-label` always places the worker
+  in that herd tab even when the caller's tab has room; a `--tab-label` that
+  matches an `auto` tab adopts it as manual. The old one-column state file
+  is migrated on first read: a live label still matching `herd`/`herd-N` is
+  `auto`, anything else is treated as a hand rename.
 
 ## `regrid` in the caller's tab: Herdr refuses same-tab moves
 
@@ -231,7 +250,8 @@ you should do. Read this before changing the script or adding a kind.
    → `release --close`. Watch for: startup dialogs, report written to the
    right path, focus back in the caller, `friction` empty afterwards.
 4. The caller's tab holds at most `split_max_panes` panes (6 → 3×2 on a
-   213×57 tab, 71×28 cells); later workers overflow into `herd`, `herd-2`…
+   213×57 tab, 71×28 cells); later workers overflow into herd tabs labelled
+   after their roles (`impl+rev`) or `--tab-label`.
 
 ## `setup` rerun emptied AGENTS.md (fixed)
 
