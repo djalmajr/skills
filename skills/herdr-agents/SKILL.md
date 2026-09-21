@@ -6,9 +6,12 @@ description: >
   agent stays the orchestrator: it spawns one CLI agent per role in sibling
   panes, dispatches self-contained briefs, collects file-based reports, and
   owns integration, gates, and git. Use when running inside Herdr
-  (HERDR_ENV=1) and the user asks for a herd, team, roles, a designer or
-  reviewer agent, parallel workers, or "like omp agents". Do not use outside
-  Herdr; do not use for a single small change you can do yourself.
+  (HERDR_ENV=1) for any non-trivial work: the user asks for a herd, team,
+  roles, a designer or reviewer agent, parallel workers, "like omp agents",
+  or the task needs a survey (several files, another repo, tool
+  conventions), touches more than a couple of files, or the project's
+  AGENTS.md routes work through this skill. Do not use outside Herdr; a
+  one-or-two-file change with no product decision is done directly.
 argument-hint: "<objective> | roles | roster | spawn <role> | run <role> <brief> | release <agent>"
 user-invocable: true
 metadata:
@@ -406,6 +409,22 @@ When a wait returns `blocked`, inspect `herdr agent read <name>` and ask the
 user before answering an approval or question dialog. A timeout or
 `agent_prompt_stalled` does not prove the prompt was lost — read first, do
 not resend blindly.
+
+## Making the rule stick
+
+The trigger above is only read when a prompt looks like a delegation
+request. A prompt such as "configure X, see how repos A and B do it" does
+not, and the orchestrator will read A and B itself. Two guards, both
+checked by `doctor`:
+
+- Put the delegation rule in the project's `AGENTS.md` (or equivalent):
+  work runs through this skill inside Herdr, surveys go to `scout`, the
+  orchestrator keeps one-or-two-file changes.
+- Merge [templates/claude-settings-hook.json](templates/claude-settings-hook.json)
+  into the project's `.claude/settings.json`: a `UserPromptSubmit` hook
+  that, when `HERDR_ENV=1`, adds a one-line reminder to every prompt.
+  Codex, Grok, Cursor and agy have no prompt hook; for them the
+  `AGENTS.md` line is the guard.
 
 ## Project root
 

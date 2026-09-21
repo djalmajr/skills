@@ -449,6 +449,11 @@ cmd_doctor() {
   local d; d="$(state_root 2>/dev/null || true)"
   if [ -n "$d" ]; then mkdir -p "$d" 2>/dev/null && [ -w "$d" ] && say ok "state dir writable: $d" || say warn "state dir not writable: $d"; fi
   case "$(cfg layout split)" in split|tab) say ok "config: layout=$(cfg layout) approvals=$(cfg approvals) auto_approve=$(cfg auto_approve) reuse_workers=$(cfg reuse_workers) worker_context=$(cfg worker_context)" ;; *) say warn "config: invalid layout '$(cfg layout)' (split|tab)" ;; esac
+  # Reminder hook: without it the orchestrator forgets to delegate when a prompt
+  # does not say "herd" or "workers" (observed: a three-repo survey done by hand).
+  local root; root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  if [ -f "$root/.claude/settings.json" ] && grep -q 'herdr-agents' "$root/.claude/settings.json" 2>/dev/null; then say ok "reminder hook present in .claude/settings.json"
+  else say warn "no herdr-agents reminder hook in $root/.claude/settings.json: merge $SKILL_DIR/templates/claude-settings-hook.json (UserPromptSubmit) so every prompt inside Herdr recalls the delegation rule"; fi
   printf '%s ok, %s warning(s)\n' "$ok" "$warnv"
   return 0
 }
