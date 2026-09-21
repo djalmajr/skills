@@ -218,9 +218,10 @@ full, then herd tabs; `tab`: herd tabs only), `split_max_panes` (panes per
 tab, caller included; default 6), `split_min_pane` (smallest pane a spawn may
 leave, fraction of the tab; default 0.18), `regrid` (exact grids after every
 spawn/release), `brief_lint` (`warn|strict|off`), `reuse_workers`
-(`on`: `spawn` returns an idle worker of the same role, kind and cwd whose
-last report exists instead of opening a pane; `--reuse`/`--fresh` override
-per call; a reused worker keeps earlier briefs in context), `feedback` +
+(default `on`: `spawn` returns an idle worker of the same role, kind and
+cwd whose last report exists instead of opening a pane; `--reuse`/`--fresh`
+override per call; a reused worker keeps earlier briefs in context, so pass
+`--fresh` when a slice must start clean), `feedback` +
 `feedback_repo` (see "Improving this skill"), `approvals`
 (default for roles without one), `auto_approve` + `max_auto_approvals`
 (answer a worker's approval dialog with the CLI's default "yes" and keep

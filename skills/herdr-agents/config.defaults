@@ -35,8 +35,8 @@ regrid=on
 # Reuse an idle worker of the same role, kind and cwd whose last report is
 # already written instead of opening a new pane: on | off. `spawn --reuse` /
 # `--fresh` override per call. A reused worker keeps its earlier briefs in
-# context; prefer `off` when slices must not share context.
-reuse_workers=off
+# context; pass `--fresh` (or set `off`) when slices must not share context.
+reuse_workers=on
 
 # Brief structure check on dispatch (Goal, Owned files, Forbidden, Report, a
 # no-commit line): warn | strict | off.
