@@ -129,6 +129,7 @@ model.claude.orchestrator=fable     model.claude.worker=opus
 model.codex.orchestrator=astra      model.codex.worker=gpt-5
 model.cursor.worker=grok|muse       model.agy.worker=gemini|opus
 model.grok.worker=grok
+role.planner.model=fable            # planner gets the orchestrator-class model
 ```
 
 The top-level orchestrator is not spawned by the skill; launch it yourself

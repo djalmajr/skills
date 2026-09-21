@@ -106,6 +106,8 @@ feedback_repo=djalmajr/skills
 # role.<role>.kind. Check with: herdr-agents.sh model <kind> <spec> [effort].
 model.claude.orchestrator=fable
 model.claude.worker=opus
+# The planner decides the shape of large work: it gets the orchestrator-class model.
+role.planner.model=fable
 model.codex.orchestrator=astra
 model.codex.worker=sol|gpt-5
 model.cursor.worker=grok|muse
