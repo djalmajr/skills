@@ -54,6 +54,11 @@ and role prompts encode them; the orchestrator is responsible for the rest.
 15. **Re-read before each surgical edit** in a file that may have changed.
 16. **Bulk mechanical edits go to a cheap agent with an exact contract**;
     the main model keeps decisions and integration.
+17. **Small tasks stay with the orchestrator.** One or two files, no
+    product decision, a few dozen lines, docs, config, a question, a quick
+    verification: doing it beats briefing it. If writing the brief takes
+    longer than the change, make the change. Product code the orchestrator
+    writes still gets a reviewer from another model family before push.
 
 ## Roles (model-independent)
 

@@ -14,7 +14,10 @@ collects file-based reports, integrates, runs the gates, and owns git.
 - The user asks for "a designer agent", "a reviewer", "a herd", "workers",
   or "like omp's agents".
 
-Do not use it outside Herdr, or for a change small enough to do directly.
+Do not use it outside Herdr, or for a change small enough to do directly:
+the orchestrator keeps one-or-two-file edits, docs, config, questions and
+quick verifications for itself (if the brief takes longer than the change,
+make the change) and delegates the rest.
 
 ## How it works
 

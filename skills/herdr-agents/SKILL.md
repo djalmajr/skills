@@ -357,6 +357,17 @@ scraping an alternate-screen TUI.
 
 ## Orchestrator flow — `/herdr-agents <objective>`
 
+**Not everything is delegated.** A task that fits in one or two files
+with no product decision — a doc or config edit, a one-off fix of a few
+dozen lines, answering a question, a verification you can run faster than
+you can write the brief — is done by the orchestrator directly. Rule of
+thumb: if writing the brief takes longer than making the change, make the
+change. Delegate multi-file slices, UI under a design contract, anything
+touching auth, secrets or input handling, work that parallelizes, and any
+change that needs a reviewer. Product code you write yourself still gets a
+`reviewer` from another model family before push; the family check cannot
+see your own edits, so pick that reviewer's kind by hand.
+
 1. **Direction first.** If the objective hides a product decision, ask a
    one-line question before planning. Never write a long plan before
    direction.
