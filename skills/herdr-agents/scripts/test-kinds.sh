@@ -33,6 +33,18 @@ expect 'codex effort flag' "$(kind_effort_args codex xhigh gpt-5 | tr '\n' ' ')"
 expect 'cursor: effort is the model suffix, no model flag twice' "$(kind_model_args cursor grok-4.7-xhigh xhigh | tr '\n' ' ')" ''
 expect 'cursor: model already carries the effort' "$(kind_effort_args cursor xhigh grok-4.7-xhigh 2>/dev/null | tr '\n' ' ')" '--model grok-4.7-xhigh '
 
+# Cursor validates --model against its account list. Unknown and parameterized
+# ids must fail before spawn instead of opening a pane that immediately exits.
+model_ids() { printf '%s\n' grok-4.7-xhigh claude-opus-4-8-xhigh; }
+expect 'cursor exact model resolves' "$(resolve_model cursor grok-4.7-xhigh xhigh)" grok-4.7-xhigh
+set +e
+CURSOR_BAD="$(resolve_model cursor 'grok-4.7-xhigh[context=500k]' xhigh 2>/dev/null)"
+CURSOR_BAD_RC=$?
+set -e
+expect 'cursor unknown model fails early' "$CURSOR_BAD_RC" 2
+expect 'cursor unknown model prints no id' "$CURSOR_BAD" ''
+unset -f model_ids
+
 # --- shipped defaults ------------------------------------------------------
 expect 'effort.grok' "$(cfg effort_grok)" xhigh
 expect 'effort.cursor' "$(cfg effort_cursor)" xhigh

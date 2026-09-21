@@ -304,7 +304,9 @@ version_sort_desc() {
   }' | sort -t$'\t' -k1,1r -k2,2 | cut -f2
 }
 
-# resolve_model <kind> <spec> <effort> → id (spec unchanged when the kind has no list or nothing matches)
+# resolve_model <kind> <spec> <effort> → id (spec unchanged when the kind has
+# no list or nothing matches; cursor is strict because its CLI rejects ids
+# absent from --list-models instead of forwarding them to the API)
 resolve_model() {
   local kind="$1" spec="$2" effort="$3" ids alt base cand
   [ -n "$spec" ] || return 0
@@ -331,6 +333,9 @@ resolve_model() {
         [ -n "$cand" ] && { printf '%s\n' "$cand"; return; } ;;
     esac
   done
+  if [ "$kind" = cursor ]; then
+    die "no cursor model matches '$spec'; cursor-agent rejects model ids absent from --list-models (context overrides are only usable when that model/account exposes them)" 2
+  fi
   warn "no $kind model matches '$spec'; passing it through unchanged"
   printf '%s\n' "$spec"
 }

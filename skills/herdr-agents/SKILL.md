@@ -158,7 +158,12 @@ the chosen model's advertised reasoning levels, not from the kind.
 - **`model`** is passed through to the kind's model flag. Cursor has no
   effort flag: effort is a suffix of the model id, so `--model gpt-5.3-codex
   --effort high` becomes `gpt-5.3-codex-high` when `cursor-agent
-  --list-models` lists it, otherwise the plain model with a warning.
+  --list-models` lists it, otherwise the plain model with a warning. Cursor
+  model ids are strict: a spec that cannot resolve to an id in
+  `cursor-agent --list-models` fails before a pane is created, because the
+  CLI rejects unknown and unsupported parameterized ids instead of forwarding
+  them. Verify the effective context window in the Cursor TUI; a model's
+  native harness may expose a different window than Cursor does.
 - **`approvals`** decides how much a worker may do without a human:
   `ask` (default, the CLI's normal prompts), `edits` (auto-accept file
   edits), `full` (no prompts for tools or MCP servers, still inside the
