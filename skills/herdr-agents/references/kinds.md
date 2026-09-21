@@ -34,6 +34,12 @@ Extend it when you add a kind with a stable model family.
 herdr integration install claude
 herdr integration install codex
 # grok and agy: screen detection only, no integration target needed
+
+# The official `herdr` skill: take it from the installed binary, not from
+# `npx skills add ogulcancelik/herdr` (that copies the whole repo and goes
+# stale). Re-run after every `herdr update`.
+mkdir -p ~/.agents/skills/herdr && herdr --skill > ~/.agents/skills/herdr/SKILL.md
+ln -sfn ../../.agents/skills/herdr ~/.claude/skills/herdr
 ```
 
 `omp` is a separate multi-model harness with its own role system
