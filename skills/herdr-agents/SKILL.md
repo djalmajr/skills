@@ -87,15 +87,17 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 | `tasker` | grok | low | edit | Mechanical edits in volume with an exact contract |
 | `reviewer` | claude | high | read-only | Patch-anchored correctness findings before push |
 | `security-reviewer` | claude | high | read-only | Evidence-backed vulnerability findings |
-| `inspector` | claude | medium | read-only | Screenshots in both themes, UX findings, no fixes |
+| `inspector` | agy | high | read-only | Screenshots in both themes, UX findings, no fixes |
 | `sub-orchestrator` | claude | medium | read-only | Runs this skill from another pane; never codex sandboxed (socket blocked) |
 
 **Which kind for which work.** Demanding work (production code, UI under a
 design contract, reviews, security, nested orchestration) goes to `claude`
 or `codex`. **Research goes to `grok`** (`scouter`, `researcher`): it is
 particularly good at surveys and its plan has headroom, so it runs at
-`high`. `cursor` and `agy` take mechanical edits, second passes and cheap
-verification. The role defaults encode this; keep it when overriding.
+`high`. **Visual work goes to `agy`** (`inspector`, and `designer` as first
+alternative): it reads screens well. `cursor` takes mechanical edits,
+second passes and cheap verification. The role defaults encode this; keep
+it when overriding.
 
 Definitions live in [roles/](roles/). Resolution order: project
 `.agents/herdr-roles/<role>.md` → this skill's `roles/<role>.md`. `--kind`

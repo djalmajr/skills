@@ -2,7 +2,7 @@
 name: designer
 description: UI/UX specialist for implementing and refining interface work under the project's design system — tokens, states, accessibility, visual consistency.
 kind: codex
-alternatives: [claude]
+alternatives: [agy, claude]
 effort: high
 mode: edit
 timeout: 1800000

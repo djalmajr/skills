@@ -3,7 +3,7 @@ name: researcher
 description: Answers questions about external libraries, frameworks, and APIs by reading their source and official docs. Source-verified, version-pinned answers.
 kind: grok
 alternatives: [agy, cursor]
-effort: medium
+effort: high
 mode: read-only
 timeout: 600000
 ---
