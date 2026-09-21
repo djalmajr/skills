@@ -309,7 +309,10 @@ roles in it (`impl+rev`) or the wave you name (`spawn` prints
 `release --close` frees the slot, so the next spawn lands in the caller's
 tab again. `layout=tab` uses the herd tabs only. Every herd tab is rebuilt
 as an exact grid too (columns = ⌈√n⌉, rows balanced), keeping its label.
-Workers pass through
+`regrid` also does the reverse: when the caller's tab has room again
+(workers released, cap raised) it pulls overflowed workers back from the
+herd tabs, first tab first pane, until caller + workers reach
+`split_max_panes`; a herd tab that empties closes itself. Workers pass through
 a temporary `herd-park` tab during a caller-tab regrid because Herdr
 refuses to move a pane inside its own tab; agents keep running. There is
 no cap on workers overall: open as many as the work needs. `spawn` retries
