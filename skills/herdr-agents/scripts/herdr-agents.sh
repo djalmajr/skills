@@ -501,8 +501,9 @@ owns git. Load the skill (\`/herdr-agents\`) before planning such work.
   mechanical edits and second passes.
 - Project roles override the skill's in \`.agents/herdr-roles/<role>.md\`;
   project config in \`.agents/herdr-agents.conf\`; scratch state in
-  \`.herdr-agents/\` (git-ignored). Skill path: \`$SKILL_DIR\`.
-- Refresh this block and the hooks: \`bash $SKILL_DIR/scripts/herdr-agents.sh setup\`.
+  \`.herdr-agents/\` (git-ignored).
+- Refresh this block and the hooks by loading \`/herdr-agents\` and running its
+  \`setup\` command from the project root.
 $SETUP_END
 EOF
 }
@@ -553,7 +554,9 @@ setup_hook_reminder() {
   printf '%s' "sh -c '[ \"\${HERDR_ENV:-}\" = 1 ] && echo \"herdr-agents: this project routes non-trivial work through /herdr-agents — surveys go to a scouter, slices to workers; the orchestrator keeps only one-or-two-file changes.\"; true'"
 }
 setup_hook_doctor() {
-  printf '%s' "sh -c '[ \"\${HERDR_ENV:-}\" = 1 ] || exit 0; bash \"$SKILL_DIR/scripts/herdr-agents.sh\" doctor 2>/dev/null | grep -E \"^warn\" | sed \"s/^warn */herdr-agents doctor: /\"; true'"
+  cat <<'EOF'
+sh -c '[ "${HERDR_ENV:-}" = 1 ] || exit 0; for script in "${CLAUDE_PROJECT_DIR:-$PWD}/.agents/skills/herdr-agents/scripts/herdr-agents.sh" "${CLAUDE_PROJECT_DIR:-$PWD}/.claude/skills/herdr-agents/scripts/herdr-agents.sh" "$HOME/.agents/skills/herdr-agents/scripts/herdr-agents.sh" "$HOME/.claude/skills/herdr-agents/scripts/herdr-agents.sh"; do [ -f "$script" ] || continue; bash "$script" doctor 2>/dev/null | grep -E "^warn" | sed "s/^warn */herdr-agents doctor: /"; exit 0; done; echo "herdr-agents doctor: skill script not found"; true'
+EOF
 }
 
 setup_write_hooks() {
@@ -572,7 +575,7 @@ setup_write_hooks() {
 }
 
 cmd_setup() {
-  local root target="" hooks=1 dry=0 claude
+  local root target="" hooks=1 dry=0 claude candidate hook_script=""
   root="$(project_root)"
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -604,6 +607,10 @@ cmd_setup() {
   if [ "$hooks" = 1 ]; then
     setup_write_hooks "$root/.claude/settings.json"
     printf 'hooks written: %s (UserPromptSubmit reminder, SessionStart doctor)\n' "$root/.claude/settings.json"
+    for candidate in "$root/.agents/skills/herdr-agents/scripts/herdr-agents.sh" "$root/.claude/skills/herdr-agents/scripts/herdr-agents.sh" "$HOME/.agents/skills/herdr-agents/scripts/herdr-agents.sh" "$HOME/.claude/skills/herdr-agents/scripts/herdr-agents.sh"; do
+      [ -f "$candidate" ] && { hook_script="$candidate"; break; }
+    done
+    [ -n "$hook_script" ] || warn "SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory"
   fi
   state_root >/dev/null
   printf 'state dir ignored: %s\n' "$(cfg state_dir .herdr-agents)/"

@@ -437,7 +437,11 @@ markers in the project's canonical instruction file and merges two hooks
 into `.claude/settings.json`: `UserPromptSubmit` (a one-line reminder on
 every prompt while `HERDR_ENV=1`) and `SessionStart` (doctor warnings).
 Re-running replaces the block and the hooks; the file is never touched
-when the rewrite fails. `doctor` and `init` warn when either is missing.
+when the rewrite fails. Generated project files never embed the installer's
+absolute path: the `SessionStart` hook prefers the project's `.agents/skills/`
+or `.claude/skills/` copy, then checks the same roots under the user's home.
+`setup` warns when none can be resolved; `doctor` and `init` warn when the block
+or hooks are missing. Validate setup changes with `bash scripts/test-setup.sh`.
 Codex, Grok, Cursor and agy have no prompt hooks; for them the block is
 the guard.
 
