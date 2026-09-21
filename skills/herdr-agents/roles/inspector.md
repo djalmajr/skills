@@ -1,5 +1,5 @@
 ---
-name: qa-visual
+name: inspector
 description: Visual and UX QA of a running UI — screenshots in every theme and breakpoint the project supports, actionable findings, no fixes.
 kind: claude
 alternatives: [agy]

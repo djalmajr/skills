@@ -1,8 +1,8 @@
 ---
 name: herdr-agents
 description: >
-  Run an omp-style team of role agents (scout, planner, designer, implementer,
-  tasker, reviewer, security-reviewer, librarian, qa-visual) inside Herdr. The calling
+  Run an omp-style team of role agents (scouter, planner, designer, implementer,
+  tasker, reviewer, security-reviewer, librarian, inspector) inside Herdr. The calling
   agent stays the orchestrator: it spawns one CLI agent per role in sibling
   panes, dispatches self-contained briefs, collects file-based reports, and
   owns integration, gates, and git. Use when running inside Herdr
@@ -70,7 +70,7 @@ workspace, layout, state dir). Act on `warn` lines before spawning; a
 stale official skill means the CLI syntax you read may be wrong. `spawn`
 does the rename lazily.
 
-Workers are named after their role: `scout`, `implementer`, `reviewer`…;
+Workers are named after their role: `scouter`, `implementer`, `reviewer`…;
 a second worker of the same role becomes `implementer-2`. Pass `--name` for
 something more telling (`impl-auth`, `rev-ui`). A nested orchestrator uses
 the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
@@ -79,7 +79,7 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 
 | Role | Default kind | Effort | Mode | Use for |
 |---|---|---|---|---|
-| `scout` | agy | medium | read-only | Map code, find paths, compressed findings for handoff |
+| `scouter` | agy | medium | read-only | Map code, find paths, compressed findings for handoff |
 | `librarian` | agy | medium | read-only | Source-verified answers about external libraries/APIs |
 | `planner` | claude | high | read-only | Decision-ready plan for a large or unfamiliar objective: options, one recommendation, slices, risks, questions; the orchestrator still decides |
 | `designer` | codex | high | edit | UI work under the project design system (tokens, states, a11y) |
@@ -87,7 +87,7 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 | `tasker` | grok | low | edit | Mechanical edits in volume with an exact contract |
 | `reviewer` | claude | high | read-only | Patch-anchored correctness findings before push |
 | `security-reviewer` | claude | high | read-only | Evidence-backed vulnerability findings |
-| `qa-visual` | claude | medium | read-only | Screenshots in both themes, UX findings, no fixes |
+| `inspector` | claude | medium | read-only | Screenshots in both themes, UX findings, no fixes |
 | `sub-orchestrator` | claude | medium | read-only | Runs this skill from another pane; never codex sandboxed (socket blocked) |
 
 **Which kind for which work.** Demanding work (production code, UI under a
@@ -238,7 +238,7 @@ $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
 $S dispatch impl <brief.md> [--timeout 900000]   # role prompt + brief → agent, waits
 $S collect impl                             # prints the report file (or recent output)
-$S run scout <brief.md>                    # spawn + dispatch + collect in one call
+$S run scouter <brief.md>                    # spawn + dispatch + collect in one call
 $S wait a b [--any] [--timeout MS]         # block on report files
 $S friction                                # errors/warnings of this workspace (review at end)
 $S regrid                                  # layout=tab: rebuild the herd tab as an exact grid
@@ -249,7 +249,7 @@ $S release impl [--close]                  # forget the agent; --close closes a 
 $S clean [--older-than 7]                  # drop gone agents, delete old briefs/reports
 $S kinds                                   # kind → executable, family, effort ceiling
 $S spawn implementer --effort xhigh --approvals full      # normalized effort + no prompts
-$S spawn scout --kind cursor --model gpt-5.3-codex --effort high --approvals full
+$S spawn scouter --kind cursor --model gpt-5.3-codex --effort high --approvals full
 $S spawn implementer -- -s workspace-write -a never      # native agent args after --
 ```
 
@@ -371,7 +371,7 @@ change. Delegate multi-file slices, UI under a design contract, anything
 touching auth, secrets or input handling, work that parallelizes, and any
 change that needs a reviewer. Research is delegated too: reading more
 than a handful of files, another repository, or several tools' conventions
-to inform a decision is `scout` work; the orchestrator asks for a report
+to inform a decision is `scouter` work; the orchestrator asks for a report
 with a recommendation and decides on it, instead of doing the survey
 itself and burning its own context. Product code you write yourself still gets a
 `reviewer` from another model family before push; the family check cannot
@@ -386,10 +386,10 @@ see your own edits, so pick that reviewer's kind by hand.
 3. **Pick roles.** Large or unfamiliar objective (more than about three
    probable slices, unknown code area, or a planning artifact requested) →
    `planner` first; its report feeds your decomposition and never replaces
-   it. Research → `scout`/`librarian`. UI → `designer`. Code →
+   it. Research → `scouter`/`librarian`. UI → `designer`. Code →
    `implementer`. Bulk mechanical → `tasker`. Every slice that changes
    code gets a `reviewer` from another model family; auth/secrets/input
-   handling also gets `security-reviewer`; visible UI also gets `qa-visual`.
+   handling also gets `security-reviewer`; visible UI also gets `inspector`.
 4. **Write one brief per slice** from [templates/brief.md](templates/brief.md):
    goal, owned files, forbidden files, local sources by path, project rules
    that apply, checks the worker may run, report format. **No commit, push,

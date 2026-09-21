@@ -21,7 +21,7 @@ agy `--mode accept-edits`, cursor `--trust --auto-review`.
 Not bypassed by the skill (pass after `--` if you accept it): Codex
 `--dangerously-bypass-hook-trust`; first-visit workspace-trust dialogs.
 
-Validated on 2026-09-20 with a read-only scout brief on every kind above
+Validated on 2026-09-20 with a read-only scouter brief on every kind above
 except `gemini` and `copilot` (not installed on the test machine).
 | `opencode`, `omp`, `pi`, `kilo`, `kimi`, `qwen`, `droid`, `amp`, `cursor`, `kiro`, `devin`, `cline`, `hermes`, `letta`, `mastracode`, `qodercli`, `maki`, `muse` | various | mixed | Family unknown to this skill; the same-family check is skipped |
 

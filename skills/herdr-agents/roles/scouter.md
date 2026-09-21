@@ -1,5 +1,5 @@
 ---
-name: scout
+name: scouter
 description: Fast read-only codebase research. Returns compressed, path-anchored findings another agent can use without re-reading everything.
 kind: agy
 alternatives: [grok, codex]

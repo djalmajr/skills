@@ -59,9 +59,9 @@ and role prompts encode them; the orchestrator is responsible for the rest.
     verification: doing it beats briefing it. If writing the brief takes
     longer than the change, make the change. Product code the orchestrator
     writes still gets a reviewer from another model family before push.
-18. **Surveys go to a scout.** Reading many files, another repo, or
+18. **Surveys go to a scouter.** Reading many files, another repo, or
     several tools' conventions to inform a decision is research, not
-    orchestration; the orchestrator briefs a `scout`, reads the report and
+    orchestration; the orchestrator briefs a `scouter`, reads the report and
     decides. Doing the survey itself spends the context that integration
     needs later.
 

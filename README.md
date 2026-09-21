@@ -94,7 +94,7 @@ Keep frontmatter portable. Avoid agent-specific fields unless the skill truly ne
 
 | Skill | Purpose |
 |-------|---------|
-| herdr-agents | omp-style role agents (scout, designer, implementer, reviewer…) run as CLI agents in Herdr panes; the caller orchestrates |
+| herdr-agents | omp-style role agents (scouter, designer, implementer, reviewer…) run as CLI agents in Herdr panes; the caller orchestrates |
 
 ### UX (2)
 

@@ -163,7 +163,11 @@ role_dirs() {
 resolve_role() {
   local role="$1" d
   # Renamed roles: accept the old name once, with a warning.
-  case "$role" in mechanic) warn "role 'mechanic' was renamed to 'tasker'; use the new name"; role=tasker ;; esac
+  case "$role" in
+    mechanic)  warn "role 'mechanic' was renamed to 'tasker'; use the new name"; role=tasker ;;
+    scout)     warn "role 'scout' was renamed to 'scouter'; use the new name"; role=scouter ;;
+    qa-visual) warn "role 'qa-visual' was renamed to 'inspector'; use the new name"; role=inspector ;;
+  esac
   while IFS= read -r d; do
     [ -f "$d/$role.md" ] && { printf '%s\n' "$d/$role.md"; return; }
   done < <(role_dirs)
@@ -488,8 +492,8 @@ owns git. Load the skill (\`/herdr-agents\`) before planning such work.
 - **Delegate**: multi-file slices, UI under the design contract, anything
   touching auth, secrets or input handling, work that parallelizes, any change
   that needs a reviewer, and **research**: reading more than a handful of
-  files, another repository or several tools' conventions is \`scout\` work.
-  The orchestrator briefs the scout, reads the report and decides.
+  files, another repository or several tools' conventions is \`scouter\` work.
+  The orchestrator briefs the scouter, reads the report and decides.
 - **Keep**: a one-or-two-file change with no product decision, docs, config,
   a question, a quick verification. If writing the brief takes longer than the
   change, make the change.
@@ -551,7 +555,7 @@ setup_write_block() {
 # Claude Code hooks. Each entry is recognisable by the "herdr-agents" marker in
 # its command so a re-run replaces it instead of stacking duplicates.
 setup_hook_reminder() {
-  printf '%s' "sh -c '[ \"\${HERDR_ENV:-}\" = 1 ] && echo \"herdr-agents: this project routes non-trivial work through /herdr-agents — surveys go to a scout, slices to workers; the orchestrator keeps only one-or-two-file changes.\"; true'"
+  printf '%s' "sh -c '[ \"\${HERDR_ENV:-}\" = 1 ] && echo \"herdr-agents: this project routes non-trivial work through /herdr-agents — surveys go to a scouter, slices to workers; the orchestrator keeps only one-or-two-file changes.\"; true'"
 }
 setup_hook_doctor() {
   printf '%s' "sh -c '[ \"\${HERDR_ENV:-}\" = 1 ] || exit 0; bash \"$SKILL_DIR/scripts/herdr-agents.sh\" doctor 2>/dev/null | grep -E \"^warn\" | sed \"s/^warn */herdr-agents doctor: /\"; true'"

@@ -1,8 +1,8 @@
 # herdr-agents
 
 Give the calling agent an **omp-style team**: one CLI agent per role
-(`scout`, `librarian`, `designer`, `implementer`, `tasker`, `reviewer`,
-`security-reviewer`, `qa-visual`, `planner`) running in [Herdr](https://herdr.dev) panes.
+(`scouter`, `librarian`, `designer`, `implementer`, `tasker`, `reviewer`,
+`security-reviewer`, `inspector`, `planner`) running in [Herdr](https://herdr.dev) panes.
 The caller stays the orchestrator: it decomposes, writes briefs, dispatches,
 collects file-based reports, integrates, runs the gates, and owns git.
 
@@ -63,7 +63,7 @@ $S roles
 $S spawn implementer                 # sibling pane, same cwd, focus stays with you
 $S dispatch implementer brief.md     # waits for idle/done/blocked
 $S collect implementer               # prints the report
-$S run scout brief.md                # spawn + dispatch + collect
+$S run scouter brief.md                # spawn + dispatch + collect
 $S roster
 $S release implementer --close       # closes only panes the skill created
 $S clean --older-than 7              # drop gone agents, delete old briefs/reports

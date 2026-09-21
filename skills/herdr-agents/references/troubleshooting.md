@@ -188,7 +188,7 @@ you should do. Read this before changing the script or adding a kind.
 2. Add `kind_exe`, `kind_family`, `kind_effort_ceiling`, `kind_effort_args`,
    `kind_model_args`, `kind_approval_args` entries in the script and a row in
    `kinds.md`.
-3. Smoke: a 15-line read-only brief (`scout`) asking for one constant and its
+3. Smoke: a 15-line read-only brief (`scouter`) asking for one constant and its
    reader in the current repo. `spawn --approvals full --effort <ceiling+1>`
    (expect a clamp warning) → `dispatch` (waits on the report) → `collect`
    → `release --close`. Watch for: startup dialogs, report written to the
@@ -206,10 +206,10 @@ non-empty and contain the end marker before it replaces the target.
 **Rule for the script:** never `mv` a generated file over user content
 without checking that generation succeeded and produced what you expect.
 
-## Role renamed: `mechanic` → `tasker` (2026-09-21)
+## Roles renamed to agent nouns (2026-09-21)
 
-The bulk-edit role is `tasker`. `resolve_role` still accepts `mechanic`
-with a warning so old briefs and configs keep working; project overrides
-should live in `.agents/herdr-roles/tasker.md` and config keys use
-`role.tasker.*`.
+`mechanic` → `tasker`, `scout` → `scouter`, `qa-visual` → `inspector`.
+`resolve_role` still accepts the old names with a warning so old briefs
+keep working; project overrides and config keys use the new names
+(`.agents/herdr-roles/tasker.md`, `role.inspector.kind`, …).
 
