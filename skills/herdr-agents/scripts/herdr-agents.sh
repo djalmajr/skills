@@ -10,6 +10,8 @@
 # Usage:
 #   herdr-agents.sh init                          # doctor + name the caller `orchestrator`, print context
 #   herdr-agents.sh doctor                        # advisory environment check (herdr, official skill, kinds, state)
+#   herdr-agents.sh setup [--target FILE] [--no-hooks] [--dry-run]
+#                                                 # write the herdr-agents block into AGENTS.md (or CLAUDE.md) and the Claude hooks
 #   herdr-agents.sh roles | kinds | config
 #   herdr-agents.sh models <kind>                 # ids the CLI lists, newest first
 #   herdr-agents.sh model <kind> <spec> [effort]  # how a model spec resolves
@@ -449,13 +451,162 @@ cmd_doctor() {
   local d; d="$(state_root 2>/dev/null || true)"
   if [ -n "$d" ]; then mkdir -p "$d" 2>/dev/null && [ -w "$d" ] && say ok "state dir writable: $d" || say warn "state dir not writable: $d"; fi
   case "$(cfg layout split)" in split|tab) say ok "config: layout=$(cfg layout) approvals=$(cfg approvals) auto_approve=$(cfg auto_approve) reuse_workers=$(cfg reuse_workers) worker_context=$(cfg worker_context)" ;; *) say warn "config: invalid layout '$(cfg layout)' (split|tab)" ;; esac
-  # Reminder hook: without it the orchestrator forgets to delegate when a prompt
-  # does not say "herd" or "workers" (observed: a three-repo survey done by hand).
-  local root; root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  if [ -f "$root/.claude/settings.json" ] && grep -q 'herdr-agents' "$root/.claude/settings.json" 2>/dev/null; then say ok "reminder hook present in .claude/settings.json"
-  else say warn "no herdr-agents reminder hook in $root/.claude/settings.json: merge $SKILL_DIR/templates/claude-settings-hook.json (UserPromptSubmit) so every prompt inside Herdr recalls the delegation rule"; fi
+  # Instruction block + hooks: without them the orchestrator forgets to delegate
+  # when a prompt does not say "herd" or "workers" (observed: a three-repo
+  # survey done by hand). `setup` writes both.
+  local root t; root="$(project_root)"
+  t="$(setup_target_existing "$root" || true)"
+  if [ -n "$t" ]; then say ok "instruction block present in $(basename "$t")"
+  else say warn "no herdr-agents block in AGENTS.md/CLAUDE.md: run '$0 setup' (writes the delegation rules between <!-- herdr-agents:start/end --> markers)"; fi
+  if [ -f "$root/.claude/settings.json" ] && jq -e '[.hooks[]?[]?.hooks[]?.command? // "" | select(test("herdr-agents"))] | length > 0' "$root/.claude/settings.json" >/dev/null 2>&1; then say ok "Claude hooks present in .claude/settings.json"
+  else say warn "no herdr-agents hooks in .claude/settings.json: run '$0 setup' (UserPromptSubmit reminder + SessionStart doctor)"; fi
   printf '%s ok, %s warning(s)\n' "$ok" "$warnv"
   return 0
+}
+
+# --- setup: instruction block + hooks ----------------------------------------
+# Mirrors what ai-memory does for its routing snippet: an idempotent, marked
+# block in the project's canonical instruction file plus the hooks a harness
+# can use to repeat the rule. Re-running replaces the block and the hooks.
+
+SETUP_START='<!-- herdr-agents:start -->'
+SETUP_END='<!-- herdr-agents:end -->'
+
+setup_block() {
+  cat <<EOF
+$SETUP_START
+## Multi-agent workflow (herdr-agents)
+
+Inside Herdr (\`HERDR_ENV=1\`) non-trivial work in this project runs through
+the \`herdr-agents\` skill. The calling agent is the **orchestrator**: it
+decomposes the objective, writes one brief per slice, spawns role workers in
+sibling panes, waits on their report files, integrates, runs the gates and
+owns git. Load the skill (\`/herdr-agents\`) before planning such work.
+
+- **Delegate**: multi-file slices, UI under the design contract, anything
+  touching auth, secrets or input handling, work that parallelizes, any change
+  that needs a reviewer, and **research**: reading more than a handful of
+  files, another repository or several tools' conventions is \`scout\` work.
+  The orchestrator briefs the scout, reads the report and decides.
+- **Keep**: a one-or-two-file change with no product decision, docs, config,
+  a question, a quick verification. If writing the brief takes longer than the
+  change, make the change.
+- Workers never commit, push or open PRs; the orchestrator owns git.
+- Every code slice gets a \`reviewer\` from another model family before push,
+  including code the orchestrator wrote itself (pick that kind by hand).
+- The only completion signal is the worker's report file (\`dispatch\`,
+  \`wait\`, \`status\`); never poll agent state by hand.
+- Demanding work goes to \`claude\`/\`codex\`; \`cursor\`, \`grok\` and \`agy\` take
+  mapping, mechanical edits and second passes.
+- Project roles override the skill's in \`.agents/herdr-roles/<role>.md\`;
+  project config in \`.agents/herdr-agents.conf\`; scratch state in
+  \`.herdr-agents/\` (git-ignored). Skill path: \`$SKILL_DIR\`.
+- Refresh this block and the hooks: \`bash $SKILL_DIR/scripts/herdr-agents.sh setup\`.
+$SETUP_END
+EOF
+}
+
+# The instruction file that already carries the block, if any (AGENTS.md first,
+# then a CLAUDE.md that is not a symlink to it).
+setup_target_existing() {
+  local root="$1" f
+  for f in "$root/AGENTS.md" "$root/CLAUDE.md"; do
+    [ -f "$f" ] && grep -q "$SETUP_START" "$f" 2>/dev/null && { printf '%s\n' "$f"; return 0; }
+  done
+  return 1
+}
+
+# Never replaces the target unless the new content was produced in full: the
+# block goes through a temp file (BSD awk rejects multi-line -v strings) and
+# the result must be non-empty before it is moved into place.
+setup_write_block() {
+  local file="$1" tmp blockfile verb
+  tmp="$(mktemp)"; blockfile="$(mktemp)"
+  setup_block > "$blockfile"
+  if [ -f "$file" ] && grep -q "$SETUP_START" "$file"; then
+    verb=updated
+    awk -v start="$SETUP_START" -v end="$SETUP_END" -v blockfile="$blockfile" '
+      BEGIN { while ((getline line < blockfile) > 0) block = block (n++ ? "\n" : "") line; close(blockfile) }
+      index($0, start) { print block; skip = 1; next }
+      index($0, end)   { skip = 0; next }
+      !skip { print }' "$file" > "$tmp" || { rm -f "$tmp" "$blockfile"; die "setup: could not rewrite the block in $file (file left untouched)" 4; }
+  else
+    verb=written
+    {
+      if [ -f "$file" ]; then
+        cat "$file"
+        [ -s "$file" ] && [ "$(tail -c1 "$file" | od -An -c | tr -d ' ')" != '\\n' ] && printf '\n'
+        printf '\n'
+      fi
+      cat "$blockfile"
+    } > "$tmp"
+  fi
+  if [ ! -s "$tmp" ] || ! grep -q "$SETUP_END" "$tmp"; then rm -f "$tmp" "$blockfile"; die "setup: produced an incomplete file for $file (file left untouched)" 4; fi
+  mv "$tmp" "$file"; rm -f "$blockfile"
+  printf '%s\n' "$verb"
+}
+
+# Claude Code hooks. Each entry is recognisable by the "herdr-agents" marker in
+# its command so a re-run replaces it instead of stacking duplicates.
+setup_hook_reminder() {
+  printf '%s' "sh -c '[ \"\${HERDR_ENV:-}\" = 1 ] && echo \"herdr-agents: this project routes non-trivial work through /herdr-agents — surveys go to a scout, slices to workers; the orchestrator keeps only one-or-two-file changes.\"; true'"
+}
+setup_hook_doctor() {
+  printf '%s' "sh -c '[ \"\${HERDR_ENV:-}\" = 1 ] || exit 0; bash \"$SKILL_DIR/scripts/herdr-agents.sh\" doctor 2>/dev/null | grep -E \"^warn\" | sed \"s/^warn */herdr-agents doctor: /\"; true'"
+}
+
+setup_write_hooks() {
+  local file="$1" tmp base
+  base='{}'; [ -f "$file" ] && base="$(cat "$file")"
+  tmp="$(mktemp)"
+  printf '%s' "$base" | jq \
+    --arg reminder "$(setup_hook_reminder)" \
+    --arg doctor "$(setup_hook_doctor)" '
+    def put(ev; cmd):
+      .hooks[ev] = ((.hooks[ev] // [])
+        | map(select(((.hooks // []) | any(.command? // "" | test("herdr-agents"))) | not))
+        + [{"hooks": [{"type": "command", "command": cmd}]}]);
+    put("UserPromptSubmit"; $reminder) | put("SessionStart"; $doctor)' > "$tmp" || die "could not merge hooks into $file" 4
+  mkdir -p "$(dirname "$file")"; mv "$tmp" "$file"
+}
+
+cmd_setup() {
+  local root target="" hooks=1 dry=0 claude
+  root="$(project_root)"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --target) target="$2"; shift 2 ;;
+      --no-hooks) hooks=0; shift ;;
+      --dry-run) dry=1; shift ;;
+      *) die "setup: unknown option '$1'" 2 ;;
+    esac
+  done
+  if [ -z "$target" ]; then
+    target="$(setup_target_existing "$root" || true)"
+    if [ -z "$target" ]; then
+      if [ -f "$root/AGENTS.md" ]; then target="$root/AGENTS.md"
+      elif [ -f "$root/CLAUDE.md" ] && [ ! -L "$root/CLAUDE.md" ]; then target="$root/CLAUDE.md"
+      else target="$root/AGENTS.md"; fi
+    fi
+  fi
+  case "$target" in /*) ;; *) target="$root/$target" ;; esac
+  if [ "$dry" = 1 ]; then
+    printf '# would write to %s\n' "$target"; setup_block
+    printf '\n# would merge into %s/.claude/settings.json: UserPromptSubmit + SessionStart hooks\n' "$root"
+    return 0
+  fi
+  printf 'block %s: %s\n' "$(setup_write_block "$target")" "$target"
+  claude="$root/CLAUDE.md"
+  if [ -f "$claude" ] && [ ! -L "$claude" ] && [ "$target" != "$claude" ] && ! grep -q "$SETUP_START" "$claude"; then
+    warn "CLAUDE.md exists separately and has no block: run 'setup --target CLAUDE.md' too, or make CLAUDE.md a symlink to AGENTS.md"
+  fi
+  if [ "$hooks" = 1 ]; then
+    setup_write_hooks "$root/.claude/settings.json"
+    printf 'hooks written: %s (UserPromptSubmit reminder, SessionStart doctor)\n' "$root/.claude/settings.json"
+  fi
+  state_root >/dev/null
+  printf 'state dir ignored: %s\n' "$(cfg state_dir .herdr-agents)/"
+  printf 'note: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n'
 }
 
 cmd_init() {
@@ -1102,6 +1253,7 @@ main() {
     model) cmd_model "$@" ;;
     init) require_env; cmd_init ;;
     doctor) cmd_doctor ;;
+    setup) cmd_setup "$@" ;;
     regrid) require_env; cmd_regrid ;;
     config) cmd_config ;;
     role) cmd_role "$@" ;;

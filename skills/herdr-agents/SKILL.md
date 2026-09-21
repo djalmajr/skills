@@ -1,8 +1,8 @@
 ---
 name: herdr-agents
 description: >
-  Run an omp-style team of role agents (scout, designer, implementer, mechanic,
-  reviewer, security-reviewer, librarian, qa-visual) inside Herdr. The calling
+  Run an omp-style team of role agents (scout, planner, designer, implementer,
+  mechanic, reviewer, security-reviewer, librarian, qa-visual) inside Herdr. The calling
   agent stays the orchestrator: it spawns one CLI agent per role in sibling
   panes, dispatches self-contained briefs, collects file-based reports, and
   owns integration, gates, and git. Use when running inside Herdr
@@ -81,6 +81,7 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 |---|---|---|---|---|
 | `scout` | agy | medium | read-only | Map code, find paths, compressed findings for handoff |
 | `librarian` | agy | medium | read-only | Source-verified answers about external libraries/APIs |
+| `planner` | claude | high | read-only | Decision-ready plan for a large or unfamiliar objective: options, one recommendation, slices, risks, questions; the orchestrator still decides |
 | `designer` | codex | high | edit | UI work under the project design system (tokens, states, a11y) |
 | `implementer` | codex | high | edit | Production code for one slice with per-item report |
 | `mechanic` | grok | low | edit | Mechanical edits in volume with an exact contract |
@@ -231,6 +232,7 @@ All mechanics go through `scripts/herdr-agents.sh` (needs `bash`, `jq`):
 S=<path-to-this-skill>/scripts/herdr-agents.sh
 $S init                                    # doctor + name yourself `orchestrator`, print context
 $S doctor                                  # advisory environment check
+$S setup [--target FILE] [--no-hooks]      # AGENTS.md block + Claude hooks (idempotent)
 $S roles                                   # available roles and their sources
 $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
@@ -381,7 +383,10 @@ see your own edits, so pick that reviewer's kind by hand.
 2. **Decompose yourself.** Slices with disjoint files, explicit interfaces,
    and an order. Shared resources (i18n catalogs, small stores, constants)
    are either delivered ready in the brief or owned by exactly one agent.
-3. **Pick roles.** Research → `scout`/`librarian`. UI → `designer`. Code →
+3. **Pick roles.** Large or unfamiliar objective (more than about three
+   probable slices, unknown code area, or a planning artifact requested) →
+   `planner` first; its report feeds your decomposition and never replaces
+   it. Research → `scout`/`librarian`. UI → `designer`. Code →
    `implementer`. Bulk mechanical → `mechanic`. Every slice that changes
    code gets a `reviewer` from another model family; auth/secrets/input
    handling also gets `security-reviewer`; visible UI also gets `qa-visual`.
@@ -413,18 +418,24 @@ not resend blindly.
 ## Making the rule stick
 
 The trigger above is only read when a prompt looks like a delegation
-request. A prompt such as "configure X, see how repos A and B do it" does
-not, and the orchestrator will read A and B itself. Two guards, both
-checked by `doctor`:
+request. "Configure X, see how repos A and B do it" does not look like
+one, and the orchestrator will read A and B itself. Run once per project:
 
-- Put the delegation rule in the project's `AGENTS.md` (or equivalent):
-  work runs through this skill inside Herdr, surveys go to `scout`, the
-  orchestrator keeps one-or-two-file changes.
-- Merge [templates/claude-settings-hook.json](templates/claude-settings-hook.json)
-  into the project's `.claude/settings.json`: a `UserPromptSubmit` hook
-  that, when `HERDR_ENV=1`, adds a one-line reminder to every prompt.
-  Codex, Grok, Cursor and agy have no prompt hook; for them the
-  `AGENTS.md` line is the guard.
+```bash
+$S setup                      # block in AGENTS.md (or a non-symlink CLAUDE.md) + Claude hooks
+$S setup --target CLAUDE.md   # when CLAUDE.md is the canonical file
+$S setup --no-hooks           # instruction block only
+```
+
+Like ai-memory's routing snippet, `setup` writes the delegation rules
+between `<!-- herdr-agents:start -->` / `<!-- herdr-agents:end -->`
+markers in the project's canonical instruction file and merges two hooks
+into `.claude/settings.json`: `UserPromptSubmit` (a one-line reminder on
+every prompt while `HERDR_ENV=1`) and `SessionStart` (doctor warnings).
+Re-running replaces the block and the hooks; the file is never touched
+when the rewrite fails. `doctor` and `init` warn when either is missing.
+Codex, Grok, Cursor and agy have no prompt hooks; for them the block is
+the guard.
 
 ## Project root
 

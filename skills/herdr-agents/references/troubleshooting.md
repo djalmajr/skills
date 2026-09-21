@@ -194,3 +194,15 @@ you should do. Read this before changing the script or adding a kind.
    → `release --close`. Watch for: startup dialogs, report written to the
    right path, focus back in the caller, `friction` empty afterwards.
 4. Grid placement keeps up to about six workers usable on a 181×57 tab.
+
+## `setup` rerun emptied AGENTS.md (fixed)
+
+**Seen:** the second `setup` run printed `awk: newline in string` and the
+target file ended up with zero bytes. **Cause:** BSD awk (macOS) rejects a
+multi-line string passed with `-v`, and the temp file was moved into place
+regardless of the awk exit status. **Fix:** the block is read by awk from a
+temp file, the rewrite aborts on awk failure, and the result must be
+non-empty and contain the end marker before it replaces the target.
+**Rule for the script:** never `mv` a generated file over user content
+without checking that generation succeeded and produced what you expect.
+
