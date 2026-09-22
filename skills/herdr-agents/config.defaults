@@ -13,10 +13,16 @@ orchestrator_name=orchestrator
 # the herd tabs; `tab` = the herd tabs only (labelled by herd_label).
 layout=split
 
+# Live workers of this skill at once in the workspace; the orchestrator does
+# not count (3 = four panes with the caller, a 2x2 grid). `spawn` refuses a
+# new pane past it (exit 8): release a finished worker with `release --close`
+# or let `reuse_workers` pick an idle one. 0 = no cap.
+max_workers=3
+
 # Panes per tab before new workers overflow into the next herd tab. In the
-# caller's tab the caller counts (6 = caller + 5 workers, a 3x2 grid); herd
+# caller's tab the caller counts (4 = caller + 3 workers, a 2x2 grid); herd
 # tabs hold that many workers. `release --close` frees the slot again.
-split_max_panes=6
+split_max_panes=4
 
 # Smallest pane a spawn may leave, as a fraction of the tab's width/height
 # (0.18 ≈ 38 columns or 10 rows on a 213x57 tab). When no pane of caller +
@@ -46,9 +52,10 @@ herd_label={roles}
 herd_label_max=16
 
 # Reuse an idle worker of the same role, kind and cwd whose last report is
-# already written instead of opening a new pane: on | off. `spawn --reuse` /
-# `--fresh` override per call. A reused worker keeps its earlier briefs in
-# context; pass `--fresh` (or set `off`) when slices must not share context.
+# already written instead of opening a new pane: on (default) | off.
+# `spawn --reuse` / `--fresh` override per call. A reused worker keeps its
+# earlier briefs in context; pass `--fresh` (or set `off`) when slices must
+# not share context. Reuse never counts against max_workers.
 reuse_workers=on
 
 # Brief structure check on dispatch (Goal, Owned files, Forbidden, Report, a

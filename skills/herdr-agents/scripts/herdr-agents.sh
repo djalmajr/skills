@@ -51,7 +51,8 @@
 # Exit codes: 2 usage/env · 3 unknown role/agent · 4 Herdr failure (includes
 # `herdr agent get` transport/permission errors reported as `unavailable`) ·
 # 5 same-family reviewer · 6 settled without report or agent really gone ·
-# 7 agent blocked (startup or approval) · 9 wait timeout.
+# 7 agent blocked (startup or approval) · 8 max_workers reached ·
+# 9 wait timeout.
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -121,7 +122,7 @@ cfg_source() {
 cmd_config() {
   printf '%-18s %-30s %s\n' KEY VALUE SOURCE
   local k
-  for k in orchestrator_name layout regrid split_max_panes split_min_pane herd_label herd_label_max reuse_workers worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
+  for k in orchestrator_name layout regrid max_workers split_max_panes split_min_pane herd_label herd_label_max reuse_workers worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
   for k in $(compgen -v | grep -E '^CFG_(args|role|model|effort)_' | sed 's/^CFG_//'); do
@@ -482,14 +483,31 @@ agent_state() {
   return 0
 }
 
-live_worker_count() {
-  local live n=0 name pane
+# live_worker_names: roster workers whose agent (by name or pane) is still live.
+live_worker_names() {
+  local live name pane
   live="$(live_agents_json)"
   while IFS=$'\t' read -r name pane _rest; do
     [ -n "$name" ] || continue
-    printf '%s' "$live" | jq -e --arg n "$name" --arg p "$pane" 'map(select((.name // "")==$n or .pane_id==$p)) | length > 0' >/dev/null && n=$((n+1))
+    printf '%s' "$live" | jq -e --arg n "$name" --arg p "$pane" 'map(select((.name // "")==$n or .pane_id==$p)) | length > 0' >/dev/null && printf '%s\n' "$name"
   done < <(roster_rows)
-  printf '%s\n' "$n"
+}
+live_worker_count() { live_worker_names | grep -c . || true; }
+
+# max_workers: validated cap on live workers of this skill in the workspace
+# (the orchestrator does not count). 0 = no cap; anything else falls back to 3.
+max_workers() { local v; v="$(cfg max_workers 3)"; printf '%s' "$v" | grep -Eq '^[0-9]+$' && printf '%s\n' "$v" || echo 3; }
+
+# enforce_worker_cap: refuse a new worker (exit 8) once max_workers are live.
+# Reusing an idle worker never reaches this check.
+enforce_worker_cap() {
+  local cap names n
+  cap="$(max_workers)"
+  [ "$cap" -gt 0 ] || return 0
+  names="$(live_worker_names)"
+  n="$(printf '%s' "$names" | grep -c . || true)"
+  [ "$n" -lt "$cap" ] && return 0
+  die "max_workers=$cap reached ($n live: $(printf '%s' "$names" | tr '\n' ' ' | sed 's/ $//')). Release a finished worker (release <name> --close), let spawn reuse an idle one of the same role (reuse_workers=on / --reuse), or raise max_workers." 8
 }
 
 # ---------- orchestrator identity ----------
@@ -532,10 +550,14 @@ cmd_doctor() {
   local d; d="$(state_root 2>/dev/null || true)"
   if [ -n "$d" ]; then mkdir -p "$d" 2>/dev/null && [ -w "$d" ] && say ok "state dir writable: $d" || say warn "state dir not writable: $d"; fi
   case "$(cfg layout split)" in split|tab) say ok "config: layout=$(cfg layout) approvals=$(cfg approvals) auto_approve=$(cfg auto_approve) reuse_workers=$(cfg reuse_workers) worker_context=$(cfg worker_context)" ;; *) say warn "config: invalid layout '$(cfg layout)' (split|tab)" ;; esac
-  local cap; cap="$(cfg split_max_panes 6)"
-  if ! printf '%s' "$cap" | grep -Eq '^[0-9]+$'; then say warn "config: split_max_panes='$cap' is not a number (using 6)"
+  local cap; cap="$(cfg split_max_panes 4)"
+  if ! printf '%s' "$cap" | grep -Eq '^[0-9]+$'; then say warn "config: split_max_panes='$cap' is not a number (using 4)"
   elif [ "$cap" -lt 2 ]; then say warn "config: split_max_panes=$cap leaves no room next to the caller; every worker will overflow into herd tabs (set 2 or more)"
   else say ok "config: split_max_panes=$cap split_min_pane=$(split_min)"; fi
+  local mw; mw="$(cfg max_workers 3)"
+  if ! printf '%s' "$mw" | grep -Eq '^[0-9]+$'; then say warn "config: max_workers='$mw' is not a number (using 3)"
+  elif [ "$mw" -eq 0 ]; then say ok "config: max_workers=0 (no cap on live workers)"
+  else say ok "config: max_workers=$mw (orchestrator + $mw workers)"; fi
   printf '%s' "$(cfg split_min_pane 0.18)" | grep -Eq '^0?\.[0-9]+$' || say warn "config: split_min_pane='$(cfg split_min_pane)' must be a fraction like 0.18 (using 0.18)"
   if ! printf '%s' "$(cfg herd_label_max 16)" | grep -Eq '^[0-9]+$'; then say warn "config: herd_label_max='$(cfg herd_label_max)' is not a number (using 16)"
   else say ok "config: herd_label='$(cfg herd_label '{roles}')' herd_label_max=$(herd_label_max)"; fi
@@ -730,7 +752,7 @@ auto_direction_for() { # <pane-id or empty for current>
 # split_cap / split_min: validated `split_max_panes` (panes per tab, caller
 # included) and `split_min_pane` (smallest pane a split may leave, as a
 # fraction of the tab). Bad values fall back to the defaults; `doctor` warns.
-split_cap() { local v; v="$(cfg split_max_panes 6)"; printf '%s' "$v" | grep -Eq '^[0-9]+$' && printf '%s\n' "$v" || echo 6; }
+split_cap() { local v; v="$(cfg split_max_panes 4)"; printf '%s' "$v" | grep -Eq '^[0-9]+$' && printf '%s\n' "$v" || echo 4; }
 split_min() { local v; v="$(cfg split_min_pane 0.18)"; printf '%s' "$v" | grep -Eq '^0?\.[0-9]+$' && printf '%s\n' "$v" || echo 0.18; }
 
 # split_anchor_from_layout <layout-json> <me> <" mine "> <cap> <min>
@@ -1266,7 +1288,7 @@ cmd_spawn() {
     fi
   fi
 
-  [ -n "$reuse" ] || reuse="$(cfg reuse_workers off)"
+  [ -n "$reuse" ] || reuse="$(cfg reuse_workers on)"
   if [ "$reuse" = on ] && [ -z "$pane" ]; then
     local existing reuse_rc=0
     existing="$(find_reusable "$role" "$kind" "$cwd" "$name")" && reuse_rc=0 || reuse_rc=$?
@@ -1282,6 +1304,8 @@ cmd_spawn() {
       die "worker '$(printf '%s' "$existing" | cut -f3)' matches this role, kind and cwd but herdr agent get failed ($(printf '%s' "$existing" | cut -f2)). Not spawning a replacement; it may still be live." 4
     fi
   fi
+
+  enforce_worker_cap
 
   [ -n "$name" ] || name="$(unique_name "$role")"
   printf '%s' "$name" | grep -Eq '^[a-z][a-z0-9_-]{0,31}$' || die "invalid agent name '$name' (must match [a-z][a-z0-9_-]{0,31})" 2
@@ -1652,7 +1676,7 @@ cmd_roster() {
         roster_rows | awk -F'\t' -v p="$p" '$2==p' | grep -q . && continue
         printf '%-20s %-18s %-8s %-8s %-16s %-9s\n' "$n" "-" "$a" "$p" "$(tab_of "$p")" "$s"
       done
-  printf '\nlayout=%s reuse_workers=%s auto_approve=%s\n' "$(cfg layout split)" "$(cfg reuse_workers off)" "$(cfg auto_approve off)"
+  printf '\nlayout=%s reuse_workers=%s auto_approve=%s\n' "$(cfg layout split)" "$(cfg reuse_workers on)" "$(cfg auto_approve off)"
 }
 
 cmd_release() {

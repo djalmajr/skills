@@ -230,14 +230,17 @@ keys it sets:
 
 `$S config` prints every effective value with its source. Keys:
 `orchestrator_name`, `layout` (`split`: panes in the caller's tab until it is
-full, then herd tabs; `tab`: herd tabs only), `split_max_panes` (panes per
-tab, caller included; default 6), `split_min_pane` (smallest pane a spawn may
+full, then herd tabs; `tab`: herd tabs only), `max_workers` (live workers
+at once, orchestrator not counted; default 3 = four panes with the caller;
+`spawn` exits 8 at the cap; `0` = no cap), `split_max_panes` (panes per
+tab, caller included; default 4), `split_min_pane` (smallest pane a spawn may
 leave, fraction of the tab; default 0.18), `regrid` (exact grids after every
 spawn/release), `herd_label` + `herd_label_max` (template and length of the
 automatic herd-tab labels; default `{roles}` → `impl+rev`, 16 characters;
 see "Herd tab labels"), `brief_lint` (`warn|strict|off`), `reuse_workers`
-(default `on`: `spawn` returns an idle worker of the same role, kind and
-cwd whose last report exists instead of opening a pane; `--reuse`/`--fresh`
+(default `on`, also when no config sets it: `spawn` returns an idle
+worker of the same role, kind and cwd whose last report exists instead of
+opening a pane, and a reuse never counts against `max_workers`; `--reuse`/`--fresh`
 override per call; a reused worker keeps earlier briefs in context, so pass
 `--fresh` when a slice must start clean), `feedback` +
 `feedback_repo` (see "Improving this skill"), `approvals`
@@ -300,8 +303,8 @@ with the largest area is halved on its longer side (`--ratio 0.5`; width
 fraction ≥ height fraction → `right`, else `down`), then `regrid` rebuilds
 the tab as an **exact grid** over caller + workers — the caller stays
 top-left in the least crowded column (3 cells: caller full height, two
-workers stacked; 6 cells: 3×2). When the tab holds `split_max_panes` panes
-(default 6 = caller + 5), or no pane can be halved without going below
+workers stacked; 4 cells: 2×2). When the tab holds `split_max_panes` panes
+(default 4 = caller + 3), or no pane can be halved without going below
 `split_min_pane` (default 0.18 of the tab), the worker **overflows** into
 a herd tab — the first with room, else a new one, labelled after the
 roles in it (`impl+rev`) or the wave you name (`spawn` prints
@@ -315,7 +318,11 @@ herd tabs, first tab first pane, until caller + workers reach
 `split_max_panes`; a herd tab that empties closes itself. Workers pass through
 a temporary `herd-park` tab during a caller-tab regrid because Herdr
 refuses to move a pane inside its own tab; agents keep running. There is
-no cap on workers overall: open as many as the work needs. `spawn` retries
+a cap on workers overall: at most `max_workers` (default **3**, four panes
+with the orchestrator) live at once. `spawn` past the cap exits 8 and names
+the live workers: `release --close` the ones whose reports you already
+collected, or let `reuse_workers` hand back an idle worker of the same
+role. Plan waves of up to three slices instead of fanning out wider. `spawn` retries
 for a few seconds while the new shell reaches its prompt, starts the agent
 with `--no-focus`. `herdr agent start` still focuses that new pane; spawn puts focus back on the pane that had it only while focus is still there, and leaves a pane you moved to alone. `regrid` does not switch to the caller's tab. Explicit
 `--direction`/`--ratio` split the chosen (or, when the tab is full, the
@@ -341,7 +348,8 @@ automatic label); `roster` shows the `TAB` of every worker.
 the state dir and sends a one-line pointer to it, so long briefs never
 depend on terminal paste limits. Exit codes: 2 usage/env, 3 unknown
 role/agent, 4 Herdr failure (`unavailable`), 5 same-family reviewer, 6 settled without
-report, 7 agent blocked (startup or approval), 9 wait timeout. Every error
+report, 7 agent blocked (startup or approval), 8 `max_workers` reached,
+9 wait timeout. Every error
 and warning is also appended to `<state>/friction.log` (`$S friction`).
 
 ## What is implicit (read once)
@@ -407,11 +415,11 @@ and warning is also appended to `<state>/friction.log` (`$S friction`).
 - **Workers have their own command guards.** A Codex guardian on this kind
   of setup rejects `rm -f`-style commands regardless of approvals. Briefs
   describe outcomes, not destructive shell idioms.
-- **Layout.** The caller's tab never holds more than `split_max_panes`
-  panes (6 → a 3×2 grid on a wide tab); later workers go to herd tabs
+- **Layout.** At most `max_workers` (3) workers live at once, so the
+  caller's tab normally holds a 2×2 grid (`split_max_panes` 4). Workers
+  that still do not fit (`split_min_pane`, or a raised cap) go to herd tabs
   labelled after their roles (`impl+rev`) or after the wave you name with
-  `--tab-label`. Lower it (4 → 2×2) when the caller must stay large, or
-  set `layout=tab` to keep the caller's tab untouched.
+  `--tab-label`; set `layout=tab` to keep the caller's tab untouched.
 
 State (briefs, reports, roster) lives **inside the project**, under
 `<repo>/.herdr-agents/<workspace-id>/`, and the script adds that path to

@@ -66,10 +66,14 @@ expect 'grid 6' "$(grid_sizes 6)" '3 2 2 2'
 expect 'grid 7' "$(grid_sizes 7)" '3 2 2 3'
 
 # --- layout-plan command over a fixture ------------------------------------
-PLAN="$(printf '%s' "$GRID3x2" | bash "$SKILL_SCRIPT" layout-plan --layout - --me C --mine 'A B D E')"
+# Default cap is 4 panes (caller + max_workers 3): a fifth pane overflows.
+PLAN="$(printf '%s' "$GRID3x2" | bash "$SKILL_SCRIPT" layout-plan --layout - --me C --mine 'A B D')"
+expect 'layout-plan default cap full at caller + 3' "$(printf '%s' "$PLAN" | jq -r '.placement + " " + .reason')" 'herd full'
+# Geometry with the cap raised to 6 (3x2 grid).
+PLAN="$(printf '%s' "$GRID3x2" | HERDR_AGENTS_SPLIT_MAX_PANES=6 bash "$SKILL_SCRIPT" layout-plan --layout - --me C --mine 'A B D E')"
 expect 'layout-plan placement' "$(printf '%s' "$PLAN" | jq -r '.placement + " " + .anchor + " " + .direction')" 'split C down'
 expect 'layout-plan grid after spawn' "$(printf '%s' "$PLAN" | jq -c '.grid')" '{"cells":6,"cols":3,"rows_per_col":[2,2,2]}'
-PLAN="$(printf '%s' "$FULL" | bash "$SKILL_SCRIPT" layout-plan --layout - --me C --mine 'A B D E F')"
+PLAN="$(printf '%s' "$FULL" | HERDR_AGENTS_SPLIT_MAX_PANES=6 bash "$SKILL_SCRIPT" layout-plan --layout - --me C --mine 'A B D E F')"
 expect 'layout-plan overflow' "$(printf '%s' "$PLAN" | jq -r '.placement + " " + .reason')" 'herd full'
 
 # --- herd tabs: first tab with room, else a new tab named after the role ---

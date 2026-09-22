@@ -61,6 +61,7 @@ case "\$1 \$2" in
       *) printf 'unexpected mode %s\n' "\$mode" >&2; exit 1 ;;
     esac ;;
   "pane list") printf '%s\n' '{"result":{"panes":[]}}' ;;
+  "agent list") cat "$TEST_ROOT/live.json" 2>/dev/null || printf '%s\n' '{"result":{"agents":[]}}' ;;
   "agent read") printf '%s\n' 'terminal-fallback' ;;
   "pane close") printf '%s\n' '{"result":{}}' ;;
   "agent prompt") printf '%s\n' '{"result":{"submitted":true}}' ;;
@@ -319,5 +320,28 @@ grep -q '^pane close' "$LOG" || fail "finished worker pane was not closed"
   got="$(roster_panes_in_tab '[{"pane_id":"p2","tab_id":"t1"},{"pane_id":"p3","tab_id":"t1"}]' t1 | tr '\n' ' ')"
   [ "$got" = "p2 " ] || { printf 'FAIL: regrid panes kept %s\n' "$got" >&2; exit 1; }
 ) || fail "find_reusable"
+
+# spawn refuses a fourth live worker (exit 8) and counts only live ones.
+(
+  set -euo pipefail
+  export HERDR_AGENTS_LIB=1 PATH="$FAKE:$PATH" HERDR_AGENTS_DIR="$STATE" HERDR_WORKSPACE_ID=ws
+  # shellcheck source=herdr-agents.sh
+  . "$SKILL_SCRIPT"
+  tsv="$STATE/ws/agents.tsv"
+  printf '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\n' > "$tsv"
+  for w in a b c d; do printf '%s\tp%s\tagy\timplementer\tgoogle\t1\t/tmp/work\tnow\n' "$w" "$w" >> "$tsv"; done
+  printf '%s\n' '{"result":{"agents":[{"name":"orchestrator","pane_id":"p0"},{"name":"a","pane_id":"pa"},{"name":"b","pane_id":"pb"}]}}' > "$TEST_ROOT/live.json"
+  [ "$(max_workers)" = 3 ] || { printf 'FAIL: default max_workers %s\n' "$(max_workers)" >&2; exit 1; }
+  [ "$(live_worker_count)" = 2 ] || { printf 'FAIL: live count %s\n' "$(live_worker_count)" >&2; exit 1; }
+  ( enforce_worker_cap ) 2>/dev/null || { printf 'FAIL: cap refused at 2 live\n' >&2; exit 1; }
+  printf '%s\n' '{"result":{"agents":[{"name":"a","pane_id":"pa"},{"name":"b","pane_id":"pb"},{"name":"c","pane_id":"pc"}]}}' > "$TEST_ROOT/live.json"
+  rc=0; err="$( ( enforce_worker_cap ) 2>&1 )" || rc=$?
+  [ "$rc" -eq 8 ] || { printf 'FAIL: cap rc %s\n' "$rc" >&2; exit 1; }
+  case "$err" in *"max_workers=3 reached (3 live: a b c)"*) ;; *) printf 'FAIL: cap message %s\n' "$err" >&2; exit 1 ;; esac
+  rc=0; ( HERDR_AGENTS_MAX_WORKERS=0 enforce_worker_cap ) 2>/dev/null || rc=$?
+  [ "$rc" -eq 0 ] || { printf 'FAIL: max_workers=0 still capped\n' >&2; exit 1; }
+  [ "$(cfg reuse_workers on)" = on ] || { printf 'FAIL: reuse default\n' >&2; exit 1; }
+  rm -f "$TEST_ROOT/live.json"
+) || fail "max_workers"
 
 echo 'status checks passed'

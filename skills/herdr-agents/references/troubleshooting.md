@@ -141,7 +141,10 @@ you should do. Read this before changing the script or adding a kind.
   caller top-left in the least crowded column. Panes of other origins in
   the tab keep their slot in the split tree. `layout-plan` prints the
   decision (`anchor`, `direction`, `reason: largest-area|full|min`, grid).
-- **Capacity:** `split_max_panes` (default 6, caller included) per tab.
+- **Capacity:** `max_workers` (default 3, orchestrator not counted) live
+  workers at once; `spawn` past it exits 8 with the live names — release a
+  finished worker or reuse an idle one. `split_max_panes` (default 4, caller
+  included) per tab.
   Beyond it, or when nothing can be halved above `split_min_pane`, the
   worker goes to a herd tab (`<state>/herd-tab`: `tab_id`, label, `auto|manual`
   per line, dead tabs pruned on read). `release --close` in the
@@ -253,8 +256,8 @@ you should do. Read this before changing the script or adding a kind.
    (expect a clamp warning) → `dispatch` (waits on the report) → `collect`
    → `release --close`. Watch for: startup dialogs, report written to the
    right path, focus still on the pane that had it before spawn, `friction` empty afterwards.
-4. The caller's tab holds at most `split_max_panes` panes (6 → 3×2 on a
-   213×57 tab, 71×28 cells); later workers overflow into herd tabs labelled
+4. The caller's tab holds at most `split_max_panes` panes (4 → 2×2 on a
+   213×57 tab); later workers overflow into herd tabs labelled
    after their roles (`impl+rev`) or `--tab-label`.
 
 ## `setup` rerun emptied AGENTS.md (fixed)
