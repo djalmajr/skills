@@ -41,17 +41,21 @@ you should do. Read this before changing the script or adding a kind.
 ## `agent start` returns `agent_not_ready` (exit 7)
 
 - **Cause:** a startup dialog: Codex update prompt, login, workspace trust.
-- **Now:** `spawn` records the agent, restores focus, prints the visible
-  screen, exits 7. Ask the user, then `herdr agent send-keys <name> …` and
+- **Now:** `spawn` records the agent, returns focus to the pane that had it
+  when focus is still on the new pane, prints the visible screen, exits 7.
+  Ask the user, then `herdr agent send-keys <name> …` and
   `herdr agent wait <name>`. The roster entry is valid; `dispatch` works
   after the dialog is cleared.
 
-## Focus jumps to the new pane
+## Focus jumps while you are typing
 
 - **Cause:** `herdr agent start` focuses the pane it starts, even after a
-  `--no-focus` split.
-- **Now:** `spawn` refocuses the caller (`agent focus $HERDR_PANE_ID`, or the
-  opposite split direction when the caller has no agent).
+  `--no-focus` split. Spawn used to follow that by focusing the caller pane
+  and tab, including after you had already moved.
+- **Now:** spawn remembers the focused pane and puts focus back there only
+  when it is still on the pane just started. Any other focused pane is left
+  alone. `regrid` does not run `tab focus` on the caller's tab; if a move
+  changed focus, it is put back on the pane that had it before the regrid.
 
 ## Worker refuses a command from the brief
 
@@ -248,7 +252,7 @@ you should do. Read this before changing the script or adding a kind.
    reader in the current repo. `spawn --approvals full --effort <ceiling+1>`
    (expect a clamp warning) → `dispatch` (waits on the report) → `collect`
    → `release --close`. Watch for: startup dialogs, report written to the
-   right path, focus back in the caller, `friction` empty afterwards.
+   right path, focus still on the pane that had it before spawn, `friction` empty afterwards.
 4. The caller's tab holds at most `split_max_panes` panes (6 → 3×2 on a
    213×57 tab, 71×28 cells); later workers overflow into herd tabs labelled
    after their roles (`impl+rev`) or `--tab-label`.

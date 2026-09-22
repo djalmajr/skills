@@ -106,4 +106,46 @@ expect 'every herd tab full → new tab' "$(herd_tab_pane /tmp "" implementer)" 
 grep -q 'tab create .*--label impl' "$LOG" || fail "expected a tab labelled impl, log: $(cat "$LOG")"
 expect 'new tab recorded' "$(tr '\n\t' ' ,' < "$STATE/ws/herd-tab")" 't1,herd,auto t2,herd,auto t3,impl,auto '
 
+# --- focus: undo a steal only while the keyboard is still on that pane -----
+FOCUS_LOG="$TEST_ROOT/focus.log"
+: > "$FOCUS_LOG"
+cat > "$FAKE/herdr" << FAKE_EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$FOCUS_LOG"
+case "\$1 \$2" in
+  "pane list") echo '{"result":{"panes":[{"pane_id":"'"\${FOCUS_PANE:-none}"'","focused":true}]}}' ;;
+  "agent focus")
+    if [ "\${FOCUS_AGENT_FAIL:-}" = 1 ]; then exit 1; fi
+    echo '{"result":{}}' ;;
+  "pane focus") echo '{"result":{}}' ;;
+  *) echo '{"error":"unexpected"}' >&2; exit 1 ;;
+esac
+FAKE_EOF
+chmod +x "$FAKE/herdr"
+focus_cmds() { grep -E '^(agent focus|pane focus)' "$FOCUS_LOG" || true; }
+
+export FOCUS_PANE=newp FOCUS_AGENT_FAIL= HERDR_PANE_ID=caller
+restore_focus_if_stolen userp newp right
+expect 'stolen focus returns to the previous pane' "$(focus_cmds)" 'agent focus userp'
+
+: > "$FOCUS_LOG"
+export FOCUS_PANE=other
+restore_focus_if_stolen userp newp right
+expect 'a pane the user moved to is left alone' "$(focus_cmds)" ''
+
+: > "$FOCUS_LOG"
+restore_focus_if_stolen '' newp right
+restore_focus_if_stolen newp newp right
+expect 'empty or unchanged focus is not touched' "$(focus_cmds)" ''
+
+: > "$FOCUS_LOG"
+export FOCUS_PANE=newp FOCUS_AGENT_FAIL=1 HERDR_PANE_ID=userp
+restore_focus_if_stolen userp newp right
+expect 'caller shell steps back across the split' "$(focus_cmds | tail -n1)" 'pane focus --direction left --pane newp'
+
+: > "$FOCUS_LOG"
+export HERDR_PANE_ID=caller
+restore_focus_if_stolen userp newp right
+expect 'a non-caller shell is not chased with a directional focus' "$(focus_cmds)" 'agent focus userp'
+
 echo 'layout checks passed'

@@ -309,12 +309,15 @@ roles in it (`impl+rev`) or the wave you name (`spawn` prints
 `release --close` frees the slot, so the next spawn lands in the caller's
 tab again. `layout=tab` uses the herd tabs only. Every herd tab is rebuilt
 as an exact grid too (columns = ⌈√n⌉, rows balanced), keeping its label.
-Workers pass through
+`regrid` also does the reverse: when the caller's tab has room again
+(workers released, cap raised) it pulls overflowed workers back from the
+herd tabs, first tab first pane, until caller + workers reach
+`split_max_panes`; a herd tab that empties closes itself. Workers pass through
 a temporary `herd-park` tab during a caller-tab regrid because Herdr
 refuses to move a pane inside its own tab; agents keep running. There is
 no cap on workers overall: open as many as the work needs. `spawn` retries
 for a few seconds while the new shell reaches its prompt, starts the agent
-with `--no-focus`, and gives focus back to the caller. Explicit
+with `--no-focus`. `herdr agent start` still focuses that new pane; spawn puts focus back on the pane that had it only while focus is still there, and leaves a pane you moved to alone. `regrid` does not switch to the caller's tab. Explicit
 `--direction`/`--ratio` split the chosen (or, when the tab is full, the
 caller's) pane as asked and skip the automatic regrid for that call.
 Anything after `--` goes to the agent CLI (`herdr agent start … -- <args>`).
