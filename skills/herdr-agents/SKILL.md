@@ -317,7 +317,7 @@ a temporary `herd-park` tab during a caller-tab regrid because Herdr
 refuses to move a pane inside its own tab; agents keep running. There is
 no cap on workers overall: open as many as the work needs. `spawn` retries
 for a few seconds while the new shell reaches its prompt, starts the agent
-with `--no-focus`, and gives focus back to the caller. Explicit
+with `--no-focus`. `herdr agent start` still focuses that new pane; spawn puts focus back on the pane that had it only while focus is still there, and leaves a pane you moved to alone. `regrid` does not switch to the caller's tab. Explicit
 `--direction`/`--ratio` split the chosen (or, when the tab is full, the
 caller's) pane as asked and skip the automatic regrid for that call.
 Anything after `--` goes to the agent CLI (`herdr agent start … -- <args>`).

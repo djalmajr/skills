@@ -805,11 +805,29 @@ cmd_layout_plan() {
       else printf '%s\n' "$plan"; fi; }
 }
 
-restore_focus() { # <new pane> <split direction>
-  local back=""
-  case "$2" in right) back=left ;; down) back=up ;; esac
-  if [ -n "${HERDR_PANE_ID:-}" ] && herdr agent focus "$HERDR_PANE_ID" >/dev/null 2>&1; then return; fi
-  [ -n "$back" ] && herdr pane focus --direction "$back" --pane "$1" >/dev/null 2>&1 || true
+# Pane the TUI keyboard is in, across workspaces. Empty when none is focused.
+ui_focused_pane() {
+  herdr pane list 2>/dev/null | jq -r 'first(.result.panes[]? | select(.focused == true) | .pane_id) // empty' || true
+}
+
+# Undo a focus steal onto $2 by returning to $1, and only then. A different
+# focused pane means the user moved while spawn or regrid was running; leave it.
+# `herdr agent start` focuses the pane it starts even after a --no-focus split,
+# so this puts the keyboard back where it was instead of on the caller.
+restore_focus_if_stolen() { # <previous-pane> <stolen-pane> [split-direction]
+  local prev="$1" stolen="$2" dir="${3:-}" now back=""
+  [ -n "$prev" ] && [ -n "$stolen" ] && [ "$prev" != "$stolen" ] || return 0
+  now="$(ui_focused_pane)"
+  [ "$now" = "$stolen" ] || return 0
+  if herdr agent focus "$prev" >/dev/null 2>&1; then return 0; fi
+  # A caller shell has no agent name. Step back across the split we just made.
+  [ "$prev" = "${HERDR_PANE_ID:-}" ] || return 0
+  case "$dir" in
+    right) back=left ;;
+    down) back=up ;;
+    *) return 0 ;;
+  esac
+  herdr pane focus --direction "$back" --pane "$stolen" >/dev/null 2>&1 || true
 }
 
 # ---------- herd tabs ----------
@@ -1108,8 +1126,9 @@ park_panes() {
 #     labels are recomputed at the end.
 # Pane ids are preserved inside a workspace; the roster is updated anyway.
 cmd_regrid() {
-  local sd ws root layout live tab label mode p panes=() tabinfo newtab rootpane newid kept="" summary="[]" park
+  local sd ws root layout live tab label mode p panes=() tabinfo newtab rootpane newid kept="" summary="[]" park focus_before
   sd="$(state_dir)"; ws="$(workspace_id)"; root="$(project_root)"; layout="$(cfg layout split)"
+  focus_before="$(ui_focused_pane)"
   live="$(herdr pane list --workspace "$ws" | jq -c '.result.panes')"
   if [ "$layout" = split ] && [ -n "${HERDR_TAB_ID:-}" ] && [ -n "${HERDR_PANE_ID:-}" ]; then
     panes=(); while IFS= read -r p; do [ -n "$p" ] && panes+=("$p"); done < <(roster_panes_in_tab "$live" "$HERDR_TAB_ID")
@@ -1155,7 +1174,7 @@ cmd_regrid() {
   done < <(herd_tab_entries)
   [ -f "$sd/herd-tab" ] && printf '%s' "$kept" > "$sd/herd-tab"
   herd_tabs_relabel || warn "regrid: relabel of the herd tabs failed"
-  [ -n "${HERDR_TAB_ID:-}" ] && herdr tab focus "$HERDR_TAB_ID" >/dev/null 2>&1 || true
+  restore_focus_if_stolen "$focus_before" "$(ui_focused_pane)"
   printf '%s' "$summary" | jq -c '{regridded: .}'
 }
 
@@ -1280,9 +1299,9 @@ cmd_spawn() {
   if [ -n "$extra" ]; then local extra_arr=(); read -r -a extra_arr <<< "$extra"; built_args+=("${extra_arr[@]}"); fi
   agent_args=("${built_args[@]+"${built_args[@]}"}" "${agent_args[@]+"${agent_args[@]}"}")
 
-  local created=0 split caller_focused layout placement=given auto_regrid=0
+  local created=0 split focus_before layout placement=given auto_regrid=0
   layout="$(cfg layout split)"
-  caller_focused="$(herdr pane current --current 2>/dev/null | jq -r '.result.pane.focused // false')"
+  focus_before="$(ui_focused_pane)"
   [ -z "$tab_label" ] || [ -z "$pane" ] || warn "--tab-label ignored: --pane places the worker in a given pane"
   if [ -z "$pane" ]; then
     local anchor=overflow auto_dir=layout
@@ -1315,10 +1334,7 @@ cmd_spawn() {
     if printf '%s' "$start" | grep -q agent_pane_busy && [ "$tries" -lt 15 ]; then tries=$((tries+1)); sleep 1; continue; fi
     printf '%s\n' "$start" >&2; die "agent start failed for $name ($kind) in pane $pane; pane left open for inspection" 4
   done
-  if [ "$caller_focused" = true ]; then
-    if [ "$placement" = herd ] && [ -n "${HERDR_TAB_ID:-}" ]; then herdr tab focus "$HERDR_TAB_ID" >/dev/null 2>&1 || true; fi
-    restore_focus "$pane" "$direction"
-  fi
+  restore_focus_if_stolen "$focus_before" "$pane" "$direction"
 
   local family; family="$(agent_family "$kind" "$model")"
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$pane" "$kind" "$role" "$family" "$created" "$cwd" "$(now)" >> "$(state_dir)/agents.tsv"
