@@ -39,7 +39,11 @@ issues.detail.linkProject = "…"
 ## Checks you may run
 
 - `bun run typecheck -- <your files>` / `bun test <your test files>`
-- Do NOT run the full suite, the formatter, or e2e.
+- While iterating, run only the check that covers the item (in the
+  herdr-agents repo: `scripts/run-tests.sh --env outside test-<x>.sh`).
+- The full matrix (in the herdr-agents repo: `scripts/run-tests.sh`) runs
+  once, right before the report — not between edits.
+- Do NOT run the formatter or e2e.
 
 ## Non-goals
 

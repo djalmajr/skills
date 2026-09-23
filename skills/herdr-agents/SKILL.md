@@ -686,7 +686,8 @@ when the rewrite fails. Generated project files never embed the installer's
 absolute path: the `SessionStart` hook prefers the project's `.agents/skills/`
 or `.claude/skills/` copy, then checks the same roots under the user's home.
 `setup` warns when none can be resolved; `doctor` and `init` warn when the block
-or hooks are missing. Validate setup changes with `bash scripts/test-setup.sh`.
+or hooks are missing. Validate setup changes with
+`scripts/run-tests.sh --env outside test-setup.sh`.
 Codex, Grok, Cursor and agy have no prompt hooks; for them the block is
 the guard.
 
@@ -910,6 +911,32 @@ issue on the skill's repo so the maintainer can improve it incrementally.
 
   Redact secrets and customer data from evidence. Never paste a full report
   from a private repo; quote the lines that show the problem.
+
+## Testing the skill
+
+The regression matrix is every suite in `scripts/test-*.sh`, each run both
+inside Herdr (`HERDR_ENV=1` with a test pane/workspace) and outside. Run it
+through the parallel hermetic executor, never a hand-rolled loop:
+
+```bash
+scripts/run-tests.sh                              # every suite × inside+outside, parallel
+scripts/run-tests.sh --env outside test-kinds.sh  # one suite while iterating
+scripts/run-tests.sh --bash /bin/bash             # also run the matrix on that interpreter
+scripts/run-tests.sh --jobs 4                     # cap the parallel jobs
+```
+
+Every run gets its own `HOME`, `XDG_CONFIG_HOME` and `TMPDIR` inside a temp
+dir and loses every `HERDR_AGENTS_*` variable from the parent environment,
+so no suite reads `~/.config/herdr-agents`, `~/.pi` or `~/.config/opencode`.
+The temp dir is removed on exit (failure included) unless
+`HERDR_AGENTS_KEEP_TEST_LOGS=1`. Output is one `PASS|FAIL <suite> [<env>,
+<bash>] <seconds>s` line per run plus a summary; on failure the last 30 log
+lines of each failed run are printed. Exit: 0 all passed, 1 any failed,
+2 invalid usage.
+
+Test rule for briefs: while iterating, a worker runs only the suite that
+covers the item (`scripts/run-tests.sh --env outside test-<x>.sh`); the full
+matrix (`scripts/run-tests.sh`) runs once, right before the report.
 
 ## Safety
 

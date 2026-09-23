@@ -327,3 +327,19 @@ without checking that generation succeeded and produced what you expect.
 
 - **Symptom:** one lane is `quota` and another is `blocked` or `gone`, and the exit changes with the order of the names.
 - **Now:** the exit is the most severe status in the wait: 4 (`unavailable`), then 11 (`quota`), then 7 (`blocked`), then 6 (`gone` or settled). `wait build review` and `wait review build` return the same code.
+
+## Running the test matrix
+
+- Use `scripts/run-tests.sh`: every `scripts/test-*.sh` suite × inside/outside in parallel
+  (one `PASS|FAIL` line per run, last 30 log lines of each failed run on
+  failure). Flags: `--env inside|outside|both`, `--bash <path>` (repeatable,
+  adds an interpreter to the matrix), `--jobs N`, suite names or paths as
+  extra arguments. `HERDR_AGENTS_KEEP_TEST_LOGS=1` keeps the logs.
+- Every run is isolated: its own `HOME`, `XDG_CONFIG_HOME` and `TMPDIR`
+  inside a temp dir, and all `HERDR_AGENTS_*` variables from the parent
+  environment unset. No suite reads `~/.config/herdr-agents`, `~/.pi` or
+  `~/.config/opencode`.
+- While iterating on a change, run only the item's suite
+  (`scripts/run-tests.sh --env outside test-<x>.sh`); the full matrix runs
+  once, before the report. A suite path is relative to the skill directory
+  (`scripts/test-x.sh`); a bare name (`test-x.sh`) is looked up in `scripts/`.
