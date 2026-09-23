@@ -340,6 +340,11 @@ grep -q '^pane close' "$LOG" || fail "finished worker pane was not closed"
   case "$err" in *"max_workers=3 reached (3 live: a b c)"*) ;; *) printf 'FAIL: cap message %s\n' "$err" >&2; exit 1 ;; esac
   rc=0; ( HERDR_AGENTS_MAX_WORKERS=0 enforce_worker_cap ) 2>/dev/null || rc=$?
   [ "$rc" -eq 0 ] || { printf 'FAIL: max_workers=0 still capped\n' >&2; exit 1; }
+  printf '%s\n' '{"result":{"agents":[]}}' > "$TEST_ROOT/live.json"
+  rc=0; err="$( ( enforce_worker_cap ) 2>&1 )" || rc=$?
+  [ "$rc" -eq 0 ] || { printf 'FAIL: gone-only roster returned rc %s\n' "$rc" >&2; exit 1; }
+  [ -z "$err" ] || { printf 'FAIL: gone-only roster emitted an unexpected error: %s\n' "$err" >&2; exit 1; }
+
   [ "$(cfg reuse_workers on)" = on ] || { printf 'FAIL: reuse default\n' >&2; exit 1; }
   rm -f "$TEST_ROOT/live.json"
 ) || fail "max_workers"

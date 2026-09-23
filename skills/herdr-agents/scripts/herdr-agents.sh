@@ -835,6 +835,8 @@ live_worker_names() {
     [ -n "$name" ] || continue
     printf '%s' "$live" | jq -e --arg n "$name" --arg p "$pane" 'map(select((.name // "")==$n or .pane_id==$p)) | length > 0' >/dev/null && printf '%s\n' "$name"
   done < <(roster_rows)
+  # A roster may contain only gone workers; callers run with set -e.
+  return 0
 }
 live_worker_count() { live_worker_names | grep -c . || true; }
 
