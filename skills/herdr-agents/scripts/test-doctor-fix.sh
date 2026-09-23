@@ -150,6 +150,49 @@ case "$RUN_ERR" in
   *) fail "divergent fix did not send the orchestrator to setup --lane: $RUN_ERR" ;;
 esac
 
+# --- doctor warns only about kinds the effective configuration uses ------
+# A fully controlled PATH: this test's bin (quiet grok fake + links to
+# jq/git/timeout) plus the system tool dirs, so no agent CLI from the host
+# can resolve.
+ln -sf "$JQ_BIN" "$TEST_ROOT/bin/jq"
+ln -sf "$GIT_BIN" "$TEST_ROOT/bin/git"
+[ -n "$TIMEOUT_BIN" ] && ln -sf "$TIMEOUT_BIN" "$TEST_ROOT/bin/timeout"
+KINDS_PATH="$TEST_ROOT/bin:/usr/bin:/bin"
+
+legacy   # every laned role on grok; the grok fake on PATH → only grok is in use
+run_cmd "$KINDS_PATH" doctor
+[ "$RUN_RC" = 0 ] || fail "doctor kinds rc $RUN_RC err $RUN_ERR"
+printf '%s\n' "$RUN_OUT" | grep -q 'kinds installed: grok' || fail "doctor kinds ok line: $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | grep -q 'kinds in use but not in PATH' && fail "doctor warned about unused kinds: $RUN_OUT"
+
+# Every laned role on codex (absent from the controlled PATH): the warning
+# names codex and nothing else — unused kinds stay quiet.
+for r in implementer designer tasker scouter researcher reviewer security-reviewer ui-reviewer inspector; do
+  printf 'role.%s.kind=codex\n' "$r"
+done > "$CONF"
+run_cmd "$KINDS_PATH" doctor
+[ "$RUN_RC" = 0 ] || fail "doctor codex rc $RUN_RC err $RUN_ERR"
+kline="$(printf '%s\n' "$RUN_OUT" | grep -F 'kinds in use but not in PATH' | head -n1 || true)"
+[ -n "$kline" ] || fail "doctor missed the missing codex: $RUN_OUT"
+printf '%s' "$kline" | grep -qw codex || fail "doctor warning missed codex: $kline"
+for unused in claude agy cursor gemini grok opencode pi; do
+  printf '%s' "$kline" | grep -qw "$unused" && fail "doctor warned about unused kind $unused: $kline"
+done
+
+# Lanes off: every spawnable role on grok. The planner is the orchestrator
+# (spawn planner exits 12 before resolving a kind), so its frontmatter kind
+# must not be counted.
+{
+  echo 'lanes=off'
+  for r in implementer designer tasker scouter researcher reviewer security-reviewer ui-reviewer inspector sub-orchestrator; do
+    printf 'role.%s.kind=grok\n' "$r"
+  done
+} > "$CONF"
+run_cmd "$KINDS_PATH" doctor
+[ "$RUN_RC" = 0 ] || fail "doctor lanes-off rc $RUN_RC err $RUN_ERR"
+printf '%s\n' "$RUN_OUT" | grep -q 'kinds installed: grok' || fail "doctor lanes-off ok line: $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | grep -q 'kinds in use but not in PATH' && fail "doctor counted the planner's kind: $RUN_OUT"
+
 rm -f "$CONF"
 run_cmd "$DETECT_PATH" setup --panes 4 --lane build=grok:grok-4.7:high --no-hooks
 [ "$RUN_RC" = 0 ] || fail "setup panes rc $RUN_RC err $RUN_ERR out $RUN_OUT"

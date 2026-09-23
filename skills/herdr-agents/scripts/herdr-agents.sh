@@ -69,7 +69,10 @@ EFFORT_LADDER="low medium high xhigh max"
 # (role.*.kind|model|effort, lane.*.roles|kind|model|effort|approvals,
 # model.*, effort.*, args.*) are checked separately.
 CONFIG_SCALAR_KEYS=(orchestrator_name layout regrid max_workers split_max_panes split_min_pane herd_label herd_label_max reuse_workers multi_role panes lanes worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo)
-KNOWN_KINDS=(claude codex grok agy gemini cursor)
+# pi/opencode are generic kinds: the skill knows the executable and the
+# flags, but ships no default model for them (config.defaults has no
+# model.pi.* or model.opencode.*); the user picks a provider/id.
+KNOWN_KINDS=(claude codex grok agy gemini cursor pi opencode)
 
 FRICTION_LOG=""
 log_friction() { [ -n "$FRICTION_LOG" ] && printf '%s\t%s\t%s\t%s\n' "$(date +%Y-%m-%dT%H:%M:%S)" "$1" "${CURRENT_CMD:-?}" "$2" >> "$FRICTION_LOG" 2>/dev/null || true; }
@@ -353,23 +356,37 @@ kind_summary() {
     claude) printf '%s\n' "Strong at security review and at leading the team. Recommended for security review, and for review when Codex is not installed." ;;
     agy) printf '%s\n' "Reads screens well. Recommended for design and visual checks." ;;
     gemini) printf '%s\n' "Same screen-reading family as agy. Use for design and visual checks when agy is not installed." ;;
+    pi) printf '%s\n' "Generic multi-model harness (pi). Set a provider/model id in the config; effort via --thinking; it has no approval prompts." ;;
+    opencode) printf '%s\n' "Generic multi-model harness (opencode). Set a provider/model id in the config; its TUI maps no effort flag; unattended runs use --auto." ;;
     *) printf '%s\n' "Installed assistant. Use it when a recommended one is not installed." ;;
   esac
 }
+# kind_family_display <kind> — the FAMILY column for `kinds`/`setup --detect`:
+# multi-model harnesses are "by model" because their family depends on the
+# model id the user configures, not on the CLI.
+kind_family_display() { case "$1" in cursor|pi|opencode) echo "by model" ;; *) kind_family "$1" ;; esac; }
 # agent_family <kind> [resolved model]: the family the reviewer rule compares.
-# Multi-model harnesses (cursor) take it from the model id: cursor running
-# grok-4.7 is xai, the same family as the `grok` kind.
+# Multi-model harnesses (cursor, pi, opencode) take it from the model id:
+# cursor running grok-4.7 is xai, the same family as the `grok` kind.
+# pi/opencode ids carry a provider/ prefix (openai/gpt-5.2 → openai).
 agent_family() {
   local fam; fam="$(kind_family "$1")"
   if [ "$fam" = unknown ] && [ -n "${2:-}" ]; then
-    case "$2" in *grok*) fam=xai ;; gpt-*|*codex*|*-sol-*|*-luna-*) fam=openai ;; claude-*) fam=anthropic ;; gemini-*) fam=google ;; esac
+    case "$2" in
+      *grok*) fam=xai ;;
+      gpt-*|*/gpt-*|*codex*|*-sol-*|*-luna-*) fam=openai ;;
+      claude-*|*/claude-*) fam=anthropic ;;
+      gemini-*|*/gemini-*) fam=google ;;
+    esac
   fi
   printf '%s\n' "$fam"
 }
 kind_exe() { case "$1" in cursor) echo cursor-agent ;; *) echo "$1" ;; esac; }
 effort_rank() { case "$1" in low) echo 1 ;; medium) echo 2 ;; high) echo 3 ;; xhigh) echo 4 ;; max) echo 5 ;; *) echo 0 ;; esac; }
 # grok: `--reasoning-effort xhigh|high|medium|low` (verified 2026-09-21, grok 1.0.40, grok-4.7).
-kind_effort_ceiling() { case "$1" in claude) echo max ;; codex|cursor|grok) echo xhigh ;; agy|gemini) echo high ;; *) echo "" ;; esac; }
+# pi: --thinking accepts …xhigh|max. opencode's TUI maps no effort flag
+# (empty ceiling = nothing to clamp; kind_effort_args warns).
+kind_effort_ceiling() { case "$1" in claude|pi) echo max ;; codex|cursor|grok) echo xhigh ;; agy|gemini) echo high ;; *) echo "" ;; esac; }
 
 clamp_to() { # <effort> <ceiling>
   [ -n "$2" ] || { printf '%s\n' "$1"; return; }
@@ -404,6 +421,11 @@ kind_effort_args() {
     cursor)
       if [ -n "$model" ]; then printf -- '--model\n%s\n' "$(cursor_model_with_effort "$model" "$effort")"
       else warn "cursor ignores --effort without --model (pick an id from: cursor-agent --list-models)"; fi ;;
+    pi) printf -- '--thinking\n%s\n' "$effort" ;;
+    opencode)
+      # --variant (provider effort) exists only on `opencode run`, not on the
+      # TUI herdr starts; effort is not mappable there, so warn, not fail.
+      warn "opencode TUI takes no effort flag (--variant is only in 'opencode run'); effort '$effort' ignored" ;;
     *) warn "no effort mapping for kind '$kind'; effort ignored (pass the native flag after --)" ;;
   esac
 }
@@ -415,6 +437,10 @@ kind_model_args() {
     claude|agy|gemini|grok) printf -- '--model\n%s\n' "$model" ;;
     codex) printf -- '-m\n%s\n' "$model" ;;
     cursor) [ -n "$effort" ] && return 0; printf -- '--model\n%s\n' "$model" ;;
+    # Generic kinds take a provider/id exactly as configured (pi also accepts
+    # a :<thinking> suffix; the skill passes effort through --thinking).
+    pi) printf -- '--model\n%s\n' "$model" ;;
+    opencode) printf -- '-m\n%s\n' "$model" ;;
     *) warn "no model mapping for kind '$kind'; model ignored" ;;
   esac
 }
@@ -530,6 +556,10 @@ kind_approval_args() {
     agy:full)     printf -- '--dangerously-skip-permissions\n' ;;
     cursor:edits) printf -- '--trust\n--auto-review\n' ;;
     cursor:full)  printf -- '--trust\n--force\n--approve-mcps\n' ;;
+    pi:full) return 0 ;;   # pi has no approval prompts at all; nothing to bypass
+    pi:edits) warn "pi has no approval prompts (its tools run as-is); approvals=edits is a no-op (restrict tools with --tools/--exclude-tools after --)" ;;
+    opencode:full) printf -- '--auto\n' ;;   # approves permissions not explicitly denied
+    opencode:edits) warn "opencode has no edits approvals flag; use approvals=full (--auto) or per-tool permissions in opencode.json" ;;
     *) warn "no approvals mapping for kind '$kind'; pass the native flag after --" ;;
   esac
 }
@@ -540,7 +570,7 @@ cmd_env() {
   printf 'os: %s %s (%s)\n' "$(uname -s)" "$(uname -r)" "$(uname -m)"
   printf 'bash: %s · jq: %s\n' "${BASH_VERSION:-?}" "$(jq --version 2>/dev/null || echo missing)"
   local k exe v
-  for k in claude codex grok agy gemini cursor; do
+  for k in "${KNOWN_KINDS[@]}"; do
     exe="$(kind_exe "$k")"; command -v "$exe" >/dev/null || continue
     v="$(timeout 10 "$exe" --version 2>/dev/null | head -n1 || echo '?')"
     printf 'kind %s: %s\n' "$k" "$v"
@@ -564,10 +594,8 @@ kind_context_args() {
 cmd_kinds() {
   printf '%-8s %-13s %-10s %-8s %s\n' KIND EXECUTABLE FAMILY EFFORT INSTALLED
   local k
-  local fam
-  for k in claude codex grok agy gemini cursor; do
-    fam="$(kind_family "$k")"; [ "$k" = cursor ] && fam="by model"
-    printf '%-8s %-13s %-10s %-8s %s\n' "$k" "$(kind_exe "$k")" "$fam" "$(kind_effort_ceiling "$k")" \
+  for k in "${KNOWN_KINDS[@]}"; do
+    printf '%-8s %-13s %-10s %-8s %s\n' "$k" "$(kind_exe "$k")" "$(kind_family_display "$k")" "$(kind_effort_ceiling "$k")" \
       "$(command -v "$(kind_exe "$k")" >/dev/null && echo yes || echo no)"
   done
 }
@@ -1452,6 +1480,53 @@ project_is_first_run() {
   return 1
 }
 
+# doctor_role_kind <role> → the kind spawn resolves for it: config
+# role.<role>.kind, else the role file's frontmatter (empty when the role
+# cannot be resolved or carries no kind). The planner is the orchestrator:
+# `spawn planner` exits 12 before resolving a kind, so it uses none.
+doctor_role_kind() {
+  local r="$1" f ck
+  [ "$r" = planner ] && return 0
+  ck="role_$(printf '%s' "$r" | tr '-' '_')_kind"
+  if [ -n "$(cfg "$ck")" ]; then printf '%s\n' "$(cfg "$ck")"; return; fi
+  f="$(resolve_role "$r" 2>/dev/null || true)"
+  [ -n "$f" ] || return 0
+  fm_get "$f" kind
+}
+
+# doctor_used_kinds → sorted, unique kinds the effective configuration
+# resolves: for each lane, lane.<name>.kind when set (it wins for every role
+# in the lane), else the effective kind of the lane's roles; with lanes off,
+# every role file. Kinds no spawn can resolve are not warned about.
+doctor_used_kinds() {
+  local lane r k seen_roles="" out=""
+  if lanes_enabled; then
+    while IFS= read -r lane; do
+      [ -n "$lane" ] || continue
+      k="$(lane_attr "$lane" kind)"
+      if [ -n "$k" ]; then out="$out $k"; continue; fi
+      while IFS= read -r r; do
+        [ -n "$r" ] || continue
+        k="$(doctor_role_kind "$r")"
+        [ -n "$k" ] && out="$out $k"
+      done < <(lane_roles_csv "$lane" | tr ',' '\n' | sed '/^$/d')
+    done < <(lane_names)
+  else
+    local d f
+    while IFS= read -r d; do
+      for f in "$d"/*.md; do
+        [ -e "$f" ] || continue
+        r="$(basename "$f" .md)"
+        has_word "$seen_roles" "$r" && continue
+        seen_roles="$seen_roles $r"
+        k="$(doctor_role_kind "$r")"
+        [ -n "$k" ] && out="$out $k"
+      done
+    done < <(role_dirs)
+  fi
+  printf '%s\n' "$out" | tr ' ' '\n' | sed '/^$/d' | sort -u
+}
+
 # cmd_doctor: advisory environment check (never blocks). Run by `init`.
 # `doctor --fix [--panes 3|4] [--user]` rewrites the project (or user) file, then re-runs the check.
 cmd_doctor() {
@@ -1485,9 +1560,15 @@ cmd_doctor() {
   if [ -z "$f" ]; then say warn "official herdr skill not installed: bunx skills add herdrdev/herdr --skill herdr -g -y"
   elif command -v herdr >/dev/null && ! herdr --skill 2>/dev/null | diff -q - "$f" >/dev/null 2>&1; then say warn "official herdr skill at $f differs from 'herdr --skill' (stale after herdr update?): bunx skills update herdr -g"
   else say ok "official herdr skill matches the binary ($f)"; fi
-  local k exe missing=""
-  for k in claude codex grok agy cursor; do exe="$(kind_exe "$k")"; command -v "$exe" >/dev/null || missing="$missing $k"; done
-  [ -z "$missing" ] && say ok "kinds installed: claude codex grok agy cursor" || say warn "kinds not in PATH:$missing (roles defaulting to them will fail to start)"
+  local k exe missing="" used
+  # Kinds the effective configuration actually resolves (lanes, role config,
+  # frontmatter): warn only for those, so a kind nobody uses does not nag
+  # and a lane on a missing kind cannot slip through.
+  used="$(doctor_used_kinds)"
+  for k in $used; do exe="$(kind_exe "$k")"; command -v "$exe" >/dev/null || missing="$missing $k"; done
+  if [ -z "$used" ]; then say ok "kinds: none configured (spawn passes --kind)"
+  elif [ -z "$missing" ]; then say ok "kinds installed: $(printf '%s' "$used" | tr '\n' ' ' | sed 's/ $//')"
+  else say warn "kinds in use but not in PATH:$missing (roles or lanes using them will fail to start)"; fi
   local d; d="$(state_root 2>/dev/null || true)"
   if [ -n "$d" ]; then mkdir -p "$d" 2>/dev/null && [ -w "$d" ] && say ok "state dir writable: $d" || say warn "state dir not writable: $d"; fi
   case "$(cfg layout split)" in split|tab) say ok "config: layout=$(cfg layout) approvals=$(cfg approvals) auto_approve=$(cfg auto_approve) reuse_workers=$(cfg reuse_workers) multi_role=$(cfg multi_role on) worker_context=$(cfg worker_context)" ;; *) say warn "config: invalid layout '$(cfg layout)' (split|tab)" ;; esac
@@ -1651,8 +1732,7 @@ detect_kind_json() {
   local k="$1" exe installed fam ceiling models_json summary
   exe="$(kind_exe "$k")"
   if command -v "$exe" >/dev/null 2>&1; then installed=true; else installed=false; fi
-  fam="$(kind_family "$k")"
-  [ "$k" = cursor ] && fam="by model"
+  fam="$(kind_family_display "$k")"
   ceiling="$(kind_effort_ceiling "$k")"
   models_json="$(detect_top_models "$k")"
   summary="$(kind_summary "$k")"

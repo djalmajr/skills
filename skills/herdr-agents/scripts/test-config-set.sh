@@ -82,10 +82,18 @@ run_rc setup --detect
 [ "$(cksum "$REPO/AGENTS.md")" = "$agents_before" ] || fail "setup --detect rewrote AGENTS.md"
 [ ! -f "$proj" ] || fail "setup --detect created the project config"
 printf '%s\n' "$RUN_OUT" | jq -e '
-  (.kinds | length) == 6
+  (.kinds | length) == 8
   and (.kinds | map(select(.kind=="claude")) | .[0].installed) == false
   and (.kinds | map(select(.kind=="claude")) | .[0].models) == []
   and (.kinds | map(select(.kind=="cursor")) | .[0].family) == "by model"
+  and (.kinds | map(select(.kind=="pi")) | .[0].family) == "by model"
+  and (.kinds | map(select(.kind=="pi")) | .[0].effort_ceiling) == "max"
+  and (.kinds | map(select(.kind=="pi")) | .[0].summary | length) > 20
+  and (.kinds | map(select(.kind=="opencode")) | .[0].family) == "by model"
+  and (.kinds | map(select(.kind=="opencode")) | .[0].effort_ceiling) == ""
+  and (.kinds | map(select(.kind=="opencode")) | .[0].summary | length) > 20
+  and (.config.worker_models | map(select(.key=="model.pi.worker")) | .[0].value) == ""
+  and (.config.worker_models | map(select(.key=="model.opencode.worker")) | .[0].value) == ""
   and (.kinds | map(select(.kind=="grok")) | .[0].installed) == true
   and (.kinds | map(select(.kind=="grok")) | .[0].family) == "xai"
   and (.kinds | map(select(.kind=="grok")) | .[0].effort_ceiling) == "xhigh"
@@ -151,6 +159,18 @@ run_rc config set role.reviewer.kind grok
 [ "$RUN_RC" -eq 0 ] || fail "set kind rc $RUN_RC err $RUN_ERR"
 grep -qx 'role.reviewer.kind=grok' "$proj" || fail "kind was not written"
 grep -q '^# keep this comment$' "$proj" || fail "comment lost after kind set"
+
+# Generic kinds (pi/opencode) are valid kind values; their models are
+# free-form provider/ids.
+run_rc config set role.build.kind pi
+[ "$RUN_RC" -eq 0 ] || fail "set role kind pi rc $RUN_RC err $RUN_ERR"
+grep -qx 'role.build.kind=pi' "$proj" || fail "role.build.kind=pi was not written"
+run_rc config set lane.build.kind opencode
+[ "$RUN_RC" -eq 0 ] || fail "set lane kind opencode rc $RUN_RC err $RUN_ERR"
+grep -qx 'lane.build.kind=opencode' "$proj" || fail "lane.build.kind=opencode was not written"
+run_rc config set model.opencode.worker my-provider/my-model
+[ "$RUN_RC" -eq 0 ] || fail "set model.opencode.worker rc $RUN_RC err $RUN_ERR"
+grep -qx 'model.opencode.worker=my-provider/my-model' "$proj" || fail "model.opencode.worker was not written"
 
 before="$(cat "$proj")"
 run_rc config set nope 1

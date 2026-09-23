@@ -156,6 +156,8 @@ notify=off
 # args.grok=
 # args.agy=
 # args.cursor=
+# args.pi=
+# args.opencode=
 
 # Kind override per role without copying the role file. Example: role.reviewer.kind=grok
 # role.reviewer.kind=
@@ -186,3 +188,18 @@ model.agy.worker=gemini|opus
 # Newest grok (4.7 today). `grok-4.7-build-fast` is the quick variant: a
 # sensible role.tasker.model when volume matters more than depth.
 model.grok.worker=grok
+
+# Generic kinds (pi, opencode): the skill knows their flags but ships NO
+# model for them — there is no model.pi.* or model.opencode.* default.
+# Pick a provider/id yourself (add the provider first, see
+# references/kinds.md, "Generic kinds"); with no model set, the CLI uses its
+# own default. Effort maps to --thinking (ceiling max) on pi; the opencode
+# TUI maps no effort flag. Family is by model, so the same-family reviewer
+# check is skipped unless the model id is recognizable.
+# model.pi.worker=my-provider/my-model
+# effort.pi=max
+# model.opencode.worker=my-provider/my-model
+# Or point a whole lane at one of them (setup --lane build=pi:my-provider/my-model:high):
+# lane.build.kind=pi
+# lane.build.model=my-provider/my-model
+# lane.build.effort=high

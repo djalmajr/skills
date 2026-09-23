@@ -52,3 +52,4 @@ presentation/slides.pdf
 **/.cache/agile-pen/
 **/design/generated/
 **/design/evidence/
+.herdr-agents/

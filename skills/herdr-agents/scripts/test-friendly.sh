@@ -169,7 +169,7 @@ run_cmd "$BASE_PATH" explain --json
 run_cmd "$DETECT_PATH" setup --detect
 [ "$RUN_RC" = 0 ] || fail "detect rc $RUN_RC err $RUN_ERR"
 printf '%s\n' "$RUN_OUT" | jq -e '
-  (.kinds | length) == 6
+  (.kinds | length) == 8
   and all(.kinds[]; (.summary | type == "string") and ((.summary | length) > 20))
   and ((.kinds | map(select(.kind == "grok")) | .[0].summary) | test("implementation"))
   and ((.kinds | map(select(.kind == "codex")) | .[0].summary) | test("review"))

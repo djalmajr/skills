@@ -7,8 +7,8 @@ description: >
   agent per role in sibling panes, dispatches self-contained briefs, collects
   file-based reports, and owns integration, gates, and git. Use when running
   inside Herdr (HERDR_ENV=1) for any non-trivial work: the user asks for a
-  herd, team, roles, a designer or reviewer agent, parallel workers, "like
-  omp agents", or the task needs a survey (several files, another repo, tool
+  herd, team, roles, a designer or reviewer agent, parallel workers, or the
+  task needs a survey (several files, another repo, tool
   conventions), touches more than a couple of files, or the project's
   AGENTS.md routes work through this skill. Do not use outside Herdr; a
   one-or-two-file change with no product decision is done directly.
@@ -209,6 +209,20 @@ model.grok.worker=grok
 The planner does not get a worker model: the orchestrator plans in this
 session. `spawn planner` exits 12.
 
+**Generic kinds (`pi`, `opencode`).** These multi-model harnesses
+ship **no default model** in the skill (no `model.pi.*` or
+`model.opencode.*` in the defaults): set a `provider/id` yourself in the
+user or project file (`model.<kind>.worker`, `role.<role>.model`, a lane's
+model, or `--model`); with none set, the CLI uses its own default. Effort
+maps to `--thinking` (ceiling `max`) on pi; the opencode TUI maps no effort
+flag (`--variant` is only in `opencode run`) and spawn warns instead of
+failing. Approvals: opencode `full` → `--auto` (`edits` is not mapped;
+warning), and pi has no approval prompts at all (`edits` is a no-op with a
+warning). Family is **by model**: the same-family reviewer check is skipped
+unless the model id is recognizable, so pick the reviewer's family by hand.
+Config and provider examples:
+[references/kinds.md](references/kinds.md#generic-kinds-pi-opencode).
+
 The top-level orchestrator is not spawned by the skill; launch it yourself
 with the same intent (`claude --model fable`, `codex -m gpt-6-astra`).
 `$S model <kind> <spec> [effort]` shows how a value resolves; `$S models
@@ -217,9 +231,9 @@ the chosen model's advertised reasoning levels, not from the kind.
 
 - **`effort`** is one normalized ladder, `low < medium < high < xhigh < max`,
   translated to each CLI's own flag and **clamped** to what the kind
-  supports (`kinds` prints the ceiling: claude `max`; codex, cursor and
-  grok `xhigh`; agy, gemini `high`). Asking for `max` on `agy` yields
-  `high` with a warning. **No effort anywhere means the agent's own
+  supports (`kinds` prints the ceiling: claude and pi `max`; codex, cursor
+  and grok `xhigh`; agy, gemini `high`; the opencode TUI maps no effort).
+  Asking for `max` on `agy` yields `high` with a warning. **No effort anywhere means the agent's own
   configured default** (for example Codex `model_reasoning_effort` in
   `~/.codex/config.toml`); the skill never guesses one.
 - **`model`** is passed through to the kind's model flag. Cursor has no
@@ -802,8 +816,6 @@ issue on the skill's repo so the maintainer can improve it incrementally.
 
 - Never `herdr server stop`; never close panes, tabs, or workspaces this
   skill did not create.
-- Do not put `omp` in the herd by default; it is a separate multi-model
-  harness. Start it only if the user asks for that kind.
 - Prefer `--current`, explicit pane IDs, and unique agent names. Parse IDs
   from JSON, never from sidebar order.
 - Briefs and reports may contain repo content; keep secrets out of them.
@@ -812,5 +824,5 @@ issue on the skill's repo so the maintainer can improve it incrementally.
 
 - [references/troubleshooting.md](references/troubleshooting.md) — observed failures, causes, fixes, and how to validate a kind; read before changing the script
 - [references/orchestration-contract.md](references/orchestration-contract.md) — the delegation contract this skill enforces
-- [references/kinds.md](references/kinds.md) — kind → family table and install notes
+- [references/kinds.md](references/kinds.md) — kind → family table, generic kinds (pi/opencode) with config and provider examples, and install notes
 - [templates/brief.md](templates/brief.md), [templates/report.md](templates/report.md)

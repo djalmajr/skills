@@ -51,10 +51,36 @@ expect 'cursor unknown model fails early' "$CURSOR_BAD_RC" 2
 expect 'cursor unknown model prints no id' "$CURSOR_BAD" ''
 unset -f model_ids
 
+# --- generic kinds (pi, opencode): by-model family, no shipped model ------
+expect 'pi ceiling' "$(kind_effort_ceiling pi)" max
+expect 'opencode ceiling empty (TUI maps no effort)' "$(kind_effort_ceiling opencode)" ''
+expect 'pi model flag' "$(kind_model_args pi my-provider/my-model high | tr '\n' ' ')" '--model my-provider/my-model '
+expect 'opencode model flag' "$(kind_model_args opencode my-provider/my-model high | tr '\n' ' ')" '-m my-provider/my-model '
+expect 'pi effort flag' "$(kind_effort_args pi max my-provider/my-model | tr '\n' ' ')" '--thinking max '
+expect 'opencode maps no effort (warns, passes nothing)' "$(kind_effort_args opencode high my-provider/my-model 2>/dev/null | tr '\n' ' ')" ''
+expect 'pi full passes nothing' "$(kind_approval_args pi full)" ''
+expect 'pi edits is a no-op (warns)' "$(kind_approval_args pi edits 2>/dev/null)" ''
+expect 'opencode full' "$(kind_approval_args opencode full | tr '\n' ' ')" '--auto '
+expect 'opencode edits unmapped (warns)' "$(kind_approval_args opencode edits 2>/dev/null)" ''
+expect 'KNOWN_KINDS exact set' "$(printf '%s\n' "${KNOWN_KINDS[@]}" | tr '\n' ' ')" 'claude codex grok agy gemini cursor pi opencode '
+expect 'config_value_ok role kind pi' "$(config_value_ok role.build.kind pi && echo ok)" ok
+expect 'config_value_ok lane kind opencode' "$(config_value_ok lane.build.kind opencode && echo ok)" ok
+expect 'family display by model' "$(kind_family_display pi) $(kind_family_display opencode) $(kind_family_display cursor)" 'by model by model by model'
+expect 'family display stable kind' "$(kind_family_display claude)" anthropic
+expect 'pi with claude id = anthropic' "$(agent_family pi anthropic/claude-opus-4-6)" anthropic
+expect 'opencode with gpt id = openai' "$(agent_family opencode openai/gpt-5.2)" openai
+expect 'opencode unknown id = unknown' "$(agent_family opencode my-provider/my-model)" unknown
+expect 'generic kind without model = unknown' "$(agent_family pi)" unknown
+expect 'summary pi non-empty' "$([ -n "$(kind_summary pi)" ] && echo ok)" ok
+expect 'summary opencode non-empty' "$([ -n "$(kind_summary opencode)" ] && echo ok)" ok
+
 # --- shipped defaults ------------------------------------------------------
 expect 'effort.grok' "$(cfg effort_grok)" xhigh
 expect 'effort.cursor' "$(cfg effort_cursor)" xhigh
 expect 'model.grok.worker' "$(cfg model_grok_worker)" grok
+expect 'no default model.pi' "$(cfg model_pi_worker)" ''
+expect 'no default model.opencode' "$(cfg model_opencode_worker)" ''
+! grep -qE '^model\.(pi|opencode)\.' "$SCRIPT_DIR/../config.defaults" || fail 'generic kinds ship a default model in config.defaults'
 expect 'implementer role → grok' "$(fm_get "$SCRIPT_DIR/../roles/implementer.md" kind)" grok
 expect 'implementer effort → xhigh' "$(fm_get "$SCRIPT_DIR/../roles/implementer.md" effort)" xhigh
 expect 'reviewer role → codex' "$(fm_get "$SCRIPT_DIR/../roles/reviewer.md" kind)" codex
