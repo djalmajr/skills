@@ -306,6 +306,23 @@ without checking that generation succeeded and produced what you expect.
 - **Cause:** `lane.<name>.kind` is empty, so the first role opened the session (designer is `agy`, implementer is `grok`). A later role would otherwise keep that process.
 - **Do:** `release <name> --close` the lane, set one CLI for it with `setup --lane <name>=<kind>[:<model>[:<effort>]]` if `lane.<name>.kind` is missing, then spawn again. Setting the key alone does not retarget a running session: a live process on another CLI still exits 13 until it is released. `doctor` warns when the key is empty and the roles in the lane resolve to different kinds.
 
+## First run and `explain` (2026-09-23)
+
+- `doctor` prints `first_run: true` or `first_run: false` on its own line.
+  `init` puts the same boolean in its JSON. True means the project file
+  sets none of `multi_role`, `role.<role>.kind`, or `lane.<name>.kind`, and
+  the state root has no roster data row. A header-only `agents.tsv` is still
+  a first run. `max_workers` alone is not a team choice.
+- Before any spawn on a first run, the orchestrator says what the panels are
+  (in the user's language) and waits for a yes. `setup --detect` adds an
+  English `summary` on every kind so that question can name only the
+  assistants that are installed.
+- `explain` is plain text for a person, not JSON. With roster rows it names
+  each panel's lane, current role, assistant, model, and one of: working,
+  idle, waiting for report, out of quota. With no rows it prints one
+  paragraph on what the team is and how to start. It does not open or close
+  panels.
+
 ## `wait` of several lanes
 
 - **Symptom:** one lane is `quota` and another is `blocked` or `gone`, and the exit changes with the order of the names.

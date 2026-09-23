@@ -11,6 +11,7 @@
 #   herdr-agents.sh init                          # doctor + name the caller `orchestrator`, print context
 #   herdr-agents.sh doctor [--fix] [--panes 3|4] [--user]
 #                                                 # advisory check; --fix normalizes lanes in the project file
+#   herdr-agents.sh explain                       # plain text for a person: what is running, or how to start
 #   herdr-agents.sh setup [--target FILE] [--no-hooks] [--dry-run] [--detect]
 #                         [--panes 3|4] [--lane name=kind[:model[:effort]]]
 #                                                 # write the block + hooks; --detect prints JSON and writes nothing
@@ -342,6 +343,19 @@ cmd_role() {
 # ---------- kinds ----------
 
 kind_family() { case "$1" in claude) echo anthropic ;; codex) echo openai ;; grok) echo xai ;; agy|gemini) echo google ;; *) echo unknown ;; esac; }
+# kind_summary <kind> — one English sentence for `setup --detect`. The
+# orchestrator translates it; the recommendation matches the kind policy.
+kind_summary() {
+  case "$1" in
+    grok) printf '%s\n' "Best at writing code, bulk edits, and research. Recommended for implementation and research." ;;
+    cursor) printf '%s\n' "Also runs Grok models. Second choice for implementation and research." ;;
+    codex) printf '%s\n' "Strong at review and judgement. Recommended for review when implementation uses Grok or Cursor." ;;
+    claude) printf '%s\n' "Strong at security review and at leading the team. Recommended for security review, and for review when Codex is not installed." ;;
+    agy) printf '%s\n' "Reads screens well. Recommended for design and visual checks." ;;
+    gemini) printf '%s\n' "Same screen-reading family as agy. Use for design and visual checks when agy is not installed." ;;
+    *) printf '%s\n' "Installed assistant. Use it when a recommended one is not installed." ;;
+  esac
+}
 # agent_family <kind> [resolved model]: the family the reviewer rule compares.
 # Multi-model harnesses (cursor) take it from the model id: cursor running
 # grok-4.7 is xai, the same family as the `grok` kind.
@@ -1412,6 +1426,32 @@ doctor_lane_warnings() {
   done
 }
 
+# True when this project has no team choice yet (same test as the setup
+# prompt: no multi_role, role.<role>.kind, or lane.<name>.kind) and no
+# roster row under the state root. A header-only agents.tsv does not count.
+project_has_roster() {
+  local root f
+  root="$(state_root 2>/dev/null || true)"
+  [ -n "$root" ] && [ -d "$root" ] || return 1
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if awk '$0 !~ /^#/ && $0 ~ /[^[:space:]]/ { found = 1; exit } END { exit found ? 0 : 1 }' "$f"; then
+      return 0
+    fi
+  done < <(find "$root" -name agents.tsv -type f 2>/dev/null)
+  return 1
+}
+
+project_is_first_run() {
+  local conf
+  conf="$(config_file_for project)"
+  if project_needs_config_prompt "$conf"; then
+    project_has_roster && return 1
+    return 0
+  fi
+  return 1
+}
+
 # cmd_doctor: advisory environment check (never blocks). Run by `init`.
 # `doctor --fix [--panes 3|4] [--user]` rewrites the project (or user) file, then re-runs the check.
 cmd_doctor() {
@@ -1476,6 +1516,7 @@ cmd_doctor() {
   else say warn "no herdr-agents block in AGENTS.md/CLAUDE.md: run '$0 setup' (writes the delegation rules between <!-- herdr-agents:start/end --> markers)"; fi
   if [ -f "$root/.claude/settings.json" ] && jq -e '[.hooks[]?[]?.hooks[]?.command? // "" | select(test("herdr-agents"))] | length > 0' "$root/.claude/settings.json" >/dev/null 2>&1; then say ok "Claude hooks present in .claude/settings.json"
   else say warn "no herdr-agents hooks in .claude/settings.json: run '$0 setup' (UserPromptSubmit reminder + SessionStart doctor)"; fi
+  if project_is_first_run; then printf 'first_run: true\n'; else printf 'first_run: false\n'; fi
   printf '%s ok, %s warning(s)\n' "$ok" "$warnv"
   return 0
 }
@@ -1607,16 +1648,18 @@ detect_top_models() {
 }
 
 detect_kind_json() {
-  local k="$1" exe installed fam ceiling models_json
+  local k="$1" exe installed fam ceiling models_json summary
   exe="$(kind_exe "$k")"
   if command -v "$exe" >/dev/null 2>&1; then installed=true; else installed=false; fi
   fam="$(kind_family "$k")"
   [ "$k" = cursor ] && fam="by model"
   ceiling="$(kind_effort_ceiling "$k")"
   models_json="$(detect_top_models "$k")"
+  summary="$(kind_summary "$k")"
   jq -n --arg kind "$k" --arg executable "$exe" --argjson installed "$installed" \
     --arg family "$fam" --arg effort_ceiling "$ceiling" --argjson models "$models_json" \
-    '{kind:$kind,executable:$executable,installed:$installed,family:$family,effort_ceiling:$effort_ceiling,models:$models}'
+    --arg summary "$summary" \
+    '{kind:$kind,executable:$executable,installed:$installed,family:$family,effort_ceiling:$effort_ceiling,models:$models,summary:$summary}'
 }
 
 # Effective role.<name>.kind: a config override when one is set, otherwise the
@@ -1812,16 +1855,20 @@ cmd_setup() {
   printf 'state dir ignored: %s\n' "$(cfg state_dir .herdr-agents)/"
   printf 'note: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n'
   if project_needs_config_prompt "$conf"; then
-    warn "project config $conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user whether to use 3 or 4 panes and which detected kind and model each lane should use, then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'."
+    warn "project config $conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'."
   fi
 }
 
 cmd_init() {
   cmd_doctor >&2
-  local n; n="$(ensure_orchestrator_name)"
+  local n first=false state layout
+  n="$(ensure_orchestrator_name)"
+  if project_is_first_run; then first=true; fi
+  state="$(state_dir)"
+  layout="$(cfg layout split)"
   jq -n --arg name "${n:-}" --arg pane "${HERDR_PANE_ID:-}" --arg tab "${HERDR_TAB_ID:-}" --arg ws "$(workspace_id)" \
-    --arg layout "$(cfg layout split)" --arg state "$(state_dir)" \
-    '{orchestrator:$name,pane_id:$pane,tab_id:$tab,workspace_id:$ws,layout:$layout,state_dir:$state}'
+    --arg layout "$layout" --arg state "$state" --argjson first_run "$first" \
+    '{orchestrator:$name,pane_id:$pane,tab_id:$tab,workspace_id:$ws,layout:$layout,state_dir:$state,first_run:$first_run}'
 }
 
 # ---------- layout ----------
@@ -3166,6 +3213,179 @@ cmd_run() {
   [ "$no_wait" = 1 ] || cmd_collect "$name" || true
 }
 
+# explain_state_dir: the workspace state dir when we can see one, else failure.
+# Does not require HERDR_ENV. A missing herdr just means there is nothing to describe.
+explain_state_dir() {
+  local root d count=0 only=""
+  if [ -n "${HERDR_WORKSPACE_ID:-}" ]; then
+    state_dir
+    return 0
+  fi
+  if command -v herdr >/dev/null 2>&1; then
+    if herdr pane current --current >/dev/null 2>&1; then
+      state_dir
+      return 0
+    fi
+  fi
+  root="$(state_root 2>/dev/null || true)"
+  [ -n "$root" ] && [ -d "$root" ] || return 1
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    [ -f "$d/agents.tsv" ] || continue
+    # A roster with only its header never started an agent.
+    grep -qv -e '^#' -e '^[[:space:]]*$' "$d/agents.tsv" 2>/dev/null || continue
+    count=$((count + 1))
+    only="$d"
+  done < <(find "$root" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+  if [ "$count" -eq 1 ] && [ -n "$only" ]; then
+    printf '%s\n' "$only"
+    return 0
+  fi
+  # 1 = no roster anywhere; 2 = several workspaces have one and none is
+  # current, so the caller must not claim that nothing is running.
+  [ "$count" -eq 0 ] && return 1
+  return 2
+}
+
+# explain_activity <name> <state-dir> — one human phrase, never JSON.
+# A finished report is idle. working wins over a report that is still missing.
+# Quota is only considered when the agent is not working.
+explain_activity() {
+  local name="$1" sd="$2" report raw STATE CAUSE orig qtext
+  report="$(cat "$sd/last-report-$name" 2>/dev/null || true)"
+  if [ -n "$report" ] && [ -s "$report" ]; then
+    printf 'idle\n'
+    return 0
+  fi
+  if ! command -v herdr >/dev/null 2>&1; then
+    if [ -n "$report" ]; then printf 'waiting for report\n'; else printf 'idle\n'; fi
+    return 0
+  fi
+  raw="$(agent_state "$name")"
+  split_agent_state "$raw"
+  orig="$STATE"
+  case "$orig" in
+    working)
+      printf 'working\n'
+      return 0
+      ;;
+  esac
+  if [ "$orig" != blocked ] && [ "$orig" != gone ] && [ "$orig" != unavailable ]; then
+    qtext="$(herdr agent read "$name" --source visible --lines 20 2>/dev/null || true)"
+    if quota_detect "$orig" "$qtext" >/dev/null; then
+      printf 'out of quota\n'
+      return 0
+    fi
+  fi
+  if [ -n "$report" ]; then
+    printf 'waiting for report\n'
+    return 0
+  fi
+  case "$orig" in
+    idle|done|"") printf 'idle\n' ;;
+    blocked) printf 'waiting for approval\n' ;;
+    gone) printf 'closed\n' ;;
+    unavailable) printf 'state unknown\n' ;;
+    *) printf '%s\n' "$orig" ;;
+  esac
+}
+
+explain_collect_rows() {
+  local sd="$1" line name kind role model lane activity
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;
+    esac
+    name="$(printf '%s' "$line" | cut -f1)"
+    kind="$(printf '%s' "$line" | cut -f3)"
+    role="$(printf '%s' "$line" | cut -f4)"
+    model="$(printf '%s' "$line" | cut -f9)"
+    lane="$(printf '%s' "$line" | cut -f12)"
+    [ -n "$name" ] || continue
+    if [ -z "$lane" ]; then
+      lane="$(lane_of_role "$role" 2>/dev/null || true)"
+    fi
+    [ -n "$lane" ] || lane="$name"
+    [ -n "$model" ] || model="default"
+    [ -n "$kind" ] || kind="unspecified"
+    [ -n "$role" ] || role="unspecified"
+    activity="$(explain_activity "$name" "$sd")"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$lane" "$role" "$kind" "$model" "$activity"
+  done < "$sd/agents.tsv"
+}
+
+explain_recommendation() {
+  local lane kind model
+  if [ "$(panes_value)" = 3 ]; then
+    printf '%s\n' "Recommendation: 3 panels - one writes code, and one takes turns researching and reviewing. Lighter on quota. 4 panels run research, implementation, and review at the same time."
+  else
+    printf '%s\n' "Recommendation: 4 panels - research, implementation, and review at the same time. Uses more quota. 3 panels are the lighter choice."
+  fi
+  if ! lanes_enabled; then
+    printf '%s\n' "Each agent keeps its own assistant instead of sharing one panel."
+    return 0
+  fi
+  while IFS= read -r lane; do
+    [ -n "$lane" ] || continue
+    kind="$(lane_attr "$lane" kind)"
+    model="$(lane_attr "$lane" model)"
+    [ -n "$kind" ] || continue
+    if [ -n "$model" ]; then
+      printf 'Chosen for %s: %s, model %s.\n' "$lane" "$kind" "$model"
+    else
+      printf 'Chosen for %s: %s.\n' "$lane" "$kind"
+    fi
+  done < <(lane_names)
+}
+
+explain_print_running() {
+  local file="$1" lane
+  printf 'Panels: %s.\n' "$(panes_value)"
+  if lanes_enabled; then
+    while IFS= read -r lane; do
+      [ -n "$lane" ] || continue
+      if awk -F '\t' -v lane="$lane" '$1 == lane { found = 1; exit } END { exit found ? 0 : 1 }' "$file"; then
+        awk -F '\t' -v lane="$lane" '$1 == lane { printf "%s: %s, %s, model %s, %s\n", $1, $2, $3, $4, $5 }' "$file"
+      else
+        printf '%s: not started\n' "$lane"
+      fi
+    done < <(lane_names)
+    awk -F '\t' 'NR == FNR { known[$0] = 1; next } !known[$1] { printf "%s: %s, %s, model %s, %s\n", $1, $2, $3, $4, $5 }' <(lane_names) "$file"
+  else
+    awk -F '\t' '{ printf "%s: %s, %s, model %s, %s\n", $1, $2, $3, $4, $5 }' "$file"
+  fi
+  printf '\n'
+  explain_recommendation
+}
+
+explain_idle_paragraph() {
+  cat <<'EOF'
+herdr-agents runs a small team of agents in Herdr panels. You stay in this panel and lead. Each other panel is one agent with one job: researching, writing code, or reviewing. Those agents never commit or push. You can watch a panel or close it. Each assistant spends the quota of its own account. Nothing is running yet. To start, describe the work here. The first time, you are asked how many agents to open and which assistant each job should use, and nothing opens until you agree. Four panels are recommended when research, implementation, and review should happen at the same time; that uses more quota. Three panels are the lighter choice: one writes code, and one takes turns researching and reviewing.
+EOF
+}
+
+cmd_explain() {
+  [ $# -eq 0 ] || die "explain: takes no arguments" 2
+  local sd tmp rc=0
+  sd="$(explain_state_dir 2>/dev/null)" || rc=$?
+  if [ "$rc" = 2 ]; then
+    printf '%s\n' "Agents were started in more than one Herdr workspace, and this command is not running inside one of them, so it cannot tell which team you mean." \
+      "Run explain from a panel inside the workspace you are asking about."
+    return 0
+  fi
+  tmp="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-explain.XXXXXX")"
+  if [ -n "$sd" ] && [ -f "$sd/agents.tsv" ]; then
+    explain_collect_rows "$sd" > "$tmp"
+  fi
+  if [ ! -s "$tmp" ]; then
+    rm -f "$tmp"
+    explain_idle_paragraph
+    return 0
+  fi
+  explain_print_running "$tmp"
+  rm -f "$tmp"
+}
+
 usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; }
 
 cmd_friction() {
@@ -3191,6 +3411,7 @@ main() {
     model) cmd_model "$@" ;;
     init) require_env; cmd_init ;;
     doctor) cmd_doctor "$@" ;;
+    explain) cmd_explain "$@" ;;
     setup) cmd_setup "$@" ;;
     regrid) require_env; cmd_regrid ;;
     tab-label) require_env; cmd_tab_label "$@" ;;

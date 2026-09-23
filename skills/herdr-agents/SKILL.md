@@ -1,14 +1,14 @@
 ---
 name: herdr-agents
 description: >
-  Run an omp-style team of role agents (scouter, planner, designer, implementer,
-  tasker, reviewer, security-reviewer, researcher, inspector) inside Herdr. The calling
-  agent stays the orchestrator: it spawns one CLI agent per role in sibling
-  panes, dispatches self-contained briefs, collects file-based reports, and
-  owns integration, gates, and git. Use when running inside Herdr
-  (HERDR_ENV=1) for any non-trivial work: the user asks for a herd, team,
-  roles, a designer or reviewer agent, parallel workers, "like omp agents",
-  or the task needs a survey (several files, another repo, tool
+  Run a team of agents in Herdr panes, one pane per job (scouter, planner,
+  designer, implementer, tasker, reviewer, security-reviewer, researcher,
+  inspector). The calling agent stays the orchestrator: it spawns one CLI
+  agent per role in sibling panes, dispatches self-contained briefs, collects
+  file-based reports, and owns integration, gates, and git. Use when running
+  inside Herdr (HERDR_ENV=1) for any non-trivial work: the user asks for a
+  herd, team, roles, a designer or reviewer agent, parallel workers, "like
+  omp agents", or the task needs a survey (several files, another repo, tool
   conventions), touches more than a couple of files, or the project's
   AGENTS.md routes work through this skill. Do not use outside Herdr; a
   one-or-two-file change with no product decision is done directly.
@@ -58,6 +58,67 @@ stop. Never control a Herdr session from outside Herdr. The `herdr` skill
 (`herdr --skill`) is the authority for CLI syntax; this skill adds the role
 layer on top of it and never replaces it.
 
+## First run
+
+`$S init` and `$S doctor` print `first_run: true` when the project file has
+no team choice yet (no `multi_role`, `role.<role>.kind`, or `lane.<name>.kind`)
+and the state root has no roster row. `init` also sets `first_run` in its
+JSON. A header-only roster file is still a first run. `first_run: false`
+means this project already chose a team, or agents are already open.
+
+When `first_run` is true, **before any spawn**, tell the user what is about
+to happen and wait for a yes. Use their language. Adapt this model; do not
+open a pane in the same turn.
+
+Português:
+
+> Vou abrir até 3 painéis ao lado deste (4 no total, contando este).
+> Cada um é um agente com uma função: um pesquisa, um escreve o código e um revisa.
+> (Com 3 painéis no total, pesquisa e revisão ficam no mesmo agente.)
+> Eles não fazem commit nem push; isso fica comigo.
+> Você pode acompanhar qualquer painel ou fechar o que não quiser.
+> Cada assistente gasta a cota da própria conta.
+> Posso abrir?
+
+English:
+
+> I will open up to 3 panels beside this one (4 in total, counting this one).
+> Each one is an agent with a job: one researches, one writes the code, and one reviews.
+> (With 3 panels in total, research and review share one agent.)
+> They do not commit or push; I do that.
+> You can watch any panel or close one you do not want.
+> Each assistant spends its own account's quota.
+> May I open them?
+
+A refusal stops the team. On a yes, ask the questions in
+[Ask how to configure](#ask-how-to-configure) if the project still has no
+assistant choice, write that with `setup`, then spawn. Skip this speech
+when `first_run` is false.
+
+## Narrate the work
+
+Each visible action gets one line, in the user's language: no JSON, no exit
+codes, and none of the words `lane`, `kind`, or `panes`.
+
+- Abri o painel de implementação para escrever esta fatia.
+- O painel de revisão está ocupado; espero ele terminar.
+- A revisão da fatia 2 achou 3 problemas.
+- Opened the implementation panel to write this slice.
+- The review panel is busy; waiting for it to finish.
+- Review of slice 2 found 3 problems.
+
+Close with who did what: which panel researched, which wrote, which
+reviewed, and what you integrated.
+
+## What is happening
+
+When the user asks what is happening ("o que está acontecendo?", "what's
+going on?"), run `$S explain` and answer in their language from that text.
+It is plain text, not JSON: how many panels, what each one is doing
+(working, idle, waiting for a report, or out of quota), the current job and
+assistant, and what the current choice recommends. With nothing running it
+says what the team is and how to start.
+
 ## Names: who is who in the roster
 
 Run `$S init` first. It runs `doctor` (advisory: inside Herdr, `jq`,
@@ -68,7 +129,8 @@ config sane), then renames the caller's own agent to `orchestrator`
 sidebar and `roster` show who leads, and prints the context (pane, tab,
 workspace, layout, state dir). Act on `warn` lines before spawning; a
 stale official skill means the CLI syntax you read may be wrong. `spawn`
-does the rename lazily.
+does the rename lazily. When `first_run` is true, follow
+[First run](#first-run) before any spawn.
 
 With lanes on (the default), a worker is named after its lane (`build`,
 `explore`, `review`, or `read` when `panes=3`). Pass `--name` for something
@@ -268,10 +330,11 @@ All mechanics go through `scripts/herdr-agents.sh` (needs `bash`, `jq`):
 
 ```bash
 S=<path-to-this-skill>/scripts/herdr-agents.sh
-$S init                                    # doctor + name yourself `orchestrator`, print context
-$S doctor                                  # advisory environment check
+$S init                                    # doctor + name yourself `orchestrator`, print context (`first_run`)
+$S doctor                                  # advisory environment check (`first_run: true|false`)
+$S explain                                 # plain text: what is running, or how to start
 $S setup [--target FILE] [--no-hooks]      # AGENTS.md block + Claude hooks (idempotent)
-$S setup --detect                          # JSON: installed kinds, models, worker config
+$S setup --detect                          # JSON: installed kinds, summaries, models, worker config
 $S roles                                   # available roles and their sources
 $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
@@ -425,8 +488,12 @@ and warning is also appended to `<state>/friction.log` (`$S friction`).
 - **Detection quality varies by kind.** `claude` and `codex` have Herdr
   integrations; `grok` and `agy` are screen-detected, so `idle`/`done` is
   less reliable for them and `unknown` is common.
-- **Language.** Write briefs in the user's language (identifiers in
-  English); the worker reports in the language of the brief.
+- **Language.** Everything you tell the user is in the user's language:
+  the first-run speech, the setup questions, narration, and the final
+  summary. Briefs are in the user's language too. Identifiers stay in
+  English (role names, pane names, file paths). Workers report in the
+  language of the brief. `$S explain` prints English plain text; translate
+  it when you answer.
 - **No remote machines.** `--machine` targets are not supported; IDs and
   the roster are local to this server.
 - **Briefs are copied verbatim** into the composed prompt on disk. Keep
@@ -509,6 +576,11 @@ when the user, the project and the environment do not set it.
 `split_max_panes` defaults to `panes` the same way.
 
 ## Orchestrator flow — `/herdr-agents <objective>`
+
+On `first_run: true`, do [First run](#first-run) and get a yes before any
+pane opens. While work is in flight, one line per visible action
+([Narrate the work](#narrate-the-work)). When the user asks what is
+happening, run `$S explain` ([What is happening](#what-is-happening)).
 
 **Not everything is delegated.** A task that fits in one or two files
 with no product decision — a doc or config edit, a one-off fix of a few
@@ -600,17 +672,34 @@ legacy config (`split_max_panes` above `panes`, a per-role kind on a lane
 that has its own kind, `role.planner.*`):
 
 1. Run `$S setup --detect`. It prints JSON and writes no files: every known
-   kind with `installed`, `family`, `effort_ceiling`, and up to three newest
-   model ids when the CLI answers (a missing or silent CLI yields an empty
-   list, not a failure); plus `panes`, `lanes`, the effective lanes, the
-   presets for 3 and 4, and the effective value and source of
-   `max_workers`, `multi_role`, `reuse_workers`, each `role.<role>.kind`,
-   and each `model.<kind>.worker`.
-2. Ask the user with this harness's structured-question tool, offering only
-   **detected** kinds:
-   - 3 panes or 4 (4 is the recommended default);
-   - which kind and model each lane should use (`build`, `explore`,
-     `review`, or `read` when they chose 3).
+   kind with `installed`, `family`, `effort_ceiling`, a short English
+   `summary` (translate it for the user), and up to three newest model ids
+   when the CLI answers (a missing or silent CLI yields an empty list, not
+   a failure); plus `panes`, `lanes`, the effective lanes, the presets for
+   3 and 4, and the effective value and source of `max_workers`,
+   `multi_role`, `reuse_workers`, each `role.<role>.kind`, and each
+   `model.<kind>.worker`.
+2. Ask in the user's language, with this harness's structured-question
+   tool. Offer only assistants whose `installed` is true. Use each
+   `summary`, translated, as the option description, and mark the
+   recommended one (the policy under [Roles](#roles): implementation and
+   research prefer grok, then cursor, then codex, then claude; review
+   prefers codex, then claude, and must be another family than the
+   implementer; design and visual checks prefer agy). Do not say `lane`,
+   `kind`, or `panes` in the question. Map the answer onto the `setup`
+   flags yourself.
+
+   Quantos agentes ao mesmo tempo?
+   - 4 painéis — pesquisa, implementação e revisão em paralelo, gasta mais cota (recomendado)
+   - 3 painéis — mais econômico
+
+   How many agents at once?
+   - 4 panels — research, implementation, and review in parallel, uses more quota (recommended)
+   - 3 panels — lighter on quota
+
+   Qual assistente usar para implementar, para revisar e para pesquisar?
+   Which assistant should implement, which should review, and which should research?
+   One option per detected assistant.
 3. Write that with `$S setup --panes 3|4 [--lane name=kind:model:effort]…`
    (same writer as `config set`). `doctor --fix --panes 3|4` does the same
    normalization on a legacy file: preset lanes when missing, `max_workers`
