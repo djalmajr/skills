@@ -90,9 +90,9 @@ English:
 > Each assistant spends its own account's quota.
 > May I open them?
 
-A refusal stops the team. On a yes, ask the questions in
-[Ask how to configure](#ask-how-to-configure) if the project still has no
-assistant choice, write that with `setup`, then spawn. Skip this speech
+A refusal stops the team. On a yes, walk the steps in
+[Setup: guided configuration](#setup-guided-configuration) if the project
+still has no assistant choice, write that, then spawn. Skip this speech
 when `first_run` is false.
 
 ## Narrate the work
@@ -308,8 +308,20 @@ keys it sets:
 1. `config.defaults` in the skill (documented defaults)
 2. `~/.config/herdr-agents/config` — user-wide
 3. `<repo>/.agents/herdr-agents.conf` — per project
-4. `HERDR_AGENTS_<KEY>` environment variables
-5. command-line flags
+4. `<state>/session.conf` — the **session** layer: per Herdr workspace,
+   inside the git-ignored state dir, never versioned
+5. `HERDR_AGENTS_<KEY>` environment variables
+6. command-line flags
+
+**Session layer.** `session set <key> <value>` writes the workspace's
+`<state>/session.conf`: it overrides the project and user files, but flags
+and `HERDR_AGENTS_*` still win — the place for "only this session" (for
+example, run every lane on a personal provider just for this week:
+`session set lane.build.kind pi` + `session set lane.build.model
+my-provider/my-model`). `session show` prints the entries; `session clear
+[key]` drops one key or the whole file. `config` prints session values with
+the source `session`. Outside Herdr (no resolvable workspace) the layer
+does not exist.
 
 `$S config` prints every effective value with its source. Keys:
 `orchestrator_name`, `layout` (`split`: panes in the caller's tab until it is
@@ -326,7 +338,7 @@ worker of the same role, kind and cwd whose last report exists instead of
 opening a pane, and a reuse never counts against `max_workers`; `--reuse`/`--fresh`
 override per call; a reused worker keeps earlier briefs in context, so pass
 `--fresh` when a slice must start clean), `multi_role` (default `on`; one
-idle agent may take another role — see "Ask how to configure"), `feedback` +
+idle agent may take another role — see "Setup: guided configuration"), `feedback` +
 `feedback_repo` (see "Improving this skill"), `approvals`
 (default for roles without one), `auto_approve` + `max_auto_approvals`
 (answer a worker's approval dialog with the CLI's default "yes" and keep
@@ -348,7 +360,11 @@ $S init                                    # doctor + name yourself `orchestrato
 $S doctor                                  # advisory environment check (`first_run: true|false`)
 $S explain                                 # plain text: what is running, or how to start
 $S setup [--target FILE] [--no-hooks]      # AGENTS.md block + Claude hooks (idempotent)
-$S setup --detect                          # JSON: installed kinds, summaries, models, worker config
+$S setup --detect                          # JSON: installed kinds, summaries, models (incl. custom providers), recommended reviewer; writes nothing
+$S setup --probe [--kind K --model M]      # JSON: ready|no-auth|quota|error per kind/model + own pi/opencode models (≤5 per kind; rest in skipped_custom); no panes
+$S setup --plan …                          # diff -u per file (config files: key before → after) of what setup/--set/--user-set/--session-set would write; writes nothing
+$S session set <key> <value>               # this-session override in <state>/session.conf (above project, below flags/env)
+$S session show | session clear [key]
 $S roles                                   # available roles and their sources
 $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
@@ -363,7 +379,7 @@ $S tab-label "onda 2" [--tab ID]           # pin a label (newest herd tab, or --
 $S spawn reviewer --tab-label "onda 2"     # place the worker in the herd tab of that name (created if needed)
 $S layout-plan                             # where the next spawn lands (anchor, direction, overflow reason)
 $S status a b                              # non-blocking completion check
-$S config                                  # effective configuration and sources
+$S config                                  # effective configuration and sources (incl. the session layer)
 $S config set <key> <value> [--project|--user]   # write one key (default: the project file)
 $S roster                                  # live agents with role/kind/pane/state/report
 $S release impl [--close]                  # forget the agent; --close closes a pane we created
@@ -414,7 +430,7 @@ a cap on workers overall: at most `max_workers` (default **3**, four panes
 with the orchestrator) live at once. `spawn` past the cap exits 8 and names
 the live workers: `release --close` the ones whose reports you already
 collected, or let `reuse_workers` hand back an idle worker
-(`multi_role=on` may hand back another role; see "Ask how to configure").
+(`multi_role=on` may hand back another role; see "Setup: guided configuration").
 Plan waves of up to three slices instead of fanning out wider. `spawn` retries
 for a few seconds while the new shell reaches its prompt, starts the agent
 with `--no-focus`. `herdr agent start` still focuses that new pane; spawn puts focus back on the pane that had it only while focus is still there, and leaves a pane you moved to alone. `regrid` does not switch to the caller's tab. Explicit
@@ -674,61 +690,141 @@ or hooks are missing. Validate setup changes with `bash scripts/test-setup.sh`.
 Codex, Grok, Cursor and agy have no prompt hooks; for them the block is
 the guard.
 
-## Ask how to configure
+## Setup: guided configuration
 
 `setup` writes the instruction block. It does not guess which CLIs this
-machine has. While the project file sets neither `multi_role`, any
-`lane.<name>.kind`, nor any `role.<role>.kind`, `setup` warns.
-`max_workers` alone, including the value `doctor --fix` writes, is not
-that choice. The same ritual runs when `doctor` reports panes missing, an
-empty `lane.<name>.kind` whose roles resolve to different kinds, or a
-legacy config (`split_max_panes` above `panes`, a per-role kind on a lane
-that has its own kind, `role.planner.*`):
+machine has. On a first run — and whenever `doctor` reports a missing or
+legacy config (`panes` missing, an empty `lane.<name>.kind` whose roles
+resolve to different kinds, `split_max_panes` above `panes`, a per-role kind
+on a lane that has its own kind, `role.planner.*`), or a quota stop (exit
+11) — the orchestrator walks the user through the choices. **Every step uses
+the harness's structured-question tool** (Claude Code: `AskUserQuestion`,
+Codex: `ask_user_question`, OpenCode: `question`) with **three options — the
+first marked as the recommendation, with a one-line reason — plus a
+free-text field** where the user says exactly what they want (the tool's
+free-text/"other" field; when the tool has none, a fourth "say it yourself"
+option). Never an open question without suggestions, never ask the user to
+write flags, keys, or model ids. `setup` also warns while the project file
+sets neither `multi_role`, any `lane.<name>.kind`, nor any
+`role.<role>.kind`; `max_workers` alone, including the value
+`doctor --fix` writes, is not that choice.
 
-1. Run `$S setup --detect`. It prints JSON and writes no files: every known
-   kind with `installed`, `family`, `effort_ceiling`, a short English
-   `summary` (translate it for the user), and up to three newest model ids
-   when the CLI answers (a missing or silent CLI yields an empty list, not
-   a failure); plus `panes`, `lanes`, the effective lanes, the presets for
-   3 and 4, and the effective value and source of `max_workers`,
-   `multi_role`, `reuse_workers`, each `role.<role>.kind`, and each
-   `model.<kind>.worker`.
-2. Ask in the user's language, with this harness's structured-question
-   tool. Offer only assistants whose `installed` is true. Use each
-   `summary`, translated, as the option description, and mark the
-   recommended one (the policy under [Roles](#roles): implementation and
-   research prefer grok, then cursor, then codex, then claude; review
-   prefers codex, then claude, and must be another family than the
-   implementer; design and visual checks prefer agy). Do not say `lane`,
-   `kind`, or `panes` in the question. Map the answer onto the `setup`
-   flags yourself.
+Steps, in order, in the user's language (never the words `lane`, `kind`, or
+`panes`):
 
-   Quantos agentes ao mesmo tempo?
-   - 4 painéis — pesquisa, implementação e revisão em paralelo, gasta mais cota (recomendado)
-   - 3 painéis — mais econômico
+1. **Consent (first run).** Before any pane opens, say what the team is
+   (the first-run speech) and ask whether to open it. Options: *Yes, open
+   it* (recommended — the work parallelizes this way), *More info before
+   anything opens*, *No, do it without the team* + free text. A refusal
+   stops the team.
+2. **How many agents at once.** Options: *4 panels* (recommended —
+   research, implementation, and review work at the same time), *3
+   panels* (lighter on quota: one read-only panel alternates research
+   and review), *decide later — the default (4 panels)* + free text.
+   Map the answer: 4 → `setup --panes 4`; 3 → `setup --panes 3`;
+   decide later → leave `panes` at its default (4). The two-panel mode
+   does not exist yet: if the user asks for it in the free text, say so
+   and offer 3 or 4.
+3. **Which assistant does each job.** Run `$S setup --detect` (writes
+   nothing), then `$S setup --probe` — a minimal non-interactive prompt per
+   kind/model with a short timeout, no panes; statuses `ready | no-auth |
+   quota | error`, and `recommended_reviewer` (a ready kind from another
+   family than the build one). **Only assistants whose probe is `ready`
+   become options**, including models of personal providers (the
+   `custom_models` entries of `--detect`, as `provider/model`, with the
+   declared max reasoning level when there is one). The aggregate probe
+   already tested each listed own model (up to 5 per kind, the rows with
+   `source: "custom"`): offer one only if its own row is `ready`. A model
+   that landed in `skipped_custom` was not tested: run
+   `$S setup --probe --kind K --model provider/model` first, and offer it
+   only if that row is `ready`. Three questions:
+   - **Writing code** (the build lane): recommended `grok` first, then
+     `cursor` (runs grok models), then `codex`, then `claude` — the policy
+     under [Roles](#roles).
+   - **Review**: must be another model family than the build one; use
+     `recommended_reviewer` as the recommended option (codex before claude).
+   - **Research**: recommended is the fastest/cheapest ready assistant — a
+     fast/flash model when the probe lists one, otherwise the cheapest
+     ready family.
+   Each option is the assistant name plus its one-line `summary`
+   (translated); the recommendation carries the one-line reason.
+4. **Where each choice is saved.** One question per choice: *only this
+   project* (the team shares it — the project file), *my personal default*
+   (all my projects — the user file), *only this session* (temporary — the
+   session layer) + free text. Personal providers and models go to the
+   **user layer by default**.
+5. **Confirm.** Build one `setup --plan …` from the answers — `--panes`
+   and `--lane name=kind:model:effort` for the team, `--set key value` /
+   `--user-set key value` for config keys, `--session-set key value` for
+   the session — and show its output: the exact change of every file it
+   would touch — `key before → after` for the config files, a unified
+   diff for the instruction file, `.claude/settings.json` and (when the
+   write would add it) `.gitignore` (it writes nothing). Options: *Write it*
+   (recommended
+   — it matches your answers), *Adjust* (the user says what changes; the
+   plan is rebuilt and shown again), *Cancel* + free text.
+6. **Write.** `setup --panes 3|4 --lane name=kind[:model[:effort]]…`,
+   `config set <key> <value> [--user]`, `session set <key> <value>` — the
+   same keys the plan showed — then `setup` (instruction block + hooks) and
+   `doctor`; act on whatever still warns.
 
-   How many agents at once?
-   - 4 panels — research, implementation, and review in parallel, uses more quota (recommended)
-   - 3 panels — lighter on quota
+### How the answers are built (mechanics)
 
-   Qual assistente usar para implementar, para revisar e para pesquisar?
-   Which assistant should implement, which should review, and which should research?
-   One option per detected assistant.
-3. Write that with `$S setup --panes 3|4 [--lane name=kind:model:effort]…`
-   (same writer as `config set`). `doctor --fix --panes 3|4` does the same
-   normalization on a legacy file: preset lanes when missing, `max_workers`
-   equal to the lane count, `split_max_panes` equal to `panes`,
-   `reuse_workers=on`. For each lane it resolves every role's kind and
-   model (the value in that file, otherwise the role frontmatter). When
-   they agree it writes `lane.<name>.kind` / `.model` and only then removes
-   those `role.<role>.*` keys. When they disagree it leaves the keys, lists
-   `role=kind`, and tells you to ask and run
-   `setup --lane <name>=<kind>[:<model>[:<effort>]]`. `role.planner.*` is
-   removed either way. Comments stay. Without `--panes` and without
-   `panes` in the file, `--fix` exits 2 and tells you to ask 3 or 4 — it
-   does not choose.
-4. The block and the hooks are part of `setup`. Re-run `$S doctor` and act
-   on whatever it still warns about.
+`setup --detect` prints JSON and writes no files: every known kind with
+`installed`, `family`, `effort_ceiling`, a short English `summary` (translate
+it for the user), up to three newest model ids when the CLI answers (a
+missing or silent CLI yields an empty list, not a failure), and
+`custom_models` for the generic kinds — the models the user declared in
+`~/.pi/agent/models.json` (pi) and in `opencode.json` (project and user),
+as `provider/model`, with the highest declared reasoning level when there
+is one. Secrets stay in those files: only ids and levels are read. It also
+prints `panes`, `lanes`, the effective lanes, the presets for 3 and 4,
+the effective value and source of `max_workers`, `multi_role`,
+`reuse_workers`, each `role.<role>.kind`, each `model.<kind>.worker`, and
+`recommended_reviewer` (installed kinds only; the probe refines it to the
+kinds that answer a real prompt).
+
+`setup --probe [--kind K --model M] [--timeout SECONDS]` runs one tiny
+non-interactive prompt per kind/model (claude `-p`, codex `exec`, grok
+`-p`, agy/gemini `-p`, cursor-agent `-p`, pi `-p --no-session`, opencode
+`run`; `--timeout` or `HERDR_AGENTS_PROBE_TIMEOUT` whole seconds ≥ 1,
+default 20) and classifies: `ready`, `no-auth` (login message), `quota`
+(the same provider messages the wait detects), or `error` (a timeout is
+an error). The `cause` never copies CLI text — it is a fixed category:
+`not installed`, `timeout after <N>s`, `not authenticated`, `quota
+exhausted` (with `; renews <date/time>` only when the renewal line
+carries one), or `exit <code>`. It opens no pane, needs no Herdr, and
+never prints the CLI output — only the classification and cause. Without
+`--kind` it probes every known kind with the model `spawn` would use
+(`model.<kind>.worker`, then `model.<kind>`, else the CLI default; the
+rows carry `source: "configured"`), plus up to 5 own models of each
+installed `pi`/`opencode` from `--detect` (`source: "custom"`, in detect
+order); the rest of the list is reported as `skipped_custom` (`{kind,`
+`id}`), each probeable with `--kind K --model provider/model`.
+
+`setup --plan` (same arguments as `setup`/`config set`/`session set`, via
+`--panes`, `--lane`, `--set`, `--user-set`, `--session-set`) simulates each
+write in its own temp dir and prints a `diff -u` (`a/<path>` and `b/<path>`)
+of the instruction file (`AGENTS.md`/`CLAUDE.md`), `.claude/settings.json`,
+and — when the write would add it — the repo's `.gitignore` (the
+`.herdr-agents/` entry that `setup` and `session set` refresh); the config
+files (`.agents/herdr-agents.conf`, the user file, `session.conf`) keep the
+`key  before → after` lines. It writes nothing — not even the state dir.
+Use it for the confirmation step and whenever the user asks "what would
+that change?".
+
+`doctor --fix --panes 3|4 [--user]` does the same normalization on a legacy
+file: preset lanes when missing, `max_workers` equal to the lane count,
+`split_max_panes` equal to `panes`, `reuse_workers=on`. For each lane it
+resolves every role's kind and model (the value in that file, otherwise the
+role frontmatter). When they agree it writes `lane.<name>.kind` / `.model`
+and only then removes those `role.<role>.*` keys. When they disagree it
+leaves the keys, lists `role=kind`, and tells you to ask and run
+`setup --lane <name>=<kind>[:<model>[:<effort>]]`. `role.planner.*` is
+removed either way. Comments stay. Without `--panes` and without `panes`
+in the file, `--fix` exits 2 and tells you to ask 3 or 4 — it does not
+choose. In that case, run steps 2–5 above (the 3-or-4 question, then the
+plan and confirmation) and finish with `doctor --fix`.
 
 `multi_role=on` (the default, including when the key is unset): `spawn`
 without `--fresh` reuses an idle worker of another role when the kind, the
@@ -765,10 +861,13 @@ Use the harness's structured-question tool when:
 
 - `wait`, `status` or `dispatch` returns `quota` (exit 11). The JSON carries
   `lane`, `kind`, `model`, the sanitized `match` and, when the screen showed
-  one, `renewal`. Offer: switch that lane's kind/model to another detected
-  one, wait until renewal, take the slice in this session, or pause. When
-  the work resumes on a new worker, put `git diff` of the partial edit in
-  the brief so it continues instead of starting over.
+  one, `renewal`. Same question format as setup: three options + free text.
+  *Switch the assistant* (recommended when another assistant's probe is
+  `ready` — `recommended_reviewer` first; say which one), *Wait for the
+  renewal* (when the JSON names a time), *Take the slice in this session*
+  (pausing is the free text). When the work resumes on a new worker, put
+  `git diff` of the partial edit in the brief so it continues instead of
+  starting over.
 - The objective could be UI or not UI and the answer changes which roles are
   spawned.
 - A reviewer would come from the same family as the implementer and no

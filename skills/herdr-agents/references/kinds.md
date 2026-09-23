@@ -164,6 +164,64 @@ budgets come from `thinkingBudgets` in `~/.pi/agent/settings.json`):
   resolved model/provider, and a typo in the `provider/id` is only visible
   there (or when the first prompt fails).
 
+## Probing a kind (`setup --probe`)
+
+`setup --probe [--kind K --model M] [--timeout SECONDS]` answers "is this
+kind/model actually usable right now?" with one tiny non-interactive prompt
+per kind/model — no pane, no Herdr, no TTY, short timeout
+(`HERDR_AGENTS_PROBE_TIMEOUT` or `--timeout`, whole seconds ≥ 1,
+default 20 s; 0 is a usage error). Flags confirmed with each
+CLI's `--help` on 2026-09-23:
+
+| Kind | Probe command | Notes |
+|---|---|---|
+| `claude` | `claude -p <prompt> [--model M]` | print mode |
+| `codex` | `codex exec -m M <prompt>` | non-interactive subcommand |
+| `grok` | `grok -p <prompt> --model M` | `-p/--single` prints and exits |
+| `agy` | `agy -p <prompt> --model M` | `-p` = `--print` |
+| `gemini` | `gemini -p <prompt> --model M` | assumed like agy (not installed on the 2026-09-23 test machine) |
+| `cursor` | `cursor-agent -p <prompt> --model M` | print mode |
+| `pi` | `pi -p --no-session <prompt> --model M` | `--no-session` keeps the probe ephemeral |
+| `opencode` | `opencode run <prompt> -m M` | non-interactive run |
+
+Result per kind/model: `ready` (exit 0), `no-auth` (a login message — the
+user should log in before the probe is retried), `quota` (the same provider
+messages the wait detects, reusing that detection), or `error` (a timeout
+is an error). The `cause` never copies CLI text: it is a fixed category —
+`not installed`, `timeout after <N>s`, `not authenticated`, `quota
+exhausted` (with `; renews <date/time>` only when the renewal line carries
+a clock time, ISO date, or duration), or `exit <code>`; credential-shaped
+fragments are redacted (`redact_secrets`, including `sk-`/`pk-`/`rk-`
+hyphen keys). The CLI output itself is never printed. Without `--kind` it
+probes every known kind with the model `spawn` would use
+(`model.<kind>.worker`, then `model.<kind>`, else the CLI's own default;
+the rows carry `source: "configured"`), plus up to 5 own models of each
+installed `pi`/`opencode` from `--detect` (`source: "custom"`, in detect
+order; the rest are listed in `skipped_custom` as `{kind, id}` and
+probeable with `--kind K --model provider/model`). `recommended_reviewer`
+reports the first ready kind from another family than the build one (codex
+before claude). A missing executable is `error` with cause `not installed`.
+
+## Custom providers: where `setup --detect` reads them
+
+For the generic kinds, `setup --detect` lists the models the user declared
+in their own provider files, as `custom_models` (`provider/model`, with the
+highest declared reasoning level when there is one). Only ids and levels
+are read; `apiKey`, headers and env values never leave the files:
+
+- **pi** — `~/.pi/agent/models.json`: `providers.<name>.models[].id`, max
+  level from the model's `thinkingLevelMap` (the highest non-null
+  `low|medium|high|xhigh|max`).
+- **opencode** — `opencode.json`: the project file first (its entries win on
+  duplicate ids), then `$OPENCODE_CONFIG`, then
+  `${XDG_CONFIG_HOME:-~/.config}/opencode/opencode.json`, then
+  `~/.opencode/opencode.json`; models are `provider.<name>.models.<id>`.
+  opencode declares no per-model reasoning ladder, so `max_effort` is `""`.
+
+Malformed files degrade to an empty list (not a failure). The probe and
+spawn pass a `provider/model` straight through to the CLI's model flag;
+`$S model pi my-provider/my-model` shows how it would resolve.
+
 ## Install notes
 
 ```bash

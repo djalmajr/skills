@@ -21,7 +21,10 @@ Up to four panels, counting yours.
 
 You can watch any panel or close one. Closing a panel stops that agent.
 The first time, nothing opens until you agree, and you are asked how many
-agents to open and which assistant each job should use.
+agents to open and which assistant each job should use. Before anything is
+written, you are shown a summary of exactly what changes in which file, and
+you confirm it. A choice can be saved for this project, for all your
+projects, or for this session only.
 
 ## Quota
 

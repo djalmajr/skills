@@ -45,6 +45,8 @@ chmod +x "$FAKE/herdr"
   set -euo pipefail
   export HERDR_AGENTS_LIB=1
   export HOME="$TEST_ROOT/home" XDG_CONFIG_HOME="$TEST_ROOT/config" TMPDIR="$TEST_ROOT/tmp"
+  export HERDR_AGENTS_DIR="$TEST_ROOT/state" HERDR_WORKSPACE_ID=ws-test
+  unset HERDR_ENV || true
   # shellcheck source=herdr-agents.sh
   . "$SKILL_SCRIPT"
   load_config

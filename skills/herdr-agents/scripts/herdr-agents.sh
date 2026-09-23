@@ -12,11 +12,16 @@
 #   herdr-agents.sh doctor [--fix] [--panes 3|4] [--user]
 #                                                 # advisory check; --fix normalizes lanes in the project file
 #   herdr-agents.sh explain                       # plain text for a person: what is running, or how to start
-#   herdr-agents.sh setup [--target FILE] [--no-hooks] [--dry-run] [--detect]
+#   herdr-agents.sh setup [--target FILE] [--no-hooks] [--dry-run]
+#                         [--detect | --probe [--kind K --model M] [--timeout S]
+#                          | --plan [--panes 3|4] [--lane name=kind[:model[:effort]]]
+#                            [--set K V] [--user-set K V] [--session-set K V]]
 #                         [--panes 3|4] [--lane name=kind[:model[:effort]]]
-#                                                 # write the block + hooks; --detect prints JSON and writes nothing
+#                                                 # write the block + hooks; --detect/--probe/--plan print and write nothing
 #   herdr-agents.sh roles | kinds
 #   herdr-agents.sh config [set <key> <value> [--project|--user]]
+#   herdr-agents.sh session [set <key> <value> | clear [key] | show]
+#                                                 # this-session overrides in <state>/session.conf
 #   herdr-agents.sh models <kind>                 # ids the CLI lists, newest first
 #   herdr-agents.sh model <kind> <spec> [effort]  # how a model spec resolves
 #   herdr-agents.sh regrid                        # exact grids: caller tab (layout=split) + every herd tab
@@ -47,10 +52,11 @@
 # (non-blocking). Never poll `herdr agent get` state alone: integrations
 # report idle/done mid-task.
 #
-# Configuration (key=value files; later layers win, env wins over files, flags
-# win over env):
+# Configuration (key=value files; later layers win, env wins over files,
+# flags win over env):
 #   <skill>/config.defaults → ~/.config/herdr-agents/config
-#   → <repo>/.agents/herdr-agents.conf → HERDR_AGENTS_<KEY> → flags
+#   → <repo>/.agents/herdr-agents.conf → <state>/session.conf (session)
+#   → HERDR_AGENTS_<KEY> → flags
 #
 # Exit codes: 2 usage/env · 3 unknown role/agent · 4 Herdr failure (includes
 # `herdr agent get` transport/permission errors reported as `unavailable`) ·
@@ -115,6 +121,10 @@ load_config() {
   load_config_file "$SKILL_DIR/config.defaults" defaults
   load_config_file "${XDG_CONFIG_HOME:-$HOME/.config}/herdr-agents/config" user
   load_config_file "$(project_root)/.agents/herdr-agents.conf" project
+  local sf
+  sf="$(session_conf_path 2>/dev/null || true)"
+  if [ -n "$sf" ]; then load_config_file "$sf" session; fi
+  return 0
 }
 
 # cfg <key> [fallback] — env HERDR_AGENTS_<KEY> > config layers > fallback
@@ -143,7 +153,8 @@ cmd_config() {
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
   printf '\nlayers read:%s\n' "${CFG_SOURCES:- (none)}"
-  printf 'user file:    %s\nproject file: %s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/herdr-agents/config" "$(project_root)/.agents/herdr-agents.conf"
+  local sf; sf="$(session_conf_path 2>/dev/null || true)"
+  printf 'user file:    %s\nproject file: %s\nsession file: %s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/herdr-agents/config" "$(project_root)/.agents/herdr-agents.conf" "${sf:-(no workspace here)}"
 }
 
 # config_key_ok <key> — scalar keys plus role/model/effort/args patterns.
@@ -261,6 +272,105 @@ cmd_config_set() {
   mkdir -p "$(dirname "$dest")"
   config_write_pair "$dest" "$key" "$value"
   printf 'set %s=%s in %s\n' "$key" "$value" "$dest"
+}
+
+# ---------- session layer (per Herdr workspace, never versioned) ----------
+# <state>/session.conf holds "only this session" overrides: above the project
+# and user files, below flags and HERDR_AGENTS_* env. Resolution has no side
+# effects — nothing is created until `session set` writes. Outside Herdr
+# (no HERDR_WORKSPACE_ID and not HERDR_ENV=1) there is no session layer.
+session_conf_path() {
+  local ws="${HERDR_WORKSPACE_ID:-}" d
+  [ -n "$ws" ] || [ "${HERDR_ENV:-}" = 1 ] || return 0
+  if [ -z "$ws" ] && command -v herdr >/dev/null 2>&1; then
+    ws="$(herdr pane current --current 2>/dev/null | jq -r '.result.pane.workspace_id' 2>/dev/null || true)"
+  fi
+  [ -n "$ws" ] || return 0
+  d="${HERDR_AGENTS_DIR:-$(cfg state_dir .herdr-agents)}"
+  case "$d" in /*) ;; *) d="$(project_root)/$d" ;; esac
+  printf '%s/%s/session.conf\n' "$d" "$ws"
+}
+
+cmd_session() {
+  local sub="${1:-}"; shift || true
+  case "$sub" in
+    set) cmd_session_set "$@" ;;
+    clear) cmd_session_clear "$@" ;;
+    show) cmd_session_show ;;
+    "") cmd_session_show ;;
+    *) die "session: unknown subcommand '$sub' (set <key> <value> | clear [key] | show)" 2 ;;
+  esac
+}
+
+cmd_session_set() {
+  local key="" value="" saw_value=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --*) die "session set: unknown option '$1'" 2 ;;
+      *)
+        if [ -z "$key" ]; then key="$1"
+        elif [ "$saw_value" = 0 ]; then value="$1"; saw_value=1
+        else die "session set: unexpected argument '$1'" 2
+        fi
+        shift ;;
+    esac
+  done
+  [ -n "$key" ] && [ "$saw_value" = 1 ] || die "usage: session set <key> <value>" 2
+  [ -n "$value" ] || die "session set: empty value" 2
+  config_key_ok "$key" || die "session set: unknown key '$key'" 2
+  config_value_ok "$key" "$value" || die "session set: invalid value '$value' for $key" 2
+  local sf; sf="$(session_conf_path 2>/dev/null || true)"
+  [ -n "$sf" ] || die "session set: no Herdr workspace here (run inside Herdr, or set HERDR_WORKSPACE_ID)" 2
+  state_root >/dev/null 2>&1 || true   # keep the .gitignore entry current
+  mkdir -p "$(dirname "$sf")"
+  config_write_pair "$sf" "$key" "$value"
+  printf 'set %s=%s in %s (session: this Herdr workspace only; above project and user, below flags and HERDR_AGENTS_*)\n' "$key" "$value" "$sf"
+}
+
+cmd_session_clear() {
+  local key="${1:-}" sf tmp
+  [ $# -le 1 ] || die "usage: session clear [key]" 2
+  sf="$(session_conf_path 2>/dev/null || true)"
+  [ -n "$sf" ] || die "session clear: no Herdr workspace here (run inside Herdr, or set HERDR_WORKSPACE_ID)" 2
+  if [ -z "$key" ]; then
+    if [ -f "$sf" ]; then rm -f "$sf"; printf 'session cleared: %s\n' "$sf"
+    else printf 'session is empty (nothing to clear)\n'; fi
+    return 0
+  fi
+  config_key_ok "$key" || die "session clear: unknown key '$key'" 2
+  if [ ! -f "$sf" ]; then printf 'session is empty (nothing to clear)\n'; return 0; fi
+  tmp="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-conf.XXXXXX")"
+  if ! HA_KEY="$key" awk '
+    BEGIN { key = ENVIRON["HA_KEY"] }
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    {
+      body = $0
+      if (match(body, /[ \t]#.*$/)) body = substr(body, 1, RSTART - 1)
+      stripped = trim(body)
+      if (stripped != "" && substr(stripped, 1, 1) != "#") {
+        eq = index(stripped, "=")
+        if (eq > 0) {
+          k = trim(substr(stripped, 1, eq - 1))
+          if (k == key) next
+        }
+      }
+      print
+    }' "$sf" > "$tmp"; then
+    rm -f "$tmp"
+    die "session clear: could not rewrite $sf (file left untouched)" 4
+  fi
+  mv "$tmp" "$sf"
+  printf 'cleared %s from %s\n' "$key" "$sf"
+}
+
+cmd_session_show() {
+  local sf; sf="$(session_conf_path 2>/dev/null || true)"
+  if [ -n "$sf" ] && [ -s "$sf" ]; then
+    cat "$sf"
+    printf '\nsession file: %s\n' "$sf"
+  else
+    printf 'session is empty (no session overrides for this workspace)\n'
+  fi
 }
 
 # ---------- state ----------
@@ -735,7 +845,7 @@ live_worker_count() { live_worker_names | grep -c . || true; }
 
 config_explicit() {
   case "$(cfg_source "$1")" in
-    user|project|env) return 0 ;;
+    user|project|env|session) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -915,9 +1025,12 @@ lane_decide() {
 }
 
 # redact_secrets <text> — drop credential-shaped fragments before a quota line is stored.
+# Covers key-shaped tokens with an underscore ((sk|pk|rk)_(live|test)_…) and
+# with a hyphen (sk-proj-…, sk-ant-…, pk-live…), Bearer tokens, and key=value.
 redact_secrets() {
   printf '%s' "$1" | sed -E \
     -e 's/(sk|pk|rk)_(live|test)_[A-Za-z0-9]+/[redacted]/g' \
+    -e 's/(sk|pk|rk)-[A-Za-z0-9_-]{8,}/[redacted]/g' \
     -e 's/[Bb]earer [A-Za-z0-9._~+/-]+/Bearer [redacted]/g' \
     -e 's/(api[_-]?key|token|secret|password)=[^ ]*/\1=[redacted]/g'
 }
@@ -1003,6 +1116,18 @@ PATS
   renewal="$(sanitize_cause "$(redact_secrets "$renewal")")"
   printf '%s\n%s\n' "$line" "$renewal"
   return 0
+}
+
+# renewal_value <line> → the date/time value of a renewal line, or empty.
+# Strict forms only — clock time (14:30, 09:15:00, 2:30 PM), ISO date
+# (2026-09-24), or a duration (5 minutes) — so the value can never carry
+# the rest of the provider line. Anything wider: no usable value, empty.
+renewal_value() {
+  printf '%s\n' "$1" | grep -E -i -o \
+    -e '[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?([APap]\.[Mm]\.)?' \
+    -e '[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}' \
+    -e '[0-9]+ (minute|hour|second|day)s?' \
+    | head -n1 || true
 }
 
 # file_key_value <file> <key> — last assignment, ignoring comments.
@@ -1666,19 +1791,23 @@ setup_target_existing() {
 # Never replaces the target unless the new content was produced in full: the
 # block goes through a temp file (BSD awk rejects multi-line -v strings) and
 # the result must be non-empty before it is moved into place.
-setup_write_block() {
-  local file="$1" tmp blockfile verb
-  tmp="$(mktemp)"; blockfile="$(mktemp)"
+# setup_block_result <file> → stdout: the file's full content after
+# setup_write_block (same transformation, never writes — the plan simulates
+# with it). Exit 4 when the result would be incomplete (the write is refused).
+setup_block_result() {
+  local file="$1" tmp blockfile
+  blockfile="$(mktemp)"
   setup_block > "$blockfile"
   if [ -f "$file" ] && grep -q "$SETUP_START" "$file"; then
-    verb=updated
+    tmp="$(mktemp)"
     awk -v start="$SETUP_START" -v end="$SETUP_END" -v blockfile="$blockfile" '
       BEGIN { while ((getline line < blockfile) > 0) block = block (n++ ? "\n" : "") line; close(blockfile) }
       index($0, start) { print block; skip = 1; next }
       index($0, end)   { skip = 0; next }
-      !skip { print }' "$file" > "$tmp" || { rm -f "$tmp" "$blockfile"; die "setup: could not rewrite the block in $file (file left untouched)" 4; }
+      !skip { print }' "$file" > "$tmp" || { rm -f "$tmp" "$blockfile"; return 4; }
+    if [ ! -s "$tmp" ] || ! grep -q "$SETUP_END" "$tmp"; then rm -f "$tmp" "$blockfile"; return 4; fi
+    cat "$tmp"; rm -f "$tmp" "$blockfile"
   else
-    verb=written
     {
       if [ -f "$file" ]; then
         cat "$file"
@@ -1686,10 +1815,20 @@ setup_write_block() {
         printf '\n'
       fi
       cat "$blockfile"
-    } > "$tmp"
+    } || { rm -f "$blockfile"; return 4; }
+    rm -f "$blockfile"
   fi
-  if [ ! -s "$tmp" ] || ! grep -q "$SETUP_END" "$tmp"; then rm -f "$tmp" "$blockfile"; die "setup: produced an incomplete file for $file (file left untouched)" 4; fi
-  mv "$tmp" "$file"; rm -f "$blockfile"
+}
+
+setup_write_block() {
+  local file="$1" tmp verb
+  tmp="$(mktemp)"
+  if ! setup_block_result "$file" > "$tmp"; then
+    rm -f "$tmp"
+    die "setup: produced an incomplete file for $file (file left untouched)" 4
+  fi
+  if [ -f "$file" ] && grep -q "$SETUP_START" "$file"; then verb=updated; else verb=written; fi
+  mv "$tmp" "$file"
   printf '%s\n' "$verb"
 }
 
@@ -1704,10 +1843,12 @@ sh -c '[ "${HERDR_ENV:-}" = 1 ] || exit 0; for script in "${CLAUDE_PROJECT_DIR:-
 EOF
 }
 
-setup_write_hooks() {
-  local file="$1" tmp base
+# settings_hooks_result <file> → stdout: the settings.json content after
+# setup_write_hooks (same merge, never writes — the plan simulates with it).
+# Exit 4 when the merge cannot be produced (the write is refused).
+settings_hooks_result() {
+  local file="$1" base
   base='{}'; [ -f "$file" ] && base="$(cat "$file")"
-  tmp="$(mktemp)"
   printf '%s' "$base" | jq \
     --arg reminder "$(setup_hook_reminder)" \
     --arg doctor "$(setup_hook_doctor)" '
@@ -1715,8 +1856,103 @@ setup_write_hooks() {
       .hooks[ev] = ((.hooks[ev] // [])
         | map(select(((.hooks // []) | any(.command? // "" | test("herdr-agents"))) | not))
         + [{"hooks": [{"type": "command", "command": cmd}]}]);
-    put("UserPromptSubmit"; $reminder) | put("SessionStart"; $doctor)' > "$tmp" || die "could not merge hooks into $file" 4
+    put("UserPromptSubmit"; $reminder) | put("SessionStart"; $doctor)'
+}
+
+setup_write_hooks() {
+  local file="$1" tmp
+  tmp="$(mktemp)"
+  if ! settings_hooks_result "$file" > "$tmp"; then
+    rm -f "$tmp"
+    die "could not merge hooks into $file" 4
+  fi
   mkdir -p "$(dirname "$file")"; mv "$tmp" "$file"
+}
+
+# pi_custom_models_json → [{"id":"provider/model","max_effort":"<ladder>"}]
+# from ~/.pi/agent/models.json. Only the model ids and the declared thinking
+# levels are read; apiKey, headers and env values never leave the file.
+pi_custom_models_json() {
+  local f="${HOME}/.pi/agent/models.json"
+  [ -f "$f" ] || { printf '[]\n'; return 0; }
+  jq -c '
+    ({"low":1,"medium":2,"high":3,"xhigh":4,"max":5}) as $ladder
+    | [ (.providers // {}) | to_entries[]
+        | .key as $p
+        | ((.value.models // [])[])
+        | select((.id // "") != "")
+        | { id: ($p + "/" + .id),
+            max_effort: (((.thinkingLevelMap // {}) | to_entries
+                          | map(select(.value != null))
+                          | map({key: .key, r: ($ladder[.key] // 0)})) as $lv
+                     | if ($lv | length) == 0 then ""
+                       else ($lv | max_by(.r) | if .r > 0 then .key else "" end) end) } ]
+  ' "$f" 2>/dev/null || printf '[]\n'
+}
+
+# opencode_custom_models_json → [{"id":"provider/model","max_effort":""}] from
+# the project opencode.json and the user config (OPENCODE_CONFIG, the XDG
+# opencode dir, ~/.opencode). Project entries win on duplicate ids. Only the
+# model ids are read; provider options (apiKey, headers, {env:…}) stay in the
+# files. opencode declares no per-model reasoning ladder: max_effort is "".
+opencode_custom_models_json() {
+  local files=() f out_file rc=0
+  f="$(project_root)/opencode.json"
+  [ -f "$f" ] && files+=("$f")
+  [ -n "${OPENCODE_CONFIG:-}" ] && [ -f "${OPENCODE_CONFIG:-}" ] && files+=("$OPENCODE_CONFIG")
+  f="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/opencode.json"
+  [ -f "$f" ] && files+=("$f")
+  f="$HOME/.opencode/opencode.json"
+  [ -f "$f" ] && files+=("$f")
+  [ "${#files[@]}" -gt 0 ] || { printf '[]\n'; return 0; }
+  out_file="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-detect.XXXXXX")"
+  for f in "${files[@]}"; do
+    jq -c '[.provider // {} | to_entries[] | .key as $p | ((.value.models // {}) | to_entries[]) | {id: ($p + "/" + .key), max_effort: ""}]' "$f" >> "$out_file" 2>/dev/null || true
+  done
+  if [ ! -s "$out_file" ]; then rm -f "$out_file"; printf '[]\n'; return 0; fi
+  # Concatenate the per-file arrays; the first file (the project) wins when the
+  # same provider/model is declared twice.
+  jq -cs '(add // [])
+    | (reduce .[] as $x ({}; .[$x.id] = (.[$x.id] // $x))) | [.[]]' "$out_file" 2>/dev/null || rc=1
+  rm -f "$out_file"
+  [ "$rc" -eq 0 ] || printf '[]\n'
+}
+
+# effective_build_family → the model family the build lane would run (lane
+# kind + model, else the implementer role's config/frontmatter). Used to pick
+# a reviewer from another family.
+effective_build_family() {
+  local k m
+  k="$(lane_attr build kind)"
+  [ -n "$k" ] || k="$(resolved_role_kind implementer)"
+  m="$(lane_attr build model)"
+  [ -n "$m" ] || m="$(cfg role_implementer_model)"
+  printf '%s\n' "$(agent_family "$k" "$m")"
+}
+
+# recommend_reviewer_json <build-family> <eligible-file>
+# Eligible lines: "kind<TAB>model" (model may be empty). Policy order: codex,
+# claude, then the other kinds. The first eligible kind with a KNOWN family
+# different from the build family wins; nothing eligible → null.
+recommend_reviewer_json() {
+  local build_fam="$1" el="$2"
+  if [ ! -s "$el" ]; then printf 'null\n'; return 0; fi
+  local order=(codex claude "${KNOWN_KINDS[@]}")
+  local k m fam seen=""
+  for k in "${order[@]}"; do
+    has_word "$seen" "$k" && continue
+    seen="$seen $k"
+    # A kind absent from the eligible list is not a candidate.
+    if ! m="$(awk -F'\t' -v k="$k" '$1==k {print $2; found=1; exit} END {exit (found ? 0 : 1)}' "$el")"; then
+      continue
+    fi
+    fam="$(agent_family "$k" "$m")"
+    { [ -n "$fam" ] && [ "$fam" != unknown ]; } || continue
+    [ "$fam" != "$build_fam" ] || continue
+    jq -nc --arg k "$k" --arg f "$fam" --arg m "$m" '{kind:$k,family:$f,model:$m}'
+    return 0
+  done
+  printf 'null\n'
 }
 
 # detect_top_models <kind> → JSON array of up to 3 newest ids. A CLI that is
@@ -1729,17 +1965,22 @@ detect_top_models() {
 }
 
 detect_kind_json() {
-  local k="$1" exe installed fam ceiling models_json summary
+  local k="$1" exe installed fam ceiling models_json summary custom
   exe="$(kind_exe "$k")"
   if command -v "$exe" >/dev/null 2>&1; then installed=true; else installed=false; fi
   fam="$(kind_family_display "$k")"
   ceiling="$(kind_effort_ceiling "$k")"
   models_json="$(detect_top_models "$k")"
   summary="$(kind_summary "$k")"
+  custom="[]"
+  case "$k" in
+    pi) custom="$(pi_custom_models_json)" ;;
+    opencode) custom="$(opencode_custom_models_json)" ;;
+  esac
   jq -n --arg kind "$k" --arg executable "$exe" --argjson installed "$installed" \
     --arg family "$fam" --arg effort_ceiling "$ceiling" --argjson models "$models_json" \
-    --arg summary "$summary" \
-    '{kind:$kind,executable:$executable,installed:$installed,family:$family,effort_ceiling:$effort_ceiling,models:$models,summary:$summary}'
+    --arg summary "$summary" --argjson custom_models "$custom" \
+    '{kind:$kind,executable:$executable,installed:$installed,family:$family,effort_ceiling:$effort_ceiling,models:$models,summary:$summary,custom_models:$custom_models}'
 }
 
 # Effective role.<name>.kind: a config override when one is set, otherwise the
@@ -1814,6 +2055,13 @@ cmd_setup_detect() {
   done
   presets_json="$(jq -s 'add' "$pr")"
   rm -f "$el" "$pr" "$tmpk" "$tmpr" "$tmpm"
+  # Reviewer suggestion for this machine (pre-probe): installed kinds only;
+  # `setup --probe` refines it to the kinds that answer a real prompt.
+  local inst rec
+  inst="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-detect.XXXXXX")"
+  printf '%s\n' "$kinds" | jq -r '.[] | select(.installed) | "\(.kind)\t"' > "$inst"
+  rec="$(recommend_reviewer_json "$(effective_build_family)" "$inst")"
+  rm -f "$inst"
   jq -n \
     --argjson kinds "$kinds" \
     --argjson role_kinds "$roles" \
@@ -1825,7 +2073,8 @@ cmd_setup_detect() {
     --arg rw "$(cfg reuse_workers on)" --arg rw_src "$(cfg_source reuse_workers)" \
     --arg panes "$(cfg panes 4)" --arg panes_src "$(cfg_source panes)" \
     --arg lanesv "$(cfg lanes on)" --arg lanes_src "$(cfg_source lanes)" \
-    '{kinds:$kinds,config:{max_workers:{value:$mw,source:$mw_src},multi_role:{value:$mr,source:$mr_src},reuse_workers:{value:$rw,source:$rw_src},panes:{value:$panes,source:$panes_src},lanes:{value:$lanesv,source:$lanes_src},effective_lanes:$effective_lanes,presets:$presets,role_kinds:$role_kinds,worker_models:$worker_models}}'
+    --argjson recommended_reviewer "$rec" \
+    '{kinds:$kinds,recommended_reviewer:$recommended_reviewer,config:{max_workers:{value:$mw,source:$mw_src},multi_role:{value:$mr,source:$mr_src},reuse_workers:{value:$rw,source:$rw_src},panes:{value:$panes,source:$panes_src},lanes:{value:$lanesv,source:$lanes_src},effective_lanes:$effective_lanes,presets:$presets,role_kinds:$role_kinds,worker_models:$worker_models}}'
 }
 
 # 0 when the project file still needs the orchestrator to ask.
@@ -1852,18 +2101,449 @@ project_needs_config_prompt() {
   return 0
 }
 
+# ---------- setup --probe: which kind/model actually answers right now -------
+# A minimal non-interactive prompt per kind/model with a short timeout. No
+# pane, no herdr, no TTY: the probe is a plain CLI call. Statuses:
+# ready | no-auth | quota | error. The prompt is tiny and the CLI output is
+# never printed; only the classification and a sanitized cause line are. The
+# flags below were confirmed with each CLI's --help on 2026-09-23 (claude -p,
+# codex exec, grok -p single, agy/gemini -p, cursor-agent -p, pi -p,
+# opencode run).
+PROBE_PROMPT="Reply with exactly ok"
+
+# Whole seconds >= 1 (0 would disable the limit and let a hung CLI block the
+# probe). An invalid HERDR_AGENTS_PROBE_TIMEOUT is a usage error, not a
+# fallback: it must be impossible to run a probe without a limit.
+probe_timeout() {
+  local v="${HERDR_AGENTS_PROBE_TIMEOUT:-}"
+  if [ -n "$v" ]; then
+    printf '%s' "$v" | grep -Eq '^[1-9][0-9]*$' || die "setup --probe: timeout must be a whole number of seconds ≥ 1" 2
+    printf '%s\n' "$v"
+  else
+    echo 20
+  fi
+}
+
+# probe_default_model <kind> → the model spec spawn would use for this kind:
+# model.<kind>.worker, then model.<kind>, else the CLI's own default (empty).
+probe_default_model() {
+  local k="$1" m
+  m="$(cfg "model_${k}_worker")"
+  [ -n "$m" ] || m="$(cfg "model_${k}")"
+  if [ -n "$m" ]; then
+    case "$k" in
+      # Kinds with a listing: resolve a spec (alias/regex) the same way spawn does.
+      codex|cursor|agy|grok) m="$(resolve_model "$k" "$m" "" 2>/dev/null || true)" ;;
+    esac
+  fi
+  printf '%s\n' "$m"
+}
+
+# probe_cmd <kind> <model> → sets PROBE_CMD (array).
+probe_cmd() {
+  local kind="$1" model="$2" ma=() a
+  while IFS= read -r a; do
+    [ -n "$a" ] && ma+=("$a")
+  done < <(kind_model_args "$kind" "$model" "" 2>/dev/null)
+  case "$kind" in
+    claude) PROBE_CMD=(claude -p "$PROBE_PROMPT" ${ma[@]+"${ma[@]}"}) ;;
+    codex) PROBE_CMD=(codex exec ${ma[@]+"${ma[@]}"} "$PROBE_PROMPT") ;;
+    grok) PROBE_CMD=(grok -p "$PROBE_PROMPT" ${ma[@]+"${ma[@]}"}) ;;
+    agy) PROBE_CMD=(agy -p "$PROBE_PROMPT" ${ma[@]+"${ma[@]}"}) ;;
+    gemini) PROBE_CMD=(gemini -p "$PROBE_PROMPT" ${ma[@]+"${ma[@]}"}) ;;
+    cursor) PROBE_CMD=(cursor-agent -p "$PROBE_PROMPT" ${ma[@]+"${ma[@]}"}) ;;
+    pi) PROBE_CMD=(pi -p --no-session "$PROBE_PROMPT" ${ma[@]+"${ma[@]}"}) ;;
+    opencode) PROBE_CMD=(opencode run "$PROBE_PROMPT" ${ma[@]+"${ma[@]}"}) ;;
+    *) PROBE_CMD=("$kind" "$PROBE_PROMPT") ;;
+  esac
+}
+
+# no-auth line: a provider/CLI login message, not an ordinary error.
+probe_noauth_line() {
+  printf '%s\n' "$1" | grep -E -i -m1 \
+    -e 'not logged in' \
+    -e 'not (yet )?authenticated' \
+    -e 'please (log|sign) ?in' \
+    -e 'log ?in (to|first)' \
+    -e 'unauthorized' \
+    -e 'unauthenticated' \
+    -e '(missing|no|invalid) (api )?key' \
+    -e 'api key (is )?(missing|required)' \
+    -e 'authentication (failed|required|error)' \
+    -e 'access denied' \
+    -e 'no (valid )?credentials' || true
+}
+
+# probe_kind <kind> <model> [source] → one JSON object
+# {kind,model,status,cause,source}. The cause never copies CLI text: it is a
+# fixed category — not installed | timeout after <N>s | not authenticated |
+# quota exhausted [; renews <date/time>] | exit <code> — so a key the CLI
+# prints in its error line can never reach the JSON.
+probe_kind() {
+  local kind="$1" model="$2" src="${3:-configured}" exe rc=0 outf errf combined line qout status cause to val
+  exe="$(kind_exe "$kind")"
+  if ! command -v "$exe" >/dev/null 2>&1; then
+    jq -nc --arg k "$kind" --arg m "$model" --arg c "not installed" --arg s "$src" \
+      '{kind:$k,model:$m,status:"error",cause:$c,source:$s}'
+    return 0
+  fi
+  to="${PROBE_TIMEOUT:-$(probe_timeout)}"
+  probe_cmd "$kind" "$model"
+  outf="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-probe.XXXXXX")"
+  errf="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-probe.XXXXXX")"
+  timeout "$to" "${PROBE_CMD[@]}" </dev/null >"$outf" 2>"$errf" || rc=$?
+  combined="$( { cat "$outf" 2>/dev/null; cat "$errf" 2>/dev/null; } || true )"
+  rm -f "$outf" "$errf"
+  if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+    status=error; cause="timeout after ${to}s"
+  elif line="$(probe_noauth_line "$combined")"; [ -n "$line" ]; then
+    status=no-auth; cause="not authenticated"
+  elif qout="$(quota_detect idle "$combined")"; then
+    status=quota; cause="quota exhausted"
+    val="$(renewal_value "$(printf '%s\n' "$qout" | sed -n '2p')")"
+    if [ -n "$val" ]; then
+      val="$(redact_secrets "$val")"
+      cause="$cause; renews $val"
+    fi
+  elif [ "$rc" -eq 0 ]; then
+    status=ready; cause=""
+  else
+    status=error; cause="exit $rc"
+  fi
+  jq -nc --arg k "$kind" --arg m "$model" --arg s "$status" --arg c "$cause" --arg src "$src" \
+    '{kind:$k,model:$m,status:$s,cause:$c,source:$src}'
+}
+
+# need_value <command> <flag> [next-word] — dies 2 when the flag has no value:
+# nothing follows it, or the next word is another --flag.
+need_value() {
+  { [ $# -ge 3 ] && case "$3" in --*) false ;; *) true ;; esac; } || die "$1: $2 expects a value" 2
+}
+# need_pair <command> <flag> [key] [value] — same for `--set KEY VALUE`; the
+# value itself may start with -- (native CLI args).
+need_pair() {
+  { [ $# -ge 4 ] && case "$3" in --*) false ;; *) true ;; esac; } || die "$1: $2 expects a value" 2
+}
+
+cmd_setup_probe() {
+  local kind="" model="" to="" k cust id exe n
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --kind) need_value "setup --probe" "$@"; kind="$2"; shift 2 ;;
+      --model) need_value "setup --probe" "$@"; model="$2"; shift 2 ;;
+      --timeout) need_value "setup --probe" "$@"; to="$2"; shift 2 ;;
+      *) die "setup --probe: unknown option '$1'" 2 ;;
+    esac
+  done
+  # A model belongs to one kind; alone it would be ignored by the aggregate probe.
+  [ -z "$model" ] || [ -n "$kind" ] || die "setup --probe: --model needs --kind (probe one kind/model: --kind K --model M)" 2
+  # Whole seconds >= 1 (0 would disable the limit). Fails before any CLI runs.
+  probe_timeout >/dev/null
+  if [ -n "$to" ]; then
+    printf '%s' "$to" | grep -Eq '^[1-9][0-9]*$' || die "setup --probe: timeout must be a whole number of seconds ≥ 1" 2
+    PROBE_TIMEOUT="$to"
+  fi
+  if [ -n "$kind" ]; then
+    has_word "${KNOWN_KINDS[*]}" "$kind" || die "setup --probe: unknown kind '$kind' (see: kinds)" 2
+    [ -n "$model" ] || model="$(probe_default_model "$kind")"
+  fi
+  local pairs_file results_file el_file skipped_file skipped_json
+  pairs_file="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-probe.XXXXXX")"
+  results_file="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-probe.XXXXXX")"
+  el_file="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-probe.XXXXXX")"
+  skipped_file="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-probe.XXXXXX")"
+  : > "$skipped_file"
+  if [ -n "$kind" ]; then
+    # pairs: kind<TAB>source<TAB>model (model last: an empty middle field
+    # would collapse under tab-IFS read)
+    printf '%s\t%s\t%s\n' "$kind" "configured" "$model" > "$pairs_file"
+  else
+    for k in "${KNOWN_KINDS[@]}"; do
+      printf '%s\t%s\t%s\n' "$k" "configured" "$(probe_default_model "$k")" >> "$pairs_file"
+    done
+    # The aggregate probe also covers the user's own models (the
+    # --detect custom_models) of each installed generic kind, up to 5 per
+    # kind in detect order; the rest is reported in skipped_custom, each
+    # probeable with --kind K --model provider/model.
+    for k in pi opencode; do
+      exe="$(kind_exe "$k")"
+      command -v "$exe" >/dev/null 2>&1 || continue
+      case "$k" in
+        pi) cust="$(pi_custom_models_json)" ;;
+        opencode) cust="$(opencode_custom_models_json)" ;;
+      esac
+      n=0
+      while IFS= read -r id; do
+        [ -n "$id" ] || continue
+        n=$((n+1))
+        if [ "$n" -le 5 ]; then
+          printf '%s\t%s\t%s\n' "$k" "custom" "$id" >> "$pairs_file"
+        else
+          printf '%s\t%s\n' "$k" "$id" >> "$skipped_file"
+        fi
+      done < <(printf '%s\n' "$cust" | jq -r '.[].id' 2>/dev/null || true)
+    done
+  fi
+  local kk ss mm
+  while IFS=$'\t' read -r kk ss mm; do
+    [ -n "$kk" ] || continue
+    probe_kind "$kk" "$mm" "${ss:-configured}" >> "$results_file"
+  done < "$pairs_file"
+  local results rec
+  results="$(jq -s '.' "$results_file")"
+  printf '%s' "$results" | jq -r '.[] | select(.status=="ready") | "\(.kind)\t\(.model)"' > "$el_file"
+  rec="$(recommend_reviewer_json "$(effective_build_family)" "$el_file")"
+  if [ -s "$skipped_file" ]; then
+    skipped_json="$(jq -R -s 'split("\n") | map(select(. != "") | split("\t") | {kind: .[0], id: .[1]})' < "$skipped_file")"
+  else
+    skipped_json='[]'
+  fi
+  rm -f "$pairs_file" "$results_file" "$el_file" "$skipped_file"
+  jq -n --argjson probes "$results" --argjson recommended_reviewer "$rec" --argjson skipped_custom "$skipped_json" \
+    '{probes:$probes,recommended_reviewer:$recommended_reviewer,skipped_custom:$skipped_custom}'
+}
+
+# ---------- setup --plan: what the writes would change, per file -------------
+# conf_keys <file> → the distinct keys in file order (same parsing as the
+# config loader).
+conf_keys() {
+  awk '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    {
+      body = $0
+      if (match(body, /[ \t]#.*$/)) body = substr(body, 1, RSTART - 1)
+      s = trim(body)
+      if (s == "" || substr(s, 1, 1) == "#") next
+      eq = index(s, "=")
+      if (eq == 0) next
+      k = trim(substr(s, 1, eq - 1))
+      if (k != "" && !seen[k]++) print k
+    }' "$1"
+}
+
+# plan_diff_file <before-file|-> <after-file> → one "key  before → after" line
+# per changed key; (unset)/(removed) mark the missing ends.
+plan_diff_file() {
+  local before="$1" after="$2" keys k bv av
+  if [ "$before" = - ] || [ ! -f "$before" ]; then
+    keys="$(conf_keys "$after")"
+  else
+    keys="$( { conf_keys "$before"; conf_keys "$after"; } | awk '!seen[$0]++' )"
+  fi
+  while IFS= read -r k; do
+    [ -n "$k" ] || continue
+    bv=""
+    if [ "$before" != - ]; then bv="$(file_key_value "$before" "$k")"; fi
+    av="$(file_key_value "$after" "$k")"
+    if [ "$bv" = "$av" ]; then continue; fi
+    [ -n "$bv" ] || bv="(unset)"
+    [ -n "$av" ] || av="(removed)"
+    printf '  %-20s %s → %s\n' "$k" "$bv" "$av"
+  done <<< "$keys"
+}
+
+# plan_file_diff <path> <before-file> <after-file> → the path, then diff -u
+# (labels a/<path> and b/<path>) of a simulated write; "(no change)" when the
+# write would be a no-op. Reads only; the caller owns the temp files.
+plan_file_diff() {
+  local path="$1" before="$2" after="$3"
+  printf '%s\n' "$path"
+  if diff -q "$before" "$after" >/dev/null 2>&1; then
+    printf '  (no change)\n'
+  else
+    diff -u -L "a/$path" -L "b/$path" "$before" "$after" || true
+  fi
+  printf '\n'
+}
+
+cmd_setup_plan() {
+  local panes="" target="" hooks=1 spec parsed
+  local lane_specs=() set_proj=() set_user=() set_sess=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --panes) need_value "setup --plan" "$@"; panes="$2"; shift 2 ;;
+      --lane) need_value "setup --plan" "$@"; lane_specs+=("$2"); shift 2 ;;
+      --set) need_pair "setup --plan" "$@"; set_proj+=("$2" "$3"); shift 3 ;;
+      --user-set) need_pair "setup --plan" "$@"; set_user+=("$2" "$3"); shift 3 ;;
+      --session-set) need_pair "setup --plan" "$@"; set_sess+=("$2" "$3"); shift 3 ;;
+      --target) need_value "setup --plan" "$@"; target="$2"; shift 2 ;;
+      --no-hooks) hooks=0; shift ;;
+      *) die "setup --plan: unknown option '$1'" 2 ;;
+    esac
+  done
+  if [ -n "$panes" ]; then
+    case "$panes" in 3|4) ;; *) die "setup --plan: --panes must be 3 or 4" 2 ;; esac
+  fi
+  local i n k v
+  for spec in ${lane_specs[@]+"${lane_specs[@]}"}; do setup_lane_spec "$spec" >/dev/null; done
+  n=${#set_proj[@]}; i=0
+  while [ "$i" -lt "$n" ]; do
+    k="${set_proj[$i]}"; v="${set_proj[$((i+1))]}"
+    config_key_ok "$k" || die "setup --plan: unknown key '$k'" 2
+    config_value_ok "$k" "$v" || die "setup --plan: invalid value '$v' for $k" 2
+    i=$((i+2))
+  done
+  n=${#set_user[@]}; i=0
+  while [ "$i" -lt "$n" ]; do
+    k="${set_user[$i]}"; v="${set_user[$((i+1))]}"
+    config_key_ok "$k" || die "setup --plan: unknown key '$k'" 2
+    config_value_ok "$k" "$v" || die "setup --plan: invalid value '$v' for $k" 2
+    i=$((i+2))
+  done
+  n=${#set_sess[@]}; i=0
+  while [ "$i" -lt "$n" ]; do
+    k="${set_sess[$i]}"; v="${set_sess[$((i+1))]}"
+    config_key_ok "$k" || die "setup --plan: unknown key '$k'" 2
+    config_value_ok "$k" "$v" || die "setup --plan: invalid value '$v' for $k" 2
+    i=$((i+2))
+  done
+  local root tmpd projconf userconf sessfile touched_proj=0 touched_user=0 touched_sess=0
+  root="$(project_root)"
+  tmpd="$(mktemp -d "${TMPDIR:-/tmp}/herdr-agents-plan.XXXXXX")"
+  projconf="$(config_file_for project)"
+  userconf="$(config_file_for user)"
+  if [ -n "$panes" ] || [ ${#lane_specs[@]} -gt 0 ] || [ ${#set_proj[@]} -gt 0 ]; then
+    touched_proj=1
+    local tmp="$tmpd/proj.conf" lname lkind lmodel leffort
+    if [ -f "$projconf" ]; then cp "$projconf" "$tmp"; else : > "$tmp"; fi
+    if [ -n "$panes" ]; then apply_lane_file "$tmp" "$panes" >/dev/null; fi
+    for spec in ${lane_specs[@]+"${lane_specs[@]}"}; do
+      parsed="$(setup_lane_spec "$spec")"
+      IFS=$'\t' read -r lname lkind lmodel leffort <<< "$parsed"
+      config_write_pair "$tmp" "lane.${lname}.kind" "$lkind"
+      if [ -n "$lmodel" ]; then config_write_pair "$tmp" "lane.${lname}.model" "$lmodel"; fi
+      if [ -n "$leffort" ]; then config_write_pair "$tmp" "lane.${lname}.effort" "$leffort"; fi
+    done
+    n=${#set_proj[@]}; i=0
+    while [ "$i" -lt "$n" ]; do
+      k="${set_proj[$i]}"; v="${set_proj[$((i+1))]}"
+      config_write_pair "$tmp" "$k" "$v"
+      i=$((i+2))
+    done
+  fi
+  if [ ${#set_user[@]} -gt 0 ]; then
+    touched_user=1
+    local tmpu="$tmpd/user.conf"
+    if [ -f "$userconf" ]; then cp "$userconf" "$tmpu"; else : > "$tmpu"; fi
+    n=${#set_user[@]}; i=0
+    while [ "$i" -lt "$n" ]; do
+      k="${set_user[$i]}"; v="${set_user[$((i+1))]}"
+      config_write_pair "$tmpu" "$k" "$v"
+      i=$((i+2))
+    done
+  fi
+  if [ ${#set_sess[@]} -gt 0 ]; then
+    sessfile="$(session_conf_path 2>/dev/null || true)"
+    [ -n "$sessfile" ] || die "setup --plan: --session-set needs a Herdr workspace (none resolvable here)" 2
+    touched_sess=1
+    local tmps="$tmpd/session.conf"
+    if [ -f "$sessfile" ]; then cp "$sessfile" "$tmps"; else : > "$tmps"; fi
+    n=${#set_sess[@]}; i=0
+    while [ "$i" -lt "$n" ]; do
+      k="${set_sess[$i]}"; v="${set_sess[$((i+1))]}"
+      config_write_pair "$tmps" "$k" "$v"
+      i=$((i+2))
+    done
+  fi
+  printf 'plan (nothing is written):\n\n'
+  if [ "$touched_proj" = 1 ]; then
+    printf '%s\n' "$projconf"
+    plan_diff_file "$projconf" "$tmpd/proj.conf"
+    printf '\n'
+  fi
+  if [ "$touched_user" = 1 ]; then
+    printf '%s\n' "$userconf"
+    plan_diff_file "$userconf" "$tmpd/user.conf"
+    printf '\n'
+  fi
+  if [ "$touched_sess" = 1 ]; then
+    printf '%s\n' "$sessfile"
+    plan_diff_file "$sessfile" "$tmpd/session.conf"
+    printf '\n'
+  fi
+  # The instruction block, the hooks and the .gitignore entry are part of
+  # every setup, so the plan simulates those writes in $tmpd and shows the
+  # unified diff of each file (config files keep the key before → after).
+  if [ -z "$target" ]; then
+    target="$(setup_target_existing "$root" || true)"
+    if [ -z "$target" ]; then
+      if [ -f "$root/AGENTS.md" ]; then target="$root/AGENTS.md"
+      elif [ -f "$root/CLAUDE.md" ] && [ ! -L "$root/CLAUDE.md" ]; then target="$root/CLAUDE.md"
+      else target="$root/AGENTS.md"; fi
+    fi
+  fi
+  case "$target" in /*) ;; *) target="$root/$target" ;; esac
+  local before after sj gd rel
+  before="$tmpd/instr.before"; after="$tmpd/instr.after"
+  if [ -f "$target" ]; then cp "$target" "$before"; else : > "$before"; fi
+  # A write the real setup refuses (exit 4, file untouched) is refused here
+  # too, instead of showing an empty result as the file being removed.
+  if ! setup_block_result "$target" > "$after" 2>/dev/null; then
+    rm -rf "$tmpd"
+    die "setup --plan: could not produce the instruction block for $target (setup would refuse it and leave the file untouched)" 4
+  fi
+  plan_file_diff "$target" "$before" "$after"
+  if [ "$hooks" = 1 ]; then
+    sj="$root/.claude/settings.json"
+    before="$tmpd/hooks.before"; after="$tmpd/hooks.after"
+    if [ -f "$sj" ]; then cp "$sj" "$before"; else : > "$before"; fi
+    if ! settings_hooks_result "$sj" > "$after" 2>/dev/null; then
+      rm -rf "$tmpd"
+      die "setup --plan: could not merge hooks into $sj (setup would refuse it and leave the file untouched)" 4
+    fi
+    plan_file_diff "$sj" "$before" "$after"
+  fi
+  # setup (and session set) call state_root, which adds the state dir to the
+  # repo's .gitignore once; show that write too when it would happen.
+  gd="${HERDR_AGENTS_DIR:-$(cfg state_dir .herdr-agents)}"
+  case "$gd" in /*) ;; *) gd="$root/$gd";; esac
+  rel="${gd#"$root"/}"
+  if [ "$rel" != "$gd" ] && git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+     && ! git -C "$root" check-ignore -q "$rel" 2>/dev/null; then
+    before="$tmpd/gitignore.before"; after="$tmpd/gitignore.after"
+    if [ -f "$root/.gitignore" ]; then cp "$root/.gitignore" "$before"; else : > "$before"; fi
+    if [ -f "$root/.gitignore" ]; then
+      { cat "$root/.gitignore"; printf '%s/\n' "$rel"; } > "$after"
+    else
+      printf '%s/\n' "$rel" > "$after"
+    fi
+    plan_file_diff "$root/.gitignore" "$before" "$after"
+  fi
+  rm -rf "$tmpd"
+  return 0
+}
+
 cmd_setup() {
   local root target="" hooks=1 dry=0 detect=0 claude candidate hook_script=""
   local setup_panes="" setup_lane_specs=()
+  local want_probe=0 want_plan=0 a rest=()
+  for a in "$@"; do
+    case "$a" in
+      --probe) want_probe=1 ;;
+      --plan) want_plan=1 ;;
+    esac
+  done
+  [ "$want_probe" = 1 ] && [ "$want_plan" = 1 ] && die "setup: --probe and --plan are exclusive" 2
+  if [ "$want_probe" = 1 ]; then
+    for a in "$@"; do [ "$a" = "--probe" ] && continue; rest+=("$a"); done
+    cmd_setup_probe ${rest[@]+"${rest[@]}"}
+    return 0
+  fi
+  if [ "$want_plan" = 1 ]; then
+    rest=()
+    for a in "$@"; do [ "$a" = "--plan" ] && continue; rest+=("$a"); done
+    cmd_setup_plan ${rest[@]+"${rest[@]}"}
+    return 0
+  fi
   root="$(project_root)"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --target) target="$2"; shift 2 ;;
+      --target) need_value "setup" "$@"; target="$2"; shift 2 ;;
       --no-hooks) hooks=0; shift ;;
       --dry-run) dry=1; shift ;;
       --detect) detect=1; shift ;;
-      --panes) setup_panes="${2:-}"; shift 2 ;;
-      --lane) setup_lane_specs+=("$2"); shift 2 ;;
+      --panes) need_value "setup" "$@"; setup_panes="$2"; shift 2 ;;
+      --lane) need_value "setup" "$@"; setup_lane_specs+=("$2"); shift 2 ;;
       *) die "setup: unknown option '$1'" 2 ;;
     esac
   done
@@ -3500,6 +4180,7 @@ main() {
       if [ "${1:-}" = set ]; then shift; cmd_config_set "$@"
       else cmd_config
       fi ;;
+    session) cmd_session "$@" ;;
     role) cmd_role "$@" ;;
     spawn) require_env; cmd_spawn "$@" ;;
     dispatch) require_env; cmd_dispatch "$@" ;;

@@ -13,7 +13,13 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 expect() { [ "$2" = "$3" ] || fail "$1: got '$2', want '$3'"; }
 
 # shellcheck source=herdr-agents.sh
-HERDR_AGENTS_LIB=1 HOME="$TEST_ROOT/home" XDG_CONFIG_HOME="$TEST_ROOT/config" . "$SKILL_SCRIPT"
+export HERDR_AGENTS_LIB=1
+export HOME="$TEST_ROOT/home" XDG_CONFIG_HOME="$TEST_ROOT/config" TMPDIR="$TEST_ROOT/tmp"
+# Hermetic session layer: resolve it to a fake, empty workspace state.
+export HERDR_AGENTS_DIR="$TEST_ROOT/state" HERDR_WORKSPACE_ID=ws-test
+unset HERDR_ENV || true
+# shellcheck source=herdr-agents.sh
+. "$SKILL_SCRIPT"
 load_config
 
 # --- ceilings (grok 4.7 has xhigh; verified 2026-09-21) --------------------
