@@ -29,6 +29,12 @@ expect 'xhigh clamped to high on agy' "$(clamp_to xhigh "$(kind_effort_ceiling a
 # --- native flags ----------------------------------------------------------
 expect 'grok effort flag' "$(kind_effort_args grok xhigh grok-4.7 | tr '\n' ' ')" '--reasoning-effort xhigh '
 expect 'grok model flag' "$(kind_model_args grok grok-4.7 xhigh | tr '\n' ' ')" '--model grok-4.7 '
+# agy only takes --effort on Gemini ids; a Claude/GPT-OSS id with --effort
+# makes agy fall back to Gemini Flash Medium.
+expect 'agy gemini effort flag' "$(kind_effort_args agy high gemini-3.8-flash | tr '\n' ' ')" '--effort high '
+expect 'agy gemini id carries effort' "$(kind_effort_args agy high gemini-3.8-flash-high | tr '\n' ' ')" ''
+expect 'agy claude id takes no effort' "$(kind_effort_args agy high claude-opus-4-6-thinking 2>/dev/null | tr '\n' ' ')" ''
+expect 'agy gpt-oss id takes no effort' "$(kind_effort_args agy high gpt-oss-120b-medium 2>/dev/null | tr '\n' ' ')" ''
 expect 'codex effort flag' "$(kind_effort_args codex xhigh gpt-5 | tr '\n' ' ')" '-c model_reasoning_effort="xhigh" '
 expect 'cursor: effort is the model suffix, no model flag twice' "$(kind_model_args cursor grok-4.7-xhigh xhigh | tr '\n' ' ')" ''
 expect 'cursor: model already carries the effort' "$(kind_effort_args cursor xhigh grok-4.7-xhigh 2>/dev/null | tr '\n' ' ')" '--model grok-4.7-xhigh '

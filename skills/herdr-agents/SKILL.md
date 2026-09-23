@@ -242,7 +242,8 @@ see "Herd tab labels"), `brief_lint` (`warn|strict|off`), `reuse_workers`
 worker of the same role, kind and cwd whose last report exists instead of
 opening a pane, and a reuse never counts against `max_workers`; `--reuse`/`--fresh`
 override per call; a reused worker keeps earlier briefs in context, so pass
-`--fresh` when a slice must start clean), `feedback` +
+`--fresh` when a slice must start clean), `multi_role` (default `on`; one
+idle agent may take another role — see "Ask how to configure"), `feedback` +
 `feedback_repo` (see "Improving this skill"), `approvals`
 (default for roles without one), `auto_approve` + `max_auto_approvals`
 (answer a worker's approval dialog with the CLI's default "yes" and keep
@@ -262,6 +263,7 @@ S=<path-to-this-skill>/scripts/herdr-agents.sh
 $S init                                    # doctor + name yourself `orchestrator`, print context
 $S doctor                                  # advisory environment check
 $S setup [--target FILE] [--no-hooks]      # AGENTS.md block + Claude hooks (idempotent)
+$S setup --detect                          # JSON: installed kinds, models, worker config
 $S roles                                   # available roles and their sources
 $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
@@ -277,6 +279,7 @@ $S spawn reviewer --tab-label "onda 2"     # place the worker in the herd tab of
 $S layout-plan                             # where the next spawn lands (anchor, direction, overflow reason)
 $S status a b                              # non-blocking completion check
 $S config                                  # effective configuration and sources
+$S config set <key> <value> [--project|--user]   # write one key (default: the project file)
 $S roster                                  # live agents with role/kind/pane/state/report
 $S release impl [--close]                  # forget the agent; --close closes a pane we created
 $S clean [--older-than 7]                  # drop gone agents, delete old briefs/reports
@@ -292,10 +295,13 @@ $S spawn implementer -- -s workspace-write -a never      # native agent args aft
 name in `dispatch`, `collect`, and `release`; never pane IDs.
 
 **Reviewer family check.** `dispatch` of a `reviewer` or `security-reviewer`
-compares its model family with every live edit agent this skill spawned
-(`implementer`, `designer`, `tasker`). Same family → exit 5 unless
-`--allow-same-family`. Code written by the orchestrator itself is invisible
-to this check; choose the reviewer kind by hand then.
+compares its model family with every edit agent this skill spawned.
+An edit agent is `implementer`, `designer`, `tasker`, any role whose
+frontmatter `mode` is `edit`, or a worker whose `roles` history includes
+one of those — a worker that edited and was later reused as `scouter`
+still counts. Same family → exit 5 unless `--allow-same-family`. Code
+written by the orchestrator itself is invisible to this check; choose the
+reviewer kind by hand then.
 
 `spawn` in `layout=split` keeps workers in the caller's tab **without
 cramming it**: the candidate (caller + this skill's workers in the tab)
@@ -321,8 +327,9 @@ refuses to move a pane inside its own tab; agents keep running. There is
 a cap on workers overall: at most `max_workers` (default **3**, four panes
 with the orchestrator) live at once. `spawn` past the cap exits 8 and names
 the live workers: `release --close` the ones whose reports you already
-collected, or let `reuse_workers` hand back an idle worker of the same
-role. Plan waves of up to three slices instead of fanning out wider. `spawn` retries
+collected, or let `reuse_workers` hand back an idle worker
+(`multi_role=on` may hand back another role; see "Ask how to configure").
+Plan waves of up to three slices instead of fanning out wider. `spawn` retries
 for a few seconds while the new shell reaches its prompt, starts the agent
 with `--no-focus`. `herdr agent start` still focuses that new pane; spawn puts focus back on the pane that had it only while focus is still there, and leaves a pane you moved to alone. `regrid` does not switch to the caller's tab. Explicit
 `--direction`/`--ratio` split the chosen (or, when the tab is full, the
@@ -510,6 +517,51 @@ or `.claude/skills/` copy, then checks the same roots under the user's home.
 or hooks are missing. Validate setup changes with `bash scripts/test-setup.sh`.
 Codex, Grok, Cursor and agy have no prompt hooks; for them the block is
 the guard.
+
+## Ask how to configure
+
+`setup` writes the instruction block. It does not guess which CLIs this
+machine has. While the project file sets neither `max_workers`,
+`multi_role`, nor any `role.<role>.kind`, `setup` warns and the
+orchestrator does this before spawning:
+
+1. Run `$S setup --detect`. It prints JSON and writes no files: every known
+   kind with `installed`, `family`, `effort_ceiling`, and up to three newest
+   model ids when the CLI answers (a missing or silent CLI yields an empty
+   list, not a failure); plus the effective value and source of
+   `max_workers`, `multi_role`, `reuse_workers`, each `role.<role>.kind`,
+   and each `model.<kind>.worker`.
+2. Ask the user with this harness's structured-question tool, offering only
+   **detected** kinds:
+   - how many workers may run at once (`max_workers`; `0` means no cap);
+   - which kind and model for each group — implementation (`implementer`,
+     `tasker`), review and security (`reviewer`, `security-reviewer`),
+     research (`scouter`, `researcher`), UI (`designer`, `inspector`,
+     `ui-reviewer`);
+   - whether one agent may hold several roles (`multi_role` `on` or `off`).
+3. Write each answer with `$S config set <key> <value>` (the project file
+   `<repo>/.agents/herdr-agents.conf` by default; `--user` writes
+   `~/.config/herdr-agents/config`).
+4. Run `$S setup` to install the block and the hooks.
+
+`multi_role=on` (the default, including when the key is unset): `spawn`
+without `--fresh` reuses an idle worker of another role when the kind, the
+cwd and the resolved model are the same and the worker's `approvals` are
+at least the request (`ask` < `edits` < `full`). The same role is tried
+first. A worker that has held an edit role — `implementer`, `designer`,
+`tasker`, or any role with `mode: edit` — is never reused as `reviewer`,
+`security-reviewer`, `ui-reviewer` or `inspector`. Spawn then opens a new
+worker, and `max_workers` applies. `multi_role=off` reuses only the same
+role.
+
+The roster file gains three columns after the original eight. Old lines
+stay valid and are reused only for the same role. The new columns are
+`model`, `approvals`, and `roles` (comma-separated history, for example
+`scouter,implementer`). Column 4 stays the current role. Reuse across
+roles rewrites that line in place and appends the new role. The reused
+spawn JSON includes `previous_role`. `dispatch` reads column 4, so the
+composed prompt is the new role. `roster` prints the current role and,
+when the text fits in the column, the history.
 
 ## Project root
 

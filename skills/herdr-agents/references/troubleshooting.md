@@ -218,8 +218,18 @@ you should do. Read this before changing the script or adding a kind.
 ## Roster column mix-ups
 
 - `agents.tsv` columns are: name, pane, kind, role, family, created_pane,
-  cwd, started. `reuse_workers` once compared the family with the cwd.
-  Read columns by name in comments when adding code.
+  cwd, started, and, on lines written by a current `spawn`, model,
+  approvals, roles. Old lines stop at `started` (8 columns) and are reused
+  only for the same role. Column 4 is the current role. `roles` is a
+  comma-separated history (`scouter,implementer`). `reuse_workers` once
+  compared the family with the cwd. Read columns by name in comments when
+  adding code.
+- With `multi_role=on`, `spawn` may reuse an idle worker of another role
+  when kind, cwd and resolved model match and the worker's approvals are
+  at least the request. A worker that has edited is not reused as
+  `reviewer`, `security-reviewer`, `ui-reviewer` or `inspector`. The
+  reviewer family check still treats that `roles` history as an edit agent
+  after the current role changes.
 
 ## `regrid` produced a full-width bottom row instead of a grid
 

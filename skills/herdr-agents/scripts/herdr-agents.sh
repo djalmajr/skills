@@ -10,9 +10,10 @@
 # Usage:
 #   herdr-agents.sh init                          # doctor + name the caller `orchestrator`, print context
 #   herdr-agents.sh doctor                        # advisory environment check (herdr, official skill, kinds, state)
-#   herdr-agents.sh setup [--target FILE] [--no-hooks] [--dry-run]
-#                                                 # write the herdr-agents block into AGENTS.md (or CLAUDE.md) and the Claude hooks
-#   herdr-agents.sh roles | kinds | config
+#   herdr-agents.sh setup [--target FILE] [--no-hooks] [--dry-run] [--detect]
+#                                                 # write the block + hooks; --detect prints JSON and writes nothing
+#   herdr-agents.sh roles | kinds
+#   herdr-agents.sh config [set <key> <value> [--project|--user]]
 #   herdr-agents.sh models <kind>                 # ids the CLI lists, newest first
 #   herdr-agents.sh model <kind> <spec> [effort]  # how a model spec resolves
 #   herdr-agents.sh regrid                        # exact grids: caller tab (layout=split) + every herd tab
@@ -58,7 +59,12 @@ set -euo pipefail
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EDIT_ROLES="implementer designer tasker"
 REVIEW_ROLES="reviewer security-reviewer"
+REVIEW_ROLES_ALL="reviewer security-reviewer ui-reviewer inspector"
 EFFORT_LADDER="low medium high xhigh max"
+# Scalar keys `config` prints and `config set` accepts. Dotted keys
+# (role.*.kind|model|effort, model.*, effort.*, args.*) are checked separately.
+CONFIG_SCALAR_KEYS=(orchestrator_name layout regrid max_workers split_max_panes split_min_pane herd_label herd_label_max reuse_workers multi_role worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo)
+KNOWN_KINDS=(claude codex grok agy gemini cursor)
 
 FRICTION_LOG=""
 log_friction() { [ -n "$FRICTION_LOG" ] && printf '%s\t%s\t%s\t%s\n' "$(date +%Y-%m-%dT%H:%M:%S)" "$1" "${CURRENT_CMD:-?}" "$2" >> "$FRICTION_LOG" 2>/dev/null || true; }
@@ -122,7 +128,7 @@ cfg_source() {
 cmd_config() {
   printf '%-18s %-30s %s\n' KEY VALUE SOURCE
   local k
-  for k in orchestrator_name layout regrid max_workers split_max_panes split_min_pane herd_label herd_label_max reuse_workers worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo; do
+  for k in "${CONFIG_SCALAR_KEYS[@]}"; do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
   for k in $(compgen -v | grep -E '^CFG_(args|role|model|effort)_' | sed 's/^CFG_//'); do
@@ -130,6 +136,104 @@ cmd_config() {
   done
   printf '\nlayers read:%s\n' "${CFG_SOURCES:- (none)}"
   printf 'user file:    %s\nproject file: %s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/herdr-agents/config" "$(project_root)/.agents/herdr-agents.conf"
+}
+
+# config_key_ok <key> — scalar keys plus role/model/effort/args patterns.
+config_key_ok() {
+  local key="$1"
+  has_word "${CONFIG_SCALAR_KEYS[*]}" "$key" && return 0
+  printf '%s' "$key" | grep -Eq '^(role\.[a-z][a-z0-9_-]*\.(kind|model|effort)|model\.[a-z][a-z0-9_.-]+|effort\.[a-z][a-z0-9_-]+|args\.[a-z][a-z0-9_-]+)$'
+}
+
+# config_value_ok <key> <value> — known enums only; other keys accept any one-line value.
+config_value_ok() {
+  local key="$1" value="$2"
+  # One line, and no `#`: the loader cuts every line at its first `#`.
+  case "$value" in *$'\n'*|*$'\t'*|*'#'*) return 1 ;; esac
+  case "$key" in
+    approvals) case "$value" in ask|edits|full) return 0 ;; *) return 1 ;; esac ;;
+    max_workers) printf '%s' "$value" | grep -Eq '^[0-9]+$' ;;
+    multi_role|reuse_workers) case "$value" in on|off) return 0 ;; *) return 1 ;; esac ;;
+    role.*.kind) has_word "${KNOWN_KINDS[*]}" "$value" ;;
+    *) return 0 ;;
+  esac
+}
+
+config_file_for() {
+  case "$1" in
+    user) printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/herdr-agents/config" ;;
+    *) printf '%s\n' "$(project_root)/.agents/herdr-agents.conf" ;;
+  esac
+}
+
+# Rewrite one key in place. Full-line comments stay; a trailing comment on the
+# replaced line stays. Duplicate assignments collapse to the first. Missing
+# keys are appended. The destination is replaced only after the rewrite is non-empty
+# and still contains the key.
+config_write_pair() {
+  local dest="$1" key="$2" value="$3" tmp
+  [ -f "$dest" ] || : > "$dest"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-conf.XXXXXX")"
+  # key/value go through ENVIRON: `awk -v` would expand escapes (`\n`
+  # injecting another key, `\.` losing its backslash).
+  if ! HA_KEY="$key" HA_VALUE="$value" awk '
+    BEGIN { key = ENVIRON["HA_KEY"]; value = ENVIRON["HA_VALUE"]; found = 0 }
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    {
+      raw = $0
+      body = raw
+      comment = ""
+      if (match(body, /[ \t]#.*$/)) {
+        comment = substr(body, RSTART)
+        body = substr(body, 1, RSTART - 1)
+      }
+      stripped = trim(body)
+      if (stripped == "" || substr(stripped, 1, 1) == "#") { print raw; next }
+      eq = index(stripped, "=")
+      if (eq == 0) { print raw; next }
+      k = trim(substr(stripped, 1, eq - 1))
+      if (k == key) {
+        if (!found) print key "=" value comment
+        found = 1
+        next
+      }
+      print raw
+    }
+    END { if (!found) print key "=" value }
+  ' "$dest" > "$tmp"; then
+    rm -f "$tmp"
+    die "config set: could not rewrite $dest (file left untouched)" 4
+  fi
+  if ! grep -F -q -- "${key}=" "$tmp"; then
+    rm -f "$tmp"
+    die "config set: rewrite of $dest dropped $key (file left untouched)" 4
+  fi
+  mv "$tmp" "$dest"
+}
+
+cmd_config_set() {
+  local key="" value="" where=project saw_value=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --project) where=project; shift ;;
+      --user) where=user; shift ;;
+      --*) die "config set: unknown option '$1'" 2 ;;
+      *)
+        if [ -z "$key" ]; then key="$1"
+        elif [ "$saw_value" = 0 ]; then value="$1"; saw_value=1
+        else die "config set: unexpected argument '$1'" 2
+        fi
+        shift ;;
+    esac
+  done
+  [ -n "$key" ] && [ "$saw_value" = 1 ] || die "usage: config set <key> <value> [--project|--user]" 2
+  [ -n "$value" ] || die "config set: empty value" 2
+  config_key_ok "$key" || die "config set: unknown key '$key'" 2
+  config_value_ok "$key" "$value" || die "config set: invalid value '$value' for $key" 2
+  local dest; dest="$(config_file_for "$where")"
+  mkdir -p "$(dirname "$dest")"
+  config_write_pair "$dest" "$key" "$value"
+  printf 'set %s=%s in %s\n' "$key" "$value" "$dest"
 }
 
 # ---------- state ----------
@@ -153,7 +257,7 @@ state_root() {
 state_dir() {
   local d; d="$(state_root)/$(workspace_id)"
   mkdir -p "$d/briefs" "$d/reports" "$d/wait"
-  [ -f "$d/agents.tsv" ] || printf '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\n' > "$d/agents.tsv"
+  [ -f "$d/agents.tsv" ] || printf '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\n' > "$d/agents.tsv"
   printf '%s\n' "$d"
 }
 
@@ -251,7 +355,15 @@ kind_effort_args() {
     claude) printf -- '--effort\n%s\n' "$effort" ;;
     codex) printf -- '-c\nmodel_reasoning_effort="%s"\n' "$effort" ;;
     grok) printf -- '--reasoning-effort\n%s\n' "$effort" ;;
-    agy|gemini) case "$model" in *-low|*-medium|*-high|*-xhigh|*-max|*-minimal) ;; *) printf -- '--effort\n%s\n' "$effort" ;; esac ;;
+    agy|gemini)
+      # agy takes --effort only on Gemini ids; on a Claude or GPT-OSS id it
+      # silently falls back to Gemini Flash (Medium). Ids ending in an effort
+      # suffix already carry it.
+      case "$model" in
+        *-low|*-medium|*-high|*-xhigh|*-max|*-minimal) ;;
+        ""|gemini*) printf -- '--effort\n%s\n' "$effort" ;;
+        *) warn "$kind model '$model' takes no --effort; effort '$effort' ignored" ;;
+      esac ;;
     cursor)
       if [ -n "$model" ]; then printf -- '--model\n%s\n' "$(cursor_model_with_effort "$model" "$effort")"
       else warn "cursor ignores --effort without --model (pick an id from: cursor-agent --list-models)"; fi ;;
@@ -280,19 +392,25 @@ EFFORT_SUFFIX_RE='-(minimal|low|medium|high|xhigh|max)(-fast)?$'
 
 models_cache_file() { printf '%s/herdr-agents-models-%s.txt\n' "${TMPDIR:-/tmp}" "$1"; }
 
-# model_ids <kind> → one id per line (cached for 1h); empty for kinds without a list
+# model_ids <kind> → one id per line (cached for 1h); empty for kinds without a list.
+# HERDR_AGENTS_MODELS_TIMEOUT (seconds) shortens the CLI calls and does not
+# write the cache, so a quick `setup --detect` cannot pin a partial list.
 model_ids() {
-  local kind="$1" f; f="$(models_cache_file "$kind")"
+  local kind="$1" f short=0; f="$(models_cache_file "$kind")"
+  [ -n "${HERDR_AGENTS_MODELS_TIMEOUT:-}" ] && short=1
   if [ -s "$f" ] && [ -n "$(find "$f" -mmin -60 2>/dev/null)" ]; then cat "$f"; return; fi
-  local out=""
+  local out="" t_cursor t_agy t_grok
+  t_cursor="${HERDR_AGENTS_MODELS_TIMEOUT:-20}"
+  t_agy="${HERDR_AGENTS_MODELS_TIMEOUT:-30}"
+  t_grok="${HERDR_AGENTS_MODELS_TIMEOUT:-20}"
   case "$kind" in
     codex) out="$(jq -r '.models[]?.slug // empty' "$HOME/.codex/models_cache.json" 2>/dev/null || true)" ;;
-    cursor) out="$(timeout 20 cursor-agent --list-models 2>/dev/null | awk '/^[a-z0-9.-]+ - /{print $1}' || true)" ;;
-    agy) out="$(timeout 30 agy models 2>/dev/null | awk 'NF>=2 && $1 ~ /^[a-z0-9.-]+$/ {print $1}' || true)" ;;
-    grok) out="$(timeout 20 grok models 2>/dev/null | grep -oE 'grok-[0-9][0-9a-z.-]*' | sort -u || true)" ;;
+    cursor) out="$(timeout "$t_cursor" cursor-agent --list-models 2>/dev/null | awk '/^[a-z0-9.-]+ - /{print $1}' || true)" ;;
+    agy) out="$(timeout "$t_agy" agy models 2>/dev/null | awk 'NF>=2 && $1 ~ /^[a-z0-9.-]+$/ {print $1}' || true)" ;;
+    grok) out="$(timeout "$t_grok" grok models 2>/dev/null | grep -oE 'grok-[0-9][0-9a-z.-]*' | sort -u || true)" ;;
     *) out="" ;;
   esac
-  [ -n "$out" ] && printf '%s\n' "$out" > "$f"
+  if [ "$short" = 0 ] && [ -n "$out" ]; then printf '%s\n' "$out" > "$f"; fi
   printf '%s\n' "$out"
 }
 
@@ -423,7 +541,57 @@ agent_name_taken() { live_agents_json | jq -e --arg n "$1" 'map(select((.name //
 unique_name() { local base="$1" n="$1" i=2; while agent_name_taken "$n"; do n="$base-$i"; i=$((i+1)); done; printf '%s\n' "$n"; }
 roster_rows() { grep -v '^#' "$(state_dir)/agents.tsv" 2>/dev/null || true; }
 roster_line() { roster_rows | awk -F'\t' -v n="$1" '$1==n' | tail -n1; }
-roster_remove() { local f; f="$(state_dir)/agents.tsv"; awk -F'\t' -v n="$1" '$1!=n' "$f" > "$f.tmp" && mv "$f.tmp" "$f"; }
+# Every roster writer (append, remove, retarget, pane swap) holds this lock,
+# so a rewrite never reinstalls a copy that misses a concurrent append. A
+# lock left behind by a killed process is dropped after a minute.
+roster_lock() {
+  local l i=0; l="$(state_dir)/agents.lock"
+  until mkdir "$l" 2>/dev/null; do
+    if [ -n "$(find "$l" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then rmdir "$l" 2>/dev/null || true; continue; fi
+    i=$((i+1)); [ "$i" -lt 200 ] || die "roster lock $l held for too long; remove it if no herdr-agents command is running" 4
+    sleep 0.05
+  done
+}
+roster_unlock() { rmdir "$(state_dir)/agents.lock" 2>/dev/null || true; }
+# with_roster_lock <fn> [args…] — run one roster writer under the lock.
+with_roster_lock() { local rc=0; roster_lock; "$@" || rc=$?; roster_unlock; return "$rc"; }
+roster_remove_unlocked() { local f; f="$(state_dir)/agents.tsv"; awk -F'\t' -v n="$1" '$1!=n' "$f" > "$f.tmp.$$" && mv "$f.tmp.$$" "$f"; }
+roster_remove() { with_roster_lock roster_remove_unlocked "$@"; }
+
+# roster_set_role <name> <new-role>
+# Column 4 becomes the new role. Column 11 (roles) gains it, keeping the
+# previous role in the history when that column was empty. Atomic replace,
+# same pattern as roster_remove. Old 8-column lines grow to 11 columns.
+roster_set_role() { with_roster_lock roster_set_role_unlocked "$@"; }
+roster_set_role_unlocked() {
+  local name="$1" role="$2" f tmp
+  f="$(state_dir)/agents.tsv"
+  tmp="$f.tmp.$$"
+  if ! awk -F'\t' -v OFS='\t' -v n="$name" -v role="$role" '
+    function has_tok(h, t,    i, m, p) {
+      m = split(h, p, ",")
+      for (i = 1; i <= m; i++) if (p[i] == t) return 1
+      return 0
+    }
+    $1 == n {
+      prev = $4
+      hist = (NF >= 11 ? $11 : "")
+      if (hist == "") hist = prev
+      else if (!has_tok(hist, prev)) hist = hist "," prev
+      if (prev != role) {
+        if (hist == "") hist = role
+        else hist = hist "," role
+      }
+      $4 = role
+      $11 = hist
+    }
+    { print }
+  ' "$f" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$f"
+}
 
 # One line, printable, no tabs. Keeps the cause; drops control characters.
 sanitize_cause() {
@@ -549,7 +717,8 @@ cmd_doctor() {
   [ -z "$missing" ] && say ok "kinds installed: claude codex grok agy cursor" || say warn "kinds not in PATH:$missing (roles defaulting to them will fail to start)"
   local d; d="$(state_root 2>/dev/null || true)"
   if [ -n "$d" ]; then mkdir -p "$d" 2>/dev/null && [ -w "$d" ] && say ok "state dir writable: $d" || say warn "state dir not writable: $d"; fi
-  case "$(cfg layout split)" in split|tab) say ok "config: layout=$(cfg layout) approvals=$(cfg approvals) auto_approve=$(cfg auto_approve) reuse_workers=$(cfg reuse_workers) worker_context=$(cfg worker_context)" ;; *) say warn "config: invalid layout '$(cfg layout)' (split|tab)" ;; esac
+  case "$(cfg layout split)" in split|tab) say ok "config: layout=$(cfg layout) approvals=$(cfg approvals) auto_approve=$(cfg auto_approve) reuse_workers=$(cfg reuse_workers) multi_role=$(cfg multi_role on) worker_context=$(cfg worker_context)" ;; *) say warn "config: invalid layout '$(cfg layout)' (split|tab)" ;; esac
+  case "$(cfg multi_role on)" in on|off) ;; *) say warn "config: multi_role='$(cfg multi_role)' is not on|off (cross-role reuse stays off until it is)" ;; esac
   local cap; cap="$(cfg split_max_panes 4)"
   if ! printf '%s' "$cap" | grep -Eq '^[0-9]+$'; then say warn "config: split_max_panes='$cap' is not a number (using 4)"
   elif [ "$cap" -lt 2 ]; then say warn "config: split_max_panes=$cap leaves no room next to the caller; every worker will overflow into herd tabs (set 2 or more)"
@@ -686,17 +855,120 @@ setup_write_hooks() {
   mkdir -p "$(dirname "$file")"; mv "$tmp" "$file"
 }
 
+# detect_top_models <kind> → JSON array of up to 3 newest ids. A CLI that is
+# missing or silent yields []. The short timeout is not cached (see model_ids).
+detect_top_models() {
+  local ids
+  ids="$(HERDR_AGENTS_MODELS_TIMEOUT=5 model_ids "$1" 2>/dev/null | version_sort_desc | head -n 3 || true)"
+  if [ -z "$ids" ]; then printf '[]\n'; return 0; fi
+  printf '%s\n' "$ids" | jq -R . | jq -s .
+}
+
+detect_kind_json() {
+  local k="$1" exe installed fam ceiling models_json
+  exe="$(kind_exe "$k")"
+  if command -v "$exe" >/dev/null 2>&1; then installed=true; else installed=false; fi
+  fam="$(kind_family "$k")"
+  [ "$k" = cursor ] && fam="by model"
+  ceiling="$(kind_effort_ceiling "$k")"
+  models_json="$(detect_top_models "$k")"
+  jq -n --arg kind "$k" --arg executable "$exe" --argjson installed "$installed" \
+    --arg family "$fam" --arg effort_ceiling "$ceiling" --argjson models "$models_json" \
+    '{kind:$kind,executable:$executable,installed:$installed,family:$family,effort_ceiling:$effort_ceiling,models:$models}'
+}
+
+# Effective role.<name>.kind: a config override when one is set, otherwise the
+# role file. Source is the config layer, or "role" when the file supplies it.
+detect_role_kinds_json() {
+  local d f name seen="" key ck val src
+  while IFS= read -r d; do
+    for f in "$d"/*.md; do
+      [ -e "$f" ] || continue
+      name="$(basename "$f" .md)"
+      has_word "$seen" "$name" && continue
+      seen="$seen $name"
+      key="role.${name}.kind"
+      ck="$(printf '%s' "$key" | tr '.-' '__')"
+      if [ -n "$(cfg "$ck")" ]; then val="$(cfg "$ck")"; src="$(cfg_source "$ck")"
+      else val="$(fm_get "$f" kind)"; src="role"; fi
+      jq -n --arg key "$key" --arg value "$val" --arg source "$src" \
+        '{key:$key,value:$value,source:$source}'
+    done
+  done < <(role_dirs)
+}
+
+detect_worker_models_json() {
+  local k key ck
+  for k in "${KNOWN_KINDS[@]}"; do
+    key="model.${k}.worker"
+    ck="model_${k}_worker"
+    jq -n --arg key "$key" --arg value "$(cfg "$ck")" --arg source "$(cfg_source "$ck")" \
+      '{key:$key,value:$value,source:$source}'
+  done
+}
+
+cmd_setup_detect() {
+  local tmpk tmpr tmpm kinds roles models
+  tmpk="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-detect.XXXXXX")"
+  tmpr="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-detect.XXXXXX")"
+  tmpm="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-detect.XXXXXX")"
+  local k
+  for k in "${KNOWN_KINDS[@]}"; do detect_kind_json "$k" >> "$tmpk"; done
+  detect_role_kinds_json >> "$tmpr"
+  detect_worker_models_json >> "$tmpm"
+  kinds="$(jq -s '.' "$tmpk")"
+  roles="$(jq -s '.' "$tmpr")"
+  models="$(jq -s '.' "$tmpm")"
+  rm -f "$tmpk" "$tmpr" "$tmpm"
+  jq -n \
+    --argjson kinds "$kinds" \
+    --argjson role_kinds "$roles" \
+    --argjson worker_models "$models" \
+    --arg mw "$(cfg max_workers 3)" --arg mw_src "$(cfg_source max_workers)" \
+    --arg mr "$(cfg multi_role on)" --arg mr_src "$(cfg_source multi_role)" \
+    --arg rw "$(cfg reuse_workers on)" --arg rw_src "$(cfg_source reuse_workers)" \
+    '{kinds:$kinds,config:{max_workers:{value:$mw,source:$mw_src},multi_role:{value:$mr,source:$mr_src},reuse_workers:{value:$rw,source:$rw_src},role_kinds:$role_kinds,worker_models:$worker_models}}'
+}
+
+# True when the project file sets none of max_workers, multi_role, role.*.kind.
+# 0 when the project file defines none of max_workers, multi_role, role.*.kind.
+project_needs_config_prompt() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  if awk '
+    {
+      line = $0
+      sub(/[ \t]#.*$/, "", line)
+      sub(/^[ \t]+/, "", line)
+      sub(/[ \t]+$/, "", line)
+      if (line == "" || substr(line, 1, 1) == "#") next
+      if (line ~ /^max_workers=/) found = 1
+      if (line ~ /^multi_role=/) found = 1
+      if (line ~ /^role\.[A-Za-z0-9_-]+\.kind=/) found = 1
+    }
+    END { exit (found ? 0 : 1) }
+  ' "$f"; then
+    return 1
+  fi
+  return 0
+}
+
 cmd_setup() {
-  local root target="" hooks=1 dry=0 claude candidate hook_script=""
+  local root target="" hooks=1 dry=0 detect=0 claude candidate hook_script=""
   root="$(project_root)"
   while [ $# -gt 0 ]; do
     case "$1" in
       --target) target="$2"; shift 2 ;;
       --no-hooks) hooks=0; shift ;;
       --dry-run) dry=1; shift ;;
+      --detect) detect=1; shift ;;
       *) die "setup: unknown option '$1'" 2 ;;
     esac
   done
+  if [ "$detect" = 1 ]; then
+    cmd_setup_detect
+    return 0
+  fi
   if [ -z "$target" ]; then
     target="$(setup_target_existing "$root" || true)"
     if [ -z "$target" ]; then
@@ -727,6 +999,10 @@ cmd_setup() {
   state_root >/dev/null
   printf 'state dir ignored: %s\n' "$(cfg state_dir .herdr-agents)/"
   printf 'note: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n'
+  local conf; conf="$(config_file_for project)"
+  if project_needs_config_prompt "$conf"; then
+    warn "project config $conf sets neither max_workers, multi_role, nor any role.<role>.kind. Orchestrator: run 'setup --detect', ask the user how many workers may run at once, which detected kind/model each role group should use, and whether one agent may hold several roles, then write the answers with 'config set'."
+  fi
 }
 
 cmd_init() {
@@ -1068,8 +1344,11 @@ move_pane() {
 }
 roster_replace_pane() { # <old> <new>
   [ "$1" = "$2" ] || [ -z "$2" ] && return 0
+  with_roster_lock roster_replace_pane_unlocked "$@"
+}
+roster_replace_pane_unlocked() {
   local f; f="$(state_dir)/agents.tsv"
-  awk -F'\t' -v OFS='\t' -v o="$1" -v n="$2" '$2==o {$2=n} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  awk -F'\t' -v OFS='\t' -v o="$1" -v n="$2" '$2==o {$2=n} {print}' "$f" > "$f.tmp.$$" && mv "$f.tmp.$$" "$f"
 }
 
 # grid_sizes <n> → "<cols> <rows of col 0> <rows of col 1> …": cols = ⌈√n⌉,
@@ -1202,33 +1481,143 @@ cmd_regrid() {
 
 # ---------- spawn ----------
 
-# find_reusable <role> <kind> <cwd> [name]
-# stdout: the worker name, or `unavailable<TAB>cause<TAB>name` when a match
-# cannot be queried. Exit 0 reused, 4 query failed (do not spawn a copy),
-# 1 nothing to reuse. An idle match wins over an unqueryable sibling.
+# approvals_rank: ask=1, edits=2, full=3. Unknown is 0 and satisfies nothing.
+approvals_rank() { case "$1" in ask) echo 1 ;; edits) echo 2 ;; full) echo 3 ;; *) echo 0 ;; esac; }
+
+# role_file <role> → path of the role markdown, if one resolves.
+role_file() {
+  local role="$1" d
+  while IFS= read -r d; do
+    if [ -f "$d/$role.md" ]; then
+      printf '%s\n' "$d/$role.md"
+      return 0
+    fi
+  done < <(role_dirs)
+  return 1
+}
+
+# role_is_edit <role> — EDIT_ROLES, or frontmatter `mode: edit`.
+role_is_edit() {
+  local role="$1" f mode
+  has_word "$EDIT_ROLES" "$role" && return 0
+  f="$(role_file "$role" 2>/dev/null || true)"
+  [ -n "$f" ] || return 1
+  mode="$(fm_get "$f" mode)"
+  [ "$mode" = edit ]
+}
+
+# history_has_edit <comma-separated roles>
+# Walks tokens without reading stdin: callers sit inside roster read-loops.
+history_has_edit() {
+  local hist="$1" part r rest
+  [ -n "$hist" ] || return 1
+  rest="$hist"
+  while [ -n "$rest" ]; do
+    case "$rest" in
+      *,*) part="${rest%%,*}"; rest="${rest#*,}" ;;
+      *) part="$rest"; rest="" ;;
+    esac
+    r="$(printf '%s' "$part" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    if [ -n "$r" ] && role_is_edit "$r"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+is_review_role() { has_word "$REVIEW_ROLES_ALL" "$1"; }
+
+# find_reusable <role> <kind> <cwd> [name] [resolved-model] [approvals]
+# stdout: the worker name, or `unavailable<TAB>cause<TAB>name` when a same-role
+# match cannot be queried. Exit 0 reused, 4 query failed (do not spawn a copy),
+# 1 nothing to reuse. An idle same-role match wins over an unqueryable sibling
+# and over every other role. With multi_role=on, an idle worker of another
+# role is eligible when kind, cwd and resolved model match, the worker's
+# approvals are at least the request, and the roster line has the model /
+# approvals / roles columns. A worker that has edited (EDIT_ROLES or
+# mode: edit, now or in `roles`) is never reused as a review role. Old
+# 8-column lines are only reused for the same role. An unqueryable *other*
+# role is skipped; it must not block a new spawn of this role.
 find_reusable() {
-  local role="$1" kind="$2" cwd="$3" want="${4:-}" sd name pane k r c rep raw
+  local role="$1" kind="$2" cwd="$3" want="${4:-}" want_model="${5:-}" want_approvals="${6:-}"
+  local sd name k r c rep raw line nf
+  local _pane _fam _created _started w_model w_approvals w_roles
   local STATE CAUSE blocked_name="" blocked_cause=""
+  local multi cross_hit="" is_same_role req have
+  multi="$(cfg multi_role on)"
   sd="$(state_dir)"
-  while IFS=$'\t' read -r name pane k r _fam _created c _rest; do
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -n "$line" ] || continue
+    nf="$(printf '%s' "$line" | awk -F'\t' '{print NF}')"
+    IFS=$'\t' read -r name _pane k r _fam _created c _started w_model w_approvals w_roles <<< "$line"
     [ -n "$name" ] || continue
     [ -z "$want" ] || [ "$name" = "$want" ] || continue
-    [ "$r" = "$role" ] && [ "$k" = "$kind" ] && [ "$c" = "$cwd" ] || continue
+    [ "$k" = "$kind" ] && [ "$c" = "$cwd" ] || continue
+    is_same_role=0
+    [ "$r" = "$role" ] && is_same_role=1
+    if [ "$is_same_role" = 0 ]; then
+      [ "$multi" = on ] || continue
+      [ "$nf" -ge 11 ] || continue
+      [ -n "$want_model" ] && [ -n "$w_model" ] && [ "$w_model" = "$want_model" ] || continue
+      req="${want_approvals:-ask}"
+      have="${w_approvals:-}"
+      [ -n "$have" ] || continue
+      [ "$(approvals_rank "$req")" -gt 0 ] || continue
+      [ "$(approvals_rank "$have")" -ge "$(approvals_rank "$req")" ] || continue
+      if is_review_role "$role"; then
+        if role_is_edit "$r" || history_has_edit "$w_roles"; then
+          continue
+        fi
+      fi
+    fi
     rep="$(cat "$sd/last-report-$name" 2>/dev/null || true)"
     [ -z "$rep" ] || [ -s "$rep" ] || continue
     raw="$(agent_state "$name")"
     split_agent_state "$raw"
     if [ "$STATE" = unavailable ]; then
-      [ -n "$blocked_name" ] || { blocked_name="$name"; blocked_cause="$CAUSE"; }
+      if [ "$is_same_role" = 1 ]; then
+        [ -n "$blocked_name" ] || { blocked_name="$name"; blocked_cause="$CAUSE"; }
+      fi
       continue
     fi
-    case "$STATE" in idle|done) printf '%s\n' "$name"; return 0 ;; esac
+    case "$STATE" in
+      idle|done)
+        if [ "$is_same_role" = 1 ]; then
+          printf '%s\n' "$name"
+          return 0
+        fi
+        [ -n "$cross_hit" ] || cross_hit="$name"
+        ;;
+    esac
   done < <(roster_rows)
   if [ -n "$blocked_name" ]; then
     printf 'unavailable\t%s\t%s\n' "$blocked_cause" "$blocked_name"
     return 4
   fi
+  if [ -n "$cross_hit" ]; then
+    printf '%s\n' "$cross_hit"
+    return 0
+  fi
   return 1
+}
+
+# emit_reuse <name> <new-role> <kind>
+# When the role changes, retarget the roster line, then print the reused
+# spawn JSON (includes previous_role). Same-role reuse leaves the line as it is.
+emit_reuse() {
+  local name="$1" role="$2" kind="$3" eline prev family pane
+  eline="$(roster_line "$name")"
+  [ -n "$eline" ] || return 1
+  prev="$(printf '%s' "$eline" | cut -f4)"
+  if [ "$prev" != "$role" ]; then
+    roster_set_role "$name" "$role" || return 1
+    eline="$(roster_line "$name")"
+  fi
+  family="$(printf '%s' "$eline" | cut -f5)"
+  pane="$(printf '%s' "$eline" | cut -f2)"
+  jq -n --arg name "$name" --arg pane "$pane" --arg kind "$kind" --arg role "$role" \
+    --arg family "$family" --arg previous_role "$prev" \
+    '{name:$name,pane_id:$pane,kind:$kind,role:$role,family:$family,reused:true,previous_role:$previous_role,status:"ready"}'
 }
 
 cmd_spawn() {
@@ -1274,6 +1663,7 @@ cmd_spawn() {
   [ -n "$model_spec" ] || model_spec="$(cfg "model_${kind}")"
   [ -n "$approvals" ] || approvals="$(fm_get "$f" approvals)"
   [ -n "$approvals" ] || approvals="$(cfg approvals ask)"
+  case "$approvals" in ask|edits|full) ;; *) die "invalid approvals '$approvals' (ask|edits|full)" 2 ;; esac
   [ -n "$timeout" ] || timeout="$(cfg spawn_timeout 60000)"
   if [ -n "$effort" ]; then
     has_word "$EFFORT_LADDER" "$effort" || die "invalid effort '$effort' (low|medium|high|xhigh|max)" 2
@@ -1290,14 +1680,16 @@ cmd_spawn() {
 
   [ -n "$reuse" ] || reuse="$(cfg reuse_workers on)"
   if [ "$reuse" = on ] && [ -z "$pane" ]; then
-    local existing reuse_rc=0
-    existing="$(find_reusable "$role" "$kind" "$cwd" "$name")" && reuse_rc=0 || reuse_rc=$?
+    local existing reuse_rc=0 prev_role
+    existing="$(find_reusable "$role" "$kind" "$cwd" "$name" "$model" "$approvals")" && reuse_rc=0 || reuse_rc=$?
     if [ "$reuse_rc" -eq 0 ]; then
-      local eline; eline="$(roster_line "$existing")"
-      jq -n --arg name "$existing" --arg pane "$(printf '%s' "$eline" | cut -f2)" --arg kind "$kind" --arg role "$role" \
-        --arg family "$(printf '%s' "$eline" | cut -f5)" \
-        '{name:$name,pane_id:$pane,kind:$kind,role:$role,family:$family,reused:true,status:"ready"}'
-      warn "reusing idle worker '$existing' ($kind, $role); its session already holds earlier briefs"
+      prev_role="$(roster_line "$existing" | cut -f4)"
+      emit_reuse "$existing" "$role" "$kind"
+      if [ "$prev_role" = "$role" ]; then
+        warn "reusing idle worker '$existing' ($kind, $role); its session already holds earlier briefs"
+      else
+        warn "reusing idle worker '$existing' ($kind, was $prev_role, now $role); its session already holds earlier briefs"
+      fi
       return 0
     fi
     if [ "$reuse_rc" -eq 4 ]; then
@@ -1361,7 +1753,12 @@ cmd_spawn() {
   restore_focus_if_stolen "$focus_before" "$pane" "$direction"
 
   local family; family="$(agent_family "$kind" "$model")"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$pane" "$kind" "$role" "$family" "$created" "$cwd" "$(now)" >> "$(state_dir)/agents.tsv"
+  roster_append_unlocked() {
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$name" "$pane" "$kind" "$role" "$family" "$created" "$cwd" "$(now)" \
+      "${model:-}" "${approvals:-ask}" "$role" >> "$(state_dir)/agents.tsv"
+  }
+  with_roster_lock roster_append_unlocked
   if [ "$placement" = herd ]; then herd_tabs_relabel >/dev/null 2>&1 || warn "relabel of the herd tabs failed (see friction)"; fi
   jq -n --arg name "$name" --arg pane "$pane" --arg kind "$kind" --arg role "$role" --arg family "$family" --argjson created "$created" \
     --arg args "${agent_args[*]+"${agent_args[*]}"}" --arg status "$([ "$blocked" = 1 ] && echo blocked_at_startup || echo ready)" \
@@ -1525,10 +1922,22 @@ cmd_status() {
 
 # ---------- dispatch ----------
 
+# family_conflicts <family> — one "name (kind)" per edit agent of that family.
+# Edit means the current role OR any token in the roles history (column 11)
+# is an edit role, so a worker that implemented and was later reused as
+# scouter still counts.
 family_conflicts() {
-  roster_rows | awk -F'\t' -v fam="$1" -v edit="$EDIT_ROLES" '
-    BEGIN { n=split(edit,a," "); for(i=1;i<=n;i++) e[a[i]]=1 }
-    ($4 in e) && $5==fam && fam!="unknown" { print $1" ("$3")" }'
+  local fam="$1" line name kind role family hist
+  [ -n "$fam" ] && [ "$fam" != unknown ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -n "$line" ] || continue
+    IFS=$'\t' read -r name _pane kind role family _created _cwd _started _model _approvals hist <<< "$line"
+    [ -n "$name" ] || continue
+    [ "$family" = "$fam" ] || continue
+    if role_is_edit "$role" || history_has_edit "$hist"; then
+      printf '%s (%s)\n' "$name" "$kind"
+    fi
+  done < <(roster_rows)
 }
 
 # lint_brief <file>: the contract sections every brief must carry
@@ -1663,12 +2072,17 @@ cmd_roster() {
   tabs="$(herdr tab list --workspace "$ws" 2>/dev/null | jq -c '.result.tabs // []' 2>/dev/null || echo '[]')"
   tab_of() { printf '%s' "$panes" | jq -r --argjson tabs "$tabs" --arg p "$1" '[.[] | select(.pane_id==$p)][0].tab_id as $t | [$tabs[] | select(.tab_id==$t)][0].label // $t // "-" | .[0:16]'; }
   printf '%-20s %-18s %-8s %-8s %-16s %-9s %-16s %s\n' NAME ROLE KIND PANE TAB STATE REPORT CWD
-  roster_rows | while IFS=$'\t' read -r name pane kind role family created cwd _started; do
+  roster_rows | while IFS=$'\t' read -r name pane kind role _family _created cwd _started _model _approvals roles_hist; do
     [ -n "$name" ] || continue
     state="$(printf '%s' "$live" | jq -r --arg n "$name" --arg p "$pane" '[.[] | select((.name // "")==$n or .pane_id==$p)][0] | .agent_status // "gone"')"
     r="$(cat "$sd/last-report-$name" 2>/dev/null || true)"
     rep="none"; [ -n "$r" ] && { [ -s "$r" ] && rep=ready || rep=pending; }
-    printf '%-20s %-18s %-8s %-8s %-16s %-9s %-16s %s\n' "$name" "$role" "$kind" "$pane" "$(tab_of "$pane")" "$state" "$rep" "$cwd"
+    role_cell="$role"
+    if [ -n "$roles_hist" ] && [ "$roles_hist" != "$role" ]; then
+      cand="$role ($roles_hist)"
+      [ "${#cand}" -le 18 ] && role_cell="$cand"
+    fi
+    printf '%-20s %-18s %-8s %-8s %-16s %-9s %-16s %s\n' "$name" "$role_cell" "$kind" "$pane" "$(tab_of "$pane")" "$state" "$rep" "$cwd"
   done
   printf '\n# other live agents (not spawned by this skill)\n'
   printf '%s' "$live" | jq -r '.[] | "\(.name // "-")\t\(.agent)\t\(.pane_id)\t\(.agent_status)"' 2>/dev/null \
@@ -1676,7 +2090,7 @@ cmd_roster() {
         roster_rows | awk -F'\t' -v p="$p" '$2==p' | grep -q . && continue
         printf '%-20s %-18s %-8s %-8s %-16s %-9s\n' "$n" "-" "$a" "$p" "$(tab_of "$p")" "$s"
       done
-  printf '\nlayout=%s reuse_workers=%s auto_approve=%s\n' "$(cfg layout split)" "$(cfg reuse_workers on)" "$(cfg auto_approve off)"
+  printf '\nlayout=%s reuse_workers=%s multi_role=%s auto_approve=%s\n' "$(cfg layout split)" "$(cfg reuse_workers on)" "$(cfg multi_role on)" "$(cfg auto_approve off)"
 }
 
 cmd_release() {
@@ -1781,7 +2195,10 @@ main() {
     regrid) require_env; cmd_regrid ;;
     tab-label) require_env; cmd_tab_label "$@" ;;
     layout-plan) cmd_layout_plan "$@" ;;
-    config) cmd_config ;;
+    config)
+      if [ "${1:-}" = set ]; then shift; cmd_config_set "$@"
+      else cmd_config
+      fi ;;
     role) cmd_role "$@" ;;
     spawn) require_env; cmd_spawn "$@" ;;
     dispatch) require_env; cmd_dispatch "$@" ;;

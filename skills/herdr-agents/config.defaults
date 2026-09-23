@@ -58,6 +58,15 @@ herd_label_max=16
 # not share context. Reuse never counts against max_workers.
 reuse_workers=on
 
+# One idle worker may also take a different role: on (default) | off.
+# Same role is preferred. Cross-role reuse needs the same kind, cwd and
+# resolved model, and approvals at least the request (ask < edits < full).
+# A worker that has held an edit role (implementer, designer, tasker, or
+# any role with mode: edit) is never reused as reviewer, security-reviewer,
+# ui-reviewer or inspector. off keeps same-role reuse only. The script
+# falls back to on when this key is unset.
+multi_role=on
+
 # Brief structure check on dispatch (Goal, Owned files, Forbidden, Report, a
 # no-commit line): warn | strict | off.
 brief_lint=warn
