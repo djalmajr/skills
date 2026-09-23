@@ -139,6 +139,13 @@ more telling. `lanes=off` keeps the old names: the role (`scouter`,
 `sub-orchestrator` role and stays outside the lanes unless a `lane.*.roles`
 list includes it.
 
+The name says the role; the pane title says the task. Every `dispatch`
+titles the worker's pane `<role>: <task>`, the task being the brief's first
+line when it is an H1 title (`# Brief — <task>`), else the brief's file
+name; the title gains ` ✓` once the report exists, and `release` without
+`--close` clears it. So the user always sees what each worker is doing, even
+when one worker is reused across tasks.
+
 ## Roles
 
 | Role | Default kind | Effort | Mode | Use for |

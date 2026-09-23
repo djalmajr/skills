@@ -203,4 +203,31 @@ printf '%s\n' "$RUN_OUT" | jq -s -e '
   and any(.[]; .agent=="review" and .status=="blocked")
 ' >/dev/null || fail "wait review build json: $RUN_OUT"
 
+# --- every worker pane shows its current task ---------------------------------
+# dispatch titles the pane "<role>: <task>" from the brief's H1, the report
+# adds a check mark, release (without --close) clears the title.
+rm -f "$TEST_ROOT/mode-build" "$TEST_ROOT/screen-build"
+printf '%s\n' idle > "$MODE"
+: > "$SCREEN"
+TBRIEF="$TEST_ROOT/port-config.md"
+{ printf '# Brief — porte da config\n\n'; cat "$BRIEF"; } > "$TBRIEF"
+run_cmd dispatch build "$TBRIEF" --no-wait
+[ "$RUN_RC" = 0 ] || fail "titled dispatch rc $RUN_RC err $RUN_ERR"
+grep -qxF 'pane report-metadata p1 --source herdr-agents --title implementer: porte da config' "$TEST_ROOT/herdr.log" \
+  || fail "dispatch did not title the pane: $(cat "$TEST_ROOT/herdr.log")"
+printf 'done\n' > "$(cat "$STATE/ws/last-report-build")"
+run_cmd wait build --timeout 5000
+[ "$RUN_RC" = 0 ] || fail "titled wait rc $RUN_RC out $RUN_OUT err $RUN_ERR"
+grep -qxF 'pane report-metadata p1 --source herdr-agents --title implementer: porte da config ✓' "$TEST_ROOT/herdr.log" \
+  || fail "report did not mark the title: $(cat "$TEST_ROOT/herdr.log")"
+run_cmd release build
+[ "$RUN_RC" = 0 ] || fail "titled release rc $RUN_RC err $RUN_ERR"
+grep -qxF 'pane report-metadata p1 --source herdr-agents --clear-title' "$TEST_ROOT/herdr.log" \
+  || fail "release did not clear the title: $(cat "$TEST_ROOT/herdr.log")"
+# A brief without an H1 is titled by its file name.
+printf 'build\tp1\tgrok\timplementer\txai\t1\t%s\tnow\tgrok-4.7\tfull\timplementer\tbuild\n' "$REPO" >> "$STATE/ws/agents.tsv"
+run_cmd dispatch build "$BRIEF" --no-wait
+grep -qxF 'pane report-metadata p1 --source herdr-agents --title implementer: brief' "$TEST_ROOT/herdr.log" \
+  || fail "untitled brief did not use its file name: $(cat "$TEST_ROOT/herdr.log")"
+
 echo 'quota checks passed'

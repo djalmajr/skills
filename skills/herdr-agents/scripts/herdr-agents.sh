@@ -3585,6 +3585,44 @@ probe_agent() {
 
 notify_done() { [ "$(cfg notify off)" = on ] && herdr notification show "herdr-agents: $1 finished" --body "$2" --sound "done" >/dev/null 2>&1 || true; }
 
+# brief_task <brief> → the task the brief names: its first line when that is
+# an H1 title (not a contract section such as "# Goal"), without a leading
+# "Brief —" / "Brief:" / "Brief -"; else the file name without .md.
+brief_task() {
+  local h
+  h="$(awk 'NF{print; exit}' "$1" | tr -d '\r')"
+  case "$h" in '# '*) h="${h#\# }" ;; *) h="" ;; esac
+  if printf '%s' "$h" | grep -qiE '^(goal|owned files|owned|scope|forbidden|non-goals|constraints|report|expected result|acceptance criteria|acceptance|decisions already made|context|sources)[[:space:]]*$'; then h=""; fi
+  h="$(printf '%s' "$h" | sed -E 's/^Brief[[:space:]]*(—|:|-)[[:space:]]*//')"
+  [ -n "$h" ] || h="$(basename "$1" .md)"
+  printf '%s\n' "$h"
+}
+
+# pane_task_title <agent> <title>|--clear — a display-only title on the
+# agent's pane, so the user sees what each worker is doing. Best effort: a
+# herdr without report-metadata changes nothing. The pane id goes before the
+# options (herdr 0.9.1 rejects `--source` first).
+pane_task_title() {
+  local pane; pane="$(roster_line "$1" | cut -f2)"
+  [ -n "$pane" ] || return 0
+  if [ "$2" = --clear ]; then
+    herdr pane report-metadata "$pane" --source herdr-agents --clear-title >/dev/null 2>&1 || true
+  else
+    herdr pane report-metadata "$pane" --source herdr-agents --title "$2" >/dev/null 2>&1 || true
+  fi
+}
+
+# mark_task_done <agent> — adds a check mark to the pane title once the
+# report exists (once per dispatch).
+mark_task_done() {
+  local f t; f="$(state_dir)/task-$1"
+  [ -f "$f" ] || return 0
+  t="$(cat "$f")"
+  case "$t" in *" ✓") return 0 ;; esac
+  printf '%s ✓\n' "$t" > "$f"
+  pane_task_title "$1" "$t ✓"
+}
+
 # wait_rank / wait_raise: one order for a multi-agent wait.
 # 4 unavailable > 11 quota > 7 blocked > 6 gone or settled. Argument order
 # must not turn a quota into a blocked or a gone.
@@ -3620,7 +3658,7 @@ wait_for() {
       st="$(probe_agent "$a" "$r")"
       tag="${st%%$'\t'*}"
       case "$tag" in
-        done) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"done",report:$r}'; notify_done "$a" "$r"; done_n=$((done_n+1)); [ "$any" = 1 ] && return 0 ;;
+        done) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"done",report:$r}'; notify_done "$a" "$r"; mark_task_done "$a"; done_n=$((done_n+1)); [ "$any" = 1 ] && return 0 ;;
         blocked) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"blocked",report:$r}'; wait_raise 7 ;;
         gone) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"gone",report:$r}'; wait_raise 6 ;;
         settled) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"settled-no-report",report:$r}'; wait_raise 6 ;;
@@ -3823,6 +3861,9 @@ cmd_dispatch() {
     warn "prompt submission failed; inspect with: herdr agent get $agent && herdr agent read $agent. Do not resend blindly."
     return 4
   fi
+  local task_title; task_title="$role: $(brief_task "$brief")"
+  printf '%s\n' "$task_title" > "$sd/task-$agent"
+  pane_task_title "$agent" "$task_title"
   local qmatch="" qrenew="" qlane="" qmodel=""
   if [ "$wait" = 1 ]; then
     local out rc=0
@@ -3922,8 +3963,9 @@ cmd_release() {
     if [ "$created" = 1 ]; then herdr pane close "$pane" >/dev/null && printf 'closed pane %s\n' "$pane"
     else warn "pane $pane was not created by this skill; not closing it"; fi
   fi
+  [ "$close" = 1 ] || pane_task_title "$agent" --clear
   roster_remove "$agent"
-  rm -f "$(state_dir)/last-report-$agent" "$(state_dir)/wait/$agent".*
+  rm -f "$(state_dir)/last-report-$agent" "$(state_dir)/task-$agent" "$(state_dir)/wait/$agent".*
   if [ "$close" = 1 ] && [ "$(cfg regrid on)" = on ]; then (cmd_regrid) >/dev/null 2>&1 || warn "regrid after release failed; panes left as they are (see friction)"
   else herd_tabs_relabel >/dev/null 2>&1 || warn "relabel of the herd tabs failed (see friction)"; fi
   if git -C "$cwd" worktree list 2>/dev/null | grep -q '/\.worktrees/'; then
