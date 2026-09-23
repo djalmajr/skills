@@ -70,10 +70,12 @@ workspace, layout, state dir). Act on `warn` lines before spawning; a
 stale official skill means the CLI syntax you read may be wrong. `spawn`
 does the rename lazily.
 
-Workers are named after their role: `scouter`, `implementer`, `reviewer`…;
-a second worker of the same role becomes `implementer-2`. Pass `--name` for
-something more telling (`impl-auth`, `rev-ui`). A nested orchestrator uses
-the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
+With lanes on (the default), a worker is named after its lane (`build`,
+`explore`, `review`, or `read` when `panes=3`). Pass `--name` for something
+more telling. `lanes=off` keeps the old names: the role (`scouter`,
+`implementer`, …), then `implementer-2`. A nested orchestrator uses the
+`sub-orchestrator` role and stays outside the lanes unless a `lane.*.roles`
+list includes it.
 
 ## Roles
 
@@ -81,7 +83,7 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 |---|---|---|---|---|
 | `scouter` | grok | high | read-only | Map code, find paths, compressed findings for handoff |
 | `researcher` | grok | high | read-only | Source-verified answers about external libraries/APIs |
-| `planner` | claude | high | read-only | Decision-ready plan for a large or unfamiliar objective: options, one recommendation, slices, risks, questions; the orchestrator still decides |
+| `planner` | — | — | — | The orchestrator. `spawn planner` exits 12 and opens no pane |
 | `designer` | agy | high | edit | UI work under the project design system (tokens, states, a11y) |
 | `implementer` | grok | xhigh | edit | Production code for one slice with per-item report |
 | `tasker` | grok | low | edit | Mechanical edits in volume with an exact contract |
@@ -96,8 +98,8 @@ the `sub-orchestrator` role and is therefore named `sub-orchestrator`.
 `xhigh` reasoning and a plan with headroom. Order of preference for that
 work: `grok` > `cursor` (running grok 4.7 too) > `codex` > `claude`.
 **Judgement and leadership go to `codex` and `claude`** — `reviewer`
-(codex), `security-reviewer` (claude), `planner` and `sub-orchestrator`
-(claude), and the orchestrator itself. **Visual work goes to `agy`**
+(codex), `security-reviewer` (claude), `sub-orchestrator` (claude), and the
+orchestrator itself, who is also the planner. **Visual work goes to `agy`**
 (`designer`, `inspector`): it reads screens well. The one rule that does
 not move: the reviewer of a slice comes from **another family** than its
 implementer, and cursor running grok is the xai family like `grok` — so
@@ -117,8 +119,9 @@ itself: in that case pick a reviewer kind from another family by hand.
 ## Effort, model, approvals
 
 Role frontmatter, config and `spawn` flags share three knobs. Precedence,
-highest first: flag → config `role.<role>.<knob>` → config
-`effort.<kind>` (effort only) → role frontmatter → config
+highest first: flag → `lane.<name>.*` (every role in a lane shares one
+kind and model, because it is one session) → config `role.<role>.<knob>` →
+config `effort.<kind>` (effort only) → role frontmatter → config
 `model.<kind>.<position>` → config `model.<kind>` → the CLI's own
 default. Shipped: `effort.grok=xhigh`, `effort.cursor=xhigh` (grok 4.7
 accepts `--reasoning-effort xhigh|high|medium|low`), because those plans
@@ -139,8 +142,10 @@ model.claude.orchestrator=fable     model.claude.worker=opus
 model.codex.orchestrator=astra      model.codex.worker=gpt-5
 model.cursor.worker=grok|muse       model.agy.worker=gemini|opus
 model.grok.worker=grok
-role.planner.model=fable            # planner gets the orchestrator-class model
 ```
+
+The planner does not get a worker model: the orchestrator plans in this
+session. `spawn planner` exits 12.
 
 The top-level orchestrator is not spawned by the skill; launch it yourself
 with the same intent (`claude --model fable`, `codex -m gpt-6-astra`).
@@ -203,12 +208,14 @@ $S dispatch a brief-a.md --no-wait   # fan out…
 $S dispatch b brief-b.md --no-wait
 $S wait a b                          # …then block until every report exists
 $S wait a b --any                    # or until the first one lands
-$S status a b                        # non-blocking: done | working | blocked | no-report-yet | gone | unavailable
+$S status a b                        # non-blocking: done | working | blocked | no-report-yet | gone | unavailable | quota
 ```
 
 `wait` prints one JSON line per agent (`done`, `blocked`, `settled-no-report`,
-`gone`, `unavailable`, `timeout`) and exits 0 only when all reports exist
-(7 blocked, 6 settled/`gone`, 4 `unavailable`, 9 timeout). `gone` is only
+`gone`, `unavailable`, `quota`, `timeout`) and exits 0 only when all reports exist
+(7 blocked, 6 settled/`gone`, 4 `unavailable`, 9 timeout, 11 quota). When several
+agents finish in one `wait`, the exit is the most severe of those: 4, then 11,
+then 7, then 6. Argument order does not change it. `gone` is only
 `agent_not_found`. `unavailable` is a permission or transport failure of
 `herdr agent get` (cause on stderr and in JSON `error`): retry or restore
 access; do not spawn a replacement, and do not `release` or `release --close`
@@ -252,7 +259,8 @@ waiting; off by default, see below), `max_effort`
 `spawn_timeout`, `dispatch_timeout`, `state_dir`, `report_language`,
 `notify`, `args.<kind>` (native flags always appended, the place for
 hook-trust or workspace-trust bypasses you accept), `role.<role>.kind`
-(swap the kind of a role without copying its file).
+(swap the kind of a role without copying its file), `panes` (`3|4`,
+default 4), `lanes` (`on|off`), and `lane.<name>.roles|kind|model|effort|approvals`.
 
 ## Commands
 
@@ -289,10 +297,11 @@ $S spawn scouter --kind cursor --model gpt-5.3-codex --effort high --approvals f
 $S spawn implementer -- -s workspace-write -a never      # native agent args after --
 ```
 
-**Naming.** A spawned agent is named after its role (`implementer`,
-`reviewer`); a second one of the same role becomes `implementer-2`, then
-`-3`. Pass `--name` for a custom name (`[a-z][a-z0-9_-]{0,31}`). Use that
-name in `dispatch`, `collect`, and `release`; never pane IDs.
+**Naming.** With lanes on, the agent is named after the lane (`build`,
+`explore`, `review`, `read`). `lanes=off` names it after the role
+(`implementer`, then `implementer-2`). Pass `--name` for a custom name
+(`[a-z][a-z0-9_-]{0,31}`). Use that name in `dispatch`, `collect`, and
+`release`; never pane IDs.
 
 **Reviewer family check.** `dispatch` of a `reviewer` or `security-reviewer`
 compares its model family with every edit agent this skill spawned.
@@ -356,7 +365,10 @@ the state dir and sends a one-line pointer to it, so long briefs never
 depend on terminal paste limits. Exit codes: 2 usage/env, 3 unknown
 role/agent, 4 Herdr failure (`unavailable`), 5 same-family reviewer, 6 settled without
 report, 7 agent blocked (startup or approval), 8 `max_workers` reached,
-9 wait timeout. Every error
+9 wait timeout, 10 lane busy, 11 quota exhausted, 12 `spawn planner` (the
+orchestrator plans), 13 lane `kind-mismatch` (the live session runs another
+CLI: `release` the lane, and set `lane.<name>.kind` so it cannot recur). A multi-agent `wait` keeps the most severe of 4, 11, 7
+and 6. Every error
 and warning is also appended to `<state>/friction.log` (`$S friction`).
 
 ## What is implicit (read once)
@@ -437,6 +449,65 @@ Override the root with `HERDR_AGENTS_DIR` only if every worker can write
 there. Reports are files by contract, so collection does not depend on
 scraping an alternate-screen TUI.
 
+## Fluxo paralelo
+
+Keep at most `panes` panes, counting this session. The orchestrator is the
+planner and does not spawn one. The other panes are lanes: one session that
+takes, in order, any role in its group. `reuse_workers` stays on. Before
+each `spawn`, the roster is already consulted:
+
+- lane worker idle or done, and its report exists or it never received a
+  brief → reuse it and switch the role (column 4 plus the roles history).
+  If `lane.<name>.kind` is empty and this role's kind, model, or effort
+  differs from the live session, `spawn` prints
+  `{"status":"kind-mismatch","lane":…,"name":…,"session_kind":…,"requested_kind":…}`
+  (plus model and effort) and exits 13. When `lane.<name>.kind` is set,
+  that kind is the CLI for every role in the lane: a live session on that
+  kind is reused, and a session still running another CLI (opened before the
+  key existed) also exits 13, because the key does not retarget a running
+  process. Either way: `release <name> --close`, set `lane.<name>.kind` if
+  it is missing, then spawn again;
+- lane worker `working` or `blocked` → `spawn` prints
+  `{"status":"busy","lane":…,"name":…}` and exits 10. Run `wait <name>`,
+  then dispatch. Do not open a second pane;
+- lane worker `gone` → drop the roster row and open a new pane;
+- no worker for that lane → open one, under `max_workers`.
+
+`panes=4` (recommended default): orchestrator+planner | `build`
+(implementer, designer, tasker) | `explore` (scouter, researcher) |
+`review` (reviewer, security-reviewer, ui-reviewer, inspector). Three
+stages stay busy at once: explore researches slice N+1, build implements
+N, review reviews N-1.
+
+`panes=3`: orchestrator+planner | `build` | `read` (scouter, researcher,
+reviewer, security-reviewer, ui-reviewer, inspector). `read` is read-only
+and alternates between reviewing the previous slice and researching the
+next. It never reviews code that session wrote. The edit→review lock still
+refuses that reuse (exit 5).
+
+`sub-orchestrator` is outside the lanes unless the user adds it to one: a
+nested herd would open more panes and blow the cap. `lanes=off` keeps
+today's per-role names and `multi_role` reuse.
+
+Decompose into small slices with disjoint files. Dispatch with `--no-wait`
+and collect with `wait --any`. While a lane works, plan the next slice and
+integrate the report that just landed. On `panes=3`, the read lane's queue
+is: a review that blocks push, then research. Do not leave a lane idle
+while its queue has work. A busy lane means `wait`, then dispatch — not a
+new pane.
+
+Preset when no `lane.*.roles` is set:
+
+| panes | lanes | why |
+|---|---|---|
+| 4 | build, explore, review | research, implementation and review overlap |
+| 3 | build, read | one read-only pane alternates review and research |
+
+`spawn <role>` resolves the lane. A role with no lane is an error, except
+under `lanes=off`. `max_workers` defaults to the number of lanes (3 or 2)
+when the user, the project and the environment do not set it.
+`split_max_panes` defaults to `panes` the same way.
+
 ## Orchestrator flow — `/herdr-agents <objective>`
 
 **Not everything is delegated.** A task that fits in one or two files
@@ -460,13 +531,12 @@ see your own edits, so pick that reviewer's kind by hand.
 2. **Decompose yourself.** Slices with disjoint files, explicit interfaces,
    and an order. Shared resources (i18n catalogs, small stores, constants)
    are either delivered ready in the brief or owned by exactly one agent.
-3. **Pick roles.** Large or unfamiliar objective (more than about three
-   probable slices, unknown code area, or a planning artifact requested) →
-   `planner` first; its report feeds your decomposition and never replaces
-   it. Research → `scouter`/`researcher`. UI → `designer`. Code →
+3. **Pick roles.** The orchestrator plans. Do not `spawn planner`. Research
+   → `scouter`/`researcher` (explore, or read). UI → `designer`. Code →
    `implementer`. Bulk mechanical → `tasker`. Every slice that changes
    code gets a `reviewer` from another model family; auth/secrets/input
    handling also gets `security-reviewer`; visible UI also gets `inspector`.
+   Keep the pipeline in [Fluxo paralelo](#fluxo-paralelo) full.
 4. **Write one brief per slice** from [templates/brief.md](templates/brief.md):
    goal, owned files, forbidden files, local sources by path, project rules
    that apply, checks the worker may run, report format. **No commit, push,
@@ -521,28 +591,41 @@ the guard.
 ## Ask how to configure
 
 `setup` writes the instruction block. It does not guess which CLIs this
-machine has. While the project file sets neither `max_workers`,
-`multi_role`, nor any `role.<role>.kind`, `setup` warns and the
-orchestrator does this before spawning:
+machine has. While the project file sets neither `multi_role`, any
+`lane.<name>.kind`, nor any `role.<role>.kind`, `setup` warns.
+`max_workers` alone, including the value `doctor --fix` writes, is not
+that choice. The same ritual runs when `doctor` reports panes missing, an
+empty `lane.<name>.kind` whose roles resolve to different kinds, or a
+legacy config (`split_max_panes` above `panes`, a per-role kind on a lane
+that has its own kind, `role.planner.*`):
 
 1. Run `$S setup --detect`. It prints JSON and writes no files: every known
    kind with `installed`, `family`, `effort_ceiling`, and up to three newest
    model ids when the CLI answers (a missing or silent CLI yields an empty
-   list, not a failure); plus the effective value and source of
+   list, not a failure); plus `panes`, `lanes`, the effective lanes, the
+   presets for 3 and 4, and the effective value and source of
    `max_workers`, `multi_role`, `reuse_workers`, each `role.<role>.kind`,
    and each `model.<kind>.worker`.
 2. Ask the user with this harness's structured-question tool, offering only
    **detected** kinds:
-   - how many workers may run at once (`max_workers`; `0` means no cap);
-   - which kind and model for each group — implementation (`implementer`,
-     `tasker`), review and security (`reviewer`, `security-reviewer`),
-     research (`scouter`, `researcher`), UI (`designer`, `inspector`,
-     `ui-reviewer`);
-   - whether one agent may hold several roles (`multi_role` `on` or `off`).
-3. Write each answer with `$S config set <key> <value>` (the project file
-   `<repo>/.agents/herdr-agents.conf` by default; `--user` writes
-   `~/.config/herdr-agents/config`).
-4. Run `$S setup` to install the block and the hooks.
+   - 3 panes or 4 (4 is the recommended default);
+   - which kind and model each lane should use (`build`, `explore`,
+     `review`, or `read` when they chose 3).
+3. Write that with `$S setup --panes 3|4 [--lane name=kind:model:effort]…`
+   (same writer as `config set`). `doctor --fix --panes 3|4` does the same
+   normalization on a legacy file: preset lanes when missing, `max_workers`
+   equal to the lane count, `split_max_panes` equal to `panes`,
+   `reuse_workers=on`. For each lane it resolves every role's kind and
+   model (the value in that file, otherwise the role frontmatter). When
+   they agree it writes `lane.<name>.kind` / `.model` and only then removes
+   those `role.<role>.*` keys. When they disagree it leaves the keys, lists
+   `role=kind`, and tells you to ask and run
+   `setup --lane <name>=<kind>[:<model>[:<effort>]]`. `role.planner.*` is
+   removed either way. Comments stay. Without `--panes` and without
+   `panes` in the file, `--fix` exits 2 and tells you to ask 3 or 4 — it
+   does not choose.
+4. The block and the hooks are part of `setup`. Re-run `$S doctor` and act
+   on whatever it still warns about.
 
 `multi_role=on` (the default, including when the key is unset): `spawn`
 without `--fresh` reuses an idle worker of another role when the kind, the
@@ -554,10 +637,11 @@ first. A worker that has held an edit role — `implementer`, `designer`,
 worker, and `max_workers` applies. `multi_role=off` reuses only the same
 role.
 
-The roster file gains three columns after the original eight. Old lines
-stay valid and are reused only for the same role. The new columns are
-`model`, `approvals`, and `roles` (comma-separated history, for example
-`scouter,implementer`). Column 4 stays the current role. Reuse across
+The roster file gains columns after the original eight. Old lines
+stay valid and are reused only for the same role when `lanes=off`. The
+columns are `model`, `approvals`, `roles` (comma-separated history, for
+example `scouter,implementer`), and `lane`. Column 4 stays the current role.
+With lanes on, reuse stays inside the lane. With `lanes=off`, reuse across
 roles rewrites that line in place and appends the new role. The reused
 spawn JSON includes `previous_role`. `dispatch` reads column 4, so the
 composed prompt is the new role. `roster` prints the current role and,
@@ -576,6 +660,12 @@ listed, not deleted, at release.
 
 Use the harness's structured-question tool when:
 
+- `wait`, `status` or `dispatch` returns `quota` (exit 11). The JSON carries
+  `lane`, `kind`, `model`, the sanitized `match` and, when the screen showed
+  one, `renewal`. Offer: switch that lane's kind/model to another detected
+  one, wait until renewal, take the slice in this session, or pause. When
+  the work resumes on a new worker, put `git diff` of the partial edit in
+  the brief so it continues instead of starting over.
 - The objective could be UI or not UI and the answer changes which roles are
   spawned.
 - A reviewer would come from the same family as the implementer and no

@@ -219,9 +219,10 @@ you should do. Read this before changing the script or adding a kind.
 
 - `agents.tsv` columns are: name, pane, kind, role, family, created_pane,
   cwd, started, and, on lines written by a current `spawn`, model,
-  approvals, roles. Old lines stop at `started` (8 columns) and are reused
-  only for the same role. Column 4 is the current role. `roles` is a
-  comma-separated history (`scouter,implementer`). `reuse_workers` once
+  approvals, roles, lane. Old lines stop at `started` (8 columns) and are
+  reused only for the same role. Column 4 is the current role. `roles` is a
+  comma-separated history (`scouter,implementer`). Column 12 is the lane
+  (`build`, `explore`, `review`, `read`). `reuse_workers` once
   compared the family with the cwd. Read columns by name in comments when
   adding code.
 - With `multi_role=on`, `spawn` may reuse an idle worker of another role
@@ -280,3 +281,32 @@ temp file, the rewrite aborts on awk failure, and the result must be
 non-empty and contain the end marker before it replaces the target.
 **Rule for the script:** never `mv` a generated file over user content
 without checking that generation succeeded and produced what you expect.
+
+## Lane busy (exit 10) and `spawn planner` (exit 12)
+
+- **Symptom:** `spawn implementer` prints `{"status":"busy","lane":"build","name":"build"}` and exits 10 while the build pane is still working.
+- **Cause:** one lane is one session. A second pane would exceed `panes`.
+- **Do:** `wait build`, then dispatch the next brief. `spawn planner` exits 12 on purpose: plan in the orchestrator session.
+
+## Quota (exit 11)
+
+- **Symptom:** `wait` / `status` / `dispatch` returns status `quota` and exit 11. The JSON has `lane`, `kind`, `model`, `match`, and `renewal` when the screen printed a time.
+- **Cause:** the agent is not `working`, the report is missing, and the last ~20 visible lines contain a provider quota error as a whole sentence (`hit your usage limit`, `Individual quota reached`, `quota exceeded`, `You exceeded your current quota`, `RESOURCE_EXHAUSTED`, `429 Too Many Requests`, `rate limit exceeded`, `You've hit your … limit`, `You have reached your … usage limits`). A line that is source (`return`, `func` / `function`, an assignment, a `//` / `#` / `/*` comment, or the phrase in quotes) does not match. `You've hit your stride` does not match. Neither does the same text while the agent is `working`.
+- **Do:** ask the user (switch the lane's kind/model, wait for renewal, take the slice, or pause). On resume, include `git diff` of the partial work in the next brief. The line is logged in `friction`.
+
+## `doctor --fix` will not pick 3 or 4
+
+- **Symptom:** `doctor --fix` exits 2 and the config file is unchanged.
+- **Cause:** the file has no `panes=` and `--panes` was not passed. The script does not choose a team size.
+- **Do:** ask the user, then `doctor --fix --panes 3` or `--panes 4`. That writes the preset lanes, sets `max_workers` to the lane count and `split_max_panes` to `panes`, and turns `reuse_workers` on. For each lane it resolves every role's kind and model (the value in that file, otherwise the role frontmatter). When they all agree, it writes `lane.<name>.kind` / `.model` and then removes those `role.<role>.kind` / `.model` keys. When they disagree, it leaves the keys, lists `role=kind`, and tells you to ask and run `setup --lane <name>=<kind>[:<model>[:<effort>]]`. `role.planner.*` is always removed. Full-line comments stay. `max_workers` written here does not count as the user having chosen a lane kind. `setup --panes 4 --lane build=grok:grok-4.7:high` writes the same keys plus the lane's kind, model and effort.
+
+## Lane kind mismatch (exit 13)
+
+- **Symptom:** `spawn` prints `{"status":"kind-mismatch",...}` with `session_kind`, `requested_kind`, and the model and effort on each side, and exits 13. The pane stays on the CLI of the role that opened it.
+- **Cause:** `lane.<name>.kind` is empty, so the first role opened the session (designer is `agy`, implementer is `grok`). A later role would otherwise keep that process.
+- **Do:** `release <name> --close` the lane, set one CLI for it with `setup --lane <name>=<kind>[:<model>[:<effort>]]` if `lane.<name>.kind` is missing, then spawn again. Setting the key alone does not retarget a running session: a live process on another CLI still exits 13 until it is released. `doctor` warns when the key is empty and the roles in the lane resolve to different kinds.
+
+## `wait` of several lanes
+
+- **Symptom:** one lane is `quota` and another is `blocked` or `gone`, and the exit changes with the order of the names.
+- **Now:** the exit is the most severe status in the wait: 4 (`unavailable`), then 11 (`quota`), then 7 (`blocked`), then 6 (`gone` or settled). `wait build review` and `wait review build` return the same code.

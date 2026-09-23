@@ -9,8 +9,10 @@
 #
 # Usage:
 #   herdr-agents.sh init                          # doctor + name the caller `orchestrator`, print context
-#   herdr-agents.sh doctor                        # advisory environment check (herdr, official skill, kinds, state)
+#   herdr-agents.sh doctor [--fix] [--panes 3|4] [--user]
+#                                                 # advisory check; --fix normalizes lanes in the project file
 #   herdr-agents.sh setup [--target FILE] [--no-hooks] [--dry-run] [--detect]
+#                         [--panes 3|4] [--lane name=kind[:model[:effort]]]
 #                                                 # write the block + hooks; --detect prints JSON and writes nothing
 #   herdr-agents.sh roles | kinds
 #   herdr-agents.sh config [set <key> <value> [--project|--user]]
@@ -53,7 +55,8 @@
 # `herdr agent get` transport/permission errors reported as `unavailable`) ·
 # 5 same-family reviewer · 6 settled without report or agent really gone ·
 # 7 agent blocked (startup or approval) · 8 max_workers reached ·
-# 9 wait timeout.
+# 9 wait timeout · 10 lane busy · 11 quota exhausted · 12 planner is the orchestrator ·
+# 13 lane kind-mismatch (set lane.<name>.kind, or release the lane).
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -62,8 +65,9 @@ REVIEW_ROLES="reviewer security-reviewer"
 REVIEW_ROLES_ALL="reviewer security-reviewer ui-reviewer inspector"
 EFFORT_LADDER="low medium high xhigh max"
 # Scalar keys `config` prints and `config set` accepts. Dotted keys
-# (role.*.kind|model|effort, model.*, effort.*, args.*) are checked separately.
-CONFIG_SCALAR_KEYS=(orchestrator_name layout regrid max_workers split_max_panes split_min_pane herd_label herd_label_max reuse_workers multi_role worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo)
+# (role.*.kind|model|effort, lane.*.roles|kind|model|effort|approvals,
+# model.*, effort.*, args.*) are checked separately.
+CONFIG_SCALAR_KEYS=(orchestrator_name layout regrid max_workers split_max_panes split_min_pane herd_label herd_label_max reuse_workers multi_role panes lanes worker_context brief_lint approvals auto_approve max_auto_approvals max_effort family_check settled_grace spawn_timeout dispatch_timeout state_dir report_language notify feedback feedback_repo)
 KNOWN_KINDS=(claude codex grok agy gemini cursor)
 
 FRICTION_LOG=""
@@ -131,7 +135,7 @@ cmd_config() {
   for k in "${CONFIG_SCALAR_KEYS[@]}"; do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
-  for k in $(compgen -v | grep -E '^CFG_(args|role|model|effort)_' | sed 's/^CFG_//'); do
+  for k in $(compgen -v | grep -E '^CFG_(args|role|model|effort|lane)_' | sed 's/^CFG_//'); do
     printf '%-18s %-30s %s\n' "$k" "$(cfg "$k")" "$(cfg_source "$k")"
   done
   printf '\nlayers read:%s\n' "${CFG_SOURCES:- (none)}"
@@ -142,7 +146,23 @@ cmd_config() {
 config_key_ok() {
   local key="$1"
   has_word "${CONFIG_SCALAR_KEYS[*]}" "$key" && return 0
-  printf '%s' "$key" | grep -Eq '^(role\.[a-z][a-z0-9_-]*\.(kind|model|effort)|model\.[a-z][a-z0-9_.-]+|effort\.[a-z][a-z0-9_-]+|args\.[a-z][a-z0-9_-]+)$'
+  printf '%s' "$key" | grep -Eq '^(role\.[a-z][a-z0-9_-]*\.(kind|model|effort)|lane\.[a-z][a-z0-9_-]*\.(roles|kind|model|effort|approvals)|model\.[a-z][a-z0-9_.-]+|effort\.[a-z][a-z0-9_-]+|args\.[a-z][a-z0-9_-]+)$'
+}
+
+# config_roles_ok <csv> — every token is a role file this skill can resolve.
+config_roles_ok() {
+  local raw="$1" r
+  [ -n "$raw" ] || return 1
+  local IFS=','
+  # shellcheck disable=SC2086
+  set -- $raw
+  [ "$#" -gt 0 ] || return 1
+  for r in "$@"; do
+    r="$(printf '%s' "$r" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [ -n "$r" ] || return 1
+    role_file "$r" >/dev/null 2>&1 || return 1
+  done
+  return 0
 }
 
 # config_value_ok <key> <value> — known enums only; other keys accept any one-line value.
@@ -151,10 +171,13 @@ config_value_ok() {
   # One line, and no `#`: the loader cuts every line at its first `#`.
   case "$value" in *$'\n'*|*$'\t'*|*'#'*) return 1 ;; esac
   case "$key" in
-    approvals) case "$value" in ask|edits|full) return 0 ;; *) return 1 ;; esac ;;
+    approvals|lane.*.approvals) case "$value" in ask|edits|full) return 0 ;; *) return 1 ;; esac ;;
     max_workers) printf '%s' "$value" | grep -Eq '^[0-9]+$' ;;
-    multi_role|reuse_workers) case "$value" in on|off) return 0 ;; *) return 1 ;; esac ;;
-    role.*.kind) has_word "${KNOWN_KINDS[*]}" "$value" ;;
+    multi_role|reuse_workers|lanes) case "$value" in on|off) return 0 ;; *) return 1 ;; esac ;;
+    panes) case "$value" in 3|4) return 0 ;; *) return 1 ;; esac ;;
+    role.*.kind|lane.*.kind) has_word "${KNOWN_KINDS[*]}" "$value" ;;
+    lane.*.roles) config_roles_ok "$value" ;;
+    lane.*.effort) has_word "$EFFORT_LADDER" "$value" ;;
     *) return 0 ;;
   esac
 }
@@ -257,7 +280,7 @@ state_root() {
 state_dir() {
   local d; d="$(state_root)/$(workspace_id)"
   mkdir -p "$d/briefs" "$d/reports" "$d/wait"
-  [ -f "$d/agents.tsv" ] || printf '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\n' > "$d/agents.tsv"
+  [ -f "$d/agents.tsv" ] || printf '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n' > "$d/agents.tsv"
   printf '%s\n' "$d"
 }
 
@@ -461,6 +484,7 @@ resolve_model() {
 
 # codex_model_ceiling <slug> → highest reasoning effort the cached model advertises
 codex_model_ceiling() {
+  [ -f "$HOME/.codex/models_cache.json" ] || return 0
   jq -r --arg m "$1" '.models[]? | select(.slug==$m) | [.supported_reasoning_levels[]?.effort] | join(" ")' "$HOME/.codex/models_cache.json" 2>/dev/null \
     | tr ' ' '\n' | awk '{r=0} $0=="low"{r=1} $0=="medium"{r=2} $0=="high"{r=3} $0=="xhigh"{r=4} $0=="max"{r=5} r>best{best=r;name=$0} END{print name}'
 }
@@ -662,9 +686,563 @@ live_worker_names() {
 }
 live_worker_count() { live_worker_names | grep -c . || true; }
 
+# ---------- lanes ----------
+# panes=4 (default): build | explore | review, plus the orchestrator.
+# panes=3: build | read. lanes=off keeps per-role spawn and multi_role reuse.
+# A lane.<name>.roles key in any config layer replaces the preset entirely.
+
+config_explicit() {
+  case "$(cfg_source "$1")" in
+    user|project|env) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+lanes_enabled() {
+  case "$(cfg lanes on)" in
+    off) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+panes_value() {
+  case "$(cfg panes 4)" in
+    3|4) cfg panes 4 ;;
+    *) printf '%s\n' 4 ;;
+  esac
+}
+
+lane_key() { printf 'lane_%s_%s\n' "$(printf '%s' "$1" | tr '-' '_')" "$2"; }
+
+preset_lane_names_for() {
+  case "$1" in
+    3) printf '%s\n' build read ;;
+    *) printf '%s\n' build explore review ;;
+  esac
+}
+preset_lane_names() { preset_lane_names_for "$(panes_value)"; }
+
+preset_lane_count() {
+  case "$1" in
+    3) printf '%s\n' 2 ;;
+    *) printf '%s\n' 3 ;;
+  esac
+}
+
+# preset_lane_roles <lane> [panes]
+preset_lane_roles() {
+  local lane="$1" p="${2:-$(panes_value)}"
+  case "$p:$lane" in
+    4:build|3:build) printf '%s\n' "implementer,designer,tasker" ;;
+    4:explore) printf '%s\n' "scouter,researcher" ;;
+    4:review) printf '%s\n' "reviewer,security-reviewer,ui-reviewer,inspector" ;;
+    3:read) printf '%s\n' "scouter,researcher,reviewer,security-reviewer,ui-reviewer,inspector" ;;
+    *) printf '%s\n' "" ;;
+  esac
+}
+
+preset_roles_flat() {
+  local p="$1" lane roles="" part
+  while IFS= read -r lane; do
+    [ -n "$lane" ] || continue
+    part="$(preset_lane_roles "$lane" "$p")"
+    roles="${roles:+$roles,}$part"
+  done < <(preset_lane_names_for "$p")
+  printf '%s\n' "$roles"
+}
+
+custom_lanes_present() {
+  local v
+  v="$(compgen -v | grep -E '^CFG_lane_.*_roles$' || true)"
+  if [ -n "$v" ]; then
+    local name
+    for name in $v; do
+      [ -n "$(cfg "${name#CFG_}")" ] && return 0
+    done
+  fi
+  v="$(compgen -v | grep -E '^HERDR_AGENTS_LANE_.*_ROLES$' || true)"
+  [ -n "$v" ] || return 1
+  local name
+  for name in $v; do
+    [ -n "${!name:-}" ] && return 0
+  done
+  return 1
+}
+
+lane_names() {
+  local v name key
+  if ! custom_lanes_present; then
+    preset_lane_names
+    return 0
+  fi
+  {
+    compgen -v | grep -E '^CFG_lane_.*_roles$' || true
+    compgen -v | grep -E '^HERDR_AGENTS_LANE_.*_ROLES$' || true
+  } | while IFS= read -r v; do
+    [ -n "$v" ] || continue
+    case "$v" in
+      CFG_lane_*_roles) name="${v#CFG_lane_}"; name="${name%_roles}" ;;
+      HERDR_AGENTS_LANE_*_ROLES)
+        name="${v#HERDR_AGENTS_LANE_}"
+        name="${name%_ROLES}"
+        name="$(printf '%s' "$name" | tr 'A-Z' 'a-z')"
+        ;;
+      *) continue ;;
+    esac
+    key="$(lane_key "$name" roles)"
+    [ -n "$(cfg "$key")" ] && printf '%s\n' "$name"
+  done | sort -u
+}
+
+lane_count() { lane_names | grep -c . || true; }
+
+lane_roles_csv() {
+  local key
+  key="$(lane_key "$1" roles)"
+  if custom_lanes_present; then cfg "$key"; else preset_lane_roles "$1"; fi
+}
+
+lane_attr() { cfg "$(lane_key "$1" "$2")"; }
+
+# lane_of_role <role> → lane name, or exit 1.
+lane_of_role() {
+  local role="$1" lane roles r
+  while IFS= read -r lane; do
+    [ -n "$lane" ] || continue
+    roles="$(lane_roles_csv "$lane" | tr ',' ' ')"
+    for r in $roles; do
+      r="$(printf '%s' "$r" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      [ "$r" = "$role" ] && { printf '%s\n' "$lane"; return 0; }
+    done
+  done < <(lane_names)
+  return 1
+}
+
+# Roster row for this lane: column 12 matches, else the worker is named as the lane.
+find_lane_worker() {
+  local lane="$1" line name lane_col by_name=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -n "$line" ] || continue
+    name="$(printf '%s' "$line" | cut -f1)"
+    lane_col="$(printf '%s' "$line" | awk -F'\t' 'NF>=12 { print $12 }')"
+    if [ "$lane_col" = "$lane" ]; then
+      printf '%s\n' "$line"
+      return 0
+    fi
+    [ "$name" = "$lane" ] && by_name="$line"
+  done < <(roster_rows)
+  [ -n "$by_name" ] && { printf '%s\n' "$by_name"; return 0; }
+  return 1
+}
+
+# lane_decide <lane> <role>
+# stdout: absent | reuse<TAB>name | busy<TAB>name<TAB>state | gone<TAB>name
+#         | unavailable<TAB>name<TAB>cause | locked<TAB>name
+lane_decide() {
+  local lane="$1" role="$2" line name raw cur hist sd rep
+  local STATE CAUSE
+  line="$(find_lane_worker "$lane" || true)"
+  if [ -z "$line" ]; then
+    printf 'absent\n'
+    return 0
+  fi
+  name="$(printf '%s' "$line" | cut -f1)"
+  raw="$(agent_state "$name")"
+  split_agent_state "$raw"
+  case "$STATE" in
+    gone) printf 'gone\t%s\n' "$name" ;;
+    working|blocked) printf 'busy\t%s\t%s\n' "$name" "$STATE" ;;
+    unavailable) printf 'unavailable\t%s\t%s\n' "$name" "$CAUSE" ;;
+    idle|done)
+      sd="$(state_dir)"
+      rep="$(cat "$sd/last-report-$name" 2>/dev/null || true)"
+      if [ -n "$rep" ] && [ ! -s "$rep" ]; then
+        printf 'busy\t%s\tpending-report\n' "$name"
+        return 0
+      fi
+      cur="$(printf '%s' "$line" | cut -f4)"
+      hist="$(printf '%s' "$line" | awk -F'\t' 'NF>=11 { print $11 }')"
+      if is_review_role "$role" && { role_is_edit "$cur" || history_has_edit "$hist"; }; then
+        printf 'locked\t%s\n' "$name"
+        return 0
+      fi
+      printf 'reuse\t%s\n' "$name"
+      ;;
+    *) printf 'busy\t%s\t%s\n' "$name" "${STATE:-unknown}" ;;
+  esac
+}
+
+# redact_secrets <text> — drop credential-shaped fragments before a quota line is stored.
+redact_secrets() {
+  printf '%s' "$1" | sed -E \
+    -e 's/(sk|pk|rk)_(live|test)_[A-Za-z0-9]+/[redacted]/g' \
+    -e 's/[Bb]earer [A-Za-z0-9._~+/-]+/Bearer [redacted]/g' \
+    -e 's/(api[_-]?key|token|secret|password)=[^ ]*/\1=[redacted]/g'
+}
+
+# quota_line_is_code <line> — source on an idle screen is not a provider error.
+# A credential glued on with token=secret is not an assignment: that line can
+# still be the provider message (redact_secrets strips it afterwards).
+quota_line_is_code() {
+  local line="$1"
+  printf '%s\n' "$line" | grep -Eq '^[[:space:]]*(#|//|/\*)' && return 0
+  printf '%s\n' "$line" | grep -Eq '[[:space:]]#([[:space:]]|$)' && return 0
+  printf '%s\n' "$line" | grep -Eq '(^|[^:])//|/\*' && return 0
+  printf '%s\n' "$line" | grep -Eq '(^|[^[:alnum:]_])return([^[:alnum:]_]|$)' && return 0
+  printf '%s\n' "$line" | grep -Eq '(^|[^[:alnum:]_])function([^[:alnum:]_]|$)' && return 0
+  printf '%s\n' "$line" | grep -Eq '(^|[^[:alnum:]_])func[[:space:]]' && return 0
+  # Spaced assignment, or ident="...". token=secret on a provider line stays.
+  printf '%s\n' "$line" | grep -Eq '[[:alnum:]_][[:space:]]+=[[:space:]]*' && return 0
+  printf '%s\n' "$line" | grep -Eq '[[:alnum:]_]=["'\'']' && return 0
+  return 1
+}
+
+# quota_phrase_quoted <line> <ere> — the phrase is a string literal, not a
+# sentence the provider printed. A JSON "message" field still counts.
+quota_phrase_quoted() {
+  # tolower: BSD awk has no IGNORECASE. ASCII length is unchanged.
+  awk -v line="$1" -v pat="$2" 'BEGIN {
+    line_l = tolower(line)
+    pat_l = tolower(pat)
+    if (!match(line_l, pat_l)) exit 1
+    pre = substr(line, 1, RSTART - 1)
+    post = substr(line, RSTART + RLENGTH)
+    if (pre ~ /"message"/ || pre ~ /insufficient_quota/ || pre ~ /rate_limit_error/) exit 1
+    gsub(/[ \t]+$/, "", pre)
+    gsub(/^[ \t]+/, "", post)
+    pc = substr(pre, length(pre), 1)
+    nc = substr(post, 1, 1)
+    if ((pc == "\"" && nc == "\"") || (pc == "'"'"'" && nc == "'"'"'") || (pc == "`" && nc == "`")) exit 0
+    exit 1
+  }'
+}
+
+# quota_detect <state> <screen>
+# Specific provider messages only, and only on a line that is not source.
+# A worker that is `working`, prose about a rate limiter, or "You've hit your
+# stride" does not match. stdout: match, then renewal (possibly empty).
+# Exit 1 when this is not a quota stop.
+quota_detect() {
+  local st="$1" screen="$2" line="" renewal candidate pat
+  [ "$st" != working ] || return 1
+  [ -n "$screen" ] || return 1
+  while IFS= read -r candidate || [ -n "$candidate" ]; do
+    [ -n "$candidate" ] || continue
+    quota_line_is_code "$candidate" && continue
+    while IFS= read -r pat; do
+      [ -n "$pat" ] || continue
+      printf '%s\n' "$candidate" | grep -E -i -q -e "$pat" || continue
+      quota_phrase_quoted "$candidate" "$pat" && continue
+      line="$candidate"
+      break
+    done << 'PATS'
+hit your usage limit
+Individual quota reached
+You exceeded your current quota
+quota exceeded
+RESOURCE_EXHAUSTED
+429 Too Many Requests
+rate limit exceeded
+You've hit your( [A-Za-z]+)? limit
+You have hit your( [A-Za-z]+)? limit
+You have reached your( specified)?( (workspace )?API)? usage limits?
+You've reached your( specified)?( (workspace )?API)? usage limits?
+PATS
+    [ -n "$line" ] && break
+  done <<< "$screen"
+  [ -n "$line" ] || return 1
+  renewal="$(printf '%s\n' "$screen" | grep -E -i -m1 \
+    -e 'resets? (at|in|on) ' \
+    -e 'try again (at|in) ' \
+    -e 'available (again )?(at|in) ' \
+    -e 'retry after ' \
+    -e 'in [0-9]+ (minute|hour|second)s?' || true)"
+  line="$(sanitize_cause "$(redact_secrets "$line")")"
+  renewal="$(sanitize_cause "$(redact_secrets "$renewal")")"
+  printf '%s\n%s\n' "$line" "$renewal"
+  return 0
+}
+
+# file_key_value <file> <key> — last assignment, ignoring comments.
+file_key_value() {
+  [ -f "$1" ] || return 0
+  awk -v key="$2" '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    {
+      body = $0
+      if (match(body, /[ \t]#.*$/)) body = substr(body, 1, RSTART - 1)
+      stripped = trim(body)
+      if (stripped == "" || substr(stripped, 1, 1) == "#") next
+      eq = index(stripped, "=")
+      if (eq == 0) next
+      k = trim(substr(stripped, 1, eq - 1))
+      if (k == key) v = trim(substr(stripped, eq + 1))
+    }
+    END { if (v != "") print v }
+  ' "$1"
+}
+
+file_lane_signature() {
+  [ -f "$1" ] || return 0
+  awk '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    {
+      body = $0
+      if (match(body, /[ \t]#.*$/)) body = substr(body, 1, RSTART - 1)
+      stripped = trim(body)
+      if (stripped == "" || substr(stripped, 1, 1) == "#") next
+      eq = index(stripped, "=")
+      if (eq == 0) next
+      k = trim(substr(stripped, 1, eq - 1))
+      v = trim(substr(stripped, eq + 1))
+      if (k ~ /^lane\.[A-Za-z0-9_-]+\.roles$/) {
+        sub(/^lane\./, "", k)
+        sub(/\.roles$/, "", k)
+        print k "=" v
+      }
+    }
+  ' "$1" | sort
+}
+
+preset_signature() {
+  local p="$1" lane
+  while IFS= read -r lane; do
+    [ -n "$lane" ] || continue
+    printf '%s=%s\n' "$lane" "$(preset_lane_roles "$lane" "$p")"
+  done < <(preset_lane_names_for "$p") | sort
+}
+
+file_laned_roles() {
+  local sig line name roles csv="" part
+  sig="$(file_lane_signature "$1")"
+  [ -n "$sig" ] || return 0
+  while IFS= read -r line; do
+    roles="${line#*=}"
+    csv="${csv:+$csv,}$roles"
+  done <<< "$sig"
+  printf '%s\n' "$csv"
+}
+
+file_lane_count() {
+  file_lane_signature "$1" | grep -c . || true
+}
+
+# Drop role.planner.*, the per-role kind/model keys named in HA_DROP_KIND /
+# HA_DROP_MODEL (comma lists), and (optionally) every lane.*.roles line.
+# Full-line comments stay. Roles that were not named keep their keys.
+config_drop_legacy() {
+  local dest="$1" tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-conf.XXXXXX")"
+  if ! awk '
+    BEGIN {
+      n = split(ENVIRON["HA_DROP_KIND"], a, ",")
+      for (i = 1; i <= n; i++) if (a[i] != "") drop_kind[a[i]] = 1
+      n = split(ENVIRON["HA_DROP_MODEL"], b, ",")
+      for (i = 1; i <= n; i++) if (b[i] != "") drop_model[b[i]] = 1
+      drop_lanes = ENVIRON["HA_DROP_LANE_ROLES"]
+    }
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    {
+      raw = $0
+      body = raw
+      if (match(body, /[ \t]#.*$/)) body = substr(body, 1, RSTART - 1)
+      stripped = trim(body)
+      if (stripped == "" || substr(stripped, 1, 1) == "#") { print raw; next }
+      eq = index(stripped, "=")
+      if (eq == 0) { print raw; next }
+      k = trim(substr(stripped, 1, eq - 1))
+      if (k ~ /^role\.planner\./) next
+      if (k ~ /^role\.[A-Za-z0-9_-]+\.kind$/) {
+        name = k
+        sub(/^role\./, "", name)
+        sub(/\.kind$/, "", name)
+        if (drop_kind[name]) next
+      }
+      if (k ~ /^role\.[A-Za-z0-9_-]+\.model$/) {
+        name = k
+        sub(/^role\./, "", name)
+        sub(/\.model$/, "", name)
+        if (drop_model[name]) next
+      }
+      if (drop_lanes == "1" && k ~ /^lane\.[A-Za-z0-9_-]+\.roles$/) next
+      print raw
+    }
+  ' "$dest" > "$tmp"; then
+    rm -f "$tmp"
+    die "could not rewrite $dest (file left untouched)" 4
+  fi
+  mv "$tmp" "$dest"
+}
+
+# file_role_resolved <file> <role> <kind|model> — value in that file, else frontmatter.
+file_role_resolved() {
+  local dest="$1" role="$2" attr="$3" v f
+  v="$(file_key_value "$dest" "role.${role}.${attr}")"
+  if [ -z "$v" ]; then
+    f="$(role_file "$role" 2>/dev/null || true)"
+    [ -n "$f" ] && v="$(fm_get "$f" "$attr")"
+  fi
+  printf '%s\n' "$v"
+}
+
+# migrate_lane_attr <dest> <lane> <roles-csv> <kind|model>
+# Unanimous non-empty value → write lane.<name>.<attr> and remember the roles
+# so the caller can drop their role.* keys. Disagreement → keep the keys and
+# warn. An empty consensus writes nothing. Appends role names to drop_kind or
+# drop_model in the caller (bash dynamic scope). A lane.<name>.<attr> already
+# in the file is left as the user set it, and the per-role keys are dropped.
+migrate_lane_attr() {
+  local dest="$1" lane="$2" roles_csv="$3" attr="$4"
+  local part r val first="" have=0 agree=1 list="" existing
+  existing="$(file_key_value "$dest" "lane.${lane}.${attr}")"
+  local lane_kind; lane_kind="$(file_key_value "$dest" "lane.${lane}.kind")"
+  for part in ${roles_csv//,/ }; do
+    r="$(printf '%s' "$part" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [ -n "$r" ] || continue
+    [ "$r" = planner ] && continue
+    if [ -n "$existing" ]; then
+      case "$attr" in
+        kind) drop_kind="$drop_kind $r" ;;
+        *) drop_model="$drop_model $r" ;;
+      esac
+      continue
+    fi
+    if [ "$attr" = model ]; then
+      # A lane model only makes sense for a lane with one CLI (lane.*.kind,
+      # written by the kind pass when unanimous). A role.*.model in the file
+      # always votes; a frontmatter model votes only when its frontmatter
+      # kind is the lane kind (ui-reviewer's gemini|sonnet is an agy spec);
+      # an empty model does not vote.
+      [ -n "$lane_kind" ] || return 0
+      val="$(file_key_value "$dest" "role.${r}.model")"
+      if [ -z "$val" ]; then
+        local rf; rf="$(role_file "$r" 2>/dev/null || true)"
+        if [ -n "$rf" ] && [ "$(fm_get "$rf" kind)" = "$lane_kind" ]; then
+          val="$(fm_get "$rf" model)"
+        fi
+      fi
+      [ -n "$val" ] || continue
+    else
+      val="$(file_role_resolved "$dest" "$r" "$attr")"
+    fi
+    list="${list:+$list }$r=${val}"
+    if [ "$have" = 0 ]; then
+      first="$val"
+      have=1
+    elif [ "$val" != "$first" ]; then
+      agree=0
+    fi
+  done
+  [ -n "$existing" ] && return 0
+  [ "$have" = 1 ] || return 0
+  if [ "$agree" = 1 ] && [ -n "$first" ]; then
+    config_write_pair "$dest" "lane.${lane}.${attr}" "$first"
+    printf 'set lane.%s.%s=%s\n' "$lane" "$attr" "$first"
+    for part in ${roles_csv//,/ }; do
+      r="$(printf '%s' "$part" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      [ -n "$r" ] || continue
+      [ "$r" = planner ] && continue
+      case "$attr" in
+        kind) drop_kind="$drop_kind $r" ;;
+        *) drop_model="$drop_model $r" ;;
+      esac
+    done
+    return 0
+  fi
+  if [ "$agree" = 0 ]; then
+    warn "lane '$lane' ${attr}s differ ($list). Left the role.*.${attr} keys in place. Orchestrator: ask the user which ${attr} this lane should use, then run 'setup --lane ${lane}=<kind>[:<model>[:<effort>]]'."
+  fi
+}
+
+# apply_lane_file <dest> <panes 3|4>
+# Writes panes, the preset lanes when the file has none or only a preset,
+# aligns max_workers and split_max_panes, turns reuse_workers on, and copies
+# a unanimous per-role kind/model onto the lane before removing those keys.
+# A lane whose roles disagree keeps the keys. role.planner.* is always removed.
+# Prints one line per write.
+apply_lane_file() {
+  local dest="$1" panes="$2" custom=0 sig n lane roles_csv line drop_lanes
+  local drop_kind="" drop_model=""
+  [ -f "$dest" ] || : > "$dest"
+  sig="$(file_lane_signature "$dest")"
+  if [ -n "$sig" ] && [ "$sig" != "$(preset_signature 3)" ] && [ "$sig" != "$(preset_signature 4)" ]; then
+    custom=1
+    warn "lane roles in $dest are custom; left in place. Remove them to restore the panes=$panes preset."
+  fi
+  drop_lanes=0
+  if [ "$custom" = 0 ]; then
+    [ "$sig" = "$(preset_signature "$panes")" ] || drop_lanes=1
+    while IFS= read -r lane; do
+      [ -n "$lane" ] || continue
+      roles_csv="$(preset_lane_roles "$lane" "$panes")"
+      migrate_lane_attr "$dest" "$lane" "$roles_csv" kind
+      migrate_lane_attr "$dest" "$lane" "$roles_csv" model
+    done < <(preset_lane_names_for "$panes")
+  else
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      lane="${line%%=*}"
+      roles_csv="${line#*=}"
+      migrate_lane_attr "$dest" "$lane" "$roles_csv" kind
+      migrate_lane_attr "$dest" "$lane" "$roles_csv" model
+    done <<< "$sig"
+  fi
+  HA_DROP_KIND="$(printf '%s' "$drop_kind" | tr ' ' ',')" \
+    HA_DROP_MODEL="$(printf '%s' "$drop_model" | tr ' ' ',')" \
+    HA_DROP_LANE_ROLES="$drop_lanes" \
+    config_drop_legacy "$dest"
+  config_write_pair "$dest" panes "$panes"
+  printf 'set panes=%s\n' "$panes"
+  if [ "$custom" = 0 ]; then
+    while IFS= read -r lane; do
+      [ -n "$lane" ] || continue
+      config_write_pair "$dest" "lane.${lane}.roles" "$(preset_lane_roles "$lane" "$panes")"
+      printf 'set lane.%s.roles=%s\n' "$lane" "$(preset_lane_roles "$lane" "$panes")"
+    done < <(preset_lane_names_for "$panes")
+    n="$(preset_lane_count "$panes")"
+  else
+    n="$(file_lane_count "$dest")"
+  fi
+  config_write_pair "$dest" max_workers "$n"
+  printf 'set max_workers=%s\n' "$n"
+  config_write_pair "$dest" split_max_panes "$panes"
+  printf 'set split_max_panes=%s\n' "$panes"
+  config_write_pair "$dest" reuse_workers on
+  printf 'set reuse_workers=on\n'
+  printf 'removed role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n'
+}
+
+# setup_lane_spec <name=kind[:model[:effort]]> → name, kind, model, effort on one TSV line.
+setup_lane_spec() {
+  local spec="$1" name rest kind="" model="" effort="" extra=""
+  name="${spec%%=*}"
+  rest="${spec#*=}"
+  [ "$name" != "$spec" ] || die "setup: --lane expects name=kind[:model[:effort]]" 2
+  printf '%s' "$name" | grep -Eq '^[a-z][a-z0-9_-]*$' || die "setup: invalid lane name '$name'" 2
+  IFS=':' read -r kind model effort extra <<< "$rest"
+  [ -z "$extra" ] || die "setup: --lane '$spec' has too many ':' fields" 2
+  [ -n "$kind" ] || die "setup: --lane '$spec' needs a kind" 2
+  has_word "${KNOWN_KINDS[*]}" "$kind" || die "setup: unknown kind '$kind'" 2
+  if [ -n "$effort" ]; then
+    has_word "$EFFORT_LADDER" "$effort" || die "setup: invalid effort '$effort'" 2
+  fi
+  case "${kind}${model}${effort}" in *'#'*) die "setup: --lane value cannot contain #" 2 ;; esac
+  printf '%s\t%s\t%s\t%s\n' "$name" "$kind" "$model" "$effort"
+}
+
 # max_workers: validated cap on live workers of this skill in the workspace
 # (the orchestrator does not count). 0 = no cap; anything else falls back to 3.
-max_workers() { local v; v="$(cfg max_workers 3)"; printf '%s' "$v" | grep -Eq '^[0-9]+$' && printf '%s\n' "$v" || echo 3; }
+# When lanes are on and max_workers was not set by the user, the project or
+# the environment, the cap is the number of lanes.
+max_workers() {
+  local v
+  if lanes_enabled && ! config_explicit max_workers; then
+    lane_count
+    return
+  fi
+  v="$(cfg max_workers 3)"
+  printf '%s' "$v" | grep -Eq '^[0-9]+$' && printf '%s\n' "$v" || echo 3
+}
 
 # enforce_worker_cap: refuse a new worker (exit 8) once max_workers are live.
 # Reusing an idle worker never reaches this check.
@@ -696,8 +1274,163 @@ ensure_orchestrator_name() {
   printf '%s\n' "$n"
 }
 
+# doctor_fix <project|user> <panes or empty>
+# Without a panes choice in the flag or the target file, refuse and leave the file.
+doctor_fix() {
+  local where="$1" flag="$2" dest panes="" before
+  dest="$(config_file_for "$where")"
+  case "$flag" in
+    "") ;;
+    3|4) panes="$flag" ;;
+    *) die "doctor --fix: --panes must be 3 or 4" 2 ;;
+  esac
+  if [ -z "$panes" ]; then
+    panes="$(file_key_value "$dest" panes)"
+  fi
+  case "$panes" in
+    3|4) ;;
+    "")
+      die "doctor --fix: panes is not set in $dest. Orchestrator: ask the user whether to run 3 or 4 panes, then re-run 'doctor --fix --panes 3' or 'doctor --fix --panes 4'." 2
+      ;;
+    *) die "doctor --fix: panes=$panes in $dest is not 3 or 4" 2 ;;
+  esac
+  mkdir -p "$(dirname "$dest")"
+  before=""
+  [ -f "$dest" ] && before="$(cat "$dest")"
+  apply_lane_file "$dest" "$panes"
+  if [ "$before" = "$(cat "$dest" 2>/dev/null || true)" ]; then
+    printf 'doctor --fix: no changes in %s\n' "$dest"
+  else
+    printf 'doctor --fix: updated %s\n' "$dest"
+    diff -u <(printf '%s' "$before") "$dest" || true
+  fi
+}
+
+doctor_lane_warnings() {
+  local psrc lane roles r seen="" unknown="" dup="" mixed="" has_edit has_review part lane_kind
+  psrc="$(cfg_source panes)"
+  case "$(cfg lanes on)" in
+    on|off) ;;
+    *) say warn "config: lanes='$(cfg lanes)' is not on|off" ;;
+  esac
+  case "$(cfg panes 4)" in
+    3|4)
+      if [ "$psrc" = defaults ] || [ "$psrc" = builtin ]; then
+        say warn "config: panes is not set in the project or user file (default $(cfg panes 4)). Ask the user for 3 or 4 panes, then run '$0 doctor --fix --panes 3' or '--panes 4'."
+      else
+        say ok "config: panes=$(cfg panes) ($psrc)"
+      fi
+      ;;
+    *) say warn "config: panes='$(cfg panes)' is not 3 or 4 (doctor --fix --panes 3|4 writes a preset)" ;;
+  esac
+  while IFS= read -r lane; do
+    [ -n "$lane" ] || continue
+    roles="$(lane_roles_csv "$lane")"
+    has_edit=0
+    has_review=0
+    for part in ${roles//,/ }; do
+      r="$(printf '%s' "$part" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      [ -n "$r" ] || continue
+      if ! role_file "$r" >/dev/null 2>&1; then unknown="$unknown $lane:$r"; fi
+      if has_word "$seen" "$r"; then dup="$dup $r"; fi
+      seen="$seen $r"
+      role_is_edit "$r" && has_edit=1
+      is_review_role "$r" && has_review=1
+      if [ "$r" = planner ]; then
+        say warn "lanes: '$lane' includes planner. The orchestrator is the planner and opens no pane; remove it from the lane."
+      fi
+    done
+    if [ "$has_edit" = 1 ] && [ "$has_review" = 1 ]; then
+      mixed="$mixed $lane"
+    fi
+    lane_kind="$(lane_attr "$lane" kind)"
+    if [ -n "$lane_kind" ]; then
+      for part in ${roles//,/ }; do
+        r="$(printf '%s' "$part" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        [ -n "$r" ] || continue
+        local rk rm
+        rk="$(printf '%s' "role.${r}.kind" | tr '.-' '__')"
+        rm="$(printf '%s' "role.${r}.model" | tr '.-' '__')"
+        if config_explicit "$rk"; then
+          say warn "config: role.${r}.kind is set and lane '$lane' has kind=$lane_kind. Remove role.${r}.kind (doctor --fix); the lane shares one kind."
+        fi
+        if config_explicit "$rm"; then
+          say warn "config: role.${r}.model is set and lane '$lane' has its own kind. Remove role.${r}.model (doctor --fix)."
+        fi
+      done
+    else
+      local kinds_list="" first_k="" have_k=0 differ_k=0 rkind
+      for part in ${roles//,/ }; do
+        r="$(printf '%s' "$part" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        [ -n "$r" ] || continue
+        [ "$r" = planner ] && continue
+        rkind="$(resolved_role_kind "$r")"
+        kinds_list="${kinds_list:+$kinds_list }$r=${rkind}"
+        if [ "$have_k" = 0 ]; then
+          first_k="$rkind"
+          have_k=1
+        elif [ "$rkind" != "$first_k" ]; then
+          differ_k=1
+        fi
+      done
+      if [ "$differ_k" = 1 ]; then
+        say warn "lanes: lane '$lane' has no lane.${lane}.kind and its roles disagree ($kinds_list). Orchestrator: ask the user, then run 'setup --lane ${lane}=<kind>[:<model>[:<effort>]]'."
+      fi
+    fi
+  done < <(lane_names)
+  if [ -n "$unknown" ]; then say warn "lanes: unknown roles:$unknown. Use a role from 'roles', or remove it."
+  else say ok "lanes: every role is known"; fi
+  if [ -n "$dup" ]; then say warn "lanes: roles in more than one lane:$dup. Keep each role in one lane."
+  else say ok "lanes: no role is in two lanes"; fi
+  if [ -n "$mixed" ]; then
+    say warn "lanes:$mixed mix an edit role with a review role (a session must not review code it wrote). Split them the way panes=4 separates build from review."
+  else
+    say ok "lanes: edit and review roles are separated"
+  fi
+  local n mw
+  n="$(lane_count)"
+  mw="$(cfg max_workers 3)"
+  if config_explicit max_workers && [ "$mw" != "$n" ]; then
+    say warn "config: max_workers=$mw but there are $n lanes. Set max_workers=$n (doctor --fix aligns it)."
+  else
+    say ok "config: max_workers=$(max_workers) matches $n lanes"
+  fi
+  if config_explicit split_max_panes; then
+    local sp
+    sp="$(cfg split_max_panes)"
+    if printf '%s' "$sp" | grep -Eq '^[0-9]+$' && [ "$sp" -gt "$(panes_value)" ]; then
+      say warn "config: split_max_panes=$sp is greater than panes=$(panes_value). Set split_max_panes=$(panes_value) (doctor --fix aligns it)."
+    fi
+  fi
+  local var key src
+  for var in $(compgen -v | grep -E '^CFG_role_planner_' || true); do
+    key="${var#CFG_}"
+    src="$(cfg_source "$key")"
+    if [ "$src" = user ] || [ "$src" = project ] || [ "$src" = env ]; then
+      say warn "config: $key is set ($src) but the planner is the orchestrator and opens no pane. Remove it (doctor --fix)."
+    fi
+  done
+}
+
 # cmd_doctor: advisory environment check (never blocks). Run by `init`.
+# `doctor --fix [--panes 3|4] [--user]` rewrites the project (or user) file, then re-runs the check.
 cmd_doctor() {
+  local do_fix=0 fix_panes="" fix_where=project
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --fix) do_fix=1; shift ;;
+      --panes) fix_panes="${2:-}"; shift 2 ;;
+      --user) fix_where=user; shift ;;
+      *) die "doctor: unknown option '$1'" 2 ;;
+    esac
+  done
+  if [ "$do_fix" = 1 ]; then
+    doctor_fix "$fix_where" "$fix_panes"
+    if [ "${HERDR_AGENTS_LIB:-}" = 1 ]; then
+      return 0
+    fi
+    exec bash "$0" doctor
+  fi
   local ok=0 warnv=0 f cli srv
   say() { printf '%-6s %s\n' "$1" "$2"; [ "$1" = warn ] && warnv=$((warnv+1)) || ok=$((ok+1)); }
   [ "${HERDR_ENV:-}" = 1 ] && say ok "inside Herdr (HERDR_ENV=1)" || say warn "HERDR_ENV != 1: not inside a Herdr pane"
@@ -719,14 +1452,18 @@ cmd_doctor() {
   if [ -n "$d" ]; then mkdir -p "$d" 2>/dev/null && [ -w "$d" ] && say ok "state dir writable: $d" || say warn "state dir not writable: $d"; fi
   case "$(cfg layout split)" in split|tab) say ok "config: layout=$(cfg layout) approvals=$(cfg approvals) auto_approve=$(cfg auto_approve) reuse_workers=$(cfg reuse_workers) multi_role=$(cfg multi_role on) worker_context=$(cfg worker_context)" ;; *) say warn "config: invalid layout '$(cfg layout)' (split|tab)" ;; esac
   case "$(cfg multi_role on)" in on|off) ;; *) say warn "config: multi_role='$(cfg multi_role)' is not on|off (cross-role reuse stays off until it is)" ;; esac
-  local cap; cap="$(cfg split_max_panes 4)"
-  if ! printf '%s' "$cap" | grep -Eq '^[0-9]+$'; then say warn "config: split_max_panes='$cap' is not a number (using 4)"
+  local cap_raw cap mw_raw mw
+  cap_raw="$(cfg split_max_panes 4)"
+  cap="$(split_cap)"
+  if ! printf '%s' "$cap_raw" | grep -Eq '^[0-9]+$'; then say warn "config: split_max_panes='$cap_raw' is not a number (using 4)"
   elif [ "$cap" -lt 2 ]; then say warn "config: split_max_panes=$cap leaves no room next to the caller; every worker will overflow into herd tabs (set 2 or more)"
   else say ok "config: split_max_panes=$cap split_min_pane=$(split_min)"; fi
-  local mw; mw="$(cfg max_workers 3)"
-  if ! printf '%s' "$mw" | grep -Eq '^[0-9]+$'; then say warn "config: max_workers='$mw' is not a number (using 3)"
+  mw_raw="$(cfg max_workers 3)"
+  mw="$(max_workers)"
+  if ! printf '%s' "$mw_raw" | grep -Eq '^[0-9]+$'; then say warn "config: max_workers='$mw_raw' is not a number (using 3)"
   elif [ "$mw" -eq 0 ]; then say ok "config: max_workers=0 (no cap on live workers)"
   else say ok "config: max_workers=$mw (orchestrator + $mw workers)"; fi
+  if lanes_enabled; then doctor_lane_warnings; else say ok "config: lanes=off (per-role reuse unchanged)"; fi
   printf '%s' "$(cfg split_min_pane 0.18)" | grep -Eq '^0?\.[0-9]+$' || say warn "config: split_min_pane='$(cfg split_min_pane)' must be a fraction like 0.18 (using 0.18)"
   if ! printf '%s' "$(cfg herd_label_max 16)" | grep -Eq '^[0-9]+$'; then say warn "config: herd_label_max='$(cfg herd_label_max)' is not a number (using 16)"
   else say ok "config: herd_label='$(cfg herd_label '{roles}')' herd_label_max=$(herd_label_max)"; fi
@@ -771,10 +1508,15 @@ owns git. Load the skill (\`/herdr-agents\`) before planning such work.
   a question, a quick verification. If writing the brief takes longer than the
   change, make the change.
 - Workers never commit, push or open PRs; the orchestrator owns git.
+- The orchestrator is the planner. \`spawn planner\` opens no pane.
+- Roles share a pane by lane (\`panes=4\`: build, explore, review; \`panes=3\`:
+  build and read). A busy lane is not a new pane: \`wait <lane>\`, then dispatch.
 - Every code slice gets a \`reviewer\` from another model family before push,
   including code the orchestrator wrote itself (pick that kind by hand).
 - The only completion signal is the worker's report file (\`dispatch\`,
   \`wait\`, \`status\`); never poll agent state by hand.
+- Quota (exit 11: usage limit, 429, resource exhausted) stops the lane. Ask
+  the user before switching kind, waiting, taking the slice, or pausing.
 - Heavy work (implementation, mechanical edits, research) goes to \`grok\`
   first, then \`cursor\` (grok models), then \`codex\`, then \`claude\`; review,
   security, planning and orchestration stay on \`codex\`/\`claude\` (a reviewer
@@ -920,18 +1662,52 @@ cmd_setup_detect() {
   roles="$(jq -s '.' "$tmpr")"
   models="$(jq -s '.' "$tmpm")"
   rm -f "$tmpk" "$tmpr" "$tmpm"
+  local el pr lane roles_csv kind model effort approvals roles_json lanes_json presets_json p
+  el="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-detect.XXXXXX")"
+  pr="$(mktemp "${TMPDIR:-/tmp}/herdr-agents-detect.XXXXXX")"
+  while IFS= read -r lane; do
+    [ -n "$lane" ] || continue
+    roles_csv="$(lane_roles_csv "$lane")"
+    kind="$(lane_attr "$lane" kind)"
+    model="$(lane_attr "$lane" model)"
+    effort="$(lane_attr "$lane" effort)"
+    approvals="$(lane_attr "$lane" approvals)"
+    roles_json="$(printf '%s\n' "$roles_csv" | tr ',' '\n' | sed '/^$/d' | jq -R . | jq -s .)"
+    jq -n --arg name "$lane" --argjson roles "$roles_json" --arg kind "$kind" \
+      --arg model "$model" --arg effort "$effort" --arg approvals "$approvals" \
+      '{name:$name,roles:$roles,kind:$kind,model:$model,effort:$effort,approvals:$approvals}'
+  done < <(lane_names) >> "$el"
+  lanes_json="$(jq -s '.' "$el")"
+  : > "$pr"
+  for p in 3 4; do
+    : > "$el"
+    while IFS= read -r lane; do
+      [ -n "$lane" ] || continue
+      roles_csv="$(preset_lane_roles "$lane" "$p")"
+      roles_json="$(printf '%s\n' "$roles_csv" | tr ',' '\n' | sed '/^$/d' | jq -R . | jq -s .)"
+      jq -n --arg name "$lane" --argjson roles "$roles_json" '{name:$name,roles:$roles}'
+    done < <(preset_lane_names_for "$p") >> "$el"
+    jq -s --arg p "$p" '{($p): .}' "$el" >> "$pr"
+  done
+  presets_json="$(jq -s 'add' "$pr")"
+  rm -f "$el" "$pr" "$tmpk" "$tmpr" "$tmpm"
   jq -n \
     --argjson kinds "$kinds" \
     --argjson role_kinds "$roles" \
     --argjson worker_models "$models" \
+    --argjson effective_lanes "$lanes_json" \
+    --argjson presets "$presets_json" \
     --arg mw "$(cfg max_workers 3)" --arg mw_src "$(cfg_source max_workers)" \
     --arg mr "$(cfg multi_role on)" --arg mr_src "$(cfg_source multi_role)" \
     --arg rw "$(cfg reuse_workers on)" --arg rw_src "$(cfg_source reuse_workers)" \
-    '{kinds:$kinds,config:{max_workers:{value:$mw,source:$mw_src},multi_role:{value:$mr,source:$mr_src},reuse_workers:{value:$rw,source:$rw_src},role_kinds:$role_kinds,worker_models:$worker_models}}'
+    --arg panes "$(cfg panes 4)" --arg panes_src "$(cfg_source panes)" \
+    --arg lanesv "$(cfg lanes on)" --arg lanes_src "$(cfg_source lanes)" \
+    '{kinds:$kinds,config:{max_workers:{value:$mw,source:$mw_src},multi_role:{value:$mr,source:$mr_src},reuse_workers:{value:$rw,source:$rw_src},panes:{value:$panes,source:$panes_src},lanes:{value:$lanesv,source:$lanes_src},effective_lanes:$effective_lanes,presets:$presets,role_kinds:$role_kinds,worker_models:$worker_models}}'
 }
 
-# True when the project file sets none of max_workers, multi_role, role.*.kind.
-# 0 when the project file defines none of max_workers, multi_role, role.*.kind.
+# 0 when the project file still needs the orchestrator to ask.
+# max_workers does not count: doctor --fix writes it without a lane kind.
+# A lane.<name>.kind, a leftover role.<role>.kind, or multi_role does.
 project_needs_config_prompt() {
   local f="$1"
   [ -f "$f" ] || return 0
@@ -942,9 +1718,9 @@ project_needs_config_prompt() {
       sub(/^[ \t]+/, "", line)
       sub(/[ \t]+$/, "", line)
       if (line == "" || substr(line, 1, 1) == "#") next
-      if (line ~ /^max_workers=/) found = 1
       if (line ~ /^multi_role=/) found = 1
       if (line ~ /^role\.[A-Za-z0-9_-]+\.kind=/) found = 1
+      if (line ~ /^lane\.[A-Za-z0-9_-]+\.kind=/) found = 1
     }
     END { exit (found ? 0 : 1) }
   ' "$f"; then
@@ -955,6 +1731,7 @@ project_needs_config_prompt() {
 
 cmd_setup() {
   local root target="" hooks=1 dry=0 detect=0 claude candidate hook_script=""
+  local setup_panes="" setup_lane_specs=()
   root="$(project_root)"
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -962,6 +1739,8 @@ cmd_setup() {
       --no-hooks) hooks=0; shift ;;
       --dry-run) dry=1; shift ;;
       --detect) detect=1; shift ;;
+      --panes) setup_panes="${2:-}"; shift 2 ;;
+      --lane) setup_lane_specs+=("$2"); shift 2 ;;
       *) die "setup: unknown option '$1'" 2 ;;
     esac
   done
@@ -978,6 +1757,39 @@ cmd_setup() {
     fi
   fi
   case "$target" in /*) ;; *) target="$root/$target" ;; esac
+  if [ -n "$setup_panes" ]; then
+    case "$setup_panes" in
+      3|4) ;;
+      *) die "setup: --panes must be 3 or 4" 2 ;;
+    esac
+  fi
+  local conf spec parsed lname lkind lmodel leffort
+  conf="$(config_file_for project)"
+  if [ -n "$setup_panes" ]; then
+    if [ "$dry" = 1 ]; then
+      printf '# would set panes=%s and the preset lanes in %s\n' "$setup_panes" "$conf"
+      for spec in ${setup_lane_specs[@]+"${setup_lane_specs[@]}"}; do
+        printf '# would apply --lane %s\n' "$spec"
+      done
+    else
+      mkdir -p "$(dirname "$conf")"
+      apply_lane_file "$conf" "$setup_panes"
+      for spec in ${setup_lane_specs[@]+"${setup_lane_specs[@]}"}; do
+        parsed="$(setup_lane_spec "$spec")"
+        IFS=$'\t' read -r lname lkind lmodel leffort <<< "$parsed"
+        config_write_pair "$conf" "lane.${lname}.kind" "$lkind"
+        printf 'set lane.%s.kind=%s\n' "$lname" "$lkind"
+        if [ -n "$lmodel" ]; then
+          config_write_pair "$conf" "lane.${lname}.model" "$lmodel"
+          printf 'set lane.%s.model=%s\n' "$lname" "$lmodel"
+        fi
+        if [ -n "$leffort" ]; then
+          config_write_pair "$conf" "lane.${lname}.effort" "$leffort"
+          printf 'set lane.%s.effort=%s\n' "$lname" "$leffort"
+        fi
+      done
+    fi
+  fi
   if [ "$dry" = 1 ]; then
     printf '# would write to %s\n' "$target"; setup_block
     printf '\n# would merge into %s/.claude/settings.json: UserPromptSubmit + SessionStart hooks\n' "$root"
@@ -999,9 +1811,8 @@ cmd_setup() {
   state_root >/dev/null
   printf 'state dir ignored: %s\n' "$(cfg state_dir .herdr-agents)/"
   printf 'note: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n'
-  local conf; conf="$(config_file_for project)"
   if project_needs_config_prompt "$conf"; then
-    warn "project config $conf sets neither max_workers, multi_role, nor any role.<role>.kind. Orchestrator: run 'setup --detect', ask the user how many workers may run at once, which detected kind/model each role group should use, and whether one agent may hold several roles, then write the answers with 'config set'."
+    warn "project config $conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user whether to use 3 or 4 panes and which detected kind and model each lane should use, then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'."
   fi
 }
 
@@ -1028,7 +1839,16 @@ auto_direction_for() { # <pane-id or empty for current>
 # split_cap / split_min: validated `split_max_panes` (panes per tab, caller
 # included) and `split_min_pane` (smallest pane a split may leave, as a
 # fraction of the tab). Bad values fall back to the defaults; `doctor` warns.
-split_cap() { local v; v="$(cfg split_max_panes 4)"; printf '%s' "$v" | grep -Eq '^[0-9]+$' && printf '%s\n' "$v" || echo 4; }
+# When lanes are on and split_max_panes was not set explicitly, it follows panes.
+split_cap() {
+  local v
+  if lanes_enabled && ! config_explicit split_max_panes; then
+    panes_value
+    return
+  fi
+  v="$(cfg split_max_panes 4)"
+  printf '%s' "$v" | grep -Eq '^[0-9]+$' && printf '%s\n' "$v" || echo 4
+}
 split_min() { local v; v="$(cfg split_min_pane 0.18)"; printf '%s' "$v" | grep -Eq '^0?\.[0-9]+$' && printf '%s\n' "$v" || echo 0.18; }
 
 # split_anchor_from_layout <layout-json> <me> <" mine "> <cap> <min>
@@ -1484,6 +2304,36 @@ cmd_regrid() {
 # approvals_rank: ask=1, edits=2, full=3. Unknown is 0 and satisfies nothing.
 approvals_rank() { case "$1" in ask) echo 1 ;; edits) echo 2 ;; full) echo 3 ;; *) echo 0 ;; esac; }
 
+# resolved_role_kind <role> — role config (any layer), else frontmatter.
+# Used when lane.<name>.kind is empty. Does not read the lane key.
+resolved_role_kind() {
+  local role="$1" key f v
+  key="$(printf 'role_%s_kind' "$(printf '%s' "$role" | tr '-' '_')")"
+  v="$(cfg "$key")"
+  if [ -z "$v" ]; then
+    f="$(role_file "$role" 2>/dev/null || true)"
+    [ -n "$f" ] && v="$(fm_get "$f" kind)"
+  fi
+  printf '%s\n' "$v"
+}
+
+# resolve_spawn_effort <role> <lane> <kind> — the effort spawn would use with no flag.
+resolve_spawn_effort() {
+  local role="$1" lane="$2" kind="$3" role_key f effort
+  role_key="$(printf '%s' "$role" | tr '-' '_')"
+  effort="$(lane_attr "$lane" effort)"
+  [ -n "$effort" ] || effort="$(cfg "role_${role_key}_effort")"
+  [ -n "$effort" ] || effort="$(cfg "effort_${kind}")"
+  if [ -z "$effort" ]; then
+    f="$(role_file "$role" 2>/dev/null || true)"
+    [ -n "$f" ] && effort="$(fm_get "$f" effort)"
+  fi
+  if [ -n "$effort" ] && has_word "$EFFORT_LADDER" "$effort"; then
+    effort="$(clamp_to "$(clamp_to "$effort" "$(kind_effort_ceiling "$kind")")" "$(cfg max_effort)")"
+  fi
+  printf '%s\n' "$effort"
+}
+
 # role_file <role> → path of the role markdown, if one resolves.
 role_file() {
   local role="$1" d
@@ -1644,7 +2494,17 @@ cmd_spawn() {
     esac
   done
   ensure_orchestrator_name >/dev/null
-  local f role_key; f="$(resolve_role "$role")"; role_key="$(printf '%s' "$role" | tr '-' '_')"
+  local f role_key lane=""
+  f="$(resolve_role "$role")"
+  role_key="$(printf '%s' "$role" | tr '-' '_')"
+  if [ "$role" = planner ]; then
+    die "spawn planner: the orchestrator is the planner and does not open a pane. Plan in this session." 12
+  fi
+  if lanes_enabled; then
+    lane="$(lane_of_role "$role" || true)"
+    [ -n "$lane" ] || die "spawn: role '$role' is not in any lane (panes=$(panes_value)). Add it with lane.<name>.roles, or set lanes=off." 3
+  fi
+  [ -n "$kind" ] || kind="$(lane_attr "$lane" kind)"
   [ -n "$kind" ] || kind="$(cfg "role_${role_key}_kind")"
   [ -n "$kind" ] || kind="$(fm_get "$f" kind)"
   [ -n "$kind" ] || die "role $role has no default kind; pass --kind" 3
@@ -1653,14 +2513,18 @@ cmd_spawn() {
     case "$(cfg args_codex)" in *danger-full-access*) ;; *) warn "sub-orchestrator on codex: its sandbox blocks the Herdr socket (every 'herdr' call fails with Operation not permitted). Use --kind claude, or set args.codex=-s danger-full-access if you accept that." ;; esac
   fi
   local position=worker; [ "$role" = sub-orchestrator ] && position=orchestrator
+  [ -n "$effort" ] || effort="$(lane_attr "$lane" effort)"
   [ -n "$effort" ] || effort="$(cfg "role_${role_key}_effort")"
   [ -n "$effort" ] || effort="$(cfg "effort_${kind}")"
   [ -n "$effort" ] || effort="$(fm_get "$f" effort)"
   local model_spec="$model"
+  [ -n "$model_spec" ] || model_spec="$(lane_attr "$lane" model)"
   [ -n "$model_spec" ] || model_spec="$(cfg "role_${role_key}_model")"
   [ -n "$model_spec" ] || model_spec="$(fm_get "$f" model)"
   [ -n "$model_spec" ] || model_spec="$(cfg "model_${kind}_${position}")"
   [ -n "$model_spec" ] || model_spec="$(cfg "model_${kind}")"
+  [ -n "$approvals" ] || approvals="$(lane_attr "$lane" approvals)"
+  [ -n "$approvals" ] || approvals="$(cfg "role_${role_key}_approvals")"
   [ -n "$approvals" ] || approvals="$(fm_get "$f" approvals)"
   [ -n "$approvals" ] || approvals="$(cfg approvals ask)"
   case "$approvals" in ask|edits|full) ;; *) die "invalid approvals '$approvals' (ask|edits|full)" 2 ;; esac
@@ -1679,7 +2543,69 @@ cmd_spawn() {
   fi
 
   [ -n "$reuse" ] || reuse="$(cfg reuse_workers on)"
-  if [ "$reuse" = on ] && [ -z "$pane" ]; then
+  if [ -n "$lane" ] && [ -z "$pane" ]; then
+    local decision dname dstate actual_kind
+    IFS=$'\t' read -r decision dname dstate <<< "$(lane_decide "$lane" "$role")"
+    case "$decision" in
+      reuse)
+        if [ "$reuse" != on ]; then
+          jq -n -c --arg status busy --arg lane "$lane" --arg name "$dname" '{status:$status,lane:$lane,name:$name}'
+          warn "lane '$lane' already has idle worker '$dname'. Release it before --fresh, or dispatch on it. Run 'wait $dname', then dispatch."
+          exit 10
+        fi
+        actual_kind="$(roster_line "$dname" | cut -f3)"
+        # lane.<name>.kind is the CLI for every role in the session. When it
+        # is empty, the first spawn locked the process; a different kind,
+        # model, or effort must not reuse that process with exit 0.
+        if [ -z "$(lane_attr "$lane" kind)" ]; then
+          local session_role session_model session_effort mismatch=0
+          session_role="$(roster_line "$dname" | cut -f4)"
+          session_model="$(roster_line "$dname" | awk -F'\t' 'NF>=9 { print $9 }')"
+          session_effort="$(resolve_spawn_effort "$session_role" "$lane" "$actual_kind")"
+          [ "$actual_kind" = "$kind" ] || mismatch=1
+          [ "${session_model}" = "${model:-}" ] || mismatch=1
+          [ "${session_effort}" = "${effort:-}" ] || mismatch=1
+          if [ "$mismatch" = 1 ]; then
+            jq -n -c --arg status kind-mismatch --arg lane "$lane" --arg name "$dname" \
+              --arg session_kind "$actual_kind" --arg requested_kind "$kind" \
+              --arg session_model "$session_model" --arg requested_model "${model:-}" \
+              --arg session_effort "$session_effort" --arg requested_effort "${effort:-}" \
+              '{status:$status,lane:$lane,name:$name,session_kind:$session_kind,requested_kind:$requested_kind,session_model:$session_model,requested_model:$requested_model,session_effort:$session_effort,requested_effort:$requested_effort}'
+            warn "lane '$lane' worker '$dname' is $actual_kind (model ${session_model:-?}, effort ${session_effort:-?}); this role wants $kind (model ${model:-?}, effort ${effort:-?}). Set lane.${lane}.kind or release the lane, then spawn again."
+            exit 13
+          fi
+        elif [ "$actual_kind" != "$kind" ]; then
+          # lane.<name>.kind is set, but the live process was started with
+          # another CLI: the key does not retarget a running session.
+          jq -n -c --arg status kind-mismatch --arg lane "$lane" --arg name "$dname" \
+            --arg session_kind "$actual_kind" --arg requested_kind "$kind" \
+            '{status:$status,lane:$lane,name:$name,session_kind:$session_kind,requested_kind:$requested_kind}'
+          warn "lane '$lane' worker '$dname' runs $actual_kind but lane.${lane}.kind is $kind. Release the lane ('release $dname --close'), then spawn again."
+          exit 13
+        fi
+        emit_reuse "$dname" "$role" "$actual_kind"
+        warn "reusing idle lane '$lane' worker '$dname' as $role; its session already holds earlier briefs"
+        return 0
+        ;;
+      busy)
+        jq -n -c --arg status busy --arg lane "$lane" --arg name "$dname" '{status:$status,lane:$lane,name:$name}'
+        warn "lane '$lane' worker '$dname' is busy ($dstate). Run 'wait $dname', then dispatch."
+        exit 10
+        ;;
+      gone)
+        roster_remove "$dname"
+        warn "lane '$lane' worker '$dname' is gone; opening a new pane"
+        ;;
+      unavailable)
+        die "lane '$lane' worker '$dname' matches but herdr agent get failed ($dstate). Not spawning a replacement; it may still be live." 4
+        ;;
+      locked)
+        die "lane '$lane' worker '$dname' has edited and cannot take review role '$role'." 5
+        ;;
+      absent) ;;
+      *) die "spawn: unexpected lane decision '$decision'" 4 ;;
+    esac
+  elif [ "$reuse" = on ] && [ -z "$pane" ]; then
     local existing reuse_rc=0 prev_role
     existing="$(find_reusable "$role" "$kind" "$cwd" "$name" "$model" "$approvals")" && reuse_rc=0 || reuse_rc=$?
     if [ "$reuse_rc" -eq 0 ]; then
@@ -1699,7 +2625,7 @@ cmd_spawn() {
 
   enforce_worker_cap
 
-  [ -n "$name" ] || name="$(unique_name "$role")"
+  [ -n "$name" ] || name="$(unique_name "${lane:-$role}")"
   printf '%s' "$name" | grep -Eq '^[a-z][a-z0-9_-]{0,31}$' || die "invalid agent name '$name' (must match [a-z][a-z0-9_-]{0,31})" 2
   agent_name_taken "$name" && die "agent name '$name' is already live" 3
 
@@ -1754,9 +2680,9 @@ cmd_spawn() {
 
   local family; family="$(agent_family "$kind" "$model")"
   roster_append_unlocked() {
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$name" "$pane" "$kind" "$role" "$family" "$created" "$cwd" "$(now)" \
-      "${model:-}" "${approvals:-ask}" "$role" >> "$(state_dir)/agents.tsv"
+      "${model:-}" "${approvals:-ask}" "$role" "${lane:-}" >> "$(state_dir)/agents.tsv"
   }
   with_roster_lock roster_append_unlocked
   if [ "$placement" = herd ]; then herd_tabs_relabel >/dev/null 2>&1 || warn "relabel of the herd tabs failed (see friction)"; fi
@@ -1806,6 +2732,7 @@ try_auto_approve() {
 # Keeps per-agent screen/settled bookkeeping under <state>/wait/.
 probe_agent() {
   local agent="$1" report="$2" sd st screen last_screen since now_s grace raw STATE CAUSE
+  local qtext qout
   sd="$(state_dir)"; grace="$(cfg settled_grace 45)"
   if [ -s "$report" ]; then
     # wait for the file size to stop changing (worker may still be writing)
@@ -1830,6 +2757,14 @@ probe_agent() {
     : > "$sd/wait/$agent.blocked"; echo working; return
   fi
   rm -f "$sd/wait/$agent.blocked"
+  if [ "$st" != working ]; then
+    qtext="$(herdr agent read "$agent" --source visible --lines 20 2>/dev/null || true)"
+    if qout="$(quota_detect "$st" "$qtext")"; then
+      printf '%s\n' "$qout" > "$sd/wait/$agent.quota"
+      echo quota
+      return
+    fi
+  fi
   screen="$(herdr agent read "$agent" --source visible 2>/dev/null | cksum | cut -d' ' -f1)"
   last_screen="$(cat "$sd/wait/$agent.screen" 2>/dev/null || true)"
   now_s="$(date +%s)"
@@ -1842,6 +2777,26 @@ probe_agent() {
 }
 
 notify_done() { [ "$(cfg notify off)" = on ] && herdr notification show "herdr-agents: $1 finished" --body "$2" --sound "done" >/dev/null 2>&1 || true; }
+
+# wait_rank / wait_raise: one order for a multi-agent wait.
+# 4 unavailable > 11 quota > 7 blocked > 6 gone or settled. Argument order
+# must not turn a quota into a blocked or a gone.
+wait_rank() {
+  case "$1" in
+    4) printf '4\n' ;;
+    11) printf '3\n' ;;
+    7) printf '2\n' ;;
+    6) printf '1\n' ;;
+    *) printf '0\n' ;;
+  esac
+}
+wait_raise() {
+  local cand="$1"
+  if [ "$(wait_rank "$cand")" -gt "$(wait_rank "$rc")" ]; then
+    rc="$cand"
+  fi
+  return 0
+}
 
 # wait_for <timeout_ms> <any:0|1> <agent>... → prints one JSON line per agent; exit 0 all done
 wait_for() {
@@ -1859,14 +2814,29 @@ wait_for() {
       tag="${st%%$'\t'*}"
       case "$tag" in
         done) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"done",report:$r}'; notify_done "$a" "$r"; done_n=$((done_n+1)); [ "$any" = 1 ] && return 0 ;;
-        blocked) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"blocked",report:$r}'; [ "$rc" != 4 ] && rc=7 ;;
-        gone) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"gone",report:$r}'; [ "$rc" != 4 ] && rc=6 ;;
-        settled) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"settled-no-report",report:$r}'; [ "$rc" = 0 ] && rc=6 ;;
+        blocked) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"blocked",report:$r}'; wait_raise 7 ;;
+        gone) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"gone",report:$r}'; wait_raise 6 ;;
+        settled) jq -n -c --arg a "$a" --arg r "$r" '{agent:$a,status:"settled-no-report",report:$r}'; wait_raise 6 ;;
         unavailable)
           cause=""; case "$st" in *$'\t'*) cause="${st#*$'\t'}" ;; esac
           jq -n -c --arg a "$a" --arg r "$r" --arg e "$cause" '{agent:$a,status:"unavailable",report:$r,error:$e}'
           warn "agent '$a': herdr agent get failed: $cause"
-          rc=4 ;;
+          wait_raise 4 ;;
+        quota)
+          local match renewal line kind model lane role_now
+          match="$(head -n1 "$sd/wait/$a.quota" 2>/dev/null || true)"
+          renewal="$(sed -n '2p' "$sd/wait/$a.quota" 2>/dev/null || true)"
+          line="$(roster_line "$a")"
+          kind="$(printf '%s' "$line" | cut -f3)"
+          model="$(printf '%s' "$line" | awk -F'\t' 'NF>=9 { print $9 }')"
+          lane="$(printf '%s' "$line" | awk -F'\t' 'NF>=12 { print $12 }')"
+          role_now="$(printf '%s' "$line" | cut -f4)"
+          [ -n "$lane" ] || lane="$(lane_of_role "$role_now" || true)"
+          jq -n -c --arg a "$a" --arg r "$r" --arg lane "$lane" --arg kind "$kind" --arg model "$model" \
+            --arg match "$match" --arg renewal "$renewal" \
+            '{agent:$a,status:"quota",report:$r,lane:$lane,kind:$kind,model:$model,match:$match,renewal:$renewal}'
+          warn "quota: agent '$a' lane=${lane:-?} kind=$kind model=${model:-?} : ${match}${renewal:+; renewal: $renewal}"
+          wait_raise 11 ;;
         *) pending="$pending $a " ;;
       esac
     done
@@ -1893,25 +2863,47 @@ cmd_wait() {
 
 cmd_status() {
   [ $# -gt 0 ] || die "status: give at least one agent name" 2
-  local a r sd raw STATE CAUSE rc=0
+  local a r sd raw STATE CAUSE rc=0 orig qtext qout match renewal line kind model lane role_now
   sd="$(state_dir)"
   for a in "$@"; do
     r="$(cat "$sd/last-report-$a" 2>/dev/null || true)"
     CAUSE=""
+    match=""
+    renewal=""
     if [ -s "$r" ]; then
-      STATE=done
+      STATE="done"
     elif [ -z "$(roster_line "$a")" ]; then
-      STATE=unknown-agent
+      STATE="unknown-agent"
     else
       raw="$(agent_state "$a")"
       split_agent_state "$raw"
-      if [ "$STATE" = idle ] || [ "$STATE" = done ]; then STATE=no-report-yet; fi
+      orig="$STATE"
+      if [ "$STATE" = idle ] || [ "$STATE" = "done" ]; then STATE="no-report-yet"; fi
       if [ "$STATE" = unavailable ]; then
-        rc=4
+        [ "$rc" = 11 ] || rc=4
         warn "agent '$a': herdr agent get failed: $CAUSE"
+      elif [ "$orig" != working ] && [ "$orig" != gone ] && [ "$orig" != blocked ] && [ "$orig" != unavailable ]; then
+        qtext="$(herdr agent read "$a" --source visible --lines 20 2>/dev/null || true)"
+        if qout="$(quota_detect "$orig" "$qtext")"; then
+          STATE=quota
+          match="$(printf '%s\n' "$qout" | head -n1)"
+          renewal="$(printf '%s\n' "$qout" | sed -n '2p')"
+          rc=11
+          line="$(roster_line "$a")"
+          kind="$(printf '%s' "$line" | cut -f3)"
+          model="$(printf '%s' "$line" | awk -F'\t' 'NF>=9 { print $9 }')"
+          lane="$(printf '%s' "$line" | awk -F'\t' 'NF>=12 { print $12 }')"
+          role_now="$(printf '%s' "$line" | cut -f4)"
+          [ -n "$lane" ] || lane="$(lane_of_role "$role_now" || true)"
+          warn "quota: agent '$a' lane=${lane:-?} kind=$kind model=${model:-?} : ${match}${renewal:+; renewal: $renewal}"
+        fi
       fi
     fi
-    if [ -n "$CAUSE" ]; then
+    if [ "$STATE" = quota ]; then
+      jq -n -c --arg a "$a" --arg r "$r" --arg lane "${lane:-}" --arg kind "${kind:-}" --arg model "${model:-}" \
+        --arg match "$match" --arg renewal "$renewal" \
+        '{agent:$a,status:"quota",report:$r,lane:$lane,kind:$kind,model:$model,match:$match,renewal:$renewal}'
+    elif [ -n "$CAUSE" ]; then
       printf '%s\t%s\t%s\t%s\n' "$a" "$STATE" "$r" "$CAUSE"
     else
       printf '%s\t%s\t%s\n' "$a" "$STATE" "$r"
@@ -2013,7 +3005,7 @@ cmd_dispatch() {
     printf -- '- When finished, reply in the terminal with exactly the report path and nothing else.\n'
   } > "$composed"
   printf '%s\n' "$report" > "$sd/last-report-$agent"
-  rm -f "$sd/wait/$agent.size" "$sd/wait/$agent.screen" "$sd/wait/$agent.since" "$sd/wait/$agent.blocked" "$sd/wait/$agent.approvals"
+  rm -f "$sd/wait/$agent.size" "$sd/wait/$agent.screen" "$sd/wait/$agent.since" "$sd/wait/$agent.blocked" "$sd/wait/$agent.approvals" "$sd/wait/$agent.quota"
 
   local text="Read the file $composed in full and execute it. It contains your role, your brief, and your report contract. When finished, write your report to $report and reply with exactly that path and nothing else."
   local result status="submitted" qerr=""
@@ -2024,22 +3016,30 @@ cmd_dispatch() {
     warn "prompt submission failed; inspect with: herdr agent get $agent && herdr agent read $agent. Do not resend blindly."
     return 4
   fi
+  local qmatch="" qrenew="" qlane="" qmodel=""
   if [ "$wait" = 1 ]; then
     local out rc=0
     out="$(wait_for "$timeout" 0 "$agent")" || rc=$?
     status="$(printf '%s' "$out" | jq -r '.status' | tail -n1)"
     qerr="$(printf '%s' "$out" | jq -r '.error // empty' | tail -n1)"
+    qmatch="$(printf '%s' "$out" | jq -r 'select(.status=="quota") | .match // empty' | tail -n1)"
+    qrenew="$(printf '%s' "$out" | jq -r 'select(.status=="quota") | .renewal // empty' | tail -n1)"
+    qlane="$(printf '%s' "$out" | jq -r 'select(.status=="quota") | .lane // empty' | tail -n1)"
+    qmodel="$(printf '%s' "$out" | jq -r 'select(.status=="quota") | .model // empty' | tail -n1)"
   fi
   jq -n --arg agent "$agent" --arg role "$role" --arg kind "$kind" --arg composed "$composed" --arg report "$report" \
     --arg status "$status" --argjson report_exists "$([ -s "$report" ] && echo true || echo false)" \
     --argjson approvals "$(cat "$sd/wait/$agent.approvals" 2>/dev/null || echo 0)" \
-    '{agent:$agent,role:$role,kind:$kind,composed_prompt:$composed,report:$report,wait_status:$status,report_exists:$report_exists,auto_approved:$approvals}'
+    --arg qmatch "$qmatch" --arg qrenew "$qrenew" --arg qlane "$qlane" --arg qmodel "$qmodel" \
+    '{agent:$agent,role:$role,kind:$kind,composed_prompt:$composed,report:$report,wait_status:$status,report_exists:$report_exists,auto_approved:$approvals}
+     + (if $status=="quota" then {lane:$qlane,model:$qmodel,match:$qmatch,renewal:$qrenew} else {} end)'
   case "$status" in
     blocked) warn "agent '$agent' is blocked on an approval or question; run: herdr agent read $agent --source recent-unwrapped --lines 80"; return 7 ;;
     timeout) warn "timeout waiting for the report of '$agent'; it may still be working. Run: herdr-agents.sh wait $agent"; return 9 ;;
     settled-no-report) warn "agent '$agent' settled without writing $report; collect will fall back to terminal output"; return 6 ;;
     gone) warn "agent '$agent' is no longer live"; return 6 ;;
     unavailable) warn "agent '$agent': herdr agent get failed${qerr:+: $qerr}. The worker may still be live; do not spawn a replacement."; return 4 ;;
+    quota) warn "agent '$agent' hit a quota limit${qmatch:+: $qmatch}. Ask the user: switch the lane kind/model, wait for renewal, take the slice, or pause."; return 11 ;;
   esac
   return 0
 }
@@ -2190,7 +3190,7 @@ main() {
     models) cmd_models "$@" ;;
     model) cmd_model "$@" ;;
     init) require_env; cmd_init ;;
-    doctor) cmd_doctor ;;
+    doctor) cmd_doctor "$@" ;;
     setup) cmd_setup "$@" ;;
     regrid) require_env; cmd_regrid ;;
     tab-label) require_env; cmd_tab_label "$@" ;;

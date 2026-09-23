@@ -58,7 +58,29 @@ herd_label_max=16
 # not share context. Reuse never counts against max_workers.
 reuse_workers=on
 
-# One idle worker may also take a different role: on (default) | off.
+# How many panes the team uses, counting the orchestrator. 4 (default) is
+# orchestrator + build + explore + review. 3 is orchestrator + build + read.
+# When max_workers and split_max_panes are left at the defaults, they follow
+# the lane count and panes. `lanes=off` keeps one pane per role and the
+# multi_role reuse from before lanes existed.
+panes=4
+lanes=on
+
+# Optional lane overrides. Any lane.<name>.roles replaces the preset.
+# lane.<name>.kind is the CLI for every role in that lane. When it is empty,
+# the first spawn picks the role's own kind, and a later role with a different
+# kind, model, or effort exits 13 (kind-mismatch) instead of reusing. A live
+# session on another CLI also exits 13 once the key is set: release it.
+# doctor --fix copies a unanimous role.<role>.kind (file, else frontmatter)
+# onto the lane before it deletes those per-role keys.
+# lane.build.roles=implementer,designer,tasker
+# lane.build.kind=
+# lane.build.model=
+# lane.build.effort=
+# lane.build.approvals=
+
+# One idle worker may also take a different role: on (default) | off. `lanes=off`
+# is what uses this. With lanes on, a lane reuses only its own pane.
 # Same role is preferred. Cross-role reuse needs the same kind, cwd and
 # resolved model, and approvals at least the request (ask < edits < full).
 # A worker that has held an edit role (implementer, designer, tasker, or
@@ -153,7 +175,9 @@ feedback_repo=djalmajr/skills
 # role.<role>.kind. Check with: herdr-agents.sh model <kind> <spec> [effort].
 model.claude.orchestrator=fable
 model.claude.worker=opus
-# The planner decides the shape of large work: it gets the orchestrator-class model.
+# The planner is the orchestrator: `spawn planner` exits 12 and opens no pane.
+# role.planner.model is unused by spawn. doctor --fix removes it from a
+# project or user file when it is set there.
 role.planner.model=fable
 model.codex.orchestrator=astra
 model.codex.worker=sol|gpt-5

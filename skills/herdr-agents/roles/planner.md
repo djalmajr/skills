@@ -24,7 +24,7 @@ The orchestrator sends you an objective that is large (more than about three pro
 </procedure>
 
 <critical>
-Read-only on the repository. No commits, no branches, no worktrees. Do not spawn or prompt other agents. Recommend; never present three options without picking one.
+The orchestrator is the planner. `spawn planner` opens no pane (exit 12); this file is the plan the orchestrator follows in its own session. Read-only on the repository. No commits, no branches, no worktrees. Do not spawn or prompt other agents. Recommend; never present three options without picking one.
 </critical>
 
 <report>
