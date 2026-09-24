@@ -21,15 +21,7 @@ node_modules/
 .trae/
 .kiro/
 .continue/
-.agents/*
-!.agents/skills/
-.agents/skills/*
-!.agents/skills/htm-ui/
-!.agents/skills/htm-ui/**
-!.agents/skills/migrate-radix-to-base/
-!.agents/skills/migrate-radix-to-base/**
-!.agents/skills/shadcn/
-!.agents/skills/shadcn/**
+.agents/
 .antigravitycli
 
 

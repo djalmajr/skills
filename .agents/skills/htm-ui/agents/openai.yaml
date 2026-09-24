@@ -1,4 +1,0 @@
-interface:
-  display_name: "HTM UI"
-  short_description: "Build and maintain zero-build Preact interfaces with HTM UI."
-  default_prompt: "Inspect this project and use HTM UI components to implement or improve the requested interface."

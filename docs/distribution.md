@@ -7,7 +7,7 @@ This repository is the distribution source for the Skills package.
 - Source repository: https://github.com/djalmajr/skills
 - Skill installation tool: `skills` CLI, normally invoked with `bunx skills ...`
 - Portable contract: `skills/<skill-name>/SKILL.md`
-- Vendored third-party skills: explicitly allowlisted directories under `.agents/skills/`
+- Third-party skills: installed locally under `.agents/skills/` (git-ignored, never versioned)
 - Human documentation: `README.md` and `docs/`
 - Optional manifest: `skills.json`
 
@@ -15,8 +15,8 @@ The GitHub repository is the release artifact. Skill installation remains delega
 
 Project-authored skills are distributed from `skills/` and listed in
 `skills.json`. Third-party skills are never copied into that namespace or added
-to the manifest: approved vendored copies remain in `.agents/skills/`, while
-all other local agent-skill installations stay ignored.
+to the manifest: they are installed locally under `.agents/skills/`, which is
+git-ignored.
 
 ## Install all skills
 
@@ -68,8 +68,7 @@ Distribute:
 - `docs/`
 - optional `skills.json`
 
-Version only the explicitly allowlisted third-party directories under
-`.agents/skills/`; do not treat the rest of that installation directory as part
+Never version `.agents/skills/`: it is a local installation directory, not part
 of the package.
 
 Do not rely on:

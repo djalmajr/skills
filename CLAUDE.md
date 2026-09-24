@@ -11,13 +11,11 @@ Templates that support a skill must live inside that skill folder, under `skills
 ## Third-party Skills
 
 Project-authored skills belong under `skills/` and are distributed through the
-root manifest. Vendored third-party skills belong under `.agents/skills/` and
-must not be copied into `skills/` or added to `skills.json`.
+root manifest. Third-party skills are installed locally under `.agents/skills/`
+and must not be copied into `skills/` or added to `skills.json`.
 
-Only explicitly approved third-party directories may be unignored and
-versioned. The current approved set is `htm-ui`, `migrate-radix-to-base`, and
-`shadcn`; keep every other generated or locally installed `.agents/skills/*`
-directory ignored.
+The whole `.agents/` directory is git-ignored: no third-party skill is
+versioned in this repository.
 
 ## Skill Evolution
 

@@ -29,12 +29,12 @@ This repo follows the shared Agent Skills convention:
 
 ```text
 skills/<skill-name>/SKILL.md          # project-authored, distributed skills
-.agents/skills/<skill-name>/SKILL.md  # explicitly vendored third-party skills
+.agents/skills/<skill-name>/SKILL.md  # locally installed third-party skills (git-ignored)
 ```
 
 `SKILL.md` is the source of truth for agent behavior, triggers, and execution procedure. `README.md` is still important for humans: the root README explains the package, and skill-specific human notes live under `docs/skills/`.
 
-Third-party skills are kept out of the project's canonical `skills/` namespace and out of `skills.json`. Only the explicitly unignored directories under `.agents/skills/` are versioned; other locally installed agent skills remain ignored.
+Third-party skills are kept out of the project's canonical `skills/` namespace and out of `skills.json`. They are installed locally under `.agents/skills/`, which is git-ignored: none of them is versioned here.
 
 `agents/openai.yaml` is optional Codex UI metadata. It is not the compatibility mechanism for Claude Code or OpenCode.
 
