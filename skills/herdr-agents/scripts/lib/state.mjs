@@ -124,9 +124,10 @@ export function rosterLine(sd, name) {
   return found;
 }
 
-// sleepSync: synchronous 50 ms wait via Atomics.wait on a
-// SharedArrayBuffer (works in Node and Bun, no event loop needed).
-function sleepSync(ms) {
+// sleepSync: synchronous wait via Atomics.wait on a SharedArrayBuffer
+// (works in Node and Bun, no event loop needed). Exported: the wait loop
+// (lib/wait.mjs) reuses it for its 3 s poll interval.
+export function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 

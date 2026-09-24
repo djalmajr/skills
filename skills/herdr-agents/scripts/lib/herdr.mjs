@@ -44,10 +44,16 @@ export function liveAgents(env = process.env, timeoutMs = HERDR_TIMEOUT_MS) {
     if (r.stderr) process.stderr.write(r.stderr);
     throw new DieError('', r.status ?? 1);
   }
+  // An answer without an agent list (invalid JSON, or valid JSON without a
+  // `result.agents` array) is a herdr failure, never "no live agents": clean
+  // would drop the whole roster. Bash exits on invalid JSON (jq under set -e)
+  // but reads a missing list as null and drops every row; that defect is not
+  // ported.
   let out = null;
   try { out = JSON.parse(r.stdout || ''); } catch { out = null; }
   const agents = out && typeof out === 'object' ? out?.result?.agents : undefined;
-  return Array.isArray(agents) ? agents : [];
+  if (!Array.isArray(agents)) throw new DieError('herdr agent list returned no agent list', 4);
+  return agents;
 }
 
 // herdr pane list --workspace <ws> → .result.panes // []. The bash call
@@ -224,5 +230,28 @@ export function agentFocus(agent, env = process.env) {
 
 export function paneFocusBack(direction, pane, env = process.env) {
   const r = runCli('herdr', ['pane', 'focus', '--direction', direction, '--pane', pane], { env, timeoutMs: HERDR_TIMEOUT_MS });
+  return !r.notFound && r.status === 0;
+}
+
+// ---------- slice 6a: wait/collect/release calls (spec 4.1) ----------
+
+// herdr agent send-keys <agent> <key> (:3534) — the auto-approve keypress
+// (kind_approve_keys sends one logical key). Returns true on rc 0; the
+// caller decides the failure semantics (tryAutoApprove stops).
+export function agentSendKeys(agent, key, env = process.env) {
+  const r = runCli('herdr', ['agent', 'send-keys', agent, key], { env, timeoutMs: HERDR_TIMEOUT_MS });
+  return !r.notFound && r.status === 0;
+}
+
+// herdr notification show <title> --body <body> --sound done (:3586,
+// notify=on). Best effort: any failure changes nothing and never throws.
+export function notificationShow(title, body, env = process.env) {
+  runCli('herdr', ['notification', 'show', title, '--body', body, '--sound', 'done'], { env, timeoutMs: HERDR_TIMEOUT_MS });
+}
+
+// herdr pane close <pane> (:3916, release --close). stdout is discarded
+// (bash `>/dev/null`); returns true on rc 0. Never throws.
+export function paneClose(pane, env = process.env) {
+  const r = runCli('herdr', ['pane', 'close', pane], { env, timeoutMs: HERDR_TIMEOUT_MS });
   return !r.notFound && r.status === 0;
 }

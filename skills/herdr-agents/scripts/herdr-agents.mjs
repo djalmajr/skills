@@ -4,16 +4,17 @@
 // Dispatches the ported commands (`config`, `config set`, `session`,
 // `roles`, `role`, `kinds`, `models <kind>`, `model <kind> <spec>
 // [effort]`, `spawn <role> …`, `status <agent>…`, `roster`, `friction`,
-// `tab-label`, `layout-plan`). Any other command is reported as not
+// `tab-label`, `layout-plan`, `wait <agent>…`, `collect <agent>`,
+// `release <agent>`, `clean`). Any other command is reported as not
 // ported yet (exit 2) so the bash script remains the source of truth for
 // the rest until the later slices land. Load the config layers before
 // dispatching, like bash `main`. The living commands need the Herdr
 // environment (`require_env`) and log their warnings/errors to
-// <state>/friction.log, like bash `main` (tab-label and spawn are living
-// commands; layout-plan is not, and requires the Herdr environment only in
-// live mode). Decision 6: DieError with a message → die (friction for
-// living commands); empty message → exit with the code only (bash passes
-// herdr's own output through and exits with herdr's code).
+// <state>/friction.log, like bash `main` (layout-plan is not living, and
+// requires the Herdr environment only in live mode). Decision 6:
+// DieError with a message → die (friction for living commands); empty
+// message → exit with the code only (bash passes herdr's own output
+// through and exits with herdr's code).
 import path from 'node:path';
 import { loadConfig, cmdConfig, cmdConfigSet, DieError } from './lib/config.mjs';
 import { cmdSession } from './lib/session.mjs';
@@ -28,12 +29,16 @@ import { cmdFriction } from './lib/commands/friction.mjs';
 import { cmdLayoutPlan } from './lib/layout.mjs';
 import { cmdTabLabel } from './lib/herdtabs.mjs';
 import { cmdSpawn } from './lib/spawn.mjs';
+import { cmdWait } from './lib/wait.mjs';
+import { cmdCollect } from './lib/commands/collect.mjs';
+import { cmdRelease } from './lib/commands/release.mjs';
+import { cmdClean } from './lib/commands/clean.mjs';
 import { findExecutable } from './lib/platform.mjs';
 
-const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'status', 'roster', 'friction', 'tab-label', 'layout-plan'];
+const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'wait', 'collect', 'release', 'clean'];
 // The commands that log to friction when running inside Herdr (bash main's
 // living-command list, restricted to what this entry has ported).
-const LIVING = new Set(['spawn', 'status', 'roster', 'friction', 'tab-label']);
+const LIVING = new Set(['spawn', 'status', 'roster', 'friction', 'tab-label', 'wait', 'collect', 'release', 'clean']);
 
 const argv = process.argv.slice(2);
 const cmd = argv[0] ?? '';
@@ -87,6 +92,22 @@ try {
       if (rc) process.exitCode = rc;
       break;
     }
+    case 'wait': {
+      const rc = cmdWait(argv.slice(1), ctx, env);
+      if (rc) process.exitCode = rc;
+      break;
+    }
+    case 'collect': {
+      const rc = cmdCollect(argv.slice(1), ctx, env);
+      if (rc) process.exitCode = rc;
+      break;
+    }
+    case 'release':
+      cmdRelease(argv.slice(1), ctx, env);
+      break;
+    case 'clean':
+      cmdClean(argv.slice(1), ctx, env);
+      break;
     case 'roster':
       cmdRoster(ctx, env);
       break;
