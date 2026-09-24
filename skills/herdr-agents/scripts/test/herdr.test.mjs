@@ -17,6 +17,7 @@ import { agentState, paneTitle, requireEnv, liveAgents, paneList, tabList, agent
 
 const HERDR_MJS = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'lib', 'herdr.mjs');
 const HERDR_URL = pathToFileURL(HERDR_MJS).href;
+const CONFIG_URL = pathToFileURL(path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'lib', 'config.mjs')).href;
 
 // Bash variables stay plain in the template; only `${` (a bash parameter
 // expansion) is escaped for the JS template literal.
@@ -191,8 +192,11 @@ test('liveAgents / paneList / tabList / agentRead: the JSON fields the roster re
 });
 
 // A stuck herdr (no answer within the ceiling) is a herdr failure, never a
-// hang: agentState reports it as unavailable and liveAgents dies 4.
-test('herdr timeout: agentState is unavailable and liveAgents exits 4 with a message', { timeout: 60000 }, () => {
+// hang: agentState reports it as unavailable. Decision 6: liveAgents does
+// not exit — it throws a DieError (message → the entry dies with code 4);
+// a herdr failure passes the CLI output through and throws a DieError with
+// an empty message and herdr's code (the entry exits with the code only).
+test('herdr timeout: agentState is unavailable and liveAgents throws DieError 4', { timeout: 60000 }, () => {
   const root = tmp('ha-herdr-timeout-');
   try {
     const bin = path.join(root, 'bin');
@@ -200,10 +204,33 @@ test('herdr timeout: agentState is unavailable and liveAgents exits 4 with a mes
     writeFakeCli(bin, 'herdr', sleepingFake(10000));
     const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
     assert.deepEqual(agentState('any', env, 300), { state: 'unavailable', cause: 'herdr agent get timed out after 0.3s' });
-    const code = `import { liveAgents } from '${HERDR_URL}'; liveAgents(process.env, 300); console.log('returned');`;
+    const code = `import { liveAgents } from '${HERDR_URL}';
+import { DieError } from '${CONFIG_URL}';
+try { liveAgents(process.env, 300); console.log('returned'); }
+catch (e) { if (e instanceof DieError) { process.stderr.write('die ' + e.code + ' ' + e.message); process.exit(e.code); } throw e; }`;
     const r = spawnSync(nodeBin(), ['--input-type=module', '-e', code], { env, encoding: 'utf8', timeout: 30_000 });
     assert.equal(r.status, 4, `rc=${r.status} stderr=${r.stderr}`);
-    assert.equal(r.stderr, 'herdr-agents: herdr agent list timed out after 0.3s\n');
+    assert.equal(r.stderr, 'die 4 herdr agent list timed out after 0.3s');
     assert.ok(!r.stdout.includes('returned'));
+    // A failing herdr: output passed through, empty-message DieError with
+    // herdr's code (the entry then exits with that code and no message).
+    const code2 = `import { liveAgents } from '${HERDR_URL}';
+import { DieError } from '${CONFIG_URL}';
+try { liveAgents(process.env, 5000); console.log('returned'); }
+catch (e) { if (e instanceof DieError) { process.stderr.write('die ' + e.code + '|' + e.message); process.exit(e.code); } throw e; }`;
+    const r2 = spawnSync(nodeBin(), ['--input-type=module', '-e', code2], { env: failListEnv(root), encoding: 'utf8', timeout: 30_000 });
+    assert.equal(r2.status, 3, `rc=${r2.status} stderr=${r2.stderr}`);
+    assert.ok(r2.stderr.startsWith('boom'), `passthrough first, then the DieError: ${r2.stderr}`);
+    assert.ok(r2.stderr.endsWith('die 3|'), r2.stderr);
+    assert.ok(!r2.stderr.includes('herdr-agents:'), 'no die message of its own');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+// A fake herdr whose `agent list` prints `boom` to stderr and exits 3.
+function failListEnv(root) {
+  const bin = path.join(root, 'bin3');
+  fs.mkdirSync(bin, { recursive: true });
+  writeFakeCli(bin, 'herdr', `if (process.argv[2] === 'agent') { process.stderr.write('boom\\n'); process.exit(3); }
+`);
+  return { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+}

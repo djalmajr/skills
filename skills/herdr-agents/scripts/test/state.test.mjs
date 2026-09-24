@@ -310,3 +310,63 @@ test('nowStamp/nowIso: the exact bash date formats', () => {
   assert.equal(nowStamp(d), '20260923T050403');
   assert.equal(nowIso(d), '2026-09-23T05:04:03');
 });
+
+// ---------- workspaceId (decision 6: DieError instead of process.exit) ----------
+
+import { workspaceId } from '../lib/state.mjs';
+import { DieError } from '../lib/config.mjs';
+import { writeFakeCli } from './fakes.mjs';
+
+const CONFIG_TEST_URL = pathToFileURL(path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'lib', 'config.mjs')).href;
+
+function wsFakeEnv(root, source) {
+  const bin = path.join(root, 'bin');
+  fs.mkdirSync(bin, { recursive: true });
+  writeFakeCli(bin, 'herdr', source);
+  return { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, HERDR_WORKSPACE_ID: '' };
+}
+
+test('workspaceId: env var wins; herdr query; null id; herdr failure throws DieError', { timeout: 60000 }, () => {
+  const root = tmp('ha-state-wsid-');
+  const ctx = { entries: new Map(), sources: [] };
+  try {
+    // $HERDR_WORKSPACE_ID wins, no herdr call.
+    assert.equal(workspaceId(ctx, { HERDR_WORKSPACE_ID: 'ws-1' }, root), 'ws-1');
+    // herdr pane current --current → .result.pane.workspace_id.
+    assert.equal(
+      workspaceId(ctx, wsFakeEnv(root, `if (process.argv[2] === 'pane') process.stdout.write('{"result":{"pane":{"workspace_id":"ws-9"}}}\\n');`), root),
+      'ws-9',
+    );
+    // a null workspace id prints as `null`, exactly like jq -r.
+    assert.equal(
+      workspaceId(ctx, wsFakeEnv(root, `if (process.argv[2] === 'pane') process.stdout.write('{"result":{"pane":{"workspace_id":null}}}\\n');`), root),
+      'null',
+    );
+    // herdr absent on PATH → DieError 2 with the die message.
+    let e = null;
+    try { workspaceId(ctx, { PATH: '/nonexistent', HERDR_WORKSPACE_ID: '' }, root); } catch (x) { e = x; }
+    assert.ok(e instanceof DieError && e.code === 2, String(e));
+    assert.equal(e.message, 'herdr CLI not found in PATH');
+    // a failing herdr passes its output through and throws DieError('', rc);
+    // an unparseable answer throws DieError('', 2).
+    const code = `import { workspaceId } from '${STATE_URL}';
+import { DieError } from '${CONFIG_TEST_URL}';
+const ctx = { entries: new Map(), sources: [] };
+try { const w = workspaceId(ctx, process.env, process.cwd()); console.log('wid=' + w); }
+catch (x) { if (x instanceof DieError) { process.stderr.write('die ' + x.code + '|' + x.message); process.exit(x.code); } throw x; }`;
+    let r = spawnSync(nodeBin(), ['--input-type=module', '-e', code], {
+      env: wsFakeEnv(root, `if (process.argv[2] === 'pane') { process.stdout.write('so far\\n'); process.stderr.write('ws boom\\n'); process.exit(5); }`),
+      encoding: 'utf8', timeout: 30_000,
+    });
+    assert.equal(r.status, 5, r.stderr);
+    assert.equal(r.stdout, 'so far\n');
+    assert.ok(r.stderr.startsWith('ws boom') && r.stderr.endsWith('die 5|'), r.stderr);
+    assert.ok(!r.stderr.includes('herdr-agents:'), 'passthrough exits with the code only');
+    r = spawnSync(nodeBin(), ['--input-type=module', '-e', code], {
+      env: wsFakeEnv(root, `if (process.argv[2] === 'pane') process.stdout.write('not json');`),
+      encoding: 'utf8', timeout: 30_000,
+    });
+    assert.equal(r.status, 2, r.stderr);
+    assert.ok(r.stderr.endsWith('die 2|'), r.stderr);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

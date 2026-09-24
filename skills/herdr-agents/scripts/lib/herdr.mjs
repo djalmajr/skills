@@ -5,6 +5,7 @@
 // is `unavailable` with a sanitized cause — never `gone`. `agentState`
 // never throws, so command substitutions stay safe.
 import { die, runCli, findExecutable } from './platform.mjs';
+import { DieError } from './config.mjs';
 import { sanitizeCause } from './text.mjs';
 
 // A ceiling for every `herdr` call (decision: the bash script left these
@@ -30,16 +31,18 @@ export function requireEnv(env = process.env) {
 
 // herdr agent list → .result.agents (array of {name, pane_id, agent_status,
 // agent}). Mirrors `live_agents_json`: on a herdr failure the CLI's own
-// output is passed through and the caller's exit code is herdr's (bash
-// `set -e` on the pipeline), with no extra message.
+// output is passed through and the caller exits with herdr's code (bash
+// `set -e` on the pipeline), with no extra message — decision 6: as a
+// DieError with an empty message and that code (the entry catches it and
+// exits with the code only).
 export function liveAgents(env = process.env, timeoutMs = HERDR_TIMEOUT_MS) {
   const r = runCli('herdr', ['agent', 'list'], { env, timeoutMs });
-  if (r.notFound) die('herdr CLI not found in PATH', 2);
-  if (r.timedOut) die(timedOutMsg('agent list', timeoutMs), 4);
+  if (r.notFound) throw new DieError('herdr CLI not found in PATH', 2);
+  if (r.timedOut) throw new DieError(timedOutMsg('agent list', timeoutMs), 4);
   if (r.status !== 0) {
     if (r.stdout) process.stdout.write(r.stdout);
     if (r.stderr) process.stderr.write(r.stderr);
-    process.exit(r.status ?? 1);
+    throw new DieError('', r.status ?? 1);
   }
   let out = null;
   try { out = JSON.parse(r.stdout || ''); } catch { out = null; }

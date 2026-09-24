@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { die, readTextFile, runCli, atomicWrite } from './platform.mjs';
-import { stateRoot } from './config.mjs';
+import { stateRoot, DieError } from './config.mjs';
 
 // ---------- time (local, like bash `date`) ----------
 
@@ -64,20 +64,21 @@ export function dieFriction(message, code = 1) {
 // ---------- workspace / state dir ----------
 
 // workspace_id() port: $HERDR_WORKSPACE_ID, else `herdr pane current
-// --current | jq -r .result.pane.workspace_id`. A herdr failure passes the
-// CLI's own output through and exits with its code (bash `set -e` on the
-// pipeline); a missing/null id prints as `null`, exactly like `jq -r`.
+// --current | jq -r .result.pane.workspace_id`. Decision 6: a herdr
+// failure passes the CLI's own output through and throws a DieError with
+// an empty message and herdr's code (the entry exits with the code only);
+// a missing/null id prints as `null`, exactly like `jq -r`.
 export function workspaceId(ctx, env = process.env, cwd = process.cwd()) {
   if (env.HERDR_WORKSPACE_ID) return env.HERDR_WORKSPACE_ID;
   const r = runCli('herdr', ['pane', 'current', '--current'], { env, timeoutMs: 30_000 });
-  if (r.notFound) die('herdr CLI not found in PATH', 2);
+  if (r.notFound) throw new DieError('herdr CLI not found in PATH', 2);
   if (r.status !== 0) {
     if (r.stdout) process.stdout.write(r.stdout);
     if (r.stderr) process.stderr.write(r.stderr);
-    process.exit(r.status ?? 1);
+    throw new DieError('', r.status ?? 1);
   }
   let j;
-  try { j = JSON.parse(r.stdout || ''); } catch { process.exit(2); } // jq parse failure
+  try { j = JSON.parse(r.stdout || ''); } catch { throw new DieError('', 2); } // jq parse failure
   const wid = j && typeof j === 'object' ? j?.result?.pane?.workspace_id : undefined;
   return wid === undefined || wid === null ? 'null' : String(wid);
 }

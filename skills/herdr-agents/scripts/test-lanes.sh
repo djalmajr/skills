@@ -282,6 +282,16 @@ run_cmd spawn implementer
 case "$RUN_ERR" in *max_workers=3*) ;; *) fail "cap message: $RUN_ERR" ;; esac
 grep -q 'agent start' "$TEST_ROOT/herdr.log" && fail "cap started a pane"
 
+# A dead worker on the last roster line does not stop spawn: live_worker_names
+# used to return the status of its last check, and set -e ended spawn with
+# rc 1 and no message.
+reset_roster
+add_worker explore scouter explore
+add_worker gone-rev reviewer review codex
+printf '%s\n' '{"result":{"agents":[{"name":"explore","pane_id":"p-explore"}]}}' > "$TEST_ROOT/live.json"
+run_cmd spawn implementer
+[ "$RUN_RC" = 0 ] || fail "dead last worker stopped spawn: rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+
 reset_roster
 add_worker mix implementer mix
 printf '%s\n' 'lane.mix.roles=implementer,reviewer' > "$REPO/.agents/herdr-agents.conf"

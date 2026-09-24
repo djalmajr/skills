@@ -855,6 +855,9 @@ live_worker_names() {
     [ -n "$name" ] || continue
     printf '%s' "$live" | jq -e --arg n "$name" --arg p "$pane" 'map(select((.name // "")==$n or .pane_id==$p)) | length > 0' >/dev/null && printf '%s\n' "$name"
   done < <(roster_rows)
+  # The loop's status is its last check; a dead last worker must not fail
+  # the caller (set -e ended spawn with rc 1 and no message).
+  return 0
 }
 live_worker_count() { live_worker_names | grep -c . || true; }
 
