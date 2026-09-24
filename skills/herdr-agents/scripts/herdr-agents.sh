@@ -386,9 +386,35 @@ state_root() {
   case "$d" in /*) ;; *) d="$root/$d" ;; esac
   printf '%s\n' "$d"
   rel="${d#"$root"/}"
-  if [ "$rel" != "$d" ] && git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    if ! git -C "$root" check-ignore -q "$rel" 2>/dev/null; then printf '%s/\n' "$rel" >> "$root/.gitignore"; fi
+  if [ "$rel" != "$d" ] && git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+     && gitignore_needs "$root" "$rel"; then
+    # Append (not rewrite): a symlinked .gitignore stays a link.
+    if [ -s "$root/.gitignore" ] && [ -n "$(tail -c1 "$root/.gitignore")" ]; then printf '\n' >> "$root/.gitignore"; fi
+    printf '%s/\n' "$rel" >> "$root/.gitignore"
   fi
+}
+
+# gitignore_needs <root> <rel> — 0 when `<rel>/` must be added to the repo's
+# .gitignore: git says the path is definitely not ignored (check-ignore exit
+# 1; an error such as 128 under load adds nothing, the next run retries) and
+# no line of the file already names it.
+gitignore_needs() {
+  local rc=0
+  git -C "$1" check-ignore -q "$2" 2>/dev/null || rc=$?
+  [ "$rc" -eq 1 ] || return 1
+  [ -f "$1/.gitignore" ] || return 0
+  ! awk -v r="$2" '{ sub(/\r$/, "") } $0 == r || $0 == r "/" || $0 == "/" r || $0 == "/" r "/" { f = 1 } END { exit !f }' "$1/.gitignore"
+}
+
+# gitignore_after <file> <rel> — the file as state_root leaves it: `<rel>/`
+# appended on a line of its own, even when the file does not end with a
+# newline (the setup --plan simulation).
+gitignore_after() {
+  if [ -s "$1" ]; then
+    cat "$1"
+    [ -z "$(tail -c1 "$1")" ] || printf '\n'
+  fi
+  printf '%s/\n' "$2"
 }
 
 state_dir() {
@@ -826,7 +852,17 @@ agent_state() {
     printf 'unavailable\t%s\n' "could not store herdr agent get stderr"
     return 0
   }
-  out="$(herdr agent get "$target" 2>"$errfile")" && rc=0 || rc=$?
+  # A kill by a signal (exit >= 128, e.g. 137 under load) with no structured
+  # error is transient: two more tries, 1 s and then 2 s apart, before the
+  # agent is reported unavailable.
+  local attempt
+  for attempt in 1 2 3; do
+    out="$(herdr agent get "$target" 2>"$errfile")" && rc=0 || rc=$?
+    [ "$rc" -ge 128 ] && [ "$attempt" -lt 3 ] || break
+    jq -e '.error.code' "$errfile" >/dev/null 2>&1 && break
+    printf '%s' "$out" | jq -e '.error.code' >/dev/null 2>&1 && break
+    sleep "$attempt"
+  done
   raw="$(cat "$errfile" 2>/dev/null || true)"
   rm -f "$errfile"
   [ -n "$raw" ] || raw="$out"
@@ -2612,14 +2648,10 @@ cmd_setup_plan() {
   case "$gd" in /*) ;; *) gd="$root/$gd";; esac
   rel="${gd#"$root"/}"
   if [ "$rel" != "$gd" ] && git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-     && ! git -C "$root" check-ignore -q "$rel" 2>/dev/null; then
+     && gitignore_needs "$root" "$rel"; then
     before="$tmpd/gitignore.before"; after="$tmpd/gitignore.after"
     if [ -f "$root/.gitignore" ]; then cp "$root/.gitignore" "$before"; else : > "$before"; fi
-    if [ -f "$root/.gitignore" ]; then
-      { cat "$root/.gitignore"; printf '%s/\n' "$rel"; } > "$after"
-    else
-      printf '%s/\n' "$rel" > "$after"
-    fi
+    gitignore_after "$root/.gitignore" "$rel" > "$after"
     plan_file_diff "$root/.gitignore" "$before" "$after"
   fi
   rm -rf "$tmpd"

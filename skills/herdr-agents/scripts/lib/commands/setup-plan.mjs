@@ -30,7 +30,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
   DieError, configKeyOk, configValueOk, configWritePair, configFileFor,
-  fileKeyValue, stateRootPath,
+  fileKeyValue, gitignoreAfter, gitignoreNeeds, stateRootPath,
 } from '../config.mjs';
 import { projectRoot, readTextFile } from '../platform.mjs';
 import { applyLaneFile, setupLaneSpec } from '../lanes.mjs';
@@ -446,13 +446,10 @@ export function cmdSetupPlan(args, ctx, env = process.env, cwd = process.cwd()) 
     if (gd.startsWith(prefix)) {
       const rel = gd.slice(prefix.length);
       const wt = spawnSync('git', ['-C', root, 'rev-parse', '--is-inside-work-tree'], { env, stdio: 'ignore' });
-      if (wt.status === 0) {
-        const ci = spawnSync('git', ['-C', root, 'check-ignore', '-q', rel], { env, stdio: 'ignore' });
-        if (ci.status !== 0) {
-          let gi = '';
-          try { gi = readTextFile(path.join(root, '.gitignore')); } catch { /* absent */ }
-          process.stdout.write(planFileDiff(path.join(root, '.gitignore'), gi, gi + `${rel}/\n`));
-        }
+      if (wt.status === 0 && gitignoreNeeds(root, rel, env)) {
+        let gi = '';
+        try { gi = readTextFile(path.join(root, '.gitignore')); } catch { /* absent */ }
+        process.stdout.write(planFileDiff(path.join(root, '.gitignore'), gi, gitignoreAfter(gi, rel)));
       }
     }
   } finally {

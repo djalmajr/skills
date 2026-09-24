@@ -159,12 +159,35 @@ export function stateRoot(ctx, env = process.env, cwd = process.cwd()) {
   if (d.startsWith(prefix)) {
     const rel = d.slice(prefix.length);
     const wt = spawnSync('git', ['-C', root, 'rev-parse', '--is-inside-work-tree'], { env, stdio: 'ignore' });
-    if (wt.status === 0) {
-      const ci = spawnSync('git', ['-C', root, 'check-ignore', '-q', rel], { env, stdio: 'ignore' });
-      if (ci.status !== 0) fs.appendFileSync(path.join(root, '.gitignore'), `${rel}/\n`);
+    if (wt.status === 0 && gitignoreNeeds(root, rel, env)) {
+      // Append (not rewrite): a symlinked .gitignore stays a link.
+      const gi = path.join(root, '.gitignore');
+      let text = '';
+      try { text = readTextFile(gi); } catch { /* absent */ }
+      fs.appendFileSync(gi, gitignoreAfter(text, rel).slice(text.length));
     }
   }
   return d;
+}
+
+// gitignore_needs: `<rel>/` must be added to the repo's .gitignore only when
+// git says the path is definitely not ignored (check-ignore exit 1; an error
+// such as 128 under load adds nothing, the next run retries) and no line of
+// the file already names it.
+export function gitignoreNeeds(root, rel, env = process.env) {
+  const ci = spawnSync('git', ['-C', root, 'check-ignore', '-q', rel], { env, stdio: 'ignore', timeout: 30_000 });
+  if (ci.status !== 1) return false;
+  let text = '';
+  try { text = readTextFile(path.join(root, '.gitignore')); } catch { return true; }
+  const names = new Set([rel, `${rel}/`, `/${rel}`, `/${rel}/`]);
+  return !text.split('\n').some((l) => names.has(l.replace(/\r$/, '')));
+}
+
+// gitignore_after: the .gitignore text with `<rel>/` appended on a line of
+// its own, even when the text does not end with a newline.
+export function gitignoreAfter(text, rel) {
+  const sep = text !== '' && !text.endsWith('\n') ? '\n' : '';
+  return `${text}${sep}${rel}/\n`;
 }
 
 // config_write_pair() port. Full-line comments stay; a trailing comment on

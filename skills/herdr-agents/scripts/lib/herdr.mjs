@@ -4,6 +4,7 @@
 // `gone` only for `agent_not_found`; every other failed `herdr agent get`
 // is `unavailable` with a sanitized cause — never `gone`. `agentState`
 // never throws, so command substitutions stay safe.
+import os from 'node:os';
 import { die, runCli, findExecutable } from './platform.mjs';
 import { DieError } from './config.mjs';
 import { sanitizeCause } from './text.mjs';
@@ -89,6 +90,22 @@ export function agentRead(env, agent, { source, lines } = {}) {
   return r.stdout;
 }
 
+// transientKill: `herdr agent get` killed by a signal (any, except our own
+// timeout, which spawnSync marks ETIMEDOUT) or exiting >= 128, without a
+// structured JSON error.
+function transientKill(r) {
+  if (r.notFound || r.error === 'ETIMEDOUT') return false;
+  const killed = r.signal != null || (r.status !== null && r.status >= 128);
+  if (!killed) return false;
+  for (const text of [r.stderr, r.stdout]) {
+    try {
+      const j = JSON.parse(text || '');
+      if (j && typeof j === 'object' && j.error && typeof j.error === 'object' && j.error.code) return false;
+    } catch { /* not JSON */ }
+  }
+  return true;
+}
+
 // agent_state() port (bash :793-830, spec 4.1): runs `herdr agent get
 // <target>` with stderr captured separately. Classification:
 //   - stderr/stdout carrying JSON with .error.code == agent_not_found →
@@ -99,11 +116,20 @@ export function agentRead(env, agent, { source, lines } = {}) {
 //   - failure without JSON → unavailable, cause sanitized stderr (or stdout
 //     when stderr is empty), fallback `herdr agent get failed (exit <rc>)`.
 // Always returns; never throws.
-export function agentState(target, env = process.env, timeoutMs = HERDR_TIMEOUT_MS) {
-  const r = runCli('herdr', ['agent', 'get', target], { env, timeoutMs });
-  if (r.timedOut) return { state: 'unavailable', cause: timedOutMsg('agent get', timeoutMs) };
-  // Bash exit code; 127 for a missing CLI.
-  const rc = r.notFound ? 127 : r.status ?? 1;
+export function agentState(target, env = process.env, timeoutMs = HERDR_TIMEOUT_MS, retryPausesMs = [1000, 2000]) {
+  // A kill by a signal (exit >= 128, e.g. 137 under load) with no structured
+  // error is transient: one more try after each pause (1 s, then 2 s)
+  // before the agent is reported unavailable. Our own timeout is not
+  // retried.
+  let r;
+  for (let attempt = 0; ; attempt += 1) {
+    r = runCli('herdr', ['agent', 'get', target], { env, timeoutMs });
+    if (attempt >= retryPausesMs.length || !transientKill(r)) break;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, retryPausesMs[attempt]);
+  }
+  if (r.error === 'ETIMEDOUT') return { state: 'unavailable', cause: timedOutMsg('agent get', timeoutMs) };
+  // Bash exit code; 127 for a missing CLI; 128+N for a kill by signal N.
+  const rc = r.notFound ? 127 : r.status ?? (r.signal ? 128 + (os.constants.signals[r.signal] ?? 0) : 1);
   let raw = r.stderr ?? '';
   if (!raw) raw = r.stdout ?? '';
   let code = '';

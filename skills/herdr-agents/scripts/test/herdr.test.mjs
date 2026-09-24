@@ -48,6 +48,17 @@ function makeFake(root) {
     '      messy)',
     `        printf 'Error: Os { code: 13, kind: PermissionDenied, message: "Permission denied" }${NL}second-line\\t${ESC}[31mred${NL}' >&2`,
     '        exit 1 ;;',
+    '      flaky)',
+    `        n=$(cat "${root}/flaky.count" 2>/dev/null || echo 0); n=$((n+1)); printf '%s' "$n" > "${root}/flaky.count"`,
+    '        if [ "$n" -le 2 ]; then exit 137; fi',
+    `        printf '%s${NL}' '{"result":{"agent":{"name":"flaky","agent_status":"working"}}}'`,
+    '        exit 0 ;;',
+    '      killed)',
+    '        exit 137 ;;',
+    '      termed)',
+    '        kill -TERM $$ ;;',
+    '      slow)',
+    '        sleep 5 ;;',
     '      ok)',
     `        printf '%s${NL}' '{"result":{"agent":{"name":"ok","agent_status":"working"}}}'`,
     '        exit 0 ;;',
@@ -234,3 +245,34 @@ function failListEnv(root) {
 `);
   return { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
 }
+
+test('agentState: a kill by a signal (exit 137) is retried before unavailable', { timeout: 30000 }, () => {
+  const root = tmp('ha-herdr-137-');
+  try {
+    const fake = makeFake(root);
+    const gets = () => fs.readFileSync(fake.log, 'utf8').split('\n').filter((l) => l.startsWith('agent get')).length;
+    // Two kills, then the answer: the third try reports the real state.
+    assert.deepEqual(agentState('flaky', fake.env, undefined, [10, 10]), { state: 'working', cause: '' });
+    assert.equal(gets(), 3, 'three agent get calls');
+    // Killed every time: unavailable after the retries, with the exit code.
+    fs.writeFileSync(fake.log, '');
+    assert.deepEqual(agentState('killed', fake.env, undefined, [10, 10]),
+      { state: 'unavailable', cause: 'herdr agent get failed (exit 137)' });
+    assert.equal(gets(), 3, 'three agent get calls');
+    // An external SIGTERM is retried too, and reported like bash (exit 143).
+    fs.writeFileSync(fake.log, '');
+    assert.deepEqual(agentState('termed', fake.env, undefined, [10, 10]),
+      { state: 'unavailable', cause: 'herdr agent get failed (exit 143)' });
+    assert.equal(gets(), 3, 'three agent get calls');
+    // Our own timeout is not retried.
+    fs.writeFileSync(fake.log, '');
+    const slow = agentState('slow', fake.env, 300, [10, 10]);
+    assert.equal(slow.state, 'unavailable');
+    assert.match(slow.cause, /timed out/);
+    assert.equal(gets(), 1, 'one call for our own timeout');
+    // A structured error is never retried.
+    fs.writeFileSync(fake.log, '');
+    assert.equal(agentState('serverdown', fake.env, undefined, [10, 10]).state, 'unavailable');
+    assert.equal(gets(), 1, 'one call for a structured error');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

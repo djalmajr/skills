@@ -49,6 +49,13 @@ case "\$1 \$2" in
       down)
         printf '%s\n' '{"id":"cli:agent:get","error":{"code":"server_not_running","message":"no herdr server is running"}}' >&2
         exit 1 ;;
+      killed)
+        exit 137 ;;
+      flaky)
+        n=\$(cat "$TEST_ROOT/flaky.count" 2>/dev/null || echo 0); n=\$((n+1)); printf '%s' "\$n" > "$TEST_ROOT/flaky.count"
+        [ "\$n" -gt 2 ] || exit 137
+        printf '%s\n' '{"result":{"agent":{"name":"'"\$target"'","agent_status":"working"}}}'
+        exit 0 ;;
       working)
         printf '%s\n' '{"result":{"agent":{"name":"'"\$target"'","agent_status":"working"}}}'
         exit 0 ;;
@@ -138,6 +145,25 @@ expect 'down exit' "$RUN_RC" 4
 expect 'down state' "$(field worker 2)" unavailable
 case "$(field worker 4)" in server_not_running:*) ;; *) fail "down cause: $(field worker 4)" ;; esac
 no_gone_word down
+
+# herdr agent get killed by a signal (exit 137 under load) is retried: two
+# kills and then the answer is the real state; killed every time is
+# unavailable with the exit code, after three calls.
+reset_roster
+rm -f "$TEST_ROOT/flaky.count"
+printf '%s\n' flaky > "$MODE"
+run_cmd status worker
+expect 'flaky exit' "$RUN_RC" 0
+expect 'flaky state' "$(field worker 2)" working
+expect 'flaky calls' "$(grep -c '^agent get worker' "$LOG")" 3
+
+reset_roster
+printf '%s\n' killed > "$MODE"
+run_cmd status worker
+expect 'killed exit' "$RUN_RC" 4
+expect 'killed state' "$(field worker 2)" unavailable
+expect 'killed cause' "$(field worker 4)" 'herdr agent get failed (exit 137)'
+expect 'killed calls' "$(grep -c '^agent get worker' "$LOG")" 3
 
 reset_roster
 printf '%s\n' working > "$MODE"

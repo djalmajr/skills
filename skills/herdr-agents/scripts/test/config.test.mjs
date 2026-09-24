@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
-import { loadConfig, cfg, cfgSource, normalizeKey, configKeyOk, configValueOk, configFileFor } from '../lib/config.mjs';
+import { loadConfig, cfg, cfgSource, normalizeKey, configKeyOk, configValueOk, configFileFor, stateRoot, gitignoreAfter } from '../lib/config.mjs';
 
 function setup() {
   let root = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-config-'));
@@ -342,4 +342,58 @@ test('a failed rename leaves the config and the session file untouched', () => {
     assert.equal(fs.readFileSync(file, 'utf8'), '# keep\nmax_workers=2\n');
     assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((n) => n.includes('herdr-agents.conf')), ['herdr-agents.conf'], 'a temp file was left behind');
   } finally { s.cleanup(); }
+});
+
+test('gitignoreAfter: the entry always lands on a line of its own', () => {
+  assert.equal(gitignoreAfter('', '.herdr-agents'), '.herdr-agents/\n');
+  assert.equal(gitignoreAfter('node_modules\n', '.herdr-agents'), 'node_modules\n.herdr-agents/\n');
+  assert.equal(gitignoreAfter('node_modules', '.herdr-agents'), 'node_modules\n.herdr-agents/\n');
+});
+
+test('stateRoot: the .gitignore entry is added once, only on a definite "not ignored"', {
+  timeout: 30000,
+  skip: process.platform === 'win32' ? 'uses an sh git wrapper and a symlink' : false,
+}, () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ha-config-gitignore-')));
+  const newRepo = (name) => {
+    const r = path.join(root, name);
+    fs.mkdirSync(r, { recursive: true });
+    spawnSync('git', ['init', '-q'], { cwd: r, stdio: 'ignore', timeout: 30000 });
+    return r;
+  };
+  const env = (extra = {}) => {
+    const e = fixtureEnv({ HOME: path.join(root, 'home'), XDG_CONFIG_HOME: path.join(root, 'conf'), ...extra });
+    delete e.HERDR_AGENTS_DIR;
+    return e;
+  };
+  const run = (repo, e = env()) => stateRoot(loadConfig(e, repo), e, repo);
+  try {
+    // No final newline: the entry goes on its own line; a second run adds nothing.
+    let r = newRepo('nofinal');
+    fs.writeFileSync(path.join(r, '.gitignore'), 'node_modules');
+    run(r);
+    run(r);
+    assert.equal(fs.readFileSync(path.join(r, '.gitignore'), 'utf8'), 'node_modules\n.herdr-agents/\n');
+    // The line is there but a later rule un-ignores it (check-ignore exit 1): no duplicate.
+    r = newRepo('negated');
+    fs.writeFileSync(path.join(r, '.gitignore'), '.herdr-agents/\n!.herdr-agents/\n');
+    run(r);
+    assert.equal(fs.readFileSync(path.join(r, '.gitignore'), 'utf8'), '.herdr-agents/\n!.herdr-agents/\n');
+    // check-ignore fails (exit 128, a git hiccup): nothing is written.
+    r = newRepo('gitfail');
+    const bin = path.join(root, 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    const realGit = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8', timeout: 30000 }).stdout.trim();
+    fs.writeFileSync(path.join(bin, 'git'),
+      `#!/bin/sh\nfor a in "$@"; do [ "$a" = check-ignore ] && exit 128; done\nexec "${realGit}" "$@"\n`, { mode: 0o755 });
+    run(r, env({ PATH: `${bin}${path.delimiter}${process.env.PATH}` }));
+    assert.equal(fs.existsSync(path.join(r, '.gitignore')), false, 'a git error must not write the .gitignore');
+    // A symlinked .gitignore stays a link.
+    r = newRepo('symlink');
+    fs.writeFileSync(path.join(r, 'ignore-rules'), 'dist/\n');
+    fs.symlinkSync('ignore-rules', path.join(r, '.gitignore'));
+    run(r);
+    assert.ok(fs.lstatSync(path.join(r, '.gitignore')).isSymbolicLink(), 'still a symlink');
+    assert.equal(fs.readFileSync(path.join(r, 'ignore-rules'), 'utf8'), 'dist/\n.herdr-agents/\n');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
