@@ -140,6 +140,36 @@ export function runCli(exe, args, opts = {}) {
     argv = inv.args;
     verbatim = inv.windowsVerbatimArguments;
   }
+  // mergeOutput: stdout and stderr share one file descriptor, so the text
+  // keeps the order it was written in (the bash `"$(cmd 2>&1)"`); it comes
+  // back as `stdout`, with `stderr` empty.
+  if (opts.mergeOutput) {
+    const tmp = path.join(env.TMPDIR || os.tmpdir(), `.herdr-agents-out-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
+    const fd = fs.openSync(tmp, 'w', 0o600);
+    let merged;
+    try {
+      merged = spawnSync(command, argv, {
+        env,
+        cwd: opts.cwd,
+        stdio: ['ignore', fd, fd],
+        timeout: opts.timeoutMs,
+        killSignal: 'SIGTERM',
+        windowsVerbatimArguments: verbatim,
+      });
+    } finally { fs.closeSync(fd); }
+    let text = '';
+    try { text = fs.readFileSync(tmp, 'utf8'); } catch { /* nothing written */ }
+    fs.rmSync(tmp, { force: true });
+    return {
+      notFound: false,
+      resolved,
+      status: merged.status,
+      signal: merged.signal,
+      stdout: text,
+      stderr: '',
+      timedOut: merged.status === null && merged.signal != null,
+    };
+  }
   const child = spawnSync(command, argv, {
     env,
     cwd: opts.cwd,

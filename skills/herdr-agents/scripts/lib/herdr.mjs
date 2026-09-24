@@ -255,3 +255,15 @@ export function paneClose(pane, env = process.env) {
   const r = runCli('herdr', ['pane', 'close', pane], { env, timeoutMs: HERDR_TIMEOUT_MS });
   return !r.notFound && r.status === 0;
 }
+
+// herdr agent prompt <agent> <text> (:3826, dispatch): bash captures the
+// merged stdout+stderr as `raw` (2>&1) and fails on a non-zero exit. The
+// merged text is stdout then stderr (a timed-out call reports its own cause
+// — the bash call was untimed and hung with a stuck server).
+export function agentPrompt(agent, text, env = process.env) {
+  const r = runCli('herdr', ['agent', 'prompt', agent, text], { env, timeoutMs: HERDR_TIMEOUT_MS, mergeOutput: true });
+  if (r.timedOut) return { ok: false, raw: timedOutMsg('agent prompt', HERDR_TIMEOUT_MS) };
+  // `"$(… 2>&1)"`: both streams in write order, trailing newlines dropped.
+  const raw = (r.stdout ?? '').replace(/\n+$/, '');
+  return { ok: !r.notFound && r.status === 0, raw };
+}

@@ -3,7 +3,8 @@
 //
 // Dispatches the ported commands (`config`, `config set`, `session`,
 // `roles`, `role`, `kinds`, `models <kind>`, `model <kind> <spec>
-// [effort]`, `spawn <role> …`, `status <agent>…`, `roster`, `friction`,
+// [effort]`, `spawn <role> …`, `dispatch <agent> <brief.md> …`,
+// `run <role> <brief.md> …`, `status <agent>…`, `roster`, `friction`,
 // `tab-label`, `layout-plan`, `wait <agent>…`, `collect <agent>`,
 // `release <agent>`, `clean`). Any other command is reported as not
 // ported yet (exit 2) so the bash script remains the source of truth for
@@ -33,12 +34,14 @@ import { cmdWait } from './lib/wait.mjs';
 import { cmdCollect } from './lib/commands/collect.mjs';
 import { cmdRelease } from './lib/commands/release.mjs';
 import { cmdClean } from './lib/commands/clean.mjs';
+import { cmdDispatch } from './lib/dispatch.mjs';
+import { cmdRun } from './lib/commands/run.mjs';
 import { findExecutable } from './lib/platform.mjs';
 
-const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'wait', 'collect', 'release', 'clean'];
+const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'wait', 'collect', 'release', 'clean'];
 // The commands that log to friction when running inside Herdr (bash main's
 // living-command list, restricted to what this entry has ported).
-const LIVING = new Set(['spawn', 'status', 'roster', 'friction', 'tab-label', 'wait', 'collect', 'release', 'clean']);
+const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'wait', 'collect', 'release', 'clean']);
 
 const argv = process.argv.slice(2);
 const cmd = argv[0] ?? '';
@@ -87,6 +90,16 @@ try {
     case 'spawn':
       cmdSpawn(argv.slice(1), ctx, env);
       break;
+    case 'dispatch': {
+      const rc = cmdDispatch(argv.slice(1), ctx, env);
+      if (rc) process.exitCode = rc;
+      break;
+    }
+    case 'run': {
+      const rc = cmdRun(argv.slice(1), ctx, env);
+      if (rc) process.exitCode = rc;
+      break;
+    }
     case 'status': {
       const rc = cmdStatus(argv.slice(1), ctx, env);
       if (rc) process.exitCode = rc;

@@ -101,8 +101,11 @@ function pad(s, n) {
 
 // ---------- edit / review role rules (:3253-3281) ----------
 
-// EDIT_ROLES / REVIEW_ROLES_ALL (:70, :72), space lists like the bash vars.
+// EDIT_ROLES / REVIEW_ROLES / REVIEW_ROLES_ALL (:70-72), space lists like
+// the bash vars. The dispatch family check uses REVIEW_ROLES (the two code
+// reviewers); ui-reviewer and inspector are excluded there.
 export const EDIT_ROLES = 'implementer designer tasker';
+export const REVIEW_ROLES = 'reviewer security-reviewer';
 export const REVIEW_ROLES_ALL = 'reviewer security-reviewer ui-reviewer inspector';
 
 // role_is_edit <role> — EDIT_ROLES, or frontmatter `mode: edit`.
