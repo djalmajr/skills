@@ -72,6 +72,13 @@ issues.detail.linkProject = "…"
   test-<x>.sh`). The full matrix runs once at the end of the whole effort,
   not per slice.
 - Do NOT run the formatter or e2e.
+- Every `spawnSync`/`execFileSync` in a test you write gets a `timeout`;
+  every branch of a fake CLI advances its arguments.
+- UI slices: say who runs the browser smoke (you, when you can open a
+  browser; otherwise the orchestrator or an `inspector` after your report).
+- Tests that open a local port (a fake server, a local database, a workers
+  runtime) do not run inside the Codex sandbox (`listen EPERM`): mark them
+  `partial`; the orchestrator runs them.
 - Write one file per tool call, a few hundred lines at most per call; grow
   a larger file with follow-up edits.
 

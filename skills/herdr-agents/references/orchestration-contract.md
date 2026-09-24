@@ -76,6 +76,14 @@ dispatching: any place where you would have to choose is a gap.
   test only passes by reproducing a bug of the reference implementation,
   fix the reference (with a test) or record the divergence; say so in the
   brief before the worker meets it.
+- **Tests never hang.** Every `spawnSync`/`execFileSync` a test runs gets a
+  `timeout`, and every branch of a fake CLI advances its arguments: a fake
+  whose `--new-tab)` branch had no `shift` looped forever and held
+  `node --test` for 1h18 while the wait only saw `working`.
+- **A UI slice is done after a browser smoke.** A builder in a sandbox
+  usually cannot open a browser: a routing mistake in a web app passed its
+  tests and only broke in the orchestrator's smoke. Before a UI slice counts
+  as done, the orchestrator or an `inspector` opens the touched screens.
 - **Small writes with XML-tool-call models.** Ask for one file per call and
   a few hundred lines at most per call. A `settled-no-report` whose screen
   shows raw tool-call text is a malformed call, not a finished worker:

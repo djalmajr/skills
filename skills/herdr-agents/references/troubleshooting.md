@@ -207,6 +207,20 @@ you should do. Read this before changing the script or adding a kind.
 - **Do:** run nested orchestrators on `claude` (validated), or Codex with
   its sandbox disabled via `args.codex` if you accept that.
 
+## Codex worker: `listen EPERM` on 127.0.0.1
+
+- **Cause:** with `approvals: full` a Codex worker runs `-s workspace-write`,
+  whose sandbox denies network access — binding a local port included. A
+  test that starts a server (`node:http` on `127.0.0.1:0`, a local database
+  on a port, a local workers runtime) fails with `listen EPERM: operation
+  not permitted`, and the worker can report the slice as done without ever
+  running it (verified with `codex sandbox` 0.156: EPERM by default, `listen
+  ok` with the key below).
+- **Do:** in the brief, say that such tests do not run in the Codex sandbox:
+  the worker marks the item `partial` and the orchestrator runs them. If you
+  accept full network access for the worker (not only localhost), set
+  `args.codex=-c sandbox_workspace_write.network_access=true`.
+
 ## QA worker stopped at sign-in
 
 - **Cause:** the orchestrator wrote guessed credentials into the brief. The
