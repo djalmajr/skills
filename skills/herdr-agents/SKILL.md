@@ -777,6 +777,14 @@ Steps, in order, in the user's language (never the words `lane`, `kind`, or
      ready family.
    Each option is the assistant name plus its one-line `summary`
    (translated); the recommendation carries the one-line reason.
+   **Own provider on `pi` or `opencode`:** before offering such a
+   `provider/model`, check its config without printing any value — the key
+   by environment reference, `maxTokens` (pi) or `limit.output` (opencode)
+   at least the reasoning budget of the chosen effort + 8192, and on
+   opencode a `thinking_token_budget` in the model's `options`. When one is
+   missing, ask: *Fix it for me* (recommended — show the exact change first),
+   *I'll fix it myself*, *Use it as it is* + free text. Why:
+   [references/kinds.md — Reasoning models on your own server](references/kinds.md#reasoning-models-on-your-own-server).
 4. **Where each choice is saved.** One question per choice: *only this
    project* (the team shares it — the project file), *my personal default*
    (all my projects — the user file), *only this session* (temporary — the

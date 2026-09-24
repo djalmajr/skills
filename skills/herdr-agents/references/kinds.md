@@ -110,7 +110,9 @@ policy.
 
 `pi` — `~/.pi/agent/models.json` (the key from an environment variable.
 `xhigh`/`max` appear only when the model declares a `thinkingLevelMap`; the
-budgets come from `thinkingBudgets` in `~/.pi/agent/settings.json`):
+budgets come from `thinkingBudgets` in `~/.pi/agent/settings.json`, and
+`maxTokens` must leave room above the largest budget you use — see
+[Reasoning models on your own server](#reasoning-models-on-your-own-server)):
 
 ```json
 {
@@ -125,7 +127,7 @@ budgets come from `thinkingBudgets` in `~/.pi/agent/settings.json`):
           "name": "My Model",
           "reasoning": true,
           "contextWindow": 200000,
-          "maxTokens": 32768,
+          "maxTokens": 40960,
           "input": ["text"],
           "thinkingLevelMap": {
             "off": null, "minimal": null, "low": "low",
@@ -139,7 +141,9 @@ budgets come from `thinkingBudgets` in `~/.pi/agent/settings.json`):
 ```
 
 `opencode` — `opencode.json` (the key from an environment variable via
-`{env:VAR}`):
+`{env:VAR}`; the TUI has no effort flag, so a reasoning budget goes in the
+model's `options`, which an OpenAI-compatible provider passes in the request
+body):
 
 ```json
 {
@@ -152,7 +156,13 @@ budgets come from `thinkingBudgets` in `~/.pi/agent/settings.json`):
         "baseURL": "https://api.my-provider.example/v1",
         "apiKey": "{env:MY_API_KEY}"
       },
-      "models": { "my-model": { "name": "My Model" } }
+      "models": {
+        "my-model": {
+          "name": "My Model",
+          "limit": { "context": 200000, "output": 40960 },
+          "options": { "thinking_token_budget": 31744 }
+        }
+      }
     }
   }
 }
@@ -171,6 +181,67 @@ budgets come from `thinkingBudgets` in `~/.pi/agent/settings.json`):
 - **Confirm the model on screen after `spawn`**: these CLIs print the
   resolved model/provider, and a typo in the `provider/id` is only visible
   there (or when the first prompt fails).
+
+### Reasoning models on your own server
+
+Traps seen when a generic kind runs a reasoning model served by your own
+OpenAI-compatible endpoint (for example vLLM with a reasoning parser). CLI
+flags and config fields change often: confirm them with `--help` rather than
+trusting a version named here.
+
+- **Leave room for the answer.** The request's `max_tokens` covers reasoning,
+  the answer and the tool calls. With a reasoning budget close to it (31744
+  of 32768) the answer and the tool calls come out truncated. Rule:
+  `maxTokens` (pi) or `limit.output` (opencode) at least the budget of the
+  level you use + 8192; for a 31744 budget, 40960.
+- **Reasoning knobs.** Such servers often have no `reasoning_effort`; the
+  reasoning is controlled per request with
+  `chat_template_kwargs.enable_thinking` (on/off) and `thinking_token_budget`.
+  With nothing in the request the usual default is *thinking on, no budget*,
+  bounded only by `max_tokens`. In pi set `compat.supportsReasoningEffort:
+  false`, `compat.supportsThinkingTokenBudget: true` and the
+  `compat.thinkingFormat` your model's chat template uses, so each effort
+  level becomes a budget from `thinkingBudgets`. In opencode put
+  `thinking_token_budget` in the model's `options` (above); without it the
+  server default applies and the skill's effort is dropped with a warning.
+- **Keys by reference.** `"apiKey": "$MY_API_KEY"` in pi and
+  `"apiKey": "{env:MY_API_KEY}"` in opencode — never the literal key in the
+  file.
+- **Small writes.** Models whose tool calls are parsed from XML-like markup
+  can print the closing tags of a large single write as plain text; the CLI
+  takes it as the final answer, no tool runs and the worker stops with
+  `settled-no-report` (tool-call markup on screen). Ask in the brief for one
+  file per tool call and at most a few hundred lines per call.
+- **A dead provider looks like a finished worker.** `settled-no-report` with
+  `Request timed out`, `Retry failed` or `Connection error` on the screen is
+  the provider, not the worker. A running worker keeps the provider address
+  it started with: after changing the endpoint in the CLI's config, release
+  the old worker (`release <name> --close --force`) and spawn a new one.
+- **First open in a new folder (pi).** pi asks to trust a folder the first
+  time it opens there; `spawn` waits on that dialog (exit 7). For temporary
+  worktrees, use an already trusted folder or accept once by hand.
+- **Stale local state after a self-update (opencode).** opencode updates
+  itself; afterwards an existing repository may fail with `Unexpected server
+  error` in the TUI or `no such column: …` in `opencode run` while a fresh
+  folder works. That is local state, not the binary or the config: move
+  `~/.opencode`, `~/.config/opencode`, `~/.local/share/opencode`,
+  `~/.local/state/opencode` and `~/.cache/opencode` to a backup, reinstall,
+  redo the provider and `herdr integration install opencode`. `herdr agent
+  start --kind opencode` then stops timing out at startup.
+- **Context.** Long slices fill these CLIs' context fast (tens of millions of
+  input tokens over a slice); give each slice a fresh worker and a short
+  brief.
+- **pi or opencode?** In one side-by-side run (same task, same self-hosted
+  reasoning model, run in parallel) opencode finished about 30% sooner, while
+  pi's diff followed the specification more closely and flagged an edge case
+  the reviewer later confirmed. One run is a hint, not a benchmark.
+
+### Harnesses evaluated and not supported
+
+- `omp` — not supported.
+- `fx` — Herdr has no `fx` kind; running it would need a per-pane workaround
+  (no `agent prompt`, reported state that outlives the process). Revisit if
+  Herdr gains a native kind.
 
 ## Probing a kind (`setup --probe`)
 
