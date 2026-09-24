@@ -99,20 +99,57 @@ export function cmdInvocation(resolved, args, env = process.env) {
   };
 }
 
+// Effective write target of `dest`: when `dest` is a symlink, the final
+// file of the chain, so a write lands on the target and the link stays a
+// link (a project with AGENTS.md -> CLAUDE.md keeps the link across setup).
+// A resolvable chain goes through realpath (a cycle throws realpath's ELOOP
+// error, which callers treat as "file left untouched"); a broken chain
+// follows readlink hops (a relative target resolves against the link's
+// directory) to the first path that is not a link, and the file is created
+// there. node:fs/node:path only, so it behaves the same on Windows. Non-
+// symlink and absent paths pass through unchanged.
+function resolveWriteTarget(dest) {
+  let st;
+  try { st = fs.lstatSync(dest); } catch { return dest; } // absent: new file
+  if (!st.isSymbolicLink()) return dest;
+  try {
+    return fs.realpathSync(dest); // resolvable chain; throws ELOOP on a cycle
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err; // ELOOP and the rest surface as-is
+    // Broken chain: walk the links by hand to the first non-link path and
+    // create the file there; the hop cap keeps a cycle that slipped past
+    // realpath from looping forever (same ELOOP error as realpath).
+    let cur = dest;
+    for (let hops = 0; hops < 40; hops++) {
+      const target = fs.readlinkSync(cur);
+      cur = path.resolve(path.dirname(cur), target);
+      let ns;
+      try { ns = fs.lstatSync(cur); } catch { return cur; } // missing: create it
+      if (!ns.isSymbolicLink()) return cur;
+    }
+    const loop = new Error(`ELOOP: too many symbolic links encountered, realpath '${dest}'`);
+    loop.code = 'ELOOP';
+    throw loop;
+  }
+}
+
 // atomicWrite replaces `dest` with `content` and never loses it: the temp
-// file sits next to `dest` (same filesystem, so the rename never crosses
-// devices, e.g. a tmpfs /tmp), keeps the original mode (0600 for a new file,
-// like bash's mktemp), and one rename replaces the destination — nothing is
-// removed first, so a failure leaves `dest` as it was. Shared by the config
-// rewrites and every roster rewrite (port decision 1).
+// file sits next to the effective target (resolveWriteTarget, same
+// filesystem, so the rename never crosses devices, e.g. a tmpfs /tmp), keeps
+// the target's mode (0600 for a new file, like bash's mktemp), and one
+// rename replaces the destination — nothing is removed first, so a failure
+// leaves `dest` as it was. A symlinked `dest` is written through to its
+// final target and stays a link. Shared by the config rewrites and every
+// roster rewrite (port decision 1).
 export function atomicWrite(dest, content) {
+  const target = resolveWriteTarget(dest);
   let mode = 0o600;
   try { mode = fs.statSync(dest).mode & 0o777; } catch { /* new file */ }
-  const tmp = path.join(path.dirname(dest), `.${path.basename(dest)}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`);
+  const tmp = path.join(path.dirname(target), `.${path.basename(target)}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`);
   try {
     fs.writeFileSync(tmp, content, { mode });
     fs.chmodSync(tmp, mode);
-    fs.renameSync(tmp, dest);
+    fs.renameSync(tmp, target);
   } catch (err) {
     try { fs.rmSync(tmp, { force: true }); } catch { /* best effort */ }
     throw err;

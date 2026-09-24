@@ -51,10 +51,9 @@ a kind with a stable model family.
 Grok effort levels verified on 2026-09-21 (grok 1.0.40, models `grok-4.7`,
 `grok-4.7-build-fast`, `grok-4.6`): `--reasoning-effort xhigh` is accepted
 by all three; `extra-high`, `x-high`, `extra_high` are rejected with
-"use one of: xhigh, high, medium, low". Policy since then: heavy work
-(implementer, tasker, scouter, researcher) → grok > cursor (grok 4.7) >
-codex > claude; review/security/planning/orchestration → codex/claude;
-visual → agy.
+"use one of: xhigh, high, medium, low". Which assistant runs which role is
+a per-user or per-project choice in the configuration, not a ranking of
+providers (see SKILL.md, "Which assistant for which work").
 
 ## Generic kinds (pi, opencode)
 

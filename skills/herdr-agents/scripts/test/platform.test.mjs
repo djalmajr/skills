@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
-import { userConfigPath, homeDir, readTextFile, findExecutable } from '../lib/platform.mjs';
+import { userConfigPath, homeDir, readTextFile, findExecutable, atomicWrite } from '../lib/platform.mjs';
 
 test('userConfigPath: XDG_CONFIG_HOME wins on every platform (decision 4)', (t) => {
   const xdg = '/cfg/home';
@@ -87,4 +87,77 @@ test('findExecutable: finds node on PATH, returns null for unknown names', (t) =
   const found = findExecutable('node');
   assert.ok(found, 'node should be on PATH');
   assert.equal(findExecutable('definitely-not-a-real-command-xyz'), null);
+});
+
+// atomicWrite (backlog 12): a symlinked dest is written through to the
+// final target of the chain and the link stays a link; nothing is removed
+// before the rename, so an error leaves the links and no temp behind.
+const SYMLINK_SKIP = process.platform === 'win32'
+  ? 'symlink creation needs elevated privileges on Windows; POSIX fixture contract'
+  : false;
+
+// Mutation captured: renaming over the unresolved `dest` replaces the link with a plain file.
+test('atomicWrite: a symlink to an existing file writes through, keeps the link and the target mode', { skip: SYMLINK_SKIP }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-aw-symlink-'));
+  try {
+    const target = path.join(root, 'CLAUDE.md');
+    fs.writeFileSync(target, 'seed\n', { mode: 0o640 });
+    const link = path.join(root, 'AGENTS.md');
+    fs.symlinkSync(target, link);
+    atomicWrite(link, 'through\n');
+    assert.ok(fs.lstatSync(link).isSymbolicLink(), 'the link stays a link');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'through\n', 'the content lands on the target');
+    assert.equal(fs.readFileSync(link, 'utf8'), 'through\n', 'the link still reads the target');
+    assert.equal(fs.statSync(target).mode & 0o777, 0o640, 'the target mode is kept');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+// Mutation captured: resolving the temp against the link's folder and renaming over `dest` would replace the link.
+test('atomicWrite: a relative link to a file in another directory resolves to that file', { skip: SYMLINK_SKIP }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-aw-symlink2-'));
+  const other = path.join(root, 'other');
+  fs.mkdirSync(other);
+  try {
+    const target = path.join(other, 'CLAUDE.md');
+    fs.writeFileSync(target, 'seed\n');
+    const link = path.join(root, 'AGENTS.md');
+    fs.symlinkSync(path.join('other', 'CLAUDE.md'), link);
+    atomicWrite(link, 'relative\n');
+    assert.ok(fs.lstatSync(link).isSymbolicLink(), 'the link stays a link');
+    assert.equal(fs.readFileSync(target, 'utf8'), 'relative\n', 'the target in the other folder is written');
+    assert.deepEqual(fs.readdirSync(root).sort(), ['AGENTS.md', 'other'], 'no temp left next to the link');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+// Mutation captured: a rename over the unresolved `dest` would replace the (broken) link with a plain file instead of creating the missing end.
+test('atomicWrite: a broken chain creates the file at its missing end, links stay links', { skip: SYMLINK_SKIP }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-aw-broken-'));
+  try {
+    const a = path.join(root, 'a.md');
+    const b = path.join(root, 'b.md');
+    const missing = path.join(root, 'missing.txt');
+    fs.symlinkSync('b.md', a);
+    fs.symlinkSync('./missing.txt', b);
+    atomicWrite(a, 'created\n');
+    assert.ok(fs.lstatSync(a).isSymbolicLink(), 'a stays a link');
+    assert.ok(fs.lstatSync(b).isSymbolicLink(), 'b stays a link');
+    assert.equal(fs.readFileSync(missing, 'utf8'), 'created\n', 'the file is created at the missing end');
+    assert.equal(fs.statSync(missing).mode & 0o777, 0o600, 'a new file is 0600');
+    assert.equal(fs.readFileSync(a, 'utf8'), 'created\n', 'the chain now resolves');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+// Mutation captured: a rename over the unresolved `dest` would turn the link into a plain file instead of failing.
+test('atomicWrite: a symlink cycle throws the realpath ELOOP error, leaves the links and no temp behind', { skip: SYMLINK_SKIP }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-aw-loop-'));
+  try {
+    const a = path.join(root, 'a.md');
+    const b = path.join(root, 'b.md');
+    fs.symlinkSync('b.md', a);
+    fs.symlinkSync('a.md', b);
+    assert.throws(() => atomicWrite(a, 'x\n'), (e) => e.code === 'ELOOP', 'ELOOP like a failed realpath');
+    assert.ok(fs.lstatSync(a).isSymbolicLink(), 'a is still a link');
+    assert.ok(fs.lstatSync(b).isSymbolicLink(), 'b is still a link');
+    assert.deepEqual(fs.readdirSync(root).sort(), ['a.md', 'b.md'], 'no temp file left behind');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

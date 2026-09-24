@@ -164,19 +164,15 @@ when one worker is reused across tasks.
 | `inspector` | agy | high | read-only | Screenshots in both themes, UX findings, no fixes |
 | `sub-orchestrator` | claude | medium | read-only | Runs this skill from another pane; never codex sandboxed (socket blocked) |
 
-**Which kind for which work** (policy of 2026-09-21). **Heavy work goes to
-`grok`** — production code (`implementer`, `xhigh`), edits in volume
-(`tasker`), surveys and research (`scouter`, `researcher`): grok 4.7 has
-`xhigh` reasoning and a plan with headroom. Order of preference for that
-work: `grok` > `cursor` (running grok 4.7 too) > `codex` > `claude`.
-**Judgement and leadership go to `codex` and `claude`** — `reviewer`
-(codex), `security-reviewer` (claude), `sub-orchestrator` (claude), and the
-orchestrator itself, who is also the planner. **Visual work goes to `agy`**
-(`designer`, `inspector`): it reads screens well. The one rule that does
-not move: the reviewer of a slice comes from **another family** than its
-implementer, and cursor running grok is the xai family like `grok` — so
-reviewers default to codex/claude, never grok/cursor. The role defaults
-encode this; keep it when overriding.
+**Which assistant for which work.** The `Default kind` column is what a
+fresh install uses when nothing is configured, not a policy. The team is a
+per-user or per-project choice written in the configuration (the guided
+setup asks, offering only assistants whose probe answers): which assistant
+and model build, which review, at what effort. The one rule that does not
+move: the reviewer of a slice comes from **another model family** than its
+implementer (cursor running a grok model is the xai family, like `grok`).
+The family check enforces it for workers; for code the orchestrator wrote,
+pick the reviewer's family by hand.
 
 Definitions live in [roles/](roles/). Resolution order: project
 `.agents/herdr-roles/<role>.md` → this skill's `roles/<role>.md`. `--kind`
@@ -723,7 +719,11 @@ between `<!-- herdr-agents:start -->` / `<!-- herdr-agents:end -->`
 markers in the project's canonical instruction file and merges two hooks
 into `.claude/settings.json`: `UserPromptSubmit` (a one-line reminder on
 every prompt while `HERDR_ENV=1`) and `SessionStart` (doctor warnings).
-The hook commands are `sh` invocations, so they run only where a POSIX
+The block holds the workflow and the brief contract only; how many panes,
+which assistants and which models stay in the configuration, so the block
+never contradicts a project's team. A symlinked instruction or settings file
+(`AGENTS.md -> CLAUDE.md`) is written through: the link stays a link. The
+hook commands are `sh` invocations, so they run only where a POSIX
 shell exists (on Windows, via Git Bash or WSL). Re-running replaces the
 block and the hooks; the file is never touched
 when the rewrite fails. Generated project files never embed the installer's
@@ -783,9 +783,10 @@ Steps, in order, in the user's language (never the words `lane`, `kind`, or
    that landed in `skipped_custom` was not tested: run
    `$S setup --probe --kind K --model provider/model` first, and offer it
    only if that row is `ready`. Three questions:
-   - **Writing code** (the build lane): recommended `grok` first, then
-     `cursor` (runs grok models), then `codex`, then `claude` — the policy
-     under [Roles](#roles).
+   - **Writing code** (the build lane): recommended is the assistant the
+     user file already names for building when its probe is `ready`;
+     otherwise the ready assistant with the highest effort ceiling. There
+     is no fixed ranking of providers.
    - **Review**: must be another model family than the build one; use
      `recommended_reviewer` as the recommended option (codex before claude).
    - **Research**: recommended is the fastest/cheapest ready assistant — a

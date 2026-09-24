@@ -19,6 +19,7 @@ import {
   settingsHooksResult,
 } from '../lib/setuptext.mjs';
 import { setupTargetExisting, setupWriteBlock, setupWriteHooks, projectNeedsConfigPrompt } from '../lib/commands/setup.mjs';
+import { fixtureEnv, nodeBin, JS_ENTRY } from './parity.mjs';
 
 const ROOT = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ha-setup-unit-')));
 const REPO = path.join(ROOT, 'repo');
@@ -57,6 +58,12 @@ test('setupBlock: markers, heading, no absolute path (test-setup.sh rule)', () =
   assert.ok(BLOCK.includes('## Multi-agent workflow (herdr-agents)\n'));
   assert.ok(!BLOCK.split('\n').some((l) => l.startsWith('/')), 'no absolute path is embedded');
   assert.ok(!BLOCK.includes('scripts/'), 'no script path is embedded');
+});
+
+// Mutation captured: re-adding the provider policy or the fixed pane/lane
+// split to the block (the pre-neutral text).
+test('setupBlock: exact text (neutral block: flow + brief contract, config for the rest)', () => {
+  assert.equal(setupBlock(), '<!-- herdr-agents:start -->\n## Multi-agent workflow (herdr-agents)\n\nInside Herdr (`HERDR_ENV=1`) non-trivial work in this project runs through\nthe `herdr-agents` skill. The calling agent is the **orchestrator**: it\ndecomposes the objective, writes one brief per slice, spawns role workers in\nsibling panes, waits on their report files, integrates, runs the gates and\nowns git. Load the skill (`/herdr-agents`) before planning such work.\n\n- **Delegate**: multi-file slices, UI under the design contract, anything\n  touching auth, secrets or input handling, work that parallelizes, any change\n  that needs a reviewer, and **research**: reading more than a handful of\n  files, another repository or several tools\' conventions goes to a worker.\n  The orchestrator briefs it, reads the report and decides.\n- **Keep**: a one-or-two-file change with no product decision, docs, config,\n  a question, a quick verification. If writing the brief takes longer than the\n  change, make the change.\n- **Briefs are contracts**: goal, expected result, acceptance criteria with\n  the command that proves each one, decisions already made, owned and\n  forbidden files, report format. Workers never invent names, flags,\n  endpoints, credentials or requirements; what the brief leaves open comes\n  back as an open question and is answered in the next brief.\n- Workers never commit, push or open PRs; the orchestrator owns git.\n- The orchestrator is the planner. `spawn planner` opens no pane.\n- Every code slice gets a reviewer from another model family before push,\n  including code the orchestrator wrote itself.\n- The only completion signal is the worker\'s report file (`dispatch`,\n  `wait`, `status`); never poll agent state by hand. A busy worker is not a\n  reason for another pane: `wait`, then dispatch.\n- Quota (exit 11) stops that worker. Ask the user before switching the\n  assistant, waiting, taking the slice, or pausing.\n- How many panes, which assistant and model run each role, and their effort\n  come from the configuration (`.agents/herdr-agents.conf`, the user file,\n  the session layer), not from this block: the skill\'s `explain` and\n  `config` commands show what is in effect. Project roles override the\n  skill\'s in `.agents/herdr-roles/<role>.md`; scratch state lives in\n  `.herdr-agents/` (git-ignored).\n- Refresh this block and the hooks by loading `/herdr-agents` and running its\n  `setup` command from the project root.\n<!-- herdr-agents:end -->\n');
 });
 
 test('setupHookReminder: exact text, no trailing newline', () => {
@@ -266,4 +273,37 @@ test('setupWriteHooks: creates the directory and file; invalid settings is DieEr
     (e) => e.name === 'DieError' && e.code === 4 && e.message === `could not merge hooks into ${bad}`,
   );
   assert.equal(fs.readFileSync(bad, 'utf8'), '{invalid', 'file left untouched');
+});
+
+// Mutation captured: a rename over the unresolved AGENTS.md replaces the link with a plain file (backlog 12).
+test('setup end to end: AGENTS.md -> CLAUDE.md keeps the link, CLAUDE.md gets the block exactly once', { timeout: 120000 }, () => {
+  const dir = path.join(ROOT, 'symlink-e2e');
+  const repo = path.join(dir, 'repo');
+  const home = path.join(dir, 'home');
+  const conf = path.join(dir, 'conf');
+  const state = path.join(dir, 'state');
+  const tmp = path.join(dir, 'tmp');
+  for (const d of [repo, home, conf, state, tmp]) fs.mkdirSync(d, { recursive: true });
+  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore', timeout: 30000 });
+  const claude = path.join(repo, 'CLAUDE.md');
+  const agents = path.join(repo, 'AGENTS.md');
+  fs.writeFileSync(claude, '# Agent instructions\n');
+  fs.symlinkSync('CLAUDE.md', agents);
+  const env = fixtureEnv({ HOME: home, XDG_CONFIG_HOME: conf, HERDR_AGENTS_DIR: state, TMPDIR: tmp });
+  const run = () => spawnSync(nodeBin(), [JS_ENTRY, 'setup'], { cwd: repo, env, encoding: 'utf8', timeout: 60000 });
+  try {
+    const first = run();
+    assert.equal(first.status, 0, `setup failed: ${first.stderr}`);
+    assert.ok(first.stdout.includes(`block written: ${agents}`), `targets AGENTS.md: ${first.stdout}`);
+    assert.ok(fs.lstatSync(agents).isSymbolicLink(), 'AGENTS.md stays a symlink');
+    assert.equal(fs.realpathSync(agents), fs.realpathSync(claude), 'the link still points at CLAUDE.md');
+    const once = `# Agent instructions\n\n${BLOCK}`;
+    assert.equal(fs.readFileSync(claude, 'utf8'), once, 'CLAUDE.md: seed, one blank line, the block once');
+    assert.equal(fs.readFileSync(agents, 'utf8'), once, 'AGENTS.md reads through to the same content');
+    assert.ok(!first.stderr.includes('CLAUDE.md exists separately'), 'no separate-CLAUDE.md warning');
+    const second = run();
+    assert.equal(second.status, 0, `second setup failed: ${second.stderr}`);
+    assert.ok(fs.lstatSync(agents).isSymbolicLink(), 'still a symlink after a second run');
+    assert.equal(fs.readFileSync(claude, 'utf8'), once, 'second run replaces in place, same bytes');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
