@@ -9,8 +9,9 @@
 // :2614-2719 (cmd_setup). The pure texts and merge live in lib/setuptext.mjs;
 // this module owns the disk and the die messages. `--detect` is slice 7b
 // (lib/commands/setup-detect.mjs) and writes nothing; `--plan` is slice 7c
-// and `--probe` is slice 8: they exit 2 with the entry's "not ported yet"
-// message, citing the option.
+// (lib/commands/setup-plan.mjs) and simulates the writes; `--probe` is
+// slice 8 and exits 2 with the entry's "not ported yet" message, citing the
+// option.
 import fs from 'node:fs';
 import path from 'node:path';
 import { DieError, cfg, configWritePair, configFileFor, stateRoot } from '../config.mjs';
@@ -19,6 +20,7 @@ import { warn } from '../state.mjs';
 import { applyLaneFile, setupLaneSpec } from '../lanes.mjs';
 import { SETUP_START, setupBlock, setupBlockResult, settingsHooksResult } from '../setuptext.mjs';
 import { cmdSetupDetect } from './setup-detect.mjs';
+import { cmdSetupPlan } from './setup-plan.mjs';
 
 // `[ -f ]` port: regular file, symlinks followed; false when unreadable.
 function isFile(p) {
@@ -89,11 +91,12 @@ function notPorted(what) {
 }
 
 // cmd_setup (bash :2614-2719). --detect runs the pure detect JSON (7b) and
-// returns without writing, like the bash. `--probe`/`--plan` are not ported
-// yet (7c/8): --probe is refused with the bash exclusivity message when
-// combined with --plan, and each unported option exits 2 with the entry's
-// message. DieError carries the bash die 2/4 messages; the entry turns it
-// into the `herdr-agents: <msg>` stderr line and the exit code.
+// returns without writing, like the bash. --plan simulates the writes
+// (7c, cmdSetupPlan). `--probe` is not ported yet (8): it is refused with
+// the bash exclusivity message when combined with --plan, and exits 2 with
+// the entry's message. DieError carries the bash die 2/4 messages; the
+// entry turns it into the `herdr-agents: <msg>` stderr line and the exit
+// code.
 export function cmdSetup(args, ctx, env, cwd = process.cwd()) {
   let wantProbe = 0;
   let wantPlan = 0;
@@ -103,7 +106,14 @@ export function cmdSetup(args, ctx, env, cwd = process.cwd()) {
   }
   if (wantProbe === 1 && wantPlan === 1) throw new DieError('setup: --probe and --plan are exclusive', 2);
   if (wantProbe === 1) notPorted('setup --probe');
-  if (wantPlan === 1) notPorted('setup --plan');
+  if (wantPlan === 1) {
+    // bash: strip every --plan and run cmd_setup_plan with the rest — the
+    // simulation writes nothing (slice 7c).
+    const rest = [];
+    for (const a of args) if (a !== '--plan') rest.push(a);
+    cmdSetupPlan(rest, ctx, env, cwd);
+    return;
+  }
 
   const root = projectRoot(env, cwd);
   let target = '';

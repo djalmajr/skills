@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// herdr-agents — JavaScript entry (slices 1-7b of the bash port).
+// herdr-agents — JavaScript entry (slices 1-7c of the bash port).
 //
 // Dispatches the ported commands (`config`, `config set`, `session`,
 // `roles`, `role`, `kinds`, `models <kind>`, `model <kind> <spec>
@@ -7,8 +7,8 @@
 // `run <role> <brief.md> …`, `status <agent>…`, `roster`, `friction`,
 // `tab-label`, `layout-plan`, `wait <agent>…`, `collect <agent>`,
 // `release <agent>`, `clean`, `setup [--target FILE] [--no-hooks]
-// [--dry-run] [--panes 3|4] [--lane name=kind[:model[:effort]]] [--detect]`
-// — its `--plan`/`--probe` forms are not ported yet and exit 2).
+// [--dry-run] [--panes 3|4] [--lane name=kind[:model[:effort]]] [--detect]
+// [--plan …]` — its `--probe` form is not ported yet and exits 2).
 // Any other command is reported as not
 // ported yet (exit 2) so the bash script remains the source of truth for
 // the rest until the later slices land. Load the config layers before

@@ -281,9 +281,9 @@ function runNode(args) {
   }
 }
 
-// --detect is ported (7b); --plan comes with 7c and --probe with 8b.
-test('node: setup --plan/--probe are not ported yet (rc 2, citing the option)', () => {
-  for (const opt of ['--plan', '--probe']) {
+// --detect (7b) and --plan (7c) are ported; --probe comes with slice 8b.
+test('node: setup --probe is not ported yet (rc 2, citing the option)', () => {
+  for (const opt of ['--probe']) {
     const r = runNode(['setup', opt]);
     assert.equal(r.rc, 2, `${opt}: exit code`);
     assert.equal(r.out, '', `${opt}: nothing on stdout`);
