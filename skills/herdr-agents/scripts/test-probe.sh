@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_SCRIPT="$SCRIPT_DIR/herdr-agents.sh"
+SKILL_SCRIPT="$SCRIPT_DIR/herdr-agents"
 TEST_ROOT="$(mktemp -d)"
 trap 'find "$TEST_ROOT" -depth -delete' EXIT
 
@@ -52,10 +52,10 @@ TIMEOUT_BIN="$(command -v timeout || true)"
 ln -sf "$JQ_BIN" "$FAKE/jq"
 ln -sf "$GIT_BIN" "$FAKE/git"
 ln -sf "$TIMEOUT_BIN" "$FAKE/timeout"
-# The entry is the JS shim (herdr-agents.sh): node (preferred) and bun must
+# The POSIX launcher selects Node (preferred) or Bun; both runtimes must
 # be reachable under this restricted PATH, like jq and git.
 NODE_BIN="$(command -v node || true)"
-[ -n "$NODE_BIN" ] || fail "node is required for the probe (the entry is a JS shim)"
+[ -n "$NODE_BIN" ] || fail "node is required for the probe"
 ln -sf "$NODE_BIN" "$FAKE/node"
 BUN_BIN="$(command -v bun || true)"
 [ -n "$BUN_BIN" ] && ln -sf "$BUN_BIN" "$FAKE/bun"
@@ -76,7 +76,7 @@ run_rc() { # optional extra KEY=VALUE env assignments via EXTRA_ENV
       HERDR_WORKSPACE_ID=ws \
       TMPDIR="$TEST_ROOT/tmp" \
       PATH="$TEST_PATH" \
-      bash "$SKILL_SCRIPT" "$@" 2>"$errf"
+      sh "$SKILL_SCRIPT" "$@" 2>"$errf"
   )"
   RUN_RC=$?
   set -e

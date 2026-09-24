@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-// herdr-agents — JavaScript entry (the bash port; scripts/herdr-agents.sh
-// stays as the reference until slice 9 finishes).
+// herdr-agents — JavaScript command entry.
 //
 // Dispatches every command of the bash script: `config [set <key> <value>
 // [--project|--user]]`, `session [set <key> <value> | clear [key] | show]`,

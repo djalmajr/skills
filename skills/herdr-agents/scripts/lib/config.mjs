@@ -1,6 +1,6 @@
 // Configuration engine: file parsing, layers, cfg/cfg_source, validation,
 // atomic rewrite, the `config` / `config set` commands and the state root.
-// Port of scripts/herdr-agents.sh :77-281 (:378-392 for state_root).
+// Port of the original bash implementation :77-281 (:378-392 for state_root).
 // Behavior is identical to the bash version; CRLF is normalized to LF on
 // read (decision 7) and the user config dir follows decision 4.
 import fs from 'node:fs';

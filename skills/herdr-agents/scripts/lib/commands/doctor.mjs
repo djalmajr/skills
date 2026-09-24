@@ -1,6 +1,6 @@
 // `doctor` and `doctor --fix` (slice 7d of the bash port): the advisory
 // environment/configuration check that never blocks, and the preset writer.
-// Port of scripts/herdr-agents.sh :1528-1557 (doctor_fix), :1558-1682
+// Port of the original bash implementation :1528-1557 (doctor_fix), :1558-1682
 // (doctor_lane_warnings), :1683-1709 (project_has_roster /
 // project_is_first_run), :1710-1753 (doctor_role_kind / doctor_used_kinds)
 // and :1755-1826 (cmd_doctor).
@@ -30,6 +30,7 @@ import { findExecutable, homeDir, projectRoot, readTextFile, runCli } from '../p
 import { fmGet, isReviewRole, roleDirs, roleFile, roleIsEdit } from '../roles.mjs';
 import { splitCap, splitMin } from '../layout.mjs';
 import { herdLabelMax } from '../herdtabs.mjs';
+import { setupHookDoctor } from '../setuptext.mjs';
 import { kindExe } from '../kinds.mjs';
 import { setupTargetExisting, projectNeedsConfigPrompt } from './setup.mjs';
 import { unifiedDiff } from './setup-plan.mjs';
@@ -308,26 +309,17 @@ export function doctorFix(where, flag, ctx, env = process.env, cwd = process.cwd
   }
 }
 
-// The Claude hooks check (jq expression port): any hook command containing
-// the substring `herdr-agents` — `[.hooks[]?[]?.hooks[]?.command? // "" |
-// select(test("herdr-agents"))] | length > 0`.
-function settingsHasHerdrHooks(file) {
+// The SessionStart doctor check accepts only the command setup currently writes.
+function settingsHasDoctorHook(file) {
   let j;
   try { j = JSON.parse(readTextFile(file)); } catch { return false; }
   if (!j || typeof j !== 'object') return false;
-  const hooks = j.hooks;
-  if (hooks === undefined || hooks === null || typeof hooks !== 'object') return false;
-  // `.hooks[]?` — the values: an object of events or a list of entries.
-  const events = Array.isArray(hooks) ? hooks : Object.values(hooks);
-  for (const ev of events) {
-    if (!Array.isArray(ev)) continue; // []? on a non-list yields nothing
-    for (const entry of ev) {
-      if (!entry || typeof entry !== 'object' || !Array.isArray(entry.hooks)) continue;
-      for (const h of entry.hooks) {
-        const c = h && typeof h === 'object' ? h.command : undefined;
-        const cmd = c === undefined || c === null ? '' : String(c);
-        if (cmd.includes('herdr-agents')) return true;
-      }
+  const events = j.hooks?.SessionStart;
+  if (!Array.isArray(events)) return false;
+  for (const entry of events) {
+    if (!entry || typeof entry !== 'object' || !Array.isArray(entry.hooks)) continue;
+    for (const hook of entry.hooks) {
+      if (hook && typeof hook === 'object' && hook.command === setupHookDoctor()) return true;
     }
   }
   return false;
@@ -427,7 +419,7 @@ export function doctorCheck(ctx, env = process.env, cwd = process.cwd()) {
   const t = setupTargetExisting(root);
   if (t) s.ok(`instruction block present in ${path.basename(t)}`);
   else s.warn(`no herdr-agents block in AGENTS.md/CLAUDE.md: run '${ENTRY_SCRIPT} setup' (writes the delegation rules between <!-- herdr-agents:start/end --> markers)`);
-  if (isFile(path.join(root, '.claude', 'settings.json')) && settingsHasHerdrHooks(path.join(root, '.claude', 'settings.json'))) {
+  if (isFile(path.join(root, '.claude', 'settings.json')) && settingsHasDoctorHook(path.join(root, '.claude', 'settings.json'))) {
     s.ok('Claude hooks present in .claude/settings.json');
   } else {
     s.warn(`no herdr-agents hooks in .claude/settings.json: run '${ENTRY_SCRIPT} setup' (UserPromptSubmit reminder + SessionStart doctor)`);

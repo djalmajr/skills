@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_SCRIPT="$SCRIPT_DIR/herdr-agents.sh"
+SKILL_SCRIPT="$SCRIPT_DIR/herdr-agents"
 TEST_ROOT="$(mktemp -d)"
 trap 'find "$TEST_ROOT" -depth -delete' EXIT
 
@@ -87,7 +87,7 @@ run_cmd() {
       HERDR_AGENTS_DIR="$STATE" \
       HERDR_WORKSPACE_ID=ws \
       PATH="$path" \
-      bash "$SKILL_SCRIPT" "$@" 2>"$errf"
+      sh "$SKILL_SCRIPT" "$@" 2>"$errf"
   )"
   RUN_RC=$?
   set -e
@@ -200,7 +200,7 @@ NOPANE="$TEST_ROOT/nopane"; mkdir -p "$NOPANE"
 printf '#!/bin/sh\nexit 1\n' > "$NOPANE/herdr"; chmod +x "$NOPANE/herdr"
 set +e
 AMBIG_OUT="$(cd "$REPO" && unset HERDR_WORKSPACE_ID HERDR_PANE_ID HERDR_ENV; HOME="$TEST_ROOT/home" XDG_CONFIG_HOME="$TEST_ROOT/config" TMPDIR="$TEST_ROOT/tmp" \
-  HERDR_AGENTS_DIR="$STATE" PATH="$NOPANE:$BASE_PATH" bash "$SKILL_SCRIPT" explain 2>&1)"
+  HERDR_AGENTS_DIR="$STATE" PATH="$NOPANE:$BASE_PATH" sh "$SKILL_SCRIPT" explain 2>&1)"
 AMBIG_RC=$?
 set -e
 [ "$AMBIG_RC" = 0 ] || fail "ambiguous explain rc $AMBIG_RC: $AMBIG_OUT"
@@ -218,7 +218,7 @@ for w in ws-c ws-d; do
 done
 set +e
 EMPTY_OUT="$(cd "$REPO" && unset HERDR_WORKSPACE_ID HERDR_PANE_ID HERDR_ENV; HOME="$TEST_ROOT/home" XDG_CONFIG_HOME="$TEST_ROOT/config" TMPDIR="$TEST_ROOT/tmp" \
-  HERDR_AGENTS_DIR="$EMPTY_STATE" PATH="$NOPANE:$BASE_PATH" bash "$SKILL_SCRIPT" explain 2>&1)"
+  HERDR_AGENTS_DIR="$EMPTY_STATE" PATH="$NOPANE:$BASE_PATH" sh "$SKILL_SCRIPT" explain 2>&1)"
 set -e
 case "$EMPTY_OUT" in *"more than one Herdr workspace"*) fail "header-only rosters read as running teams: $EMPTY_OUT" ;; esac
 case "$EMPTY_OUT" in *"Nothing is running"*) ;; *) fail "header-only rosters did not get the idle answer: $EMPTY_OUT" ;; esac

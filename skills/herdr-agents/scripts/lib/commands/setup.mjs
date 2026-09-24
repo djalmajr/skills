@@ -2,7 +2,7 @@
 // "Multi-agent workflow (herdr-agents)" block into the project's canonical
 // instruction file, merge the two Claude Code hooks into
 // .claude/settings.json, apply `--panes`/`--lane` to the project config and
-// keep the state dir git-ignored. Port of scripts/herdr-agents.sh
+// keep the state dir git-ignored. Port of the original bash implementation
 // :1836-1972 (setup_block / setup_target_existing / setup_block_result /
 // setup_write_block / setup_hook_* / settings_hooks_result /
 // setup_write_hooks), :2181-2214 (project_needs_config_prompt) and
@@ -196,10 +196,10 @@ export function cmdSetup(args, ctx, env, cwd = process.cwd()) {
     process.stdout.write(`hooks written: ${sj} (UserPromptSubmit reminder, SessionStart doctor)\n`);
     let hookScript = '';
     for (const candidate of [
-      path.join(root, '.agents', 'skills', 'herdr-agents', 'scripts', 'herdr-agents.sh'),
-      path.join(root, '.claude', 'skills', 'herdr-agents', 'scripts', 'herdr-agents.sh'),
-      path.join(homeDir(process.platform, env), '.agents', 'skills', 'herdr-agents', 'scripts', 'herdr-agents.sh'),
-      path.join(homeDir(process.platform, env), '.claude', 'skills', 'herdr-agents', 'scripts', 'herdr-agents.sh'),
+      path.join(root, '.agents', 'skills', 'herdr-agents', 'scripts', 'herdr-agents'),
+      path.join(root, '.claude', 'skills', 'herdr-agents', 'scripts', 'herdr-agents'),
+      path.join(homeDir(process.platform, env), '.agents', 'skills', 'herdr-agents', 'scripts', 'herdr-agents'),
+      path.join(homeDir(process.platform, env), '.claude', 'skills', 'herdr-agents', 'scripts', 'herdr-agents'),
     ]) if (isFile(candidate)) { hookScript = candidate; break; }
     if (hookScript === '') warn("SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory");
   }

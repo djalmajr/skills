@@ -5,7 +5,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_SCRIPT="$SCRIPT_DIR/herdr-agents.sh"
+SKILL_SCRIPT="$SCRIPT_DIR/herdr-agents"
 TEST_ROOT="$(mktemp -d)"
 trap 'find "$TEST_ROOT" -depth -delete' EXIT
 
@@ -52,7 +52,7 @@ run_rc() {
       HERDR_WORKSPACE_ID=ws \
       TMPDIR="$TEST_ROOT/tmp" \
       PATH="$TEST_PATH" \
-      bash "$SKILL_SCRIPT" "$@" 2>"$errf"
+      sh "$SKILL_SCRIPT" "$@" 2>"$errf"
   )"
   RUN_RC=$?
   set -e
@@ -85,7 +85,7 @@ RUN_OUT="$(
   HOME="$HOME_DIR" XDG_CONFIG_HOME="$CONF_DIR" HERDR_AGENTS_DIR="$STATE" HERDR_WORKSPACE_ID=ws \
     TMPDIR="$TEST_ROOT/tmp" PATH="$TEST_PATH" \
     HERDR_AGENTS_LANE_BUILD_KIND=grok \
-    bash "$SKILL_SCRIPT" config 2>"$TEST_ROOT/err"
+    sh "$SKILL_SCRIPT" config 2>"$TEST_ROOT/err"
 )"
 set -e
 line="$(printf '%s\n' "$RUN_OUT" | awk '$1=="lane_build_kind" { print $2, $3 }')"
@@ -133,7 +133,7 @@ RUN_OUT="$(
   env -u HERDR_ENV -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID \
     HOME="$HOME_DIR" XDG_CONFIG_HOME="$CONF_DIR" HERDR_AGENTS_DIR="$STATE" \
     TMPDIR="$TEST_ROOT/tmp" PATH="$TEST_PATH" \
-    bash "$SKILL_SCRIPT" session set lane.build.kind pi 2>"$TEST_ROOT/err"
+    sh "$SKILL_SCRIPT" session set lane.build.kind pi 2>"$TEST_ROOT/err"
 )"
 RUN_RC=$?
 set -e

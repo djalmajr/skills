@@ -2,7 +2,7 @@
 // roster (12-column agents.tsv with a mkdir-based lock), last-report-*
 // and the friction log (warn / die-with-log).
 //
-// Behavior mirrors scripts/herdr-agents.sh (:378-402, :718-742, :773-853);
+// Behavior mirrors the original bash implementation (:378-402, :718-742, :773-853);
 // CRLF is normalized to LF on read (decision 7) and paths go through
 // path.join (decision 3). Slice 4 moved the text helpers to lib/text.mjs,
 // the quota detection to lib/quota.mjs, the lanes to lib/lanes.mjs and

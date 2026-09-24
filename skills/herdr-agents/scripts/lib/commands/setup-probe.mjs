@@ -5,7 +5,7 @@
 // timeout after <N>s | not authenticated | quota exhausted [; renews
 // <value>] | exit <code>) — the CLI output is never printed, so a key the
 // CLI prints in its error line can never reach the JSON. Port of
-// scripts/herdr-agents.sh :2225-2330 (PROBE_PROMPT / probe_timeout /
+// the original bash implementation :2225-2330 (PROBE_PROMPT / probe_timeout /
 // probe_default_model / probe_cmd / probe_noauth_line / probe_kind) and
 // :2332-2417 (need_value + cmd_setup_probe). Reuses the ports of the
 // earlier slices: kindExe / kindModelArgs (kinds.mjs), resolveModel

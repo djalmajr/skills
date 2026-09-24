@@ -1,5 +1,5 @@
 // The `release` command (port slice 6a). Port of
-// scripts/herdr-agents.sh :4051-4083: refuses to release an unqueryable
+// the original bash implementation :4051-4083: refuses to release an unqueryable
 // worker without `--force` (rc 4), refuses `--close` on a still-working
 // worker with a pending report (rc 3), closes only panes this skill
 // created, clears the pane title when not closing, removes the roster row

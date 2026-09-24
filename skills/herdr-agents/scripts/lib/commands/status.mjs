@@ -1,6 +1,6 @@
 // The `status` command (moved out of lib/state.mjs in slice 4 so that
 // state no longer imports lanes/quota). Port of
-// scripts/herdr-agents.sh :3671-3727: one TSV line per agent, JSON for
+// the original bash implementation :3671-3727: one TSV line per agent, JSON for
 // quota, rc 0 / 4 (unavailable) / 11 (quota). `done` and `unknown-agent`
 // never consult herdr; quota is only considered when the agent is not
 // working.

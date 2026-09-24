@@ -1,5 +1,5 @@
 // The `clean` command (port slice 6a). Port of
-// scripts/herdr-agents.sh :4084-4099: drops the roster rows of agents that
+// the original bash implementation :4084-4099: drops the roster rows of agents that
 // are no longer live in `herdr agent list` (and their last-report/wait
 // files), then removes briefs/reports older than N days that no
 // `last-report-*` file still points at. A failed `agent list` passes

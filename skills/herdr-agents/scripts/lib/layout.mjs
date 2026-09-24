@@ -1,7 +1,7 @@
 // Placement (slice 5a): where a new worker opens in the split layout — the
 // per-tab capacity and minimum-pane rules, the split anchor over a `herdr
 // pane layout` document, the grid shapes, the UI focus helpers and the
-// `layout-plan` command. Port of scripts/herdr-agents.sh :2731-2855
+// `layout-plan` command. Port of the original bash implementation :2731-2855
 // (auto_direction_for … restore_focus_if_stolen) and :3076-3090
 // (grid_sizes); the herd-tab side lives in lib/herdtabs.mjs.
 //

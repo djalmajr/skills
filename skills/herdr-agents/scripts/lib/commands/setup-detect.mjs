@@ -4,7 +4,7 @@
 // opencode (ids and the highest declared reasoning level only — apiKey,
 // headers and {env:…} values never leave the files), the recommended
 // reviewer, the effective lanes, the presets and the config with its
-// source layers — and write nothing. Port of scripts/herdr-agents.sh
+// source layers — and write nothing. Port of the original bash implementation
 // :1978-2118 (pi_custom_models_json / opencode_custom_models_json /
 // effective_build_family / recommend_reviewer_json / detect_top_models /
 // detect_kind_json / detect_role_kinds_json / detect_worker_models_json)

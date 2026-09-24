@@ -9,7 +9,7 @@
 // one-column files (ids only) migrate on read: a live label that still
 // looks like `herd`/`herd-N` is auto, anything else was renamed by hand.
 // Dead tabs (tab get fails) are pruned on read; the function rewrites the
-// file on every read. Port of scripts/herdr-agents.sh :2867-3019 and
+// file on every read. Port of the original bash implementation :2867-3019 and
 // :2924-2967 (role_abbrev … cmd_tab_label); file writes use atomicWrite
 // (slice-4 decision).
 import fs from 'node:fs';

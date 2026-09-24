@@ -333,7 +333,7 @@ without checking that generation succeeded and produced what you expect.
 - The JS unit tests run under either runtime: `node --test scripts/test/`
   or `bun test scripts/test/`.
 - Use `scripts/run-tests.sh`: every `scripts/test-*.sh` suite (bash suites
-  that exercise the JS through the `scripts/herdr-agents.sh` shim) ×
+  that exercise the JS through the POSIX `scripts/herdr-agents` launcher) ×
   inside/outside in parallel (one `PASS|FAIL` line per run, last 30 log
   lines of each failed run on failure). Flags: `--env inside|outside|both`,
   `--bash <path>` (repeatable, adds an interpreter to the matrix),

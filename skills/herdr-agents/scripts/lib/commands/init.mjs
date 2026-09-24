@@ -3,7 +3,7 @@
 // {orchestrator,pane_id,tab_id,workspace_id,layout,state_dir,first_run} —
 // after ensuring the caller's agent is named after `orchestrator_name`
 // (renamed via `herdr agent rename` when needed; idempotent). Port of
-// scripts/herdr-agents.sh :2735-2744 (cmd_init). A living command: the
+// the original bash implementation :2735-2744 (cmd_init). A living command: the
 // entry applies require_env and the friction log. Reuses the ports of the
 // earlier slices: ensureOrchestratorName (spawn.mjs), workspaceId /
 // stateDir (state.mjs), cmdDoctor / projectIsFirstRun (doctor.mjs) and

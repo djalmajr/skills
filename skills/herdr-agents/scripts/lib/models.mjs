@@ -1,5 +1,5 @@
 // Model listing, version ordering, resolution and the `models`/`model`
-// commands (slice 2). Port of scripts/herdr-agents.sh :564-654.
+// commands (slice 2). Port of the original bash implementation :564-654.
 //
 // CLI calls go through runCli (PATH/PATHEXT, timeout, no shell). The model
 // cache keeps the same location and format as bash:

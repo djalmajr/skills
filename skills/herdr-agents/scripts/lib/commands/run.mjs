@@ -1,4 +1,4 @@
-// The `run` command (port slice 6b). Port of scripts/herdr-agents.sh
+// The `run` command (port slice 6b). Port of the original bash implementation
 // :4103-4119 (cmd_run): chains `spawn` → `dispatch` → `collect`. Spawn runs
 // in a child process, like the bash command substitution `spawned="$(cmd_spawn
 // …)"`: its stdout is captured (printed once, unchanged) and a failing spawn

@@ -4,7 +4,7 @@
 // byte-identical to the bash printf sequence — the $TMPDIR routing of a
 // worker whose cwd is not the project root, and the `dispatch` command
 // (prompt submission, the pane task title, the optional wait and the exit
-// codes 0/4/6/7/9/11). Port of scripts/herdr-agents.sh :3870-3886
+// codes 0/4/6/7/9/11). Port of the original bash implementation :3870-3886
 // (family_conflicts), :3887-3899 (lint_brief), :3900-4102 (cmd_dispatch).
 //
 // Faithful-port notes:
@@ -177,7 +177,7 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   const kind = cols[2] ?? '';
   const family = cols[4] ?? '';
   const rf = roleFile(role, env, cwd);
-  if (rf === null) dieFriction(`unknown role '${role}' (run: herdr-agents.sh roles)`, 3);
+  if (rf === null) dieFriction(`unknown role '${role}' (run: herdr-agents roles)`, 3);
   if (timeout === '') timeout = fmGet(rf, 'timeout');
   if (timeout === '') timeout = cfg(ctx, 'dispatch_timeout', '900000', env);
 
@@ -283,7 +283,7 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
       warn(`agent '${agent}' is blocked on an approval or question; run: herdr agent read ${agent} --source recent-unwrapped --lines 80`);
       return 7;
     case 'timeout':
-      warn(`timeout waiting for the report of '${agent}'; it may still be working. Run: herdr-agents.sh wait ${agent}`);
+      warn(`timeout waiting for the report of '${agent}'; it may still be working. Run: herdr-agents wait ${agent}`);
       return 9;
     case 'settled-no-report':
       warn(`agent '${agent}' settled without writing ${report}; collect will fall back to terminal output`);

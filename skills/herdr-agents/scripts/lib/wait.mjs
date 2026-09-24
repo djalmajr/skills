@@ -2,7 +2,7 @@
 // (report-size stability, blocked double-probe, auto-approve, quota,
 // settled screen, gone / unavailable), the error-rank order for a
 // multi-agent wait (4 > 11 > 7 > 6), the synchronous poll loop and the
-// `wait` command. Port of scripts/herdr-agents.sh :3616-3810
+// `wait` command. Port of the original bash implementation :3616-3810
 // (kind_approve_keys :3616, try_auto_approve :3625, probe_agent :3644,
 // notify_done :3690, wait_rank :3733, wait_raise :3742, wait_for :3751,
 // cmd_wait :3802).

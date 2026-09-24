@@ -57,7 +57,7 @@ roles/<role>.md  ──▶  spawn (pane split + agent start)  ──▶  dispatc
 ## Commands
 
 ```bash
-S=~/.agents/skills/herdr-agents/scripts/herdr-agents.sh
+S=~/.agents/skills/herdr-agents/scripts/herdr-agents   # Windows: herdr-agents.cmd
 $S init                              # you become `orchestrator`
 $S roles
 $S spawn implementer                 # sibling pane, same cwd, focus stays with you
@@ -97,7 +97,7 @@ edit agent (exit 5) unless `--allow-same-family` is given.
 
 `key=value` files layered as skill defaults → `~/.config/herdr-agents/config`
 (global) → `<repo>/.agents/herdr-agents.conf` (project) → `HERDR_AGENTS_<KEY>`
-→ flags. `herdr-agents.sh config` shows the effective values and where each
+→ flags. `herdr-agents config` shows the effective values and where each
 came from. Typical project file:
 
 ```ini
@@ -142,7 +142,7 @@ decides.
 Lessons from real runs are enforced by the script, not just documented:
 `release --close` refuses to kill a worker mid-task, `dispatch` lints the
 brief structure, the reviewer family check is strict by default, and every
-error or warning lands in `herdr-agents.sh friction` for review at the end of
+error or warning lands in `herdr-agents friction` for review at the end of
 a run.
 
 ## Waiting for workers
@@ -163,7 +163,7 @@ slice must start clean.
 
 When the skill itself causes friction, the orchestrator files an issue on
 `feedback_repo` (default `djalmajr/skills`) using `templates/issue.md`, with
-the scenario, the exact error, the environment (`herdr-agents.sh env`) and
+the scenario, the exact error, the environment (`herdr-agents env`) and
 the effective config. `feedback=ask|on|off` decides whether it asks first.
 
 ## Orchestrator responsibilities
@@ -186,5 +186,5 @@ validation procedure for a new kind.
 
 - Herdr ≥ 0.9 with the agent CLIs you intend to use installed and detected
   (`herdr agent` lists the kinds).
-- `bash`, `jq`.
+- Node.js 20+ or Bun.
 - `HERDR_ENV=1` in the calling pane.

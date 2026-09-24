@@ -2,8 +2,8 @@
 // exactly what the bash `usage()` printed — the script header (lines 2 up
 // to the line before `set -euo pipefail`) with the leading `#` stripped.
 // It is a constant on purpose, and since the switch to JS it is the source
-// of the help text (the program is `herdr-agents`, the launcher; the
-// `herdr-agents.sh` shim only serves existing hooks). A change here is a
+// of the help text (the program is `herdr-agents`, launched by
+// `scripts/herdr-agents`). A change here is a
 // user-visible change: update test/golden/parity-entry.json with
 // HERDR_AGENTS_GOLDEN=update and review the diff.
 

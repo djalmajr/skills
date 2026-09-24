@@ -408,9 +408,11 @@ $S spawn implementer -- -s workspace-write -a never      # native agent args aft
 is not available (missing or older) — with the same arguments. If neither
 runtime is usable it prints `herdr-agents: needs Node.js 20+ or Bun` and
 exits 2.
-`scripts/herdr-agents.cmd` is the same launcher for Windows. `scripts/herdr-agents.sh`
-stays as a compatibility shim (the same launcher) for the hooks and
-instruction blocks that `setup` has already written into projects.
+`scripts/herdr-agents.cmd` is the same launcher for Windows. The `setup`
+SessionStart hook checks these locations in order: project
+`.agents/skills`, project `.claude/skills`, `$HOME/.agents/skills`, then
+`$HOME/.claude/skills`. It invokes the first launcher with
+`sh "<skill-root>/scripts/herdr-agents" doctor`.
 
 **Naming.** With lanes on, the agent is named after the lane (`build`,
 `explore`, `review`, `read`). `lanes=off` names it after the role
@@ -974,7 +976,7 @@ bun test scripts/test/       # the same tests under Bun
 ```
 
 The regression matrix is every suite in `scripts/test-*.sh` — bash suites
-that exercise the JS through the `scripts/herdr-agents.sh` shim — each run
+that exercise the JS through the POSIX `scripts/herdr-agents` launcher — each run
 both inside Herdr (`HERDR_ENV=1` with a test pane/workspace) and outside.
 Run it through the parallel hermetic executor, never a hand-rolled loop:
 

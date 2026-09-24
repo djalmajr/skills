@@ -1,6 +1,6 @@
 // Roles: directories, resolution, frontmatter (fm_get / role_body), the
 // edit/reviewer role rules (slice 4, :3253-3281) and the `roles` / `role`
-// commands. Port of scripts/herdr-agents.sh :403-457, :3253-3281.
+// commands. Port of the original bash implementation :403-457, :3253-3281.
 // Frontmatter files are read CRLF-normalized (decision 7).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,7 +45,7 @@ export function roleFile(role, env = process.env, cwd = process.cwd()) {
 export function resolveRole(role, env = process.env, cwd = process.cwd()) {
   const f = roleFile(role, env, cwd);
   if (f) return f;
-  die(`unknown role '${role}' (run: herdr-agents.sh roles)`, 3);
+  die(`unknown role '${role}' (run: herdr-agents roles)`, 3);
 }
 
 // fm_get() port: frontmatter value for a key (first line must be `---`;

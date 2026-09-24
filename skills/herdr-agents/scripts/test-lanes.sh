@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_SCRIPT="$SCRIPT_DIR/herdr-agents.sh"
+SKILL_SCRIPT="$SCRIPT_DIR/herdr-agents"
 TEST_ROOT="$(mktemp -d)"
 trap 'find "$TEST_ROOT" -depth -delete' EXIT
 
@@ -88,7 +88,7 @@ run_cmd() {
       HERDR_AGENTS_LAYOUT=tab \
       HERDR_AGENTS_REGRID=off \
       PATH="$FAKE:$PATH" \
-      bash "$SKILL_SCRIPT" "$@" 2>"$errf"
+      sh "$SKILL_SCRIPT" "$@" 2>"$errf"
   )"
   RUN_RC=$?
   set -e

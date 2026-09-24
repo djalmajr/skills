@@ -467,7 +467,7 @@
           "role",
           "nosuchrole"
         ],
-        "err": "PROG: unknown role 'nosuchrole' (run: herdr-agents.sh roles)\n",
+        "err": "PROG: unknown role 'nosuchrole' (run: herdr-agents roles)\n",
         "out": "",
         "rc": 3
       },

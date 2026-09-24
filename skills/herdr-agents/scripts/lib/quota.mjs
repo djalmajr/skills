@@ -1,4 +1,4 @@
-// Quota detection (port slice 4). Port of scripts/herdr-agents.sh
+// Quota detection (port slice 4). Port of the original bash implementation
 // :1030-1133 (redact_secrets lives in text.mjs, per the slice decision).
 //
 // Provider lines only, never on source-code lines, never while working.

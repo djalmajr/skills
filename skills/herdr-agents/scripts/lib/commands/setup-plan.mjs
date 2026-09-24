@@ -16,7 +16,7 @@
 // exists, the JS choice wins (accepted divergence); the scenarios of the
 // tests use unambiguous edits and match macOS `diff`.
 //
-// Port of scripts/herdr-agents.sh :2318-2330 (need_value/need_pair),
+// Port of the original bash implementation :2318-2330 (need_value/need_pair),
 // :2384-2418 (conf_keys/plan_diff_file/plan_file_diff) and :2420-2515
 // (cmd_setup_plan). Reuses the ports of the earlier slices: setupLaneSpec /
 // applyLaneFile (lanes.mjs), configKeyOk / configValueOk /

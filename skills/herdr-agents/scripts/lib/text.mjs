@@ -2,7 +2,7 @@
 // herdr, lanes, quota — can share these without an import cycle.
 //
 // Ports: sanitize_cause (:793), redact_secrets (:1032) and has_word (:89) of
-// scripts/herdr-agents.sh.
+// the original bash implementation.
 
 // sanitize_cause() port: one line, no tabs, control characters dropped
 // (printables 0x20-0x7E only), runs of spaces collapsed, at most 200 chars.

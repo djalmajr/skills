@@ -1,7 +1,7 @@
 // Lanes (port slice 4): presets and custom lanes, the layer rules for
 // lane kind/model/effort, the reuse decision, the worker cap, and the
 // lane-file rewrite (migrate / drop / apply). Port of
-// scripts/herdr-agents.sh :846-1029 (lanes_enabled … lane_decide),
+// the original bash implementation :846-1029 (lanes_enabled … lane_decide),
 // :1230-1449 (signatures, config_drop_legacy, migrate_lane_attr,
 // apply_lane_file) and :1476-1515 (setup_lane_spec, max_workers,
 // enforce_worker_cap).

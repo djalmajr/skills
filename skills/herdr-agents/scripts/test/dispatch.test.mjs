@@ -193,7 +193,7 @@ Confirm which role the composed prompt uses.
 
 # Owned files
 
-skills/herdr-agents/scripts/herdr-agents.sh
+skills/herdr-agents/scripts/herdr-agents
 
 # Forbidden
 
@@ -579,7 +579,7 @@ test('dispatch: timeout 9 with a working agent, quota 11 with the lane fields', 
     assert.equal(t.status, 9, t.stderr);
     const tj = parsePretty(t.stdout);
     assert.equal(tj.wait_status, 'timeout');
-    assert.match(t.stderr, /timeout waiting for the report of 'build'; it may still be working\. Run: herdr-agents\.sh wait build/);
+    assert.match(t.stderr, /timeout waiting for the report of 'build'; it may still be working\. Run: herdr-agents wait build/);
     fix.mode('idle');
     fix.screen('hit your usage limit\ntry again in 2 hours\n');
     const q = cmd(fix, ['dispatch', 'build', brief, '--timeout', '5000']);

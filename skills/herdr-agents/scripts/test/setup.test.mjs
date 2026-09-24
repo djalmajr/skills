@@ -63,8 +63,38 @@ test('setupHookReminder: exact text, no trailing newline', () => {
   assert.equal(setupHookReminder(), 'sh -c \'[ "${HERDR_ENV:-}" = 1 ] && echo "herdr-agents: this project routes non-trivial work through /herdr-agents — surveys go to a scouter, slices to workers; the orchestrator keeps only one-or-two-file changes."; true\'');
 });
 
-test('setupHookDoctor: exact text, no trailing newline (herdr-agents.sh paths kept for the slice-9 shim)', () => {
-  assert.equal(setupHookDoctor(), 'sh -c \'[ "${HERDR_ENV:-}" = 1 ] || exit 0; for script in "${CLAUDE_PROJECT_DIR:-$PWD}/.agents/skills/herdr-agents/scripts/herdr-agents.sh" "${CLAUDE_PROJECT_DIR:-$PWD}/.claude/skills/herdr-agents/scripts/herdr-agents.sh" "$HOME/.agents/skills/herdr-agents/scripts/herdr-agents.sh" "$HOME/.claude/skills/herdr-agents/scripts/herdr-agents.sh"; do [ -f "$script" ] || continue; bash "$script" doctor 2>/dev/null | grep -E "^warn" | sed "s/^warn */herdr-agents doctor: /"; exit 0; done; echo "herdr-agents doctor: skill script not found"; true\'');
+test('setupHookDoctor: exact text, no trailing newline', () => {
+  assert.equal(setupHookDoctor(), 'sh -c \'[ "${HERDR_ENV:-}" = 1 ] || exit 0; for script in "${CLAUDE_PROJECT_DIR:-$PWD}/.agents/skills/herdr-agents/scripts/herdr-agents" "${CLAUDE_PROJECT_DIR:-$PWD}/.claude/skills/herdr-agents/scripts/herdr-agents" "$HOME/.agents/skills/herdr-agents/scripts/herdr-agents" "$HOME/.claude/skills/herdr-agents/scripts/herdr-agents"; do [ -f "$script" ] || continue; sh "$script" doctor 2>/dev/null | grep -E "^warn" | sed "s/^warn */herdr-agents doctor: /"; exit 0; done; echo "herdr-agents doctor: skill script not found"; true\'');
+});
+
+// Mutation captured: reordering or skipping a candidate selects the wrong fake launcher.
+test('setupHookDoctor runs the first available launcher from the four candidates', () => {
+  const project = path.join(ROOT, 'hook-project');
+  const home = path.join(ROOT, 'hook-home');
+  const candidates = [
+    path.join(project, '.agents', 'skills', 'herdr-agents', 'scripts', 'herdr-agents'),
+    path.join(project, '.claude', 'skills', 'herdr-agents', 'scripts', 'herdr-agents'),
+    path.join(home, '.agents', 'skills', 'herdr-agents', 'scripts', 'herdr-agents'),
+    path.join(home, '.claude', 'skills', 'herdr-agents', 'scripts', 'herdr-agents'),
+  ];
+  for (const [index, candidate] of candidates.entries()) {
+    fs.mkdirSync(path.dirname(candidate), { recursive: true });
+    fs.writeFileSync(candidate, `printf 'warn candidate-${index}: %s\\n' "$*"\n`);
+  }
+  const runHook = () => spawnSync('sh', ['-c', setupHookDoctor()], {
+    cwd: project,
+    env: { ...process.env, HOME: home, CLAUDE_PROJECT_DIR: project, HERDR_ENV: '1' },
+    encoding: 'utf8',
+  });
+  for (const [index, candidate] of candidates.entries()) {
+    const result = runHook();
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, `herdr-agents doctor: candidate-${index}: doctor\n`);
+    fs.rmSync(candidate);
+  }
+  const missing = runHook();
+  assert.equal(missing.status, 0, missing.stderr);
+  assert.equal(missing.stdout, 'herdr-agents doctor: skill script not found\n');
 });
 
 test('setupBlockResult: absent and empty files', () => {
@@ -140,20 +170,27 @@ test('settingsHooksResult: other hooks and keys stay, same order; new events app
   assert.equal(text, JSON.stringify(doc, null, 2) + '\n', 'exactly the jq formatting');
 });
 
-test('settingsHooksResult: old skill hooks are replaced, never stacked', () => {
+// Mutation captured: dropping exact-command matching removes unrelated Herdr hooks.
+test('settingsHooksResult: current hooks are replaced and other commands are preserved', () => {
   const seed = JSON.stringify({
     hooks: {
       UserPromptSubmit: [
         { hooks: [{ type: 'command', command: setupHookReminder() }] },
-        { hooks: [{ type: 'command', command: 'echo keep-me' }, { type: 'command', command: 'sh -c herdr-agents setup' }] },
+        { hooks: [{ type: 'command', command: 'sh -c herdr-agents setup' }] },
       ],
-      SessionStart: [{ hooks: [{ type: 'command', command: setupHookDoctor() }] }],
+      SessionStart: [
+        { hooks: [{ type: 'command', command: 'sh -c herdr-agents doctor' }] },
+        { hooks: [{ type: 'command', command: setupHookDoctor() }] },
+      ],
     },
   });
   const first = parsedSettings(seed);
-  assert.equal(first.doc.hooks.UserPromptSubmit.length, 1, 'both old entries dropped (an entry with ANY herdr-agents command goes)');
-  assert.equal(first.doc.hooks.UserPromptSubmit[0].hooks[0].command, setupHookReminder());
-  assert.equal(first.doc.hooks.SessionStart.length, 1, 'old doctor replaced');
+  assert.equal(first.doc.hooks.UserPromptSubmit.length, 2);
+  assert.equal(first.doc.hooks.UserPromptSubmit[0].hooks[0].command, 'sh -c herdr-agents setup');
+  assert.equal(first.doc.hooks.UserPromptSubmit[1].hooks[0].command, setupHookReminder());
+  assert.equal(first.doc.hooks.SessionStart.length, 2);
+  assert.equal(first.doc.hooks.SessionStart[0].hooks[0].command, 'sh -c herdr-agents doctor');
+  assert.equal(first.doc.hooks.SessionStart[1].hooks[0].command, setupHookDoctor());
   const second = parsedSettings(first.text);
   assert.equal(second.text, first.text, 'a re-run is stable: no duplicates stack');
 });

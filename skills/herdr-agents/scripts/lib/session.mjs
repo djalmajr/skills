@@ -1,6 +1,6 @@
 // Session layer (per Herdr workspace, never versioned): the session.conf
 // path and the `session set|clear|show` commands. Port of
-// scripts/herdr-agents.sh :282-377. Resolution has no side effects — nothing
+// the original bash implementation :282-377. Resolution has no side effects — nothing
 // is created until `session set` writes. Outside Herdr (no HERDR_WORKSPACE_ID
 // and not HERDR_ENV=1) there is no session layer.
 import fs from 'node:fs';

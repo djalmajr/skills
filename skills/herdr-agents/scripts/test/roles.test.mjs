@@ -75,7 +75,7 @@ test('resolveRole: project role shadows the skill role', (t) => {
     // Unknown role via the CLI: die 3 with the bash message.
     const r = s.run('role', 'nosuchrole');
     assert.equal(r.rc, 3, `rc: ${r.err}`);
-    assert.equal(r.err, "herdr-agents: unknown role 'nosuchrole' (run: herdr-agents.sh roles)\n");
+    assert.equal(r.err, "herdr-agents: unknown role 'nosuchrole' (run: herdr-agents roles)\n");
   } finally { s.cleanup(); }
 });
 

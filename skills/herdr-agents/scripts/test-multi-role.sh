@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_SCRIPT="$SCRIPT_DIR/herdr-agents.sh"
+SKILL_SCRIPT="$SCRIPT_DIR/herdr-agents"
 TEST_ROOT="$(mktemp -d)"
 trap 'find "$TEST_ROOT" -depth -delete' EXIT
 
@@ -66,7 +66,7 @@ Confirm which role the composed prompt uses.
 
 # Owned files
 
-skills/herdr-agents/scripts/herdr-agents.sh
+skills/herdr-agents/scripts/herdr-agents
 
 # Forbidden
 
@@ -91,7 +91,7 @@ RUN_OUT="$(
   HERDR_AGENTS_DIR="$STATE" \
   HERDR_AGENTS_MULTI_ROLE=on \
   PATH="$FAKE:$PATH" \
-  bash "$SKILL_SCRIPT" roster
+  sh "$SKILL_SCRIPT" roster
 )"
 case "$RUN_OUT" in *'go (go,impl)'*) ;; *) fail "roster hid a history that fits: $RUN_OUT" ;; esac
 case "$RUN_OUT" in *'scouter,implementer,researcher'*) fail "roster printed a history that does not fit" ;; esac

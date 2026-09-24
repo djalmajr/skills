@@ -1,6 +1,6 @@
 // Kind table (slice 2): executables, families, effort ceilings, native flag
 // translation (model/effort/approvals/context) and the `kinds` command.
-// Port of scripts/herdr-agents.sh :458-545 and :655-714.
+// Port of the original bash implementation :458-545 and :655-714.
 //
 // Decisions honored here:
 //   - agentFamily is the NEW rule (deliberate divergence from the bash

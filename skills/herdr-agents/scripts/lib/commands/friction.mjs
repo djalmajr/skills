@@ -1,5 +1,5 @@
 // The `friction` command (moved out of lib/state.mjs in slice 4).
-// Port of scripts/herdr-agents.sh :4151-4157.
+// Port of the original bash implementation :4151-4157.
 import fs from 'node:fs';
 import path from 'node:path';
 import { stateDir } from '../state.mjs';

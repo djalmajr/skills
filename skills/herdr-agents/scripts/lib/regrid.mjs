@@ -4,7 +4,7 @@
 // a temporary tab (herdr refuses to move a pane into its own tab) and
 // rebuilds them as a grid around the caller; every herd tab with ≥ 2
 // workers moves into a fresh tab with the same label and is gridded there.
-// Port of scripts/herdr-agents.sh :3065-3078 (move_pane /
+// Port of the original bash implementation :3065-3078 (move_pane /
 // roster_replace_pane), :3099-3129 (build_grid / apply_grid), :3131-3143
 // (park_panes) and :3145-3215 (cmd_regrid), plus the automatic calls at the
 // end of cmd_spawn (:3604) and cmd_release (:4076).

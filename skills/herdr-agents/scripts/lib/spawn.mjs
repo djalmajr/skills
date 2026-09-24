@@ -4,7 +4,7 @@
 // pane (split, herd tab or a given `--pane`), start the agent with the
 // `agent_pane_busy` retry and register the worker in the roster.
 //
-// Behavior mirrors scripts/herdr-agents.sh (:735-736, :1507-1523,
+// Behavior mirrors the original bash implementation (:735-736, :1507-1523,
 // :3198-3376, :3377-3607). The lane decision, the worker cap, the split
 // anchor and the herd tabs come from the already-ported modules (lanes,
 // layout, herdtabs); regrid after spawn is slice 8 (decision 5 — one

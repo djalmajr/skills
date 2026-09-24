@@ -25,6 +25,7 @@ import { explainActivity, explainIdleParagraph, explainPrintRunning, explainReco
 import { loadConfig } from '../lib/config.mjs';
 import { DieError } from '../lib/config.mjs';
 import { configFileFor } from '../lib/config.mjs';
+import { setupHookDoctor } from '../lib/setuptext.mjs';
 
 let ROOT;
 let REPO;
@@ -218,6 +219,27 @@ test('projectIsFirstRun: the team-choice and roster tests', () => {
   fs.writeFileSync(path.join(STATE, 'ws', 'agents.tsv'), '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n');
   assert.equal(projectIsFirstRun(ctxOf(), ENV, REPO), true, 'comments + max_workers alone is a first run');
   cleanLayers();
+});
+
+// Mutation captured: accepting any command containing `herdr-agents` hides a stale SessionStart hook.
+test('doctor requires the current SessionStart command', () => {
+  cleanLayers();
+  const settings = path.join(REPO, '.claude', 'settings.json');
+  fs.mkdirSync(path.dirname(settings), { recursive: true });
+  fs.writeFileSync(settings, JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'sh -c herdr-agents doctor' }] }] },
+  }));
+  const old = spawnSync(nodeBin(), [JS_ENTRY, 'doctor'], { cwd: REPO, env: ENV, encoding: 'utf8' });
+  assert.equal(old.status, 0, old.stderr);
+  assert.ok(old.stdout.includes('warn   no herdr-agents hooks in .claude/settings.json'), old.stdout);
+
+  fs.writeFileSync(settings, JSON.stringify({
+    hooks: { SessionStart: [{ hooks: [{ type: 'command', command: setupHookDoctor() }] }] },
+  }));
+  const current = spawnSync(nodeBin(), [JS_ENTRY, 'doctor'], { cwd: REPO, env: ENV, encoding: 'utf8' });
+  assert.equal(current.status, 0, current.stderr);
+  assert.ok(current.stdout.includes('ok     Claude hooks present in .claude/settings.json'), current.stdout);
+  fs.rmSync(path.join(REPO, '.claude'), { recursive: true, force: true });
 });
 
 // ---------- doctorUsedKinds ----------

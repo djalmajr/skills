@@ -1,5 +1,5 @@
-// Parity harness (test-only). Runs the same scenario against
-// `bash scripts/herdr-agents.sh` and `node scripts/herdr-agents.mjs` in an
+// Harness (test-only). Runs the same scenario through Bash on the POSIX
+// launcher and through `node scripts/herdr-agents.mjs` in an
 // identical fixture (temporary git repo, temporary HOME / XDG_CONFIG_HOME /
 // HERDR_AGENTS_DIR / TMPDIR, HERDR_WORKSPACE_ID=ws, the caller's Herdr state
 // removed from the environment) and compares stdout, exit code and stderr
@@ -17,7 +17,7 @@ import { findExecutable } from '../lib/platform.mjs';
 import { golden, goldenMode, normalizeRoots } from './golden.mjs';
 
 const SCRIPTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const BASH_ENTRY = path.join(SCRIPTS_DIR, 'herdr-agents.sh');
+export const BASH_ENTRY = path.join(SCRIPTS_DIR, 'herdr-agents');
 export const JS_ENTRY = path.join(SCRIPTS_DIR, 'herdr-agents.mjs');
 // The launchers the JS prints where the bash printed $0 (switch-to-JS
 // decision 4); they normalize to PROG like the entries.
@@ -88,7 +88,7 @@ export function runImpl(impl, args, { env, cwd }) {
 // and bash's `$0: line N:` all become `PROG:`.
 export function normalizeErr(text) {
   return text.split('\n')
-    .map((l) => l.replace(/^[\S]*herdr-agents(\.sh|\.mjs)?(: line \d+)?:/, 'PROG:'))
+    .map((l) => l.replace(/^[\S]*herdr-agents(\.mjs)?(: line \d+)?:/, 'PROG:'))
     .join('\n');
 }
 

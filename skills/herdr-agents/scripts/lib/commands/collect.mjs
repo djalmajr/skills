@@ -1,5 +1,5 @@
 // The `collect` command (port slice 6a). Port of
-// scripts/herdr-agents.sh :4004-4017: a ready report is printed under its
+// the original bash implementation :4004-4017: a ready report is printed under its
 // `<!-- report: <path> -->` marker (rc 0); otherwise an unqueryable roster
 // worker warns and exits 4 (no terminal fallback), and the rest falls back
 // to `herdr agent read --source recent-unwrapped --lines <N>` (rc 6). The

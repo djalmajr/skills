@@ -1,5 +1,5 @@
 // `explain` (slice 7d of the bash port): what the team is doing right now,
-// as human text (never JSON). Port of scripts/herdr-agents.sh :4132-4165
+// as human text (never JSON). Port of the original bash implementation :4132-4165
 // (explain_state_dir), :4167-4205 (explain_activity), :4207-4229
 // (explain_collect_rows), :4231-4253 (explain_recommendation),
 // :4255-4273 (explain_print_running), :4275-4281 (explain_idle_paragraph)

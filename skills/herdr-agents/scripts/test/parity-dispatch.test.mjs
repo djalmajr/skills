@@ -130,7 +130,7 @@ Touch nothing.
 
 # Owned files
 
-skills/herdr-agents/scripts/herdr-agents.sh
+skills/herdr-agents/scripts/herdr-agents
 
 # Forbidden
 
@@ -147,7 +147,7 @@ Confirm which role the composed prompt uses.
 
 # Owned files
 
-skills/herdr-agents/scripts/herdr-agents.sh
+skills/herdr-agents/scripts/herdr-agents
 
 # Forbidden
 

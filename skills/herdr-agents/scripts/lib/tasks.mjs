@@ -1,6 +1,6 @@
 // Pane task titles (port slice 6a): the task a brief names (brief_task),
 // display-only pane title (pane_task_title) and the one-shot check
-// mark (mark_task_done). Port of scripts/herdr-agents.sh :3695-3729. The
+// mark (mark_task_done). Port of the original bash implementation :3695-3729. The
 // pane id goes before the options (herdr 0.9.1 rejects `--source` first) —
 // paneTitle in herdr.mjs already encodes that. A herdr without
 // report-metadata (or any failure) changes nothing and never throws.

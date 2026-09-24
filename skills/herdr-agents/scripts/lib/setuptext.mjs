@@ -1,12 +1,8 @@
-// Canonical setup texts + pure merge results (slice 7a of the bash port).
+// Canonical setup texts + pure merge results.
 //
-// The block and the two Claude Code hook commands are byte-for-byte the same
-// as the bash `setup_block` / `setup_hook_reminder` / `setup_hook_doctor`
-// (spec section 8): the block carries no absolute installer path
-// (test-setup.sh), and the hook commands still point at
-// scripts/herdr-agents.sh — the shim (slice 9) keeps the hooks of existing
-// projects working. The texts are generated from the bash script itself, so
-// any change there is caught by the parity tests.
+// The block and Claude Code hook commands are shared setup output. The block
+// carries no absolute installer path, and the doctor hook resolves the POSIX
+// launcher from the project and user skill locations.
 //
 // `setupBlockResult` and `settingsHooksResult` are the pure, never-writing
 // halves of the bash `setup_block_result` (:1797) and `settings_hooks_result`
@@ -32,7 +28,7 @@ export function setupHookReminder() {
 // setup_hook_doctor: the SessionStart command (bash heredoc minus the
 // trailing newline the command substitution strips).
 export function setupHookDoctor() {
-  return "sh -c '[ \"${HERDR_ENV:-}\" = 1 ] || exit 0; for script in \"${CLAUDE_PROJECT_DIR:-$PWD}/.agents/skills/herdr-agents/scripts/herdr-agents.sh\" \"${CLAUDE_PROJECT_DIR:-$PWD}/.claude/skills/herdr-agents/scripts/herdr-agents.sh\" \"$HOME/.agents/skills/herdr-agents/scripts/herdr-agents.sh\" \"$HOME/.claude/skills/herdr-agents/scripts/herdr-agents.sh\"; do [ -f \"$script\" ] || continue; bash \"$script\" doctor 2>/dev/null | grep -E \"^warn\" | sed \"s/^warn */herdr-agents doctor: /\"; exit 0; done; echo \"herdr-agents doctor: skill script not found\"; true'";
+  return "sh -c '[ \"${HERDR_ENV:-}\" = 1 ] || exit 0; for script in \"${CLAUDE_PROJECT_DIR:-$PWD}/.agents/skills/herdr-agents/scripts/herdr-agents\" \"${CLAUDE_PROJECT_DIR:-$PWD}/.claude/skills/herdr-agents/scripts/herdr-agents\" \"$HOME/.agents/skills/herdr-agents/scripts/herdr-agents\" \"$HOME/.claude/skills/herdr-agents/scripts/herdr-agents\"; do [ -f \"$script\" ] || continue; sh \"$script\" doctor 2>/dev/null | grep -E \"^warn\" | sed \"s/^warn */herdr-agents doctor: /\"; exit 0; done; echo \"herdr-agents doctor: skill script not found\"; true'";
 }
 
 // setup_block_result <content|null> — the instruction file content after
@@ -80,11 +76,10 @@ export function setupBlockResult(content) {
 }
 
 // settings_hooks_result <content|null> — the .claude/settings.json content
-// after setup_write_hooks: the same merge as the bash jq filter (remove the
-// entries whose command mentions herdr-agents from UserPromptSubmit and
-// SessionStart, append the new entry at the end; the rest of the document
-// is untouched, same key order) and the same formatting as jq (2-space
-// indent, empty containers, raw UTF-8, one trailing newline). Returns the
+// after setup_write_hooks: replace entries containing the exact generated
+// command, append the current entry, and preserve other hooks and fields. The
+// output uses jq's formatting (2-space indent, empty containers, raw UTF-8,
+// one trailing newline). Returns the
 // full new content, or null when the merge cannot be produced (bash: die 4
 // `could not merge hooks into <file>`, file left untouched).
 export function settingsHooksResult(content) {
@@ -119,7 +114,7 @@ export function settingsHooksResult(content) {
         let c = (h === null || typeof h !== 'object' || Array.isArray(h)) ? '' : h.command;
         if (c === undefined || c === null || c === false) c = '';
         if (typeof c !== 'string') return false;
-        if (c.includes('herdr-agents')) { drop = true; break; }
+        if (c === command) { drop = true; break; }
       }
       if (!drop) kept.push(entry);
     }

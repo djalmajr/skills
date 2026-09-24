@@ -1,5 +1,5 @@
 // The `roster` command (moved out of lib/state.mjs in slice 4). Port of
-// scripts/herdr-agents.sh :3876-3902: the NAME/ROLE/KIND/PANE/TAB/STATE/
+// the original bash implementation :3876-3902: the NAME/ROLE/KIND/PANE/TAB/STATE/
 // REPORT/CWD table, the other live agents, and the config footer.
 import fs from 'node:fs';
 import { cfg } from '../config.mjs';
