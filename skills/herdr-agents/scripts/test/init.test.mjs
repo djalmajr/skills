@@ -1,14 +1,18 @@
 // init (slice 8b): unit tests for lib/commands/init.mjs — the `doctor`
 // report goes to stderr only while the JSON context on stdout is
-// {orchestrator,pane_id,tab_id,workspace_id,layout,state_dir,first_run};
-// the caller rename via a fake `herdr` (agent get/rename/list) and its
-// idempotence (already named orchestrator or orchestrator-N: no rename),
-// the unique-name suffix when `orchestrator` is live, and first_run true
-// (a fresh project) vs false (a project config with a team choice, or an
-// existing roster row). Each test file builds its own temp root (mkdtemp)
-// used as HOME, XDG_CONFIG_HOME, TMPDIR and HERDR_AGENTS_DIR, with a
-// temporary git repo (brief decision 7); the fake `herdr` (writeFakeCli)
-// is the only herdr the code sees — no real herdr, no agent CLI.
+// {orchestrator,pane_id,tab_id,workspace_id,layout,state_dir,first_run,
+// title}; the caller rename via a fake `herdr` (agent get/rename/list) and
+// its idempotence (already named orchestrator or orchestrator-N: no
+// rename), the unique-name suffix when `orchestrator` is live, first_run
+// true (a fresh project) vs false (a project config with a team choice, or
+// an existing roster row), and the pane title: a title-less pane gets
+// `orchestrator: <basename>` written exactly once, an existing title is
+// left alone, and a `pane get` / `report-metadata` failure only warns
+// (friction) with `title` "". Each test file builds its own temp root
+// (mkdtemp) used as HOME, XDG_CONFIG_HOME, TMPDIR and HERDR_AGENTS_DIR,
+// with a temporary git repo (brief decision 7); the fake `herdr`
+// (writeFakeCli) is the only herdr the code sees — no real herdr, no agent
+// CLI.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -30,6 +34,9 @@ let ENV;
 let NAME_FILE;
 let LIVE_FILE;
 let LOG_FILE;
+let TITLE_FILE;
+let METAFAIL_FILE;
+let PANETITLEFAIL_FILE;
 
 // Fake herdr: logs every call (LOG_FILE); `agent get <pane>` answers with
 // the caller's current name (NAME_FILE, one agent_not_found when the file
@@ -64,7 +71,27 @@ const HERDR_FAKE = [
   '    process.exit(0);',
   '  }',
   '}',
-  "if (a[0] === 'pane') { process.stdout.write('{\"result\":{\"pane\":{\"workspace_id\":\"ws\"}}}\\n'); process.exit(0); }",
+  "if (a[0] === 'pane') {",
+  "  if (a[1] === 'get') {",
+  "    if (fs.existsSync(process.env.HERDR_PANETITLEFAIL)) { process.stderr.write('pane boom\\n'); process.exit(1); }",
+  "    let title = null;",
+  "    try { const s = fs.readFileSync(process.env.HERDR_TITLE, 'utf8'); if (s !== '') title = s; } catch {}",
+  "    const o = { result: { pane: { pane_id: a[2], workspace_id: 'ws' } } };",
+  "    if (title !== null) o.result.pane.title = title;",
+  "    process.stdout.write(JSON.stringify(o) + '\\n');",
+  "    process.exit(0);",
+  "  }",
+  "  if (a[1] === 'report-metadata') {",
+  "    if (fs.existsSync(process.env.HERDR_METAFAIL)) { process.stderr.write('meta boom\\n'); process.exit(1); }",
+  "    for (let i = 2; i < a.length; i += 1) {",
+  "      if (a[i] === '--title') fs.writeFileSync(process.env.HERDR_TITLE, a[i + 1] ?? '');",
+  "      else if (a[i] === '--clear-title') fs.rmSync(process.env.HERDR_TITLE, { force: true });",
+  "    }",
+  "    process.exit(0);",
+  "  }",
+  "  process.stdout.write('{\"result\":{\"pane\":{\"workspace_id\":\"ws\"}}}\\n');",
+  "  process.exit(0);",
+  "}",
   "process.stdout.write('{\"result\":{}}\\n');",
 ].join('\n') + '\n';
 
@@ -84,23 +111,33 @@ test.before(() => {
   NAME_FILE = path.join(ROOT, 'caller-name');
   LIVE_FILE = path.join(ROOT, 'live-names');
   LOG_FILE = path.join(ROOT, 'herdr.log');
+  TITLE_FILE = path.join(ROOT, 'pane-title');
+  METAFAIL_FILE = path.join(ROOT, 'metafail');
+  PANETITLEFAIL_FILE = path.join(ROOT, 'panefail');
   fs.writeFileSync(LIVE_FILE, 'build\n');
   ENV = fixtureEnv({
     HOME, XDG_CONFIG_HOME: CONF, HERDR_AGENTS_DIR: STATE, HERDR_WORKSPACE_ID: 'ws', TMPDIR: TMP,
     HERDR_ENV: '1', HERDR_PANE_ID: 'p1', HERDR_TAB_ID: 't1',
     HERDR_LOG: LOG_FILE, HERDR_NAME: NAME_FILE, HERDR_LIVE: LIVE_FILE,
+    HERDR_TITLE: TITLE_FILE, HERDR_METAFAIL: METAFAIL_FILE, HERDR_PANETITLEFAIL: PANETITLEFAIL_FILE,
     PATH: `${BIN}${path.delimiter}/usr/bin${path.delimiter}/bin`,
   });
 });
 test.after(() => fs.rmSync(ROOT, { recursive: true, force: true }));
 
 // Run `init` as a child process from a clean slate (state, project conf,
-// herdr log); `caller` is the name the fake herdr reports for the pane.
-function e2e({ caller = '', live = 'build\n', conf = null, roster = null, env = {} } = {}) {
+// herdr log, pane title); `caller` is the name the fake herdr reports for
+// the pane, `title` the pane title the fake `pane get` answers (null = the
+// key is absent), `metafail` / `panefail` make `report-metadata` /
+// `pane get` exit 1.
+function e2e({ caller = '', live = 'build\n', conf = null, roster = null, title = null, metafail = false, panefail = false, env = {} } = {}) {
   fs.rmSync(STATE, { recursive: true, force: true });
   fs.mkdirSync(STATE, { recursive: true });
   fs.rmSync(path.join(REPO, '.agents'), { recursive: true, force: true });
   fs.writeFileSync(LOG_FILE, '');
+  if (title !== null) fs.writeFileSync(TITLE_FILE, title); else fs.rmSync(TITLE_FILE, { force: true });
+  if (metafail) fs.writeFileSync(METAFAIL_FILE, ''); else fs.rmSync(METAFAIL_FILE, { force: true });
+  if (panefail) fs.writeFileSync(PANETITLEFAIL_FILE, ''); else fs.rmSync(PANETITLEFAIL_FILE, { force: true });
   if (caller !== '') fs.writeFileSync(NAME_FILE, `${caller}\n`); else fs.rmSync(NAME_FILE, { force: true });
   fs.writeFileSync(LIVE_FILE, live);
   if (conf !== null) {
@@ -125,11 +162,13 @@ function e2e({ caller = '', live = 'build\n', conf = null, roster = null, env = 
 
 const H12 = '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n';
 
+// Mutation captured: the title key dropped from (or moved within) the init
+// JSON, or a prefix other than the literal `orchestrator: `.
 test('init: first_run true — doctor on stderr only, the JSON context on stdout, no rename', { timeout: 30000 }, () => {
   const r = e2e({ caller: 'orchestrator' });
   assert.equal(r.rc, 0, `rc ${r.rc}: ${r.err}`);
   const doc = JSON.parse(r.out); // the whole stdout is the JSON
-  assert.deepEqual(Object.keys(doc), ['orchestrator', 'pane_id', 'tab_id', 'workspace_id', 'layout', 'state_dir', 'first_run']);
+  assert.deepEqual(Object.keys(doc), ['orchestrator', 'pane_id', 'tab_id', 'workspace_id', 'layout', 'state_dir', 'first_run', 'title']);
   assert.equal(doc.first_run, true);
   assert.equal(doc.orchestrator, 'orchestrator');
   assert.equal(doc.pane_id, 'p1');
@@ -137,6 +176,7 @@ test('init: first_run true — doctor on stderr only, the JSON context on stdout
   assert.equal(doc.workspace_id, 'ws');
   assert.equal(doc.layout, 'split');
   assert.equal(doc.state_dir, path.join(STATE, 'ws'));
+  assert.equal(doc.title, 'orchestrator: repo');
   // doctor: the report is on stderr, not on stdout.
   assert.ok(r.err.includes('first_run: true'), `stderr: ${r.err}`);
   assert.ok(/warning\(s\)/.test(r.err), 'the doctor summary line');
@@ -207,4 +247,53 @@ test('init: a living command — without HERDR_ENV it refuses with the bash mess
   assert.equal(r.rc, 2, `rc ${r.rc}`);
   assert.ok(r.err.includes('not running inside Herdr (HERDR_ENV != 1); refusing to control a session from outside'), r.err);
   assert.equal(r.out, '', 'nothing on stdout');
+});
+
+// Mutation captured: init using the agent name (or no `orchestrator:`
+// prefix) in the title, writing a wrong basename, or calling
+// report-metadata more than once for a title-less pane.
+test('init: a title-less pane gets `orchestrator: <basename>` exactly once', { timeout: 30000 }, () => {
+  const r = e2e({ caller: 'orchestrator' });
+  assert.equal(r.rc, 0, `rc ${r.rc}: ${r.err}`);
+  assert.equal(JSON.parse(r.out).title, 'orchestrator: repo');
+  assert.deepEqual(
+    r.log().filter((l) => l.startsWith('pane report-metadata')),
+    ['pane report-metadata p1 --source herdr-agents --title orchestrator: repo'],
+    JSON.stringify(r.log()),
+  );
+  assert.equal(fs.readFileSync(TITLE_FILE, 'utf8'), 'orchestrator: repo');
+});
+
+// Mutation captured: init overwriting an existing title (a
+// report-metadata call when the pane already carries one).
+test('init: an existing title is left alone (no report-metadata)', { timeout: 30000 }, () => {
+  const r = e2e({ caller: 'orchestrator', title: 'orchestrator: porte JS' });
+  assert.equal(r.rc, 0, `rc ${r.rc}: ${r.err}`);
+  assert.equal(JSON.parse(r.out).title, 'orchestrator: porte JS');
+  assert.ok(!r.log().some((l) => l.startsWith('pane report-metadata')), JSON.stringify(r.log()));
+  assert.equal(fs.readFileSync(TITLE_FILE, 'utf8'), 'orchestrator: porte JS');
+});
+
+// Mutation captured: init dying (or failing the JSON) when `herdr pane
+// get` fails, instead of warning with `title` "" and exit 0.
+test('init: a pane get failure warns, reports title "" and still exits 0', { timeout: 30000 }, () => {
+  const r = e2e({ caller: 'orchestrator', panefail: true });
+  assert.equal(r.rc, 0, `rc ${r.rc}: ${r.err}`);
+  assert.equal(JSON.parse(r.out).title, '');
+  assert.ok(r.err.includes('init: herdr pane get failed; pane title left as is'), r.err);
+  assert.ok(!r.log().some((l) => l.startsWith('pane report-metadata')), JSON.stringify(r.log()));
+  const friction = fs.readFileSync(path.join(STATE, 'ws', 'friction.log'), 'utf8');
+  assert.ok(friction.includes('init: herdr pane get failed'), 'friction entry: ' + friction);
+});
+
+// Mutation captured: init swallowing the report-metadata failure (no
+// warning, `title` not "") or trying to write another title.
+test('init: a report-metadata failure warns and reports title ""', { timeout: 30000 }, () => {
+  const r = e2e({ caller: 'orchestrator', metafail: true });
+  assert.equal(r.rc, 0, `rc ${r.rc}: ${r.err}`);
+  assert.equal(JSON.parse(r.out).title, '');
+  assert.ok(r.err.includes('init: herdr pane report-metadata failed; pane title left as is'), r.err);
+  assert.ok(r.log().some((l) => l.startsWith('pane report-metadata p1')), JSON.stringify(r.log()));
+  const friction = fs.readFileSync(path.join(STATE, 'ws', 'friction.log'), 'utf8');
+  assert.ok(friction.includes('init: herdr pane report-metadata failed'), 'friction entry: ' + friction);
 });

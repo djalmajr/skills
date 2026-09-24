@@ -17,6 +17,7 @@ commits, pushes, or closes panes it did not create.
 
 Usage:
   herdr-agents init                          # doctor + name the caller \`orchestrator\`, print context
+  herdr-agents title "<objective>" | title --clear   # this pane's title: orchestrator: <objective>
   herdr-agents doctor [--fix] [--panes 3|4] [--user]
                                              # advisory check; --fix normalizes lanes in the project file
   herdr-agents explain                       # plain text for a person: what is running, or how to start

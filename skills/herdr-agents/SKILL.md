@@ -142,6 +142,12 @@ more telling. `lanes=off` keeps the old names: the role (`scouter`,
 `sub-orchestrator` role and stays outside the lanes unless a `lane.*.roles`
 list includes it.
 
+The orchestrator's pane is titled too: `init` sets
+`orchestrator: <project>` when the pane has no title, and
+`$S title "<objective>"` sets `orchestrator: <objective>` (the objective
+is cut at 60 code points). Set it right after `init` and again whenever
+the objective changes, so the sidebar shows what this session leads.
+
 The name says the role; the pane title says the task. Every `dispatch`
 titles the worker's pane `<role>: <task>`, the task being the brief's first
 line when it is an H1 title (`# Brief — <task>`), else the brief's file
@@ -365,7 +371,9 @@ All mechanics go through `scripts/herdr-agents` (needs `herdr` and Node.js
 
 ```bash
 S=<path-to-this-skill>/scripts/herdr-agents      # POSIX; Windows: <path-to-this-skill>\scripts\herdr-agents.cmd
-$S init                                    # doctor + name yourself `orchestrator`, print context (`first_run`)
+$S init                                    # doctor + name yourself `orchestrator`, title an untitled pane, print context (`first_run`)
+$S title "<objective>"                     # this pane's title: `orchestrator: <objective>`
+$S title --clear                           # clear this pane's title
 $S doctor                                  # advisory environment check (`first_run: true|false`)
 $S explain                                 # plain text: what is running, or how to start
 $S setup [--target FILE] [--no-hooks]      # AGENTS.md block + Claude hooks (idempotent)

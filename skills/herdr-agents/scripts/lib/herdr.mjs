@@ -171,11 +171,14 @@ export function agentState(target, env = process.env, timeoutMs = HERDR_TIMEOUT_
 // current task). The pane id goes BEFORE the options (herdr 0.9.1 rejects
 // `--source` first). `title` null clears it. Best effort: a herdr without
 // report-metadata (or any failure) changes nothing and never throws.
+// Returns true on rc 0 so a caller can react to the failure; the existing
+// callers (tasks.mjs) ignore the return.
 export function paneTitle(pane, title, env = process.env) {
   const args = ['pane', 'report-metadata', pane, '--source', 'herdr-agents'];
   if (title === null) args.push('--clear-title');
   else args.push('--title', title);
-  runCli('herdr', args, { env, timeoutMs: HERDR_TIMEOUT_MS });
+  const r = runCli('herdr', args, { env, timeoutMs: HERDR_TIMEOUT_MS });
+  return !r.notFound && r.status === 0;
 }
 
 // ---------- slice 5a: pane layout, tabs, split and focus (spec 4.1) ----------

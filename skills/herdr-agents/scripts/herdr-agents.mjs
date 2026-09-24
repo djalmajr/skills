@@ -8,7 +8,8 @@
 // `run <role> <brief.md> …`, `status <agent>…`, `roster`, `friction`,
 // `tab-label`, `layout-plan`, `wait <agent>…`, `collect <agent>`,
 // `release <agent>`, `clean`, `doctor [--fix] [--panes 3|4] [--user]`,
-// `explain`, `init`, `setup [--target FILE] [--no-hooks]
+// `explain`, `init`, `title` (the orchestrator pane's current objective),
+// `setup [--target FILE] [--no-hooks]
 // [--dry-run] [--panes 3|4] [--lane name=kind[:model[:effort]]]` — its
 // `--probe [--kind K --model M --timeout S]` form runs the per-kind
 // probes, exclusive with `--plan` — plus `env` (the environment block for
@@ -49,11 +50,12 @@ import { cmdSetup } from './lib/commands/setup.mjs';
 import { cmdDoctor } from './lib/commands/doctor.mjs';
 import { cmdExplain } from './lib/commands/explain.mjs';
 import { cmdInit } from './lib/commands/init.mjs';
+import { cmdTitle } from './lib/commands/title.mjs';
 import { die, findExecutable } from './lib/platform.mjs';
 
 // The commands that log to friction when running inside Herdr (bash main's
 // living-command list).
-const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'regrid', 'wait', 'collect', 'release', 'clean', 'init']);
+const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'regrid', 'wait', 'collect', 'release', 'clean', 'init', 'title']);
 
 const argv = process.argv.slice(2);
 const cmd = argv[0] ?? '';
@@ -139,6 +141,9 @@ try {
       break;
     case 'init':
       cmdInit(ctx, env);
+      break;
+    case 'title':
+      cmdTitle(argv.slice(1), ctx, env);
       break;
     case 'regrid':
       cmdRegrid(argv.slice(1), ctx, env);
