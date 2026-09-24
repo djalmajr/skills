@@ -63,9 +63,19 @@ dispatching: any place where you would have to choose is a gap.
   file mode, a leftover temp file or a different exit code is not parity.
 - **Two or three items per brief.** A six-item brief pushed a worker to
   90% of its context window; later turns get slower and sloppier.
-- **Which checks, when.** While iterating, only the check that proves the
-  item; the full matrix once, before the report. A brief without this rule
-  let a worker rerun a nine-minute matrix three times.
+- **Which checks, when.** A slice runs only its own tests, once per runner,
+  while iterating and before the report; the full matrix runs once, at the
+  end of a multi-slice effort, not per slice and not again in each review.
+  Repeated full runs (three rounds per slice, plus the reviewer's) were most
+  of a slice's wall time.
+- **A resume brief says "you implement".** Handing over another worker's
+  unfinished files as "a draft to check yourself" made a worker delegate a
+  read-only audit and edit nothing. Say it plainly: edit the files, finish
+  the criteria, run the slice's tests.
+- **Never copy a defect of the reference to pass parity.** When a parity
+  test only passes by reproducing a bug of the reference implementation,
+  fix the reference (with a test) or record the divergence; say so in the
+  brief before the worker meets it.
 - **Small writes with XML-tool-call models.** Ask for one file per call and
   a few hundred lines at most per call. A `settled-no-report` whose screen
   shows raw tool-call text is a malformed call, not a finished worker:
@@ -95,7 +105,22 @@ dispatching: any place where you would have to choose is a gap.
     typecheck → project gates → full suite → end-to-end smoke on touched
     surfaces. Only then commit.
 12. **Review by a different model family** than the implementer, before any
-    push. An implementer's self-report is not a review.
+    push. An implementer's self-report is not a review. It pays: across one
+    multi-slice port every review found a real defect the implementer's own
+    tests had passed (a session reused with the wrong model, a cleanup that
+    would drop the whole roster on a malformed answer, a parser that read a
+    field wrong).
+    **Fix checks go to the same reviewer.** After fixing its findings, send
+    the fix list to the reviewer that found them, with a report path of its
+    own: it still has the context, so the check is short.
+    **Parallel workers in one checkout** get disjoint files. When a shared
+    file is unavoidable (an entry point both slices extend), give each worker
+    its own worktree, or separate the slices at commit time: rebuild the
+    shared file from `HEAD` plus only this slice's lines, stage that blob
+    (`git hash-object -w` + `git update-index --cacheinfo`) without touching
+    the other worker's working copy, and run the slice's tests on an exact
+    copy of the index (`git checkout-index -a --prefix=<tmp>/`) before the
+    commit.
 13. **Say what was proved, not more.** "No regression observed in <tests +
     smokes>", never "zero regressions". What was skipped is not covered.
 14. **Each delegated slice produces its own report file** in the

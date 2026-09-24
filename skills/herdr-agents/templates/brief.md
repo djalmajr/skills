@@ -67,10 +67,10 @@ issues.detail.linkProject = "…"
 ## Checks you may run
 
 - `bun run typecheck -- <your files>` / `bun test <your test files>`
-- While iterating, run only the check that covers the item (in the
-  herdr-agents repo: `scripts/run-tests.sh --env outside test-<x>.sh`).
-- The full matrix (in the herdr-agents repo: `scripts/run-tests.sh`) runs
-  once, right before the report — not between edits.
+- Only this slice's tests, once per runner, while iterating and before the
+  report (in the herdr-agents repo: `scripts/run-tests.sh --env outside
+  test-<x>.sh`). The full matrix runs once at the end of the whole effort,
+  not per slice.
 - Do NOT run the formatter or e2e.
 - Write one file per tool call, a few hundred lines at most per call; grow
   a larger file with follow-up edits.
