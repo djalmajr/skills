@@ -7,6 +7,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { die, readTextFile, projectRoot } from './platform.mjs';
 import { hasWord } from './text.mjs';
+import { loadConfig } from './config.mjs';
+// Function-level use only (cmdRoles), so the roles<->resolve import cycle
+// is safe under Node and Bun (like models<->kinds).
+import { resolveRoleSettings } from './resolve.mjs';
 
 export function skillDir() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -134,9 +138,17 @@ export function isReviewRole(role) {
 }
 
 // cmd_roles() port: one line per role file, first directory wins per name,
-// glob-sorted per directory.
+// glob-sorted per directory. KIND/MODEL/EFFORT are the settings a flagless
+// spawn would use (resolveRoleSettings) — MODEL is the configured spec, so
+// no CLI is called and no regex is resolved — and FROM names the source of
+// each: `kind: <from>; model: <from>; effort: <from>; file: <path>`.
+// Empty values show as `-`. The role list and the order (project first,
+// then the skill, no repeated name) are unchanged; `role <name>` (the JSON)
+// is too.
 export function cmdRoles(env = process.env, cwd = process.cwd()) {
-  const lines = [`${pad('ROLE', 18)} ${pad('KIND', 8)} ${pad('EFFORT', 8)} ${pad('MODE', 10)} SOURCE`];
+  const ctx = loadConfig(env, cwd);
+  const cell = (v) => (v === '' ? '-' : v);
+  const lines = [`${pad('ROLE', 18)} ${pad('KIND', 8)} ${pad('MODEL', 24)} ${pad('EFFORT', 8)} ${pad('MODE', 10)} FROM`];
   const seen = new Set();
   for (const d of roleDirs(env, cwd)) {
     let names = [];
@@ -148,7 +160,9 @@ export function cmdRoles(env = process.env, cwd = process.cwd()) {
       const name = n.slice(0, -3);
       if (seen.has(name)) continue;
       seen.add(name);
-      lines.push(`${pad(name, 18)} ${pad(fmGet(full, 'kind'), 8)} ${pad(fmGet(full, 'effort'), 8)} ${pad(fmGet(full, 'mode'), 10)} ${full}`);
+      const res = resolveRoleSettings(name, ctx, env, cwd);
+      const from = `kind: ${res.kindFrom}; model: ${res.modelFrom}; effort: ${res.effortFrom}; file: ${full}`;
+      lines.push(`${pad(name, 18)} ${pad(cell(res.kind), 8)} ${pad(cell(res.modelSpec), 24)} ${pad(cell(res.effort), 8)} ${pad(cell(fmGet(full, 'mode')), 10)} ${from}`);
     }
   }
   process.stdout.write(lines.join('\n') + '\n');

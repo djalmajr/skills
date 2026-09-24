@@ -382,7 +382,7 @@ $S setup --probe [--kind K --model M]      # JSON: ready|no-auth|quota|error per
 $S setup --plan …                          # diff -u per file (config files: key before → after) of what setup/--set/--user-set/--session-set would write; writes nothing
 $S session set <key> <value>               # this-session override in <state>/session.conf (above project, below flags/env)
 $S session show | session clear [key]
-$S roles                                   # available roles and their sources
+$S roles                                   # roles with the kind, model and effort in effect and where each comes from
 $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
 $S dispatch impl <brief.md> [--timeout 900000]   # role prompt + brief → agent, waits

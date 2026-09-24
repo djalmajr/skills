@@ -112,9 +112,14 @@ test('cursor: effort rides in the model id and --model is never doubled', (t) =>
   assert.deepEqual(kindModelArgs('cursor', 'grok-4.7-xhigh', ''), ['--model', 'grok-4.7-xhigh']);
   const warns = [];
   const w = (m) => warns.push(m);
-  // Model already carries the effort: used as-is, with the warning.
+  // Mutation captured: warning on a matching suffix (the redundant warning)
+  // or on a different suffix without naming both efforts.
+  // Model already carries the requested effort: used as-is, silently.
   assert.deepEqual(kindEffortArgs('cursor', 'xhigh', 'grok-4.7-xhigh', process.env, w), ['--model', 'grok-4.7-xhigh']);
-  assert.equal(warns[0], "cursor model 'grok-4.7-xhigh' already encodes an effort; --effort ignored");
+  assert.equal(warns.length, 0, 'same suffix as the requested effort: no warning');
+  // A different suffix: the model keeps its own, with the effort named.
+  assert.deepEqual(kindEffortArgs('cursor', 'xhigh', 'grok-4.7-high', process.env, w), ['--model', 'grok-4.7-high']);
+  assert.equal(warns[0], "cursor model 'grok-4.7-high' already encodes effort 'high'; --effort xhigh ignored");
   // No model: warn, nothing.
   warns.length = 0;
   assert.deepEqual(kindEffortArgs('cursor', 'xhigh', '', process.env, w), []);
@@ -143,7 +148,14 @@ test('cursorModelWithEffort consults --list-models (fake cursor-agent)', { timeo
     assert.match(warns.at(-1), /cursor model 'muse' not in --list-models; passing it through unchanged/);
     warns.length = 0;
     assert.equal(cursorModelWithEffort('grok-4.7-high', 'low', env, w), 'grok-4.7-high');
-    assert.match(warns[0], /already encodes an effort; --effort ignored/);
+    // Mutation captured: the old unconditional warning (suffix ignored in
+    // the message), or a silent different suffix.
+    assert.equal(warns[0], "cursor model 'grok-4.7-high' already encodes effort 'high'; --effort low ignored");
+    // A matching suffix, or no effort at all: the model is used as-is,
+    // silently.
+    assert.equal(cursorModelWithEffort('grok-4.7-high', 'high', env, w), 'grok-4.7-high');
+    assert.equal(cursorModelWithEffort('grok-4.7-high', '', env, w), 'grok-4.7-high');
+    assert.equal(warns.length, 1, 'matching or absent effort on a suffixed model: no new warning');
     // No cursor-agent on PATH (empty dir): empty list, pass-through with warning.
     warns.length = 0;
     const bare = { ...s.env, PATH: s.tmp };

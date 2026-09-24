@@ -1,6 +1,10 @@
 // JS port of the roles units: resolveRole (project dir before the skill
 // roles, $HERDR_AGENTS_ROLES between them), fmGet (including frontmatter with
 // CRLF lines — decision 7), roleBody, and the `roles` / `role` commands.
+// The `roles` table also shows the settings a flagless spawn would use
+// (resolveRoleSettings) with the source of each (FROM), per the
+// frontmatter-only, role.<r>.* (config layer), lane.<l>.* and effort.<kind>
+// cases.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -8,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
-import { roleDirs, roleFile, resolveRole, fmGet, roleBody } from '../lib/roles.mjs';
+import { roleDirs, roleFile, resolveRole, fmGet, roleBody, skillDir } from '../lib/roles.mjs';
 
 function setup() {
   let root = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-roles-'));
@@ -147,15 +151,136 @@ test('roles command: table lists project roles first with the project file as so
     const r = s.run('roles');
     assert.equal(r.rc, 0, r.err);
     const lines = r.out.trim().split('\n');
-    assert.equal(lines[0].replace(/\s+/g, ' '), 'ROLE KIND EFFORT MODE SOURCE');
+    assert.equal(lines[0].replace(/\s+/g, ' '), 'ROLE KIND MODEL EFFORT MODE FROM');
     const impl = lines.find((l) => l.startsWith('implementer'));
     assert.ok(impl, 'implementer row missing');
     assert.ok(impl.includes('claude'), `kind must come from the project frontmatter: ${impl}`);
-    assert.ok(impl.endsWith(path.join(s.projRoles, 'implementer.md')), `source must be the project file: ${impl}`);
+    assert.ok(impl.endsWith(`file: ${path.join(s.projRoles, 'implementer.md')}`), `source must be the project file: ${impl}`);
     // A skill-only role still shows the skill file.
     const scout = lines.find((l) => l.startsWith('scouter'));
     assert.ok(scout, 'scouter row missing');
     assert.ok(scout.endsWith(path.join('roles', 'scouter.md')), `scouter source: ${scout}`);
+  } finally { s.cleanup(); }
+});
+
+// ---------- the `roles` table: resolved settings and their sources ----------
+
+// Run `roles` (optionally with a project conf and/or project role) and
+// return row(name) → the fixed-width columns KIND/MODEL/EFFORT/MODE/FROM.
+function rolesTable(s, conf, projRole) {
+  if (projRole !== undefined) {
+    fs.mkdirSync(s.projRoles, { recursive: true });
+    fs.writeFileSync(path.join(s.projRoles, 'implementer.md'), projRole);
+  }
+  if (conf !== undefined) {
+    fs.mkdirSync(path.join(s.repo, '.agents'), { recursive: true });
+    fs.writeFileSync(path.join(s.repo, '.agents', 'herdr-agents.conf'), conf);
+  }
+  const r = s.run('roles');
+  assert.equal(r.rc, 0, r.err);
+  const lines = r.out.trim().split('\n');
+  assert.equal(lines[0].replace(/\s+/g, ' '), 'ROLE KIND MODEL EFFORT MODE FROM');
+  const row = (name) => {
+    const l = lines.find((x) => x.slice(0, 18).trim() === name);
+    assert.ok(l, `row for '${name}' missing`);
+    // Fixed widths: ROLE(18) KIND(8) MODEL(24) EFFORT(8) MODE(10) FROM.
+    return {
+      kind: l.slice(19, 27).trim(),
+      model: l.slice(28, 52).trim(),
+      effort: l.slice(53, 61).trim(),
+      mode: l.slice(62, 72).trim(),
+      from: l.slice(73),
+    };
+  };
+  return { lines, row };
+}
+
+test('roles: frontmatter-only role — values from the role file and the config defaults', (t) => {
+  const s = setup();
+  try {
+    const { row } = rolesTable(s);
+    // scouter: kind and mode from the frontmatter; model and effort from
+    // config.defaults (model.grok.worker, effort.grok).
+    let x = row('scouter');
+    assert.deepEqual([x.kind, x.model, x.effort, x.mode], ['grok', 'grok', 'xhigh', 'read-only']);
+    assert.equal(x.from,
+      `kind: role file; model: model.grok.worker (defaults); effort: effort.grok (defaults); file: ${path.join(skillDir(), 'roles', 'scouter.md')}`);
+    // planner: the model is a defaults-layer role config (role.planner.model).
+    x = row('planner');
+    assert.deepEqual([x.kind, x.model, x.effort, x.mode], ['claude', 'fable', 'high', 'read-only']);
+    assert.equal(x.from,
+      `kind: role file; model: role config (defaults); effort: role file; file: ${path.join(skillDir(), 'roles', 'planner.md')}`);
+    // sub-orchestrator: model.<kind>.orchestrator (not the worker position).
+    x = row('sub-orchestrator');
+    assert.equal(x.model, 'fable');
+    assert.equal(x.from,
+      `kind: role file; model: model.claude.orchestrator (defaults); effort: role file; file: ${path.join(skillDir(), 'roles', 'sub-orchestrator.md')}`);
+    // Mutation captured: a FROM that names a wrong source for the defaults
+    // (e.g. 'role file' for model.grok.worker) or shows the frontmatter
+    // model instead of the configured spec.
+  } finally { s.cleanup(); }
+});
+
+test('roles: role.<r>.* in a config layer beats the frontmatter', (t) => {
+  const s = setup();
+  try {
+    const conf = 'role.implementer.kind=pi\nrole.implementer.model=my-provider/my-model\nrole.implementer.effort=low\n';
+    const { row } = rolesTable(s, conf);
+    const x = row('implementer');
+    assert.deepEqual([x.kind, x.model, x.effort, x.mode], ['pi', 'my-provider/my-model', 'low', 'edit']);
+    assert.equal(x.from,
+      `kind: role config (project); model: role config (project); effort: role config (project); file: ${path.join(skillDir(), 'roles', 'implementer.md')}`);
+    // A role without config keys still resolves as before.
+    const y = row('scouter');
+    assert.deepEqual([y.kind, y.model, y.effort], ['grok', 'grok', 'xhigh']);
+    assert.equal(y.from,
+      `kind: role file; model: model.grok.worker (defaults); effort: effort.grok (defaults); file: ${path.join(skillDir(), 'roles', 'scouter.md')}`);
+    // Mutation captured: reading the KIND/MODEL/EFFORT columns from the
+    // frontmatter (the old table) instead of the resolution, or a FROM that
+    // loses the layer of the deciding key.
+  } finally { s.cleanup(); }
+});
+
+test('roles: lane.<l>.kind/model/effort decide for the roles of the lane', (t) => {
+  const s = setup();
+  try {
+    const conf = 'lane.build.kind=pi\nlane.build.model=lane-model\nlane.build.effort=medium\n';
+    const { row } = rolesTable(s, conf);
+    // implementer sits in the build lane: all three from the lane (project).
+    const x = row('implementer');
+    assert.deepEqual([x.kind, x.model, x.effort], ['pi', 'lane-model', 'medium']);
+    assert.equal(x.from,
+      `kind: lane build (project); model: lane build (project); effort: lane build (project); file: ${path.join(skillDir(), 'roles', 'implementer.md')}`);
+    // scouter sits in the explore lane (no lane keys): unchanged sources.
+    const y = row('scouter');
+    assert.deepEqual([y.kind, y.model, y.effort], ['grok', 'grok', 'xhigh']);
+    assert.equal(y.from,
+      `kind: role file; model: model.grok.worker (defaults); effort: effort.grok (defaults); file: ${path.join(skillDir(), 'roles', 'scouter.md')}`);
+    // Mutation captured: skipping the lane steps in the resolution (kind
+    // 'grok'/'lane-model' absent) or a lane FROM without the layer.
+  } finally { s.cleanup(); }
+});
+
+test('roles: effort.<kind> and empty values (dashes, default sources)', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(s.projRoles, { recursive: true });
+    // A pi-kind role with no model and no effort anywhere.
+    fs.writeFileSync(path.join(s.projRoles, 'pilot.md'), '---\nname: pilot\nkind: pi\n---\n\nBody.\n');
+    const { row } = rolesTable(s, 'effort.grok=low\n');
+    // effort.grok (project) beats the scouter/implementer frontmatter.
+    assert.equal(row('scouter').effort, 'low');
+    assert.equal(row('scouter').from,
+      `kind: role file; model: model.grok.worker (defaults); effort: effort.grok (project); file: ${path.join(skillDir(), 'roles', 'scouter.md')}`);
+    assert.equal(row('implementer').effort, 'low');
+    // Nothing set for pi: dashes and the 'default' sources (the CLI decides).
+    const p = row('pilot');
+    assert.deepEqual([p.kind, p.model, p.effort, p.mode], ['pi', '-', '-', '-']);
+    assert.equal(p.from,
+      `kind: role file; model: default; effort: default; file: ${path.join(s.projRoles, 'pilot.md')}`);
+    // Mutation captured: clamping/validating the effort in the resolution
+    // (the table must show the raw setting), a missing '- ' for an empty
+    // value, or a FROM that omits the model/effort clauses.
   } finally { s.cleanup(); }
 });
 

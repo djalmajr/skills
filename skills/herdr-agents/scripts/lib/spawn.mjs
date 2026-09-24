@@ -22,8 +22,9 @@ import {
   fmGet, historyHasEdit, isReviewRole, resolveRole, roleFile, roleIsEdit,
 } from './roles.mjs';
 import {
-  enforceWorkerCap, laneAttr, laneDecide, laneOfRole, lanesEnabled, panesValue, spawnKindLayer,
+  enforceWorkerCap, laneAttr, laneDecide, lanesEnabled, panesValue, spawnKindLayer,
 } from './lanes.mjs';
+import { resolveRoleSettings } from './resolve.mjs';
 import {
   agentRead, agentState, callerAgentName, HERDR_TIMEOUT_MS, liveAgents, paneSplit,
 } from './herdr.mjs';
@@ -244,6 +245,7 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
   let timeout = '';
   let effort = '';
   let model = '';
+  let modelSpec = '';
   let approvals = '';
   let reuse = '';
   let tabLabel = '';
@@ -268,7 +270,13 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
       else if (a === '--model') model = v;
       else if (a === '--approvals') approvals = v;
       else if (a === '--name') name = v;
-      else if (a === '--kind') { kind = v; kindSet = 1; }
+      else if (a === '--kind') {
+        // An empty --kind would pass as "no flag" to the resolution while
+        // still ranking as a flag for the lane model/effort rule.
+        if (v === '') dieFriction('spawn: --kind expects a kind', 2);
+        kind = v;
+        kindSet = 1;
+      }
       else if (a === '--direction') direction = v;
       else if (a === '--ratio') ratio = v;
       else if (a === '--cwd') cwdArg = v;
@@ -278,20 +286,20 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
     }
   }
   ensureOrchestratorName(ctx, env);
-  const f = resolveRole(role, env, cwd);
-  const rk = String(role).replace(/-/g, '_');
+  resolveRole(role, env, cwd);
   if (role === 'planner') {
     dieFriction('spawn planner: the orchestrator is the planner and does not open a pane. Plan in this session.', 12);
   }
-  let lane = '';
-  if (lanesEnabled(ctx, env)) {
-    lane = laneOfRole(ctx, role, env);
-    if (lane === '') dieFriction(`spawn: role '${role}' is not in any lane (panes=${panesValue(ctx, env)}). Add it with lane.<name>.roles, or set lanes=off.`, 3);
+  // Resolution chain (lib/resolve.mjs, shared with the `roles` table):
+  // flag → lane → role.<r>.<attr> → frontmatter → kind default. Spawn keeps
+  // its own errors here and the post-chain steps (clamp, codex ceiling,
+  // resolveModel) unchanged.
+  const res = resolveRoleSettings(role, ctx, env, cwd, { kind, model, effort, approvals });
+  const lane = res.lane;
+  if (lane === '' && lanesEnabled(ctx, env)) {
+    dieFriction(`spawn: role '${role}' is not in any lane (panes=${panesValue(ctx, env)}). Add it with lane.<name>.roles, or set lanes=off.`, 3);
   }
-  // kind: flag → lane.<l>.kind → role.<r>.kind → frontmatter (spec 5.3).
-  if (kind === '') kind = laneAttr(ctx, lane, 'kind', null, env);
-  if (kind === '') kind = cfg(ctx, `role_${rk}_kind`, '', env);
-  if (kind === '') kind = fmGet(f, 'kind');
+  kind = res.kind;
   if (kind === '') dieFriction(`role ${role} has no default kind; pass --kind`, 3);
   const kindLayer = spawnKindLayer(ctx, role, lane, kindSet !== 0, env);
   if (!findExecutable(kindExe(kind), env)) warn(`executable '${kindExe(kind)}' not found in PATH; herdr agent start may fail`);
@@ -299,21 +307,9 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
     && !cfg(ctx, 'args_codex', '', env).includes('danger-full-access')) {
     warn("sub-orchestrator on codex: its sandbox blocks the Herdr socket (every 'herdr' call fails with Operation not permitted). Use --kind claude, or set args.codex=-s danger-full-access if you accept that.");
   }
-  const position = role === 'sub-orchestrator' ? 'orchestrator' : 'worker';
-  if (effort === '') effort = laneAttr(ctx, lane, 'effort', kindLayer, env);
-  if (effort === '') effort = cfg(ctx, `role_${rk}_effort`, '', env);
-  if (effort === '') effort = cfg(ctx, `effort_${kind}`, '', env);
-  if (effort === '') effort = fmGet(f, 'effort');
-  let modelSpec = model;
-  if (modelSpec === '') modelSpec = laneAttr(ctx, lane, 'model', kindLayer, env);
-  if (modelSpec === '') modelSpec = cfg(ctx, `role_${rk}_model`, '', env);
-  if (modelSpec === '') modelSpec = fmGet(f, 'model');
-  if (modelSpec === '') modelSpec = cfg(ctx, `model_${kind}_${position}`, '', env);
-  if (modelSpec === '') modelSpec = cfg(ctx, `model_${kind}`, '', env);
-  if (approvals === '') approvals = laneAttr(ctx, lane, 'approvals', null, env);
-  if (approvals === '') approvals = cfg(ctx, `role_${rk}_approvals`, '', env);
-  if (approvals === '') approvals = fmGet(f, 'approvals');
-  if (approvals === '') approvals = cfg(ctx, 'approvals', 'ask', env);
+  effort = res.effort;
+  modelSpec = res.modelSpec;
+  approvals = res.approvals;
   if (approvals !== 'ask' && approvals !== 'edits' && approvals !== 'full') {
     dieFriction(`invalid approvals '${approvals}' (ask|edits|full)`, 2);
   }

@@ -107,13 +107,17 @@ export function clampTo(effort, ceiling) {
 }
 
 // cursor_model_with_effort :506-514: a model that already ends in an effort
-// suffix is used as-is (warn); otherwise query --list-models and try
-// model-effort, then model (warn), then pass-through (warn).
+// suffix is used as-is — silently when that suffix is the requested effort
+// (or no effort was requested), with a warning when it differs; otherwise
+// query --list-models and try model-effort, then model (warn), then
+// pass-through (warn).
 const CURSOR_EFFORT_SUFFIX_RE = /-(low|medium|high|xhigh|max|none)$/;
 
 export function cursorModelWithEffort(model, effort, env = process.env, warn = defaultWarn) {
-  if (CURSOR_EFFORT_SUFFIX_RE.test(model)) {
-    warn(`cursor model '${model}' already encodes an effort; --effort ignored`);
+  const m = model.match(CURSOR_EFFORT_SUFFIX_RE);
+  if (m) {
+    if (m[1] === effort || effort === '') return model;
+    warn(`cursor model '${model}' already encodes effort '${m[1]}'; --effort ${effort} ignored`);
     return model;
   }
   // Bash hardcodes `timeout 20` here (HERDR_AGENTS_MODELS_TIMEOUT does not

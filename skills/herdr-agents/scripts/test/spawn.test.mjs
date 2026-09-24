@@ -2,8 +2,12 @@
 // test-multi-role.sh (cross-role reuse, approvals, edit history, old
 // 8-column lines, `unavailable` blocking only the same role, report
 // pending, cwd/kind mismatch, retarget + history), plus `uniqueName`,
-// `ensureOrchestratorName`, the resolution chains (kind/effort) and
-// `cmdSpawn` end-to-end in a child process (planner 12, usage 2, the
+// `ensureOrchestratorName`, the resolution chains (kind/effort),
+// `resolveRoleSettings` (the shared flag → lane → role.<r>.* → frontmatter
+// chain: the settings a flagless spawn records in the roster, flags/
+// config-lane layers with their sources, and the cursor effort-suffix
+// warning at spawn), and `cmdSpawn` end-to-end in a child process
+// (planner 12, usage 2, the
 // entry's top-level catch: DieError with a message → die 8; empty
 // message → the passthrough code only). A fake `herdr` (writeFakeCli)
 // answers per target; the real CLI is never used.
@@ -15,9 +19,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { nodeBin } from './parity.mjs';
-import { writeFakeCli } from './fakes.mjs';
+import { writeFakeCli, listingFake } from './fakes.mjs';
 import { loadConfig, DieError } from '../lib/config.mjs';
 import { enforceWorkerCap } from '../lib/lanes.mjs';
+import { resolveRoleSettings } from '../lib/resolve.mjs';
 import {
   agentNameTaken, approvalsRank, cmdSpawn, emitReuse, ensureOrchestratorName,
   findReusable, resolvedRoleKind, resolveSpawnEffort, uniqueName,
@@ -504,6 +509,82 @@ test('resolveSpawnEffort: the chain and the kind-layer rule', () => {
   } finally { fix.cleanup(); }
 });
 
+// resolveRoleSettings vs cmdSpawn: the same role, the same values — the
+// function's settings are what a flagless spawn records (kind/model/
+// approvals/lane in the roster, kind/model spec/effort in the JSON).
+test('resolveRoleSettings: matches what a flagless spawn records in the roster', () => {
+  const fix = makeFix('ha-spawn-resolve-');
+  try {
+    const res = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo);
+    assert.deepEqual(res, {
+      lane: 'build', kind: 'grok', kindFrom: 'role file',
+      modelSpec: 'grok', modelFrom: 'model.grok.worker (defaults)',
+      effort: 'xhigh', effortFrom: 'effort.grok (defaults)',
+      approvals: 'ask', approvalsFrom: 'approvals (defaults)',
+      kindLayer: 0,
+    });
+    const r = runSpawn(fix, ['implementer']);
+    assert.equal(r.status, 0, r.stderr);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.kind, res.kind);
+    assert.equal(j.model_spec, res.modelSpec);
+    assert.equal(j.effort, res.effort);
+    assert.equal(j.approvals, res.approvals);
+    const f = fix.row('build').split('\t');
+    assert.equal(f[2], res.kind, 'roster kind');
+    assert.equal(f[8], j.model, 'roster model is the resolved spec');
+    assert.equal(f[9], res.approvals, 'roster approvals');
+    assert.equal(f[11], res.lane, 'roster lane');
+    // Mutation captured: the spawn keeping its own copy of the chain (a
+    // divergence from the shared resolution) or a roster column that stops
+    // tracking the resolved model.
+  } finally { fix.cleanup(); }
+});
+
+test('resolveRoleSettings: flags, config layers and lane layers decide, with the source', () => {
+  const { fix, proj } = confFix('ha-spawn-resolve-layers-');
+  try {
+    // Flags beat the config layers.
+    const fl = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo,
+      { kind: 'cursor', model: 'm1', effort: 'low', approvals: 'full' });
+    assert.deepEqual([fl.kind, fl.kindFrom], ['cursor', 'flag']);
+    assert.deepEqual([fl.modelSpec, fl.modelFrom], ['m1', 'flag']);
+    assert.deepEqual([fl.effort, fl.effortFrom], ['low', 'flag']);
+    assert.deepEqual([fl.approvals, fl.approvalsFrom], ['full', 'flag']);
+    // role.<r>.* in a layer beats the frontmatter; a lane effort under the
+    // kind's layer is dropped (the frontmatter effort decides).
+    const user = path.join(fix.env.XDG_CONFIG_HOME, 'herdr-agents', 'config');
+    fs.mkdirSync(path.dirname(user), { recursive: true });
+    fs.writeFileSync(user, 'lane.build.effort=high\n');
+    proj('role.implementer.kind=pi\nrole.implementer.model=my-provider/my-model\n');
+    const res = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res.kind, 'pi');
+    assert.equal(res.kindFrom, 'role config (project)');
+    assert.equal(res.modelSpec, 'my-provider/my-model');
+    assert.equal(res.modelFrom, 'role config (project)');
+    assert.equal(res.kindLayer, 2);
+    assert.equal(res.effort, 'xhigh', 'the user lane effort under the project kind is dropped');
+    assert.equal(res.effortFrom, 'role file');
+    // The same lane effort at the kind's own layer counts.
+    proj('role.implementer.kind=pi\nrole.implementer.model=my-provider/my-model\nlane.build.effort=xhigh\n');
+    const res2 = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res2.effort, 'xhigh');
+    assert.equal(res2.effortFrom, 'lane build (project)');
+    // lane.<l>.kind decides the kind (and its layer is the reference rank).
+    proj('lane.build.kind=pi\n');
+    const res3 = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res3.kind, 'pi');
+    assert.equal(res3.kindFrom, 'lane build (project)');
+    assert.equal(res3.kindLayer, 2);
+    // Nothing set for pi: the model falls through to 'default'.
+    assert.equal(res3.modelSpec, '');
+    assert.equal(res3.modelFrom, 'default');
+    // Mutation captured: a flag losing to a config layer, a lane model/effort
+    // below the kind layer being counted, or a *From that names the wrong
+    // source/layer.
+  } finally { fix.cleanup(); }
+});
+
 // Codex models advertise their own levels in ~/.codex/models_cache.json.
 function seedCodexCache(fix) {
   fs.mkdirSync(path.join(fix.env.HOME, '.codex'), { recursive: true });
@@ -627,6 +708,31 @@ test('spawn: a fresh worker (layout=tab → herd tab), roster row and start args
     assert.equal(f[11], 'build');
     assert.ok(fix.logLines().includes('agent start build --kind grok --pane p-new --timeout 60000 -- --model grok-4.7 --reasoning-effort xhigh'),
       fix.logLines().join('\n'));
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: a cursor model that already encodes the effort — silent; another effort — warns', () => {
+  const fix = makeFix('ha-spawn-cursor-warn-');
+  try {
+    // A listing with suffixed ids only: `grok-4.7` resolves to the
+    // xhigh-suffixed id, which then matches the requested effort.
+    writeFakeCli(path.join(fix.root, 'bin'), 'cursor-agent',
+      listingFake('--list-models', ['grok-4.7-xhigh - X', 'grok-4.7-high - X']));
+    const r = runSpawn(fix, ['implementer', '--kind', 'cursor', '--model', 'grok-4.7', '--effort', 'xhigh']);
+    assert.equal(r.status, 0, r.stderr);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.model, 'grok-4.7-xhigh');
+    assert.equal(j.agent_args, '--model grok-4.7-xhigh');
+    assert.ok(!r.stderr.includes('already encodes'), `matching suffix warns nothing: ${r.stderr}`);
+    // A model that already encodes another effort: the new warning names
+    // both efforts. --pane skips the lane reuse (the warning is printed at
+    // the agent-args build, which reuse never reaches).
+    const r2 = runSpawn(fix, ['implementer', '--kind', 'cursor', '--model', 'grok-4.7-high', '--effort', 'xhigh', '--pane', 'p-z', '--name', 'second']);
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.equal(JSON.parse(r2.stdout).model, 'grok-4.7-high');
+    assert.ok(r2.stderr.includes("cursor model 'grok-4.7-high' already encodes effort 'high'; --effort xhigh ignored"), r2.stderr);
+    // Mutation captured: the redundant warning on a matching suffix (item 23)
+    // or the old message without the encoded effort named.
   } finally { fix.cleanup(); }
 });
 
@@ -847,5 +953,18 @@ test('enforceWorkerCap: a dead last roster worker is not counted and does not st
     assert.doesNotThrow(() => enforceWorkerCap(fix.ctx, fix.env, fix.repo));
     fix.writeRoster();
     assert.doesNotThrow(() => enforceWorkerCap(fix.ctx, fix.env, fix.repo));
+  } finally { fix.cleanup(); }
+});
+
+// Mutation captured: accepting `--kind ''` lets the shared resolution treat
+// it as absent while spawn still ranks it as a flag (lane model/effort
+// filtered differently for the same call).
+test('spawn: an empty --kind is a usage error', () => {
+  const fix = makeFix('ha-spawn-empty-kind-');
+  try {
+    const r = runSpawn(fix, ['implementer', '--kind', '']);
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /spawn: --kind expects a kind/);
+    assert.ok(!fix.logLines().some((l) => l.startsWith('agent start')), 'nothing started');
   } finally { fix.cleanup(); }
 });
