@@ -29,6 +29,7 @@ Glassmorphism and decorative glow, gradient text, identical card grids, cards in
 - Never create documentation files unless the brief asks.
 - Run only the file-local checks the brief allows (typecheck/lint of your files). The full suite belongs to the orchestrator.
 - Do not commit, push, or open PRs.
+- When the brief does not decide something that changes behavior, an interface, data, user-facing text, a public name or a requirement, do not choose: mark the item `partial`, list the gap and the options you see under open questions, and continue with the other items. Never invent names, endpoints, flags, credentials, URLs or requirements.
 </directives>
 
 <report>

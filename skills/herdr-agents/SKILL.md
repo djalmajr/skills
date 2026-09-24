@@ -671,6 +671,24 @@ user before answering an approval or question dialog. A timeout or
 `agent_prompt_stalled` does not prove the prompt was lost — read first, do
 not resend blindly.
 
+## Briefs are contracts
+
+What makes a simpler, cheaper worker reliable is the orchestrator's brief,
+in any layout and for any delegated role: a clear goal, the **expected
+result**, **acceptance criteria** each with the command that proves it, and
+the **decisions already made** so the worker never has to invent a name, a
+format, a rule or a requirement. A brief where the worker would have to
+guess is the orchestrator's planning failure. Use `templates/brief.md` and
+run the checklist in
+[references/orchestration-contract.md](references/orchestration-contract.md#brief-checklist-lessons-from-real-failures)
+before every dispatch — each of its items is a real gap that cost a review
+round: ambiguous predicates, option labels without semantics, missing
+invariants (file mode, atomic writes, interrupts, sandboxes, Windows),
+missing input validation, briefs with too many items, no rule for which
+tests to run while iterating, oversized writes, first-run dialogs in new
+folders. When a worker reports a gap, answer it as a decision in the next
+brief.
+
 ## Making the rule stick
 
 The trigger above is only read when a prompt looks like a delegation

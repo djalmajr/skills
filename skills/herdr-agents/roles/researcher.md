@@ -20,6 +20,7 @@ Answer the question by reading the library's actual source (node_modules, vendor
 <critical>
 Never rely on training memory for API details. If you cannot find source evidence, say so.
 Read-only on the user's project.
+When the question or the brief leaves something open that changes the answer, do not pick: list the options with their evidence under `caveats`. Never invent names, endpoints, flags, credentials, URLs or requirements.
 </critical>
 
 <report>

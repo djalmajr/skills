@@ -30,6 +30,58 @@ and role prompts encode them; the orchestrator is responsible for the rest.
    their own files; the full suite, the formatter, and global gates run once
    at integration.
 
+## Brief checklist (lessons from real failures)
+
+A worker that has to guess will guess — and a simpler model guesses more.
+Every item below was a real gap in an orchestrator's brief that cost a
+review round or a rewrite. Reread the brief as the worker before
+dispatching: any place where you would have to choose is a gap.
+
+- **Expected result, acceptance criteria, decisions made.** State what
+  exists at the end, how each criterion is proved (the command and the
+  expected output), and every name, format, text and value the worker must
+  not choose.
+- **Rules as exact predicates, each with a counterexample.** "A segment that
+  *is* a family name decides the family (`my-router/anthropic/x` →
+  anthropic; `anthropic-proxy/x` → unknown)" — not "a segment that is a
+  family prefix", which a worker reads as *starts with*.
+- **Every option the user can pick has its exact semantics.** An option
+  label ("2 panels") without the configuration it maps to gets invented,
+  and the invention can silently drop the user's other choices.
+- **Non-functional invariants, not only output.** For a rewritten file: its
+  mode is kept (new private files 0600), the temp file sits next to the
+  target (a temp dir on another filesystem breaks the rename), and nothing
+  is deleted before the replacing rename. For anything interruptible: what
+  happens on Ctrl-C / TERM, including children and grandchildren, and in
+  sandboxes where `ps`/`pgrep` are denied (signal process groups instead of
+  listing processes). Platform paths (Windows `.cmd` shims, `%APPDATA%`,
+  `path.join`). Secrets never copied into output.
+- **Input validation for every flag:** missing value, another flag in the
+  value's place, incomplete combinations (`--model` without `--kind`),
+  zero or negative numbers.
+- **Parity compares metadata too.** Byte-identical content with a different
+  file mode, a leftover temp file or a different exit code is not parity.
+- **Two or three items per brief.** A six-item brief pushed a worker to
+  90% of its context window; later turns get slower and sloppier.
+- **Which checks, when.** While iterating, only the check that proves the
+  item; the full matrix once, before the report. A brief without this rule
+  let a worker rerun a nine-minute matrix three times.
+- **Small writes with XML-tool-call models.** Ask for one file per call and
+  a few hundred lines at most per call. A `settled-no-report` whose screen
+  shows raw tool-call text is a malformed call, not a finished worker:
+  tell it nothing was written and to continue in smaller writes.
+- **First-run dialogs in new directories.** A fresh worktree or temp folder
+  can trigger a CLI's folder-trust prompt; tell the user or use a folder
+  already trusted. A CLI that crashes at start shows it in its pane — read
+  the pane before blaming the transport.
+- **Facts verified when the brief is written.** Flags, versions and
+  endpoints come from `--help` or the source at that moment; CLIs update
+  themselves between sessions.
+- **When the brief does not decide,** the worker marks the item `partial`,
+  lists the gap and the options, and continues. The orchestrator answers the
+  gap as a decision in the next brief — never by leaving it to the worker
+  again.
+
 ## Fragile resources
 
 9. **Export per slice, to local files.** Prototypes, slow MCPs, remote APIs:
