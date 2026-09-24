@@ -123,13 +123,14 @@ export function atomicWrite(dest, content) {
 // with an argument array, no shell, with an optional timeout (the `timeout`
 // port). On Windows a .cmd/.bat target runs through cmd.exe with every
 // argument escaped (cmdInvocation), never through `shell: true`. Returns
-// { notFound, resolved, status, signal, stdout, stderr, timedOut }.
+// { notFound, resolved, status, signal, stdout, stderr, timedOut, error }
+// (error: the spawn error code, e.g. ENOENT for a bad shebang interpreter).
 export function runCli(exe, args, opts = {}) {
   const env = opts.env ?? process.env;
   const platform = opts.platform ?? process.platform;
   const resolved = findExecutable(exe, env, platform);
   if (!resolved) {
-    return { notFound: true, resolved: null, status: null, signal: null, stdout: '', stderr: '', timedOut: false };
+    return { notFound: true, resolved: null, status: null, signal: null, stdout: '', stderr: '', timedOut: false, error: null };
   }
   let command = resolved;
   let argv = args;
@@ -168,6 +169,41 @@ export function runCli(exe, args, opts = {}) {
       stdout: text,
       stderr: '',
       timedOut: merged.status === null && merged.signal != null,
+      error: merged.error?.code ?? null,
+    };
+  }
+  // outputFiles: stdout and stderr each go to their own file (no pipe), so
+  // a child left alive holding them cannot hold the call past the timeout,
+  // and the two streams stay apart (bash `>"$outf" 2>"$errf"`).
+  if (opts.outputFiles) {
+    const base = path.join(env.TMPDIR || os.tmpdir(), `.herdr-agents-out-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
+    const outFd = fs.openSync(`${base}.out`, 'w', 0o600);
+    const errFd = fs.openSync(`${base}.err`, 'w', 0o600);
+    let child;
+    try {
+      child = spawnSync(command, argv, {
+        env,
+        cwd: opts.cwd,
+        stdio: ['ignore', outFd, errFd],
+        timeout: opts.timeoutMs,
+        killSignal: 'SIGTERM',
+        windowsVerbatimArguments: verbatim,
+      });
+    } finally { fs.closeSync(outFd); fs.closeSync(errFd); }
+    const read = (f) => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } };
+    const stdout = read(`${base}.out`);
+    const stderr = read(`${base}.err`);
+    fs.rmSync(`${base}.out`, { force: true });
+    fs.rmSync(`${base}.err`, { force: true });
+    return {
+      notFound: false,
+      resolved,
+      status: child.status,
+      signal: child.signal,
+      stdout,
+      stderr,
+      timedOut: child.status === null && child.signal != null,
+      error: child.error?.code ?? null,
     };
   }
   const child = spawnSync(command, argv, {
@@ -187,5 +223,6 @@ export function runCli(exe, args, opts = {}) {
     stdout: typeof child.stdout === 'string' ? child.stdout : '',
     stderr: typeof child.stderr === 'string' ? child.stderr : '',
     timedOut: child.status === null && child.signal != null,
+    error: child.error?.code ?? null,
   };
 }

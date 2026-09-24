@@ -10,8 +10,7 @@
 // this module owns the disk and the die messages. `--detect` is slice 7b
 // (lib/commands/setup-detect.mjs) and writes nothing; `--plan` is slice 7c
 // (lib/commands/setup-plan.mjs) and simulates the writes; `--probe` is
-// slice 8 and exits 2 with the entry's "not ported yet" message, citing the
-// option.
+// slice 8b (lib/commands/setup-probe.mjs) and runs the per-kind probes.
 import fs from 'node:fs';
 import path from 'node:path';
 import { DieError, cfg, configWritePair, configFileFor, stateRoot } from '../config.mjs';
@@ -21,6 +20,7 @@ import { applyLaneFile, setupLaneSpec } from '../lanes.mjs';
 import { SETUP_START, setupBlock, setupBlockResult, settingsHooksResult } from '../setuptext.mjs';
 import { cmdSetupDetect } from './setup-detect.mjs';
 import { cmdSetupPlan } from './setup-plan.mjs';
+import { cmdSetupProbe } from './setup-probe.mjs';
 
 // `[ -f ]` port: regular file, symlinks followed; false when unreadable.
 function isFile(p) {
@@ -84,19 +84,12 @@ export function projectNeedsConfigPrompt(file) {
   return true;
 }
 
-// The entry's "not ported yet" message, citing the unported option.
-function notPorted(what) {
-  process.stderr.write(`herdr-agents.mjs: '${what}' is not ported yet; use scripts/herdr-agents.sh\n`);
-  process.exit(2);
-}
-
 // cmd_setup (bash :2614-2719). --detect runs the pure detect JSON (7b) and
 // returns without writing, like the bash. --plan simulates the writes
-// (7c, cmdSetupPlan). `--probe` is not ported yet (8): it is refused with
-// the bash exclusivity message when combined with --plan, and exits 2 with
-// the entry's message. DieError carries the bash die 2/4 messages; the
-// entry turns it into the `herdr-agents: <msg>` stderr line and the exit
-// code.
+// (7c, cmdSetupPlan). --probe runs the per-kind probes (8b,
+// cmdSetupProbe); the two forms are exclusive (the bash die 2). DieError
+// carries the bash die 2/4 messages; the entry turns it into the
+// `herdr-agents: <msg>` stderr line and the exit code.
 export function cmdSetup(args, ctx, env, cwd = process.cwd()) {
   let wantProbe = 0;
   let wantPlan = 0;
@@ -105,7 +98,14 @@ export function cmdSetup(args, ctx, env, cwd = process.cwd()) {
     else if (a === '--plan') wantPlan = 1;
   }
   if (wantProbe === 1 && wantPlan === 1) throw new DieError('setup: --probe and --plan are exclusive', 2);
-  if (wantProbe === 1) notPorted('setup --probe');
+  if (wantProbe === 1) {
+    // bash: strip every --probe and run cmd_setup_probe with the rest —
+    // the probe needs no Herdr environment and opens no state (slice 8b).
+    const rest = [];
+    for (const a of args) if (a !== '--probe') rest.push(a);
+    cmdSetupProbe(rest, ctx, env, cwd);
+    return;
+  }
   if (wantPlan === 1) {
     // bash: strip every --plan and run cmd_setup_plan with the rest — the
     // simulation writes nothing (slice 7c).

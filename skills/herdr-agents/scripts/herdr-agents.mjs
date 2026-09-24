@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// herdr-agents — JavaScript entry (slices 1-8a and 7d of the bash port).
+// herdr-agents — JavaScript entry (slices 1-8b of the bash port).
 //
 // Dispatches the ported commands (`config`, `config set`, `session`,
 // `roles`, `role`, `kinds`, `models <kind>`, `model <kind> <spec>
@@ -7,9 +7,9 @@
 // `run <role> <brief.md> …`, `status <agent>…`, `roster`, `friction`,
 // `tab-label`, `layout-plan`, `regrid`, `wait <agent>…`, `collect <agent>`,
 // `release <agent>`, `clean`, `doctor [--fix] [--panes 3|4] [--user]`,
-// `explain`, `setup [--target FILE] [--no-hooks]
-// [--dry-run] [--panes 3|4] [--lane name=kind[:model[:effort]]] [--detect]
-// [--plan …]` — its `--probe` form is not ported yet and exits 2).
+// `explain`, `init`, `setup [--target FILE] [--no-hooks] [--dry-run]
+// [--panes 3|4] [--lane name=kind[:model[:effort]]] [--detect] [--plan …]
+// [--probe [--kind K --model M --timeout S]]`).
 // Any other command is reported as not
 // ported yet (exit 2) so the bash script remains the source of truth for
 // the rest until the later slices land. Load the config layers before
@@ -44,12 +44,13 @@ import { cmdRun } from './lib/commands/run.mjs';
 import { cmdSetup } from './lib/commands/setup.mjs';
 import { cmdDoctor } from './lib/commands/doctor.mjs';
 import { cmdExplain } from './lib/commands/explain.mjs';
+import { cmdInit } from './lib/commands/init.mjs';
 import { findExecutable } from './lib/platform.mjs';
 
-const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'regrid', 'wait', 'collect', 'release', 'clean', 'setup', 'doctor', 'explain'];
+const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'regrid', 'wait', 'collect', 'release', 'clean', 'setup', 'doctor', 'explain', 'init'];
 // The commands that log to friction when running inside Herdr (bash main's
 // living-command list, restricted to what this entry has ported).
-const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'regrid', 'wait', 'collect', 'release', 'clean']);
+const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'regrid', 'wait', 'collect', 'release', 'clean', 'init']);
 
 const argv = process.argv.slice(2);
 const cmd = argv[0] ?? '';
@@ -137,6 +138,9 @@ try {
       break;
     case 'explain':
       cmdExplain(argv.slice(1), ctx, env);
+      break;
+    case 'init':
+      cmdInit(ctx, env);
       break;
     case 'regrid':
       cmdRegrid(argv.slice(1), ctx, env);

@@ -268,9 +268,8 @@ test('parity: test-setup.sh scenario — the block embeds no absolute installer 
   }
 });
 
-// Node-only: the unported forms exit 2 (entry message), and --probe --plan is
-// refused with the bash exclusivity message. The bash side of these is the
-// 7b/8 work, so no bash run here.
+// Node-only: --probe --plan is refused with the bash exclusivity message
+// (the shared check in cmdSetup runs before either branch).
 function runNode(args) {
   const fix = makeFixture();
   try {
@@ -280,16 +279,6 @@ function runNode(args) {
     fix.cleanup();
   }
 }
-
-// --detect (7b) and --plan (7c) are ported; --probe comes with slice 8b.
-test('node: setup --probe is not ported yet (rc 2, citing the option)', () => {
-  for (const opt of ['--probe']) {
-    const r = runNode(['setup', opt]);
-    assert.equal(r.rc, 2, `${opt}: exit code`);
-    assert.equal(r.out, '', `${opt}: nothing on stdout`);
-    assert.equal(normalizeErr(r.err).trimEnd(), `PROG: 'setup ${opt}' is not ported yet; use scripts/herdr-agents.sh`, `${opt}: message`);
-  }
-});
 
 test('node: setup --probe --plan is exclusive (rc 2, the bash message)', () => {
   const r = runNode(['setup', '--probe', '--plan']);
