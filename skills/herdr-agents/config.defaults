@@ -142,6 +142,27 @@ spawn_timeout=60000
 # Milliseconds `dispatch`/`wait` allow per brief when the role sets no `timeout`.
 dispatch_timeout=900000
 
+# An idle worker whose last error line names a provider capacity limit (for
+# example an error type containing "capacity" or "overload", or status 529)
+# is sent "continue" after provider_retry_delay seconds, up to
+# provider_retries times; then the wait reports `capacity` (exit 14). Any
+# other provider failure on that line (for example a request timeout, a
+# connection error, "Retry failed after N attempts", "503: {…}") is reported
+# as `provider-error` (exit 14) with the line as the cause, no retry. The
+# exact patterns are in scripts/lib/provider.mjs.
+provider_retries=3
+provider_retry_delay=60
+
+# Seconds `dispatch` watches for the prompt to arrive (the agent starts
+# working or blocks, or the report appears). Text left in the input box gets
+# one Enter; an unchanged screen gets one resend; then `not-received`
+# (exit 15). 0 turns the check off.
+prompt_check_seconds=15
+
+# Minutes a working agent may show the same screen (counters aside) before
+# the wait logs a "may be stuck in one tool call" warning, once. 0 = off.
+stuck_warn_minutes=20
+
 # State root: briefs, reports, roster. Relative paths are under the repo root.
 # Must be writable by every worker sandbox (Codex denies .agents/ and .codex/).
 state_dir=.herdr-agents

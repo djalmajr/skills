@@ -284,6 +284,10 @@ counted in the dispatch JSON (`auto_approved`) and logged under
 `<state>/wait/<agent>.approvals.log`. It approves whatever the worker asks,
 so pair it with sandboxed kinds or narrow `approvals`. With it off, a
 blocked worker is reported (`blocked`, exit 7) and a human decides.
+A **question** is never answered for the worker, with or without
+`auto_approve`: when the blocked screen is a decision prompt (Codex's answer
+form, Claude Code's option picker, OpenCode's question dialog), the wait
+reports `question` (exit 7) with the screen text in the JSON `question`.
 
 ## Detecting completion (the only reliable signal is the report file)
 
@@ -298,14 +302,36 @@ $S dispatch a brief-a.md --no-wait   # fan out…
 $S dispatch b brief-b.md --no-wait
 $S wait a b                          # …then block until every report exists
 $S wait a b --any                    # or until the first one lands
-$S status a b                        # non-blocking: done | working | blocked | no-report-yet | gone | unavailable | quota
+$S status a b                        # non-blocking: done | working | blocked | question | no-report-yet | gone | unavailable | quota | provider-error | capacity
 ```
 
-`wait` prints one JSON line per agent (`done`, `blocked`, `settled-no-report`,
-`gone`, `unavailable`, `quota`, `timeout`) and exits 0 only when all reports exist
-(7 blocked, 6 settled/`gone`, 4 `unavailable`, 9 timeout, 11 quota). When several
-agents finish in one `wait`, the exit is the most severe of those: 4, then 11,
-then 7, then 6. Argument order does not change it. `gone` is only
+`wait` prints one JSON line per agent (`done`, `blocked`, `question`,
+`settled-no-report`, `gone`, `unavailable`, `quota`, `provider-error`,
+`capacity`, `timeout`) and exits 0 only when all reports exist (7
+blocked/`question`, 6 settled/`gone`, 4
+`unavailable`, 9 timeout, 11 quota, 14 `provider-error`/`capacity`). When
+several agents finish in one `wait`, the exit is the most severe of those:
+4, then 11, then 14, then 7, then 6. Argument order does not change it.
+`provider-error` is an idle worker whose last error line shows its model
+provider down (for example `Request timed out`, `Connection error`, `Retry
+failed after N attempts`, `503: {…}`); the JSON `cause` is that line.
+`capacity` is a provider that refused because it was full (for example an
+error type naming `capacity` or `overload`, or status 529). The exact
+patterns live in one place, `scripts/lib/provider.mjs`. On `capacity` the
+wait first sends the worker
+"continue" up to `provider_retries` times, `provider_retry_delay` seconds
+apart (each one logged in friction), and reports `capacity` only when that
+did not help. Both need two identical probes before they count, so a
+transient screen never ends a wait. A worker whose screen changes only in
+its counters for `stuck_warn_minutes` (20) while `working` gets one
+friction line ("may be stuck in one tool call"); the wait goes on.
+
+`dispatch` also checks that the prompt arrived: within
+`prompt_check_seconds` (15) the agent must start working or block, or the
+report must appear. If the prompt text sits in the agent's input box, it
+sends one Enter (JSON `enter_sent`); if the screen never moved, it resends
+the prompt once (`resent`); if nothing works, it returns `not-received`
+(exit 15) — read the pane before sending anything else. `gone` is only
 `agent_not_found`. `unavailable` is a permission or transport failure of
 `herdr agent get` (cause on stderr and in JSON `error`): retry or restore
 access; do not spawn a replacement, and do not `release` or `release --close`
@@ -488,8 +514,10 @@ role/agent, 4 Herdr failure (`unavailable`), 5 same-family reviewer, 6 settled w
 report, 7 agent blocked (startup or approval), 8 `max_workers` reached,
 9 wait timeout, 10 lane busy, 11 quota exhausted, 12 `spawn planner` (the
 orchestrator plans), 13 lane `kind-mismatch` (the live session runs another
-CLI: `release` the lane, and set `lane.<name>.kind` so it cannot recur). A multi-agent `wait` keeps the most severe of 4, 11, 7
-and 6. Every error
+CLI: `release` the lane, and set `lane.<name>.kind` so it cannot recur),
+14 provider error or capacity, 15 prompt not received (`dispatch`). 7 also
+covers a worker that asked a `question`. A multi-agent `wait` keeps the most severe
+of 4, 11, 14, 7 and 6. Every error
 and warning is also appended to `<state>/friction.log` (`$S friction`).
 
 ## What is implicit (read once)
@@ -687,8 +715,9 @@ see your own edits, so pick that reviewer's kind by hand.
    close only panes this skill created and only when the user did not ask
    to keep them.
 
-When a wait returns `blocked`, inspect `herdr agent read <name>` and ask the
-user before answering an approval or question dialog. A timeout or
+When a wait returns `blocked` or `question`, inspect `herdr agent read
+<name>` (the JSON `question` already holds the question's screen) and ask
+the user before answering an approval or question dialog. A timeout or
 `agent_prompt_stalled` does not prove the prompt was lost — read first, do
 not resend blindly.
 
@@ -803,11 +832,12 @@ Steps, in order, in the user's language (never the words `lane`, `kind`, or
    Each option is the assistant name plus its one-line `summary`
    (translated); the recommendation carries the one-line reason.
    **Own provider on `pi` or `opencode`:** before offering such a
-   `provider/model`, check its config without printing any value — the key
-   by environment reference, `maxTokens` (pi) or `limit.output` (opencode)
-   at least the reasoning budget of the chosen effort + 8192, and on
-   opencode a `thinking_token_budget` in the model's `options`. When one is
-   missing, ask: *Fix it for me* (recommended — show the exact change first),
+   `provider/model`, read the `warnings` of its `custom_models` entry in
+   `--detect` (the same traps `doctor` reports; no value is ever printed):
+   a literal key instead of an environment reference, a pi `maxTokens`
+   without 8192 tokens over the reasoning budget of the effort in use, an
+   opencode model without a numeric `thinking_token_budget`. When one is
+   present, ask: *Fix it for me* (recommended — show the exact change first),
    *I'll fix it myself*, *Use it as it is* + free text. Why:
    [references/kinds.md — Reasoning models on your own server](references/kinds.md#reasoning-models-on-your-own-server).
 4. **Where each choice is saved.** One question per choice: *only this
@@ -932,6 +962,13 @@ Use the harness's structured-question tool when:
   (pausing is the free text). When the work resumes on a new worker, put
   `git diff` of the partial edit in the brief so it continues instead of
   starting over.
+- `wait`, `status` or `dispatch` returns `provider-error` or `capacity`
+  (exit 14). The worker is idle without a report; the JSON carries `lane`,
+  `kind`, `model` and the `cause` line (plus `retries` on capacity). Options:
+  *Resend the brief to the same worker* (recommended when the provider
+  answers again — a short probe, or the cause was a timeout), *Switch the
+  assistant* (say which ready one), *Wait* + free text. Never resend
+  blindly: read the pane first.
 - The objective could be UI or not UI and the answer changes which roles are
   spawned.
 - A reviewer would come from the same family as the implementer and no

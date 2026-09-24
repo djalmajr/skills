@@ -13,7 +13,7 @@
 // (the intermediate states matter: a refused release leaves the roster
 // row, a done wait leaves the task file with ✓), plus the task-* /
 // last-report-* files and the fake herdr log. Wall-clock values (the
-// .since epoch, the friction and approvals-log timestamps) are normalized
+// .since and .stuck-since epochs, the friction and approvals-log timestamps) are normalized
 // before storing; the fixture root becomes <ROOT> in every string.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -150,7 +150,7 @@ function collectState(fix) {
   const put = (rel, content) => {
     if (content === null) return;
     const base = path.basename(rel);
-    if (base.endsWith('.since')) { out[rel] = 'EPOCH'; return; }
+    if (base.endsWith('.since') || base.endsWith('.stuck-since')) { out[rel] = 'EPOCH'; return; }
     if (base.endsWith('.approvals.log')) {
       out[rel] = content.split('\n').map((l) => l.replace(/^\d{8}T\d{6}/, 'TS')).join('\n');
       return;

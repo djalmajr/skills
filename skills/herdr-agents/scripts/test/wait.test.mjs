@@ -8,7 +8,10 @@
 // exercised through the real entry (child process) so its stdout and exit
 // code are observable; probeAgent / tryAutoApprove / briefTask /
 // markTaskDone are exercised in-process. A fake `herdr` (writeFakeCli) is
-// the only herdr the code sees.
+// the only herdr the code sees. S5 items 2 and 11a: a confirmed blocked
+// question screen (no key even with auto_approve=on, `question` with the
+// text, rc 7, friction entry) and the one-shot stuck-in-one-tool-call
+// warning for a still screen (counters aside).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -64,6 +67,17 @@ if (cmd === 'agent get') {
   process.stdout.write('{"result":{"agent":{"name":"' + t + '","agent_status":"' + m + '"}}}\\n');
 } else if (cmd === 'agent read') {
   process.stdout.write(screenOf(t));
+} else if (cmd === 'agent prompt') {
+  // The capacity continue prompt: success by default; when
+  // FAKE_REPORT_PATH is set the "worker" writes the report in answer to
+  // the continue, and when the FAKE_PROMPT_FAIL file exists the prompt
+  // fails like a dead provider.
+  if (process.env.FAKE_PROMPT_FAIL && fs.existsSync(process.env.FAKE_PROMPT_FAIL)) {
+    process.stderr.write('prompt failed: the fake refused\\n');
+    process.exit(1);
+  }
+  if (process.env.FAKE_REPORT_PATH) fs.writeFileSync(process.env.FAKE_REPORT_PATH, 'done\\n');
+  process.stdout.write('{"result":{}}\\n');
 } else if (cmd === 'agent list') {
   let agents = [];
   try { agents = (JSON.parse(fs.readFileSync(process.env.FAKE_LIVE, 'utf8')).agents) ?? []; } catch {}
@@ -162,9 +176,12 @@ function jsonLines(out) {
 
 // ---------- waitRank / wait_raise ----------
 
-test('waitRank: 4 > 11 > 7 > 6, everything else 0', () => {
-  assert.equal(waitRank(4), 4);
-  assert.equal(waitRank(11), 3);
+test('waitRank: 4 > 11 > 14 > 7 > 6, everything else 0', () => {
+  // Mutation captured: dropping the '14' case makes 14 rank 0 and the
+  // 14 > 7 / 11 > 14 order tests below fail.
+  assert.equal(waitRank(4), 5);
+  assert.equal(waitRank(11), 4);
+  assert.equal(waitRank(14), 3);
   assert.equal(waitRank(7), 2);
   assert.equal(waitRank(6), 1);
   assert.equal(waitRank(0), 0);
@@ -346,6 +363,207 @@ test('wait: quota fields and the friction entry', { timeout: 30000 }, () => {
     assert.match(friction, /warning\twait\tquota: agent 'q1' lane=build kind=grok model=grok-4.7/);
     // The .quota file holds the two lines the next read consumes.
     assert.equal(fix.waitRead('q1', 'quota'), 'Individual quota reached token=[redacted]\nResets at 5:00pm\n');
+  } finally { fix.cleanup(); }
+});
+
+// Provider error: the first detection only records the screen hash
+// and the detected status (keeping the agent working); the second probe
+// with the same screen and status confirms and writes the cause; a
+// changed screen re-arms the flag.
+test('wait: provider-error only on the second equal probe', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-provider-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', 'Error: Retry failed after 3 attempts: Request timed out.\n');
+    const sd = fix.ws;
+    // Mutation captured: removing the double confirm returns
+    // 'provider-error' on this first probe (this asserts 'working').
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'the first detection only records');
+    const rec = fix.waitRead('w', 'provider');
+    assert.ok(rec !== null && rec.split('\n')[1] === 'provider-error', 'the detected status is recorded');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'provider-error', 'the second equal probe confirms');
+    assert.equal(fix.waitRead('w', 'provider-cause'), 'Error: Retry failed after 3 attempts: Request timed out.\n');
+    // A changed screen re-arms: record again, keep working, then confirm
+    // with the new cause.
+    fix.screenOf('w', 'Error: Connection error.\n');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'a changed screen re-arms the flag');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'provider-error');
+    assert.equal(fix.waitRead('w', 'provider-cause'), 'Error: Connection error.\n');
+  } finally { fix.cleanup(); }
+});
+
+// Mutation captured: keeping <agent>.provider across a probe without the
+// stop lets a later identical screen confirm at once.
+test('wait: a probe without the stop clears the provider double-confirm', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-provider-clear-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    const sd = fix.ws;
+    const stop = 'Error: Connection error.\n';
+    fix.screenOf('w', stop);
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'first detection records');
+    fix.screenOf('w', '• all good\n');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'no stop on this probe');
+    assert.equal(fix.waitRead('w', 'provider'), null, 'the record is gone');
+    fix.screenOf('w', stop);
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'the same stop again only records');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'provider-error', 'and confirms on the next probe');
+  } finally { fix.cleanup(); }
+});
+
+// Mutation captured: returning on quota before clearing the provider
+// marks lets the same provider screen confirm right after the quota probe.
+test('wait: a quota probe between two provider probes clears the provider record', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-provider-quota-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    const sd = fix.ws;
+    const stop = 'Error: Connection error.\n';
+    fix.screenOf('w', stop);
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'first detection records');
+    fix.screenOf('w', 'You have hit your usage limit\n');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'quota');
+    assert.equal(fix.waitRead('w', 'provider'), null, 'the quota probe dropped the record');
+    fix.screenOf('w', stop);
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'the provider screen only records again');
+  } finally { fix.cleanup(); }
+});
+
+// Provider error end-to-end: exit 14 in two probes — no
+// settled_grace — with the lane/kind/model/cause JSON line and the
+// friction warn.
+test('wait: provider-error exits 14 with the lane, kind, model and cause', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-provider-rc-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', 'Error: Retry failed after 3 attempts: Request timed out.\n');
+    // Mutation captured: a wrong JSON key set or a missing waitRank 14
+    // changes the line or the rc (this asserts both).
+    const r = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r.status, 14, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report', 'lane', 'kind', 'model', 'cause']);
+    assert.equal(line.agent, 'w');
+    assert.equal(line.status, 'provider-error');
+    assert.equal(line.report, '');
+    assert.equal(line.lane, 'build');
+    assert.equal(line.kind, 'grok');
+    assert.equal(line.model, 'grok-4.7');
+    assert.equal(line.cause, 'Error: Retry failed after 3 attempts: Request timed out.');
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.match(friction, /warning\twait\tprovider error: agent 'w' lane=build kind=grok model=grok-4\.7 : Error: Retry failed after 3 attempts: Request timed out\./);
+  } finally { fix.cleanup(); }
+});
+
+// Capacity: the confirmed capacity sends the exact continue prompt
+// (one per provider_retry_delay); the worker report that lands in answer
+// turns the wait into done with rc 0.
+test('wait: capacity sends the continue prompt and the report settles done', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-capacity-done-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', 'API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}\n');
+    const reportPath = path.join(fix.ws, 'reports', 'w-report.md');
+    fs.writeFileSync(path.join(fix.ws, 'last-report-w'), reportPath + '\n');
+    // Mutation captured: never sending the prompt (or sending a different
+    // text) leaves the screen at capacity and the wait exits 14 instead
+    // of 0, and the log line below is absent.
+    const env = { ...fix.env, HERDR_AGENTS_PROVIDER_RETRY_DELAY: '0', FAKE_REPORT_PATH: reportPath };
+    const r = spawnSync(nodeBin(), [JS_ENTRY, 'wait', 'w', '--timeout', '10000'], { cwd: fix.repo, env, encoding: 'utf8', timeout: 60_000 });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(jsonLines(r.stdout), [{ agent: 'w', status: 'done', report: reportPath }]);
+    const tex = `The model provider was at capacity and your last request failed. Continue the task from where you stopped; do not redo finished steps. When finished, write your report to ${reportPath} and reply with only that path.`;
+    assert.ok(fix.logLines().includes(`agent prompt w ${tex}`), fix.logLines().join('\n'));
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.match(friction, /provider capacity: sent continue #1 of 3 to 'w': API Error: 529/);
+  } finally { fix.cleanup(); }
+});
+
+// Capacity exhausted: with provider_retries=1 the single continue is
+// sent and the still-at-capacity screen settles `capacity` with the
+// retries count, rc 14.
+test('wait: capacity exhausted at provider_retries=1 exits 14 with the retries', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-capacity-exhausted-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', 'API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}\n');
+    fs.writeFileSync(path.join(fix.ws, 'last-report-w'), path.join(fix.ws, 'reports', 'w-report.md') + '\n');
+    // Mutation captured: ignoring provider_retries (always the default 3)
+    // sends more continues and the wait times out (rc 9) instead of 14.
+    const env = { ...fix.env, HERDR_AGENTS_PROVIDER_RETRY_DELAY: '0', HERDR_AGENTS_PROVIDER_RETRIES: '1' };
+    const r = spawnSync(nodeBin(), [JS_ENTRY, 'wait', 'w', '--timeout', '10000'], { cwd: fix.repo, env, encoding: 'utf8', timeout: 60_000 });
+    assert.equal(r.status, 14, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report', 'lane', 'kind', 'model', 'cause', 'retries']);
+    assert.equal(line.status, 'capacity');
+    assert.equal(line.retries, 1);
+    assert.equal(line.lane, 'build');
+    assert.equal(line.model, 'grok-4.7');
+    assert.match(line.cause, /529/);
+    // Exactly one continue was sent.
+    assert.equal(fix.logLines().filter((l) => l.startsWith('agent prompt w ')).length, 1);
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.match(friction, /provider capacity: sent continue #1 of 1 to 'w'/);
+    assert.match(friction, /provider capacity: agent 'w' lane=build kind=grok model=grok-4\.7 : /);
+  } finally { fix.cleanup(); }
+});
+
+// Quota still wins over a provider stop on the same screen: the
+// quota check runs first and the provider stop is never reported.
+test('wait: quota wins over a provider stop on the same screen', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-quota-over-provider-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', 'Individual quota reached\nError: Connection error.\n');
+    // Mutation captured: swapping the quota/provider order reports
+    // provider-error (rc 14) instead of quota (rc 11).
+    const r = waitCmd(fix, ['w', '--timeout', '2000']);
+    assert.equal(r.status, 11, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.equal(line.status, 'quota');
+    assert.match(line.match, /Individual quota reached/);
+  } finally { fix.cleanup(); }
+});
+
+// The rank order 11 > 14 > 7 in a multi-agent wait: quota beats
+// provider-error, provider-error beats blocked, in any argument order.
+test('wait: the rank order 11 > 14 > 7 with quota, provider-error and blocked', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-rank-14-');
+  try {
+    fix.writeRoster(
+      ROW('blocked1', 'tasker', 'grok', '', 'build'),
+      ROW('prov', 'implementer', 'grok', 'grok-4.7', 'build'),
+      ROW('quota1', 'researcher', 'grok', 'grok-4.7', 'build'),
+    );
+    fix.modeOf('blocked1', 'blocked');
+    fix.waitFile('blocked1', 'blocked', ''); // the second blocked probe is due
+    fix.modeOf('prov', 'idle');
+    fix.screenOf('prov', 'Error: Connection error.\n');
+    fix.modeOf('quota1', 'idle');
+    fix.screenOf('quota1', 'hit your usage limit\n');
+    // Mutation captured: a 14 that ranks below 7 returns 7 instead of 14
+    // in the prov+blocked1 waits below.
+    for (const args of [['quota1', 'prov', 'blocked1'], ['prov', 'blocked1', 'quota1'], ['blocked1', 'prov', 'quota1']]) {
+      const r = waitCmd(fix, [...args, '--timeout', '10000']);
+      assert.equal(r.status, 11, `rc for ${args.join(' ')}: ${r.stderr}`);
+      const byAgent = Object.fromEntries(jsonLines(r.stdout).map((l) => [l.agent, l.status]));
+      assert.deepEqual(byAgent, { blocked1: 'blocked', prov: 'provider-error', quota1: 'quota' });
+    }
+    for (const args of [['prov', 'blocked1'], ['blocked1', 'prov']]) {
+      const r = waitCmd(fix, [...args, '--timeout', '10000']);
+      assert.equal(r.status, 14, `rc for ${args.join(' ')}: ${r.stderr}`);
+      const byAgent = Object.fromEntries(jsonLines(r.stdout).map((l) => [l.agent, l.status]));
+      assert.deepEqual(byAgent, { blocked1: 'blocked', prov: 'provider-error' });
+      const p = jsonLines(r.stdout).find((l) => l.agent === 'prov');
+      assert.equal(p.cause, 'Error: Connection error.');
+    }
   } finally { fix.cleanup(); }
 });
 
@@ -617,5 +835,152 @@ test('clean: a herdr agent list without an agent list exits 4 and keeps the rost
       assert.equal(r.stderr, 'herdr-agents: herdr agent list returned no agent list\n');
       assert.equal(fs.readFileSync(path.join(fix.ws, 'agents.tsv'), 'utf8'), before, `${answer}: roster kept`);
     }
+  } finally { fix.cleanup(); }
+});
+
+// ---------- S5 item 2: a decision question is never auto-answered ----------
+
+// The question footer turns the confirmed blocked probe into `question`
+// with the text, even with auto_approve=on: no key is sent, the .question
+// file holds the text, rc 7 and the friction entry say nobody answers it
+// automatically.
+test('wait: a codex question screen reports question, no key, even with auto_approve=on', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-question-');
+  try {
+    fix.writeRoster(ROW('q', 'implementer', 'codex'));
+    fix.mode('blocked');
+    fix.screen('  1. Use the local cache\n  2. Fetch from remote\n\nEnter to submit answer, esc to cancel\n');
+    const sd = fix.ws;
+    const env = { ...fix.env, HERDR_AGENTS_AUTO_APPROVE: 'on' };
+    assert.equal(probeAgent(sd, 'q', '', fix.ctx, env), 'working', 'the first blocked probe only records');
+    // Mutation captured: answering the question with auto_approve (sending
+    // the default key) returns 'working' here and the fake log gains a
+    // send-keys line; this asserts 'question' and a zero-key log.
+    assert.equal(probeAgent(sd, 'q', '', fix.ctx, env), 'question', 'the confirmed probe detects the question');
+    assert.equal(fix.waitRead('q', 'question'),
+      '  1. Use the local cache\n  2. Fetch from remote\nEnter to submit answer, esc to cancel\n');
+    assert.equal(fix.waitRead('q', 'approvals'), null, 'no auto-approval counter');
+    assert.equal(fix.logLines().filter((l) => l.startsWith('agent send-keys')).length, 0, 'zero send-keys');
+    // End to end: rc 7, the JSON line carries the text (no other keys),
+    // and the friction entry says nobody answers it automatically.
+    const r = cmd(fix, ['wait', 'q', '--timeout', '10000'], { HERDR_AGENTS_AUTO_APPROVE: 'on' });
+    assert.equal(r.status, 7, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report', 'question']);
+    assert.equal(line.agent, 'q');
+    assert.equal(line.status, 'question');
+    assert.equal(line.report, '');
+    assert.equal(line.question, '  1. Use the local cache\n  2. Fetch from remote\nEnter to submit answer, esc to cancel');
+    assert.equal(fix.logLines().filter((l) => l.startsWith('agent send-keys')).length, 0, 'still zero send-keys across the whole wait');
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.match(friction, /warning\twait\tagent 'q' asked a question; nobody answers it automatically\. Ask the user, then answer with herdr agent send-keys\/prompt, or release the worker\./);
+  } finally { fix.cleanup(); }
+});
+
+// The codex approval screens from the decisions ("allow command?" / "press
+// enter to confirm") keep today's behavior: the default key is sent and the
+// wait continues.
+test('wait: a codex approval screen keeps the auto-approve key (behavior untouched)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-question-approval-');
+  try {
+    fix.writeRoster(ROW('a', 'implementer', 'codex'));
+    fix.mode('blocked');
+    fix.screen('Allow command? git push\n\n❯ 1. Yes, proceed\n  2. No\n\nPress enter to confirm or esc to cancel\n');
+    const sd = fix.ws;
+    const env = { ...fix.env, HERDR_AGENTS_AUTO_APPROVE: 'on' };
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 'the first blocked probe only records');
+    // Mutation captured: treating this approval as a question returns
+    // 'question' and sends no key; this asserts the key went out.
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 'the approval is auto-answered as today');
+    assert.ok(fix.logLines().includes('agent send-keys a y'), 'the codex default key is sent');
+    assert.equal(fix.waitRead('a', 'approvals'), '1\n');
+    assert.equal(fix.waitRead('a', 'question'), null, 'no .question file for an approval');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- S5 item 11a: one friction line for a stuck working agent ----------
+
+// A working agent whose normalized screen (digits → #, progress glyphs →
+// *) does not change for stuck_warn_minutes gets exactly one friction line;
+// the status stays working, nothing is sent; a changed screen re-arms; 0
+// disables the check.
+test('wait: a still screen (counters aside) warns once after stuck_warn_minutes', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-stuck-');
+  try {
+    fix.writeRoster(ROW('s', 'implementer'));
+    fix.mode('working');
+    // The visible counters change between the runs below; the normalized
+    // screen (digits → #, progress glyphs → *) does not. Every wait run
+    // probes once and then times out (a working agent never settles), so
+    // the friction log of the runs shows exactly what the wait warned.
+    fix.screen('Running tests 42% ◐ 3.1s\n');
+    const sd = fix.ws;
+    const env = { ...fix.env, HERDR_AGENTS_STUCK_WARN_MINUTES: '1' };
+    const norm = (s) => s.replace(/\r\n/g, '\n').replace(/[0-9]+/g, '#').replace(/[\u2800-\u28ff◐◑◒◓]/g, '*');
+    const H_RUN = String(cksumField(norm('Running tests 42% ◐ 3.1s\n')));
+    const H_BUILD = String(cksumField(norm('Building app 12% ◒ 0.9s\n')));
+    const frictionNow = () => {
+      try { return fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8'); } catch { return ''; }
+    };
+    const warnRe = /agent 's' has shown the same screen \(apart from counters\)/g;
+    // Seed the bookkeeping as if this screen (counters aside) has been up
+    // for 70 s: hash equal, since in the past.
+    fix.waitFile('s', 'stuck-hash', `${H_RUN}\n`);
+    fix.waitFile('s', 'stuck-since', `${Math.floor(Date.now() / 1000) - 70}\n`);
+    // Mutation captured: warning on every probe (instead of once) adds a
+    // second friction line on run 2; never warning (or a broken time
+    // comparison) leaves the log empty on run 1.
+    const r1 = cmd(fix, ['wait', 's', '--timeout', '1000'], env);
+    assert.equal(r1.status, 9, 'the working agent times out: nothing was sent');
+    assert.match(r1.stderr, /agent 's' has shown the same screen \(apart from counters\) for 1 min while working; it may be stuck in one tool call\. Inspect: herdr agent read s --source recent-unwrapped --lines 60/);
+    assert.equal(fix.waitRead('s', 'stuck-warned'), '', '.stuck-warned is set');
+    assert.equal((frictionNow().match(warnRe) ?? []).length, 1, 'exactly one warning');
+    assert.match(frictionNow(), /warning\twait\tagent 's' has shown the same screen \(apart from counters\)/);
+    // A further run with the same normalized screen (new counters) warns
+    // nothing new and the status stays working.
+    fix.screen('Running tests 57% ◑ 8.4s\n');
+    const r2 = cmd(fix, ['wait', 's', '--timeout', '1000'], env);
+    assert.equal(r2.status, 9);
+    assert.equal((frictionNow().match(warnRe) ?? []).length, 1, 'still one warning');
+    // A changed screen (apart from counters) re-arms: hash and since are
+    // rewritten and .stuck-warned is cleared.
+    fix.screen('Building app 12% ◒ 0.9s\n');
+    const r3 = cmd(fix, ['wait', 's', '--timeout', '1000'], env);
+    assert.equal(r3.status, 9);
+    assert.equal((frictionNow().match(warnRe) ?? []).length, 1, 'movement does not warn');
+    assert.equal(fix.waitRead('s', 'stuck-hash'), `${H_BUILD}\n`, 'the new hash is recorded');
+    assert.equal(fix.waitRead('s', 'stuck-warned'), null, 'the flag is cleared on movement');
+    // Back to the first screen: the run re-records it...
+    fix.screen('Running tests 42% ◐ 3.1s\n');
+    const r4 = cmd(fix, ['wait', 's', '--timeout', '1000'], env);
+    assert.equal(r4.status, 9);
+    assert.equal((frictionNow().match(warnRe) ?? []).length, 1);
+    // ...and, aged into the past, the same screen warns again.
+    fix.waitFile('s', 'stuck-since', `${Math.floor(Date.now() / 1000) - 130}\n`);
+    const r5 = cmd(fix, ['wait', 's', '--timeout', '1000'], env);
+    assert.equal(r5.status, 9);
+    assert.equal((frictionNow().match(warnRe) ?? []).length, 2, 'a re-armed screen warns again');
+    assert.match(frictionNow(), /for 2 min while working/);
+    // 0 disables the check entirely (no further warning).
+    fix.waitFile('s', 'stuck-since', `${Math.floor(Date.now() / 1000) - 3600}\n`);
+    const r6 = cmd(fix, ['wait', 's', '--timeout', '1000'], { ...fix.env, HERDR_AGENTS_STUCK_WARN_MINUTES: '0' });
+    assert.equal(r6.status, 9);
+    assert.equal((frictionNow().match(warnRe) ?? []).length, 2, '0 never warns');
+    assert.ok(!r6.stderr.includes('has shown the same screen'));
+    assert.equal(fix.logLines().filter((l) => l.startsWith('agent send-keys') || l.startsWith('agent prompt')).length, 0, 'nothing was ever sent');
+  } finally { fix.cleanup(); }
+});
+
+// Mutation captured: reading the visible screen again for the stuck check
+// doubles the herdr calls of every working probe.
+test('wait: a working probe reads the screen once', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-one-read-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('working');
+    fix.screenOf('w', '⠋ Working (12s)\n');
+    probeAgent(fix.ws, 'w', '', fix.ctx, fix.env);
+    const reads = fix.logLines().filter((l) => l.startsWith('agent read w'));
+    assert.equal(reads.length, 1, reads.join('\n'));
   } finally { fix.cleanup(); }
 });

@@ -1,7 +1,8 @@
 // wait/collect bookkeeping (port slice 6a): the per-agent completion probe
 // (report-size stability, blocked double-probe, auto-approve, quota,
-// settled screen, gone / unavailable), the error-rank order for a
-// multi-agent wait (4 > 11 > 7 > 6), the synchronous poll loop and the
+// provider error / capacity double-probe with the bounded continue
+// prompts, settled screen, gone / unavailable), the error-rank order for a
+// multi-agent wait (4 > 11 > 14 > 7 > 6), the synchronous poll loop and the
 // `wait` command. Port of the original bash implementation :3616-3810
 // (kind_approve_keys :3616, try_auto_approve :3625, probe_agent :3644,
 // notify_done :3690, wait_rank :3733, wait_raise :3742, wait_for :3751,
@@ -23,8 +24,11 @@ import path from 'node:path';
 import { readTextFile } from './platform.mjs';
 import { cfg, DieError } from './config.mjs';
 import { stateDir, rosterLine, lastReport, warn, dieFriction, nowStamp, sleepSync } from './state.mjs';
-import { agentState, agentRead, agentSendKeys, notificationShow } from './herdr.mjs';
+import { agentState, agentRead, agentSendKeys, notificationShow, agentPrompt } from './herdr.mjs';
+import { sanitizeCause } from './text.mjs';
+import { dialogKind, questionText } from './dialog.mjs';
 import { quotaDetect } from './quota.mjs';
+import { providerDetect } from './provider.mjs';
 import { laneOfRole } from './lanes.mjs';
 import { markTaskDone } from './tasks.mjs';
 
@@ -115,9 +119,17 @@ function readWaitFile(sd, agent, name) {
   try { return readTextFile(path.join(sd, 'wait', name)).replace(/\n+$/, ''); } catch { return null; }
 }
 
-// done | pending | blocked | working | settled | quota | gone |
-// `unavailable\t<cause>` — per-agent screen/settled bookkeeping under
-// <state>/wait/ (the .size/.screen/.since/.blocked/.quota files).
+// done | pending | blocked | question | working | settled | quota |
+// provider-error | capacity | gone | `unavailable\t<cause>` — per-agent
+// screen/settled bookkeeping under <state>/wait/ (the .size/.screen/
+// .since/.blocked/.question/.stuck-hash/.stuck-since/.stuck-warned/.quota/
+// .provider/.provider-cause/.capacity-retries/.capacity-at files).
+// S5 items 2 and 11a: a confirmed blocked screen that matches the kind's
+// question marker (lib/dialog.mjs) returns `question` with the text saved
+// in <agent>.question (no key sent, same rank as blocked); a working
+// agent whose visible screen only changes in its counters (digits, progress
+// glyphs) for stuck_warn_minutes gets one friction line (nothing sent, the
+// status stays working).
 export function probeAgent(sd, agent, report, ctx, env = process.env) {
   const grace = Number(cfg(ctx, 'settled_grace', '45', env));
   if (reportNonEmpty(report)) {
@@ -137,13 +149,64 @@ export function probeAgent(sd, agent, report, ctx, env = process.env) {
     // Detection can flag a transient approval UI; require two consecutive
     // blocked probes before acting. With auto_approve=on the default
     // option is sent and the wait continues (bounded by
-    // max_auto_approvals).
+    // max_auto_approvals). A decision question is never auto-answered: on
+    // the confirmed probe the visible screen is read, and when it matches
+    // the kind's question marker the wait reports `question` with the text
+    // and sends no key — with or without auto_approve.
     const bfile = path.join(sd, 'wait', `${agent}.blocked`);
-    if (fs.existsSync(bfile)) return tryAutoApprove(sd, agent, ctx, env) ? 'working' : 'blocked';
+    if (fs.existsSync(bfile)) {
+      const kind = rosterLine(sd, agent).split('\t')[2] ?? '';
+      const visible = agentRead(env, agent, { source: 'visible', lines: 40 });
+      if (dialogKind(kind, visible) === 'question') {
+        fs.writeFileSync(path.join(sd, 'wait', `${agent}.question`), `${questionText(visible)}\n`);
+        return 'question';
+      }
+      return tryAutoApprove(sd, agent, ctx, env) ? 'working' : 'blocked';
+    }
     fs.writeFileSync(bfile, '');
     return 'working';
   }
   fs.rmSync(path.join(sd, 'wait', `${agent}.blocked`), { force: true });
+  // The provider double-confirm and the capacity delay only hold across
+  // consecutive probes that keep seeing the stop: a working agent or a
+  // screen without it clears both (the continue counter stays per dispatch).
+  const pfile = path.join(sd, 'wait', `${agent}.provider`);
+  const atFile = path.join(sd, 'wait', `${agent}.capacity-at`);
+  const clearProviderMarks = () => {
+    fs.rmSync(pfile, { force: true });
+    fs.rmSync(atFile, { force: true });
+  };
+  if (st.state === 'working') clearProviderMarks();
+  // The visible screen, read at most once per probe: the stuck check and the
+  // settled check below share it.
+  let screen = null;
+  const visibleScreen = () => (screen ??= agentRead(env, agent, { source: 'visible' }));
+  // A working agent whose visible screen only changes in its counters
+  // (digits and progress glyphs) for stuck_warn_minutes is probably stuck in
+  // one tool call: one friction line, once, nothing is sent and the status
+  // stays working. 0 disables the check.
+  const limitMin = Number(cfg(ctx, 'stuck_warn_minutes', '20', env));
+  if (st.state === 'working' && limitMin > 0) {
+    const norm = String(visibleScreen())
+      .replace(/\r\n/g, '\n')
+      .replace(/[0-9]+/g, '#')
+      .replace(/[\u2800-\u28ff◐◑◒◓]/g, '*');
+    const h = String(cksumField(norm));
+    const nowS = Math.floor(Date.now() / 1000);
+    if (readWaitFile(sd, agent, `${agent}.stuck-hash`) !== h) {
+      fs.writeFileSync(path.join(sd, 'wait', `${agent}.stuck-hash`), `${h}\n`);
+      fs.writeFileSync(path.join(sd, 'wait', `${agent}.stuck-since`), `${nowS}\n`);
+      fs.rmSync(path.join(sd, 'wait', `${agent}.stuck-warned`), { force: true });
+    } else if (!fs.existsSync(path.join(sd, 'wait', `${agent}.stuck-warned`))) {
+      const sinceS = Number(readWaitFile(sd, agent, `${agent}.stuck-since`));
+      // A missing or non-numeric .stuck-since keeps the agent working (never
+      // a false warning).
+      if (Number.isFinite(sinceS) && (nowS - sinceS) >= limitMin * 60) {
+        warn(`agent '${agent}' has shown the same screen (apart from counters) for ${Math.floor((nowS - sinceS) / 60)} min while working; it may be stuck in one tool call. Inspect: herdr agent read ${agent} --source recent-unwrapped --lines 60`);
+        fs.writeFileSync(path.join(sd, 'wait', `${agent}.stuck-warned`), '');
+      }
+    }
+  }
   if (st.state !== 'working') {
     const qtext = agentRead(env, agent, { source: 'visible', lines: 20 });
     const q = quotaDetect(st.state, qtext);
@@ -151,11 +214,70 @@ export function probeAgent(sd, agent, report, ctx, env = process.env) {
       // `printf '%s\n' "$(quota_detect …)"`: the command substitution strips
       // the trailing newlines, so an empty renewal leaves a one-line file.
       fs.writeFileSync(path.join(sd, 'wait', `${agent}.quota`), q[1] !== '' ? `${q[0]}\n${q[1]}\n` : `${q[0]}\n`);
+      clearProviderMarks(); // a quota screen interrupts any provider confirmation
       return 'quota';
     }
+    // Provider stop (after the quota, which always wins): the same screen,
+    // read as recent-unwrapped (long lines arrive unbroken).
+    const ptext = agentRead(env, agent, { source: 'recent-unwrapped', lines: 40 });
+    const p = providerDetect(st.state, ptext);
+    if (p) {
+      // Double confirm, like blocked: the first detection records the
+      // screen hash and the detected status in <agent>.provider and keeps
+      // working; it acts only on the next probe when the hash AND the
+      // status are the same. Any difference re-records the new detection.
+      const target = `${String(cksumField(ptext))}\n${p.status}`;
+      const prev = readWaitFile(sd, agent, `${agent}.provider`);
+      if (prev !== target) {
+        fs.rmSync(pfile, { force: true });
+        fs.writeFileSync(pfile, `${target}\n`);
+        return 'working';
+      }
+      // Confirmed: the same screen hash and status as the previous probe.
+      fs.writeFileSync(path.join(sd, 'wait', `${agent}.provider-cause`), `${p.cause}\n`);
+      if (p.status === 'provider-error') return 'provider-error';
+      // Capacity is transient: at most provider_retries continue prompts,
+      // each at least provider_retry_delay apart from the first
+      // confirmation (the .capacity-at epoch-s marker).
+      let used = 0;
+      const usedRaw = readWaitFile(sd, agent, `${agent}.capacity-retries`);
+      if (usedRaw !== null) {
+        // A counter that exists but is not an integer fails closed, like
+        // the .approvals counter: treat it as exhausted.
+        if (!/^\s*[0-9]+\s*$/.test(usedRaw)) return 'capacity';
+        used = Number(usedRaw.trim());
+      }
+      const limit = Number(cfg(ctx, 'provider_retries', '3', env));
+      if (!Number.isFinite(limit) || used >= limit) return 'capacity';
+      const atRaw = readWaitFile(sd, agent, `${agent}.capacity-at`);
+      if (atRaw === null) {
+        fs.writeFileSync(atFile, `${Math.floor(Date.now() / 1000)}\n`);
+        return 'working';
+      }
+      const delay = Number(cfg(ctx, 'provider_retry_delay', '60', env));
+      const at = Number(atRaw);
+      const nowS = Math.floor(Date.now() / 1000);
+      // Bash `[ $((now_s - since)) -ge "$grace" ]`: a non-numeric operand
+      // fails the test and the agent keeps working.
+      if (!(Number.isFinite(at) && Number.isFinite(delay) && (nowS - at) >= delay)) return 'working';
+      const report = lastReport(sd, agent);
+      const sent = agentPrompt(agent,
+        `The model provider was at capacity and your last request failed. Continue the task from where you stopped; do not redo finished steps. When finished, write your report to ${report} and reply with only that path.`,
+        env);
+      if (!sent.ok) {
+        // The continue never left: warn and act as if exhausted.
+        warn(`provider capacity: failed to send the continue to '${agent}': ${sanitizeCause(sent.raw) || 'unknown error'}; acting as exhausted`);
+        return 'capacity';
+      }
+      fs.writeFileSync(path.join(sd, 'wait', `${agent}.capacity-retries`), `${used + 1}\n`);
+      fs.rmSync(atFile, { force: true });
+      fs.rmSync(pfile, { force: true });
+      warn(`provider capacity: sent continue #${used + 1} of ${limit} to '${agent}': ${p.cause}`);
+      return 'working';
+    }
+    clearProviderMarks();
   }
-  const screen = agentRead(env, agent, { source: 'visible' });
-  const hash = String(cksumField(screen));
+  const hash = String(cksumField(visibleScreen()));
   const lastScreen = readWaitFile(sd, agent, `${agent}.screen`) ?? '';
   const nowS = Math.floor(Date.now() / 1000);
   if (st.state === 'working' || hash !== lastScreen) {
@@ -180,13 +302,14 @@ export function notifyDone(agent, report, ctx, env = process.env) {
 
 // ---------- wait_rank / wait_raise (:3733) ----------
 
-// One order for a multi-agent wait: 4 unavailable > 11 quota > 7 blocked >
-// 6 gone or settled. The argument order must not turn a quota into a
-// blocked or a gone.
+// One order for a multi-agent wait: 4 unavailable > 11 quota >
+// 14 provider-error or capacity > 7 blocked > 6 gone or settled. The
+// argument order must not turn a quota into a blocked or a gone.
 export function waitRank(code) {
   switch (String(code)) {
-    case '4': return 4;
-    case '11': return 3;
+    case '4': return 5;
+    case '11': return 4;
+    case '14': return 3;
     case '7': return 2;
     case '6': return 1;
     default: return 0;
@@ -223,8 +346,8 @@ function readQuotaFile(sd, agent) {
 }
 
 // wait_for <timeout_ms> <any> <agent>… → one JSON line per agent;
-// rc 0 when every agent settles, 4/11/7/6 by rank otherwise, 9 on timeout
-// (with a `timeout` line for each pending agent). Synchronous: the sleep
+// rc 0 when every agent settles, 4/11/14/7/6 by rank otherwise, 9 on
+// timeout (with a `timeout` line for each pending agent). Synchronous: the sleep
 // between probes is Atomics.wait, so the caller's event loop never turns.
 // `sink` receives each JSON line (default: process.stdout). The `wait`
 // command prints them; `dispatch` captures them instead of printing (bash
@@ -258,6 +381,13 @@ export function waitFor(agents, opts) {
           jsonLine({ agent: a, status: 'blocked', report: r }, sink);
           rc = waitRaise(rc, 7);
           break;
+        case 'question': {
+          const q = readWaitFile(sd, a, `${a}.question`) ?? '';
+          jsonLine({ agent: a, status: 'question', report: r, question: q }, sink);
+          warn(`agent '${a}' asked a question; nobody answers it automatically. Ask the user, then answer with herdr agent send-keys/prompt, or release the worker.`);
+          rc = waitRaise(rc, 7);
+          break;
+        }
         case 'gone':
           jsonLine({ agent: a, status: 'gone', report: r }, sink);
           rc = waitRaise(rc, 6);
@@ -286,6 +416,27 @@ export function waitFor(agents, opts) {
           rc = waitRaise(rc, 11);
           break;
         }
+        case 'provider-error':
+        case 'capacity': {
+          const cause = readWaitFile(sd, a, `${a}.provider-cause`) ?? '';
+          const f = rosterLine(sd, a).split('\t');
+          const kind = f[2] ?? '';
+          const model = f.length >= 9 ? (f[8] ?? '') : '';
+          let lane = f.length >= 12 ? (f[11] ?? '') : '';
+          const roleNow = f[3] ?? '';
+          if (lane === '') lane = laneOfRole(ctx, roleNow, env);
+          if (tag === 'provider-error') {
+            jsonLine({ agent: a, status: 'provider-error', report: r, lane, kind, model, cause }, sink);
+            warn(`provider error: agent '${a}' lane=${lane || '?'} kind=${kind} model=${model || '?'} : ${cause}`);
+          } else {
+            const retryRaw = readWaitFile(sd, a, `${a}.capacity-retries`);
+            const retries = retryRaw !== null && /^\s*[0-9]+\s*$/.test(retryRaw) ? Number(retryRaw.trim()) : 0;
+            jsonLine({ agent: a, status: 'capacity', report: r, lane, kind, model, cause, retries }, sink);
+            warn(`provider capacity: agent '${a}' lane=${lane || '?'} kind=${kind} model=${model || '?'} : ${cause}`);
+          }
+          rc = waitRaise(rc, 14);
+          break;
+        }
         default:
           pending.push(a);
       }
@@ -303,7 +454,8 @@ export function waitFor(agents, opts) {
 // ---------- cmd_wait (:3802) ----------
 
 // `wait <agent>… [--timeout MS] [--any]`: rc 0 all done · 4 unavailable ·
-// 11 quota · 7 blocked · 6 settled-no-report|gone · 9 timeout.
+// 11 quota · 14 provider-error|capacity · 7 blocked (or a question) ·
+// 6 settled-no-report|gone · 9 timeout.
 export function cmdWait(argv, ctx, env = process.env, cwd = process.cwd()) {
   const agents = [];
   let timeout = '';

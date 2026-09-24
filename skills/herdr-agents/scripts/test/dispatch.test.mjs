@@ -34,9 +34,14 @@ const JS_ENTRY = path.join(SCRIPTS, 'herdr-agents.mjs');
 // `agent get` per target (mode-<t> file) else the global mode file
 // (denied → an unqueryable error, missing → agent_not_found, else the mode
 // as agent_status); `agent read` prints screen-<t> (or the global screen
-// file); `agent prompt` fails when FAKE_PROMPT_FAIL exists (one line of
-// stderr, exit 1) and logs the prompt text as a call; `agent list` from
-// FAKE_LIVE. Every call is logged as one "$*" line (FAKE_LOG).
+// file); `agent prompt` fails when FAKE_PROMPT_FAIL exists, is a silent
+// no-op when the FAKE_PROMPT_SKIP file exists (consumed on the call),
+// leaves the prompt text in the input box (FAKE_PROMPT_INPUT), turns the
+// worker to working (FAKE_PROMPT_ARRIVE), or is accepted into the
+// scrollback (default: the screen moves, the state stays); `agent
+// send-keys` turns the worker to working when the FAKE_SENDKEYS_WORK file
+// exists; `agent list` from FAKE_LIVE. Every call is logged as one "$*"
+// line (FAKE_LOG).
 const HERDR_FAKE = `
 import fs from 'node:fs';
 const argv = process.argv.slice(2);
@@ -55,6 +60,14 @@ const screenOf = (t) => {
   try { return fs.readFileSync(process.env.FAKE_SCREEN_DIR + '/screen-' + t, 'utf8'); }
   catch { try { return fs.readFileSync(process.env.FAKE_SCREEN, 'utf8'); } catch { return ''; } }
 };
+const modeFileOf = (t) => {
+  const per = process.env.FAKE_MODE_DIR + '/mode-' + t;
+  try { fs.accessSync(per); return per; } catch { return process.env.FAKE_MODE; }
+};
+const screenTargetOf = (t) => {
+  const per = process.env.FAKE_SCREEN_DIR + '/screen-' + t;
+  try { fs.accessSync(per); return per; } catch { return process.env.FAKE_SCREEN; }
+};
 if (cmd === 'agent get') {
   const m = modeOf(t);
   if (m === 'denied') {
@@ -69,11 +82,33 @@ if (cmd === 'agent get') {
 } else if (cmd === 'agent read') {
   process.stdout.write(screenOf(t));
 } else if (cmd === 'agent prompt') {
-  if (process.env.FAKE_PROMPT_FAIL && fs.existsSync(process.env.FAKE_PROMPT_FAIL)) {
+  if (process.env.FAKE_PROMPT_SKIP && fs.existsSync(process.env.FAKE_PROMPT_SKIP)) {
+    // Item 15: a silent no-op — the pane is left exactly where it was.
+    fs.rmSync(process.env.FAKE_PROMPT_SKIP, { force: true });
+    process.stdout.write('{"result":{}}\\n');
+  } else if (process.env.FAKE_PROMPT_FAIL && fs.existsSync(process.env.FAKE_PROMPT_FAIL)) {
     process.stderr.write('prompt failed: the fake refused\\n');
     process.exit(1);
+  } else if (process.env.FAKE_PROMPT_INPUT) {
+    // S5 amendment: the text sits in the input box (screen only).
+    try { fs.appendFileSync(screenTargetOf(t), '> Read the file /x/brief.md in full and execute it.\\n'); } catch {}
+    process.stdout.write('{"result":{}}\\n');
+  } else if (process.env.FAKE_PROMPT_ARRIVE) {
+    try { fs.writeFileSync(modeFileOf(t), 'working\\n'); } catch {}
+    try { fs.writeFileSync(screenTargetOf(t), 'thinking…\\n'); } catch {}
+    process.stdout.write('{"result":{"submitted":true}}\\n');
+  } else {
+    // Accepted into the scrollback: the screen moves, the state stays.
+    try { fs.appendFileSync(screenTargetOf(t), 'prompt received: ok\\n'); } catch {}
+    process.stdout.write('{"result":{"submitted":true}}\\n');
   }
-  process.stdout.write('{"result":{"submitted":true}}\\n');
+} else if (cmd === 'agent send-keys') {
+  // S5 input-box case: the Enter starts the worker only when the
+  // FAKE_SENDKEYS_WORK file exists; otherwise the key is swallowed.
+  if (process.env.FAKE_SENDKEYS_WORK && fs.existsSync(process.env.FAKE_SENDKEYS_WORK)) {
+    try { fs.writeFileSync(modeFileOf(t), 'working\\n'); } catch {}
+  }
+  process.stdout.write('{"result":{}}\\n');
 } else if (cmd === 'agent list') {
   let agents = [];
   try { agents = (JSON.parse(fs.readFileSync(process.env.FAKE_LIVE, 'utf8')).agents) ?? []; } catch {}
@@ -112,6 +147,7 @@ function makeFix(prefix) {
     HERDR_ENV: '1',
     HERDR_AGENTS_REGRID: 'off',
     HERDR_AGENTS_WAIT_POLL_MS: '20',
+    HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1',
     FAKE_MODE: path.join(root, 'mode'),
     FAKE_MODE_DIR: modeDir,
     FAKE_SCREEN: path.join(root, 'screen'),
@@ -119,6 +155,8 @@ function makeFix(prefix) {
     FAKE_LIVE: path.join(root, 'live.json'),
     FAKE_LOG: path.join(root, 'herdr.log'),
     FAKE_PROMPT_FAIL: path.join(root, 'prompt-fail'),
+    FAKE_PROMPT_SKIP: path.join(root, 'prompt-skip'),
+    FAKE_SENDKEYS_WORK: path.join(root, 'sendkeys-work'),
     PATH: `${bin}${path.delimiter}${process.env.PATH}`,
   };
   fs.writeFileSync(env.FAKE_MODE, 'idle\n');
@@ -137,6 +175,8 @@ function makeFix(prefix) {
       if (on) fs.writeFileSync(env.FAKE_PROMPT_FAIL, '1\n');
       else fs.rmSync(env.FAKE_PROMPT_FAIL, { force: true });
     },
+    // Item 15: the next `agent prompt` is a silent no-op (file consumed).
+    promptSkip() { fs.writeFileSync(env.FAKE_PROMPT_SKIP, '1\n'); },
     brief(name, body) {
       const p = path.join(root, name);
       fs.writeFileSync(p, body);
@@ -595,6 +635,213 @@ test('dispatch: timeout 9 with a working agent, quota 11 with the lane fields', 
   } finally { fix.cleanup(); }
 });
 
+test('dispatch: a provider-error worker exits 14 with the lane, model and cause', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-provider-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Error: connect ECONNREFUSED\n');
+    // Mutation captured: missing exit 14, or a JSON without lane/model/
+    // cause (or with kind/retries keys), fails the asserts below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--timeout', '5000']);
+    assert.equal(r.status, 14, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'provider-error');
+    assert.equal(j.lane, 'build');
+    assert.equal(j.model, 'grok-4.7');
+    assert.equal(j.cause, 'Error: connect ECONNREFUSED');
+    assert.equal(j.kind, 'grok', 'the base kind key stays');
+    assert.ok(!('retries' in j) && !('match' in j) && !('renewal' in j),
+      'provider-error adds lane, model, cause only (no retries)');
+    assert.match(r.stderr, /agent 'build' stopped on a provider error: Error: connect ECONNREFUSED\. It is idle without a report; ask the user whether to resend the brief, switch the assistant, or wait\./);
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch: capacity after one continue exits 14 with the retries', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-capacity-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}\n');
+    // Mutation captured: ignoring provider_retries (or the wait_status
+    // branches) leaves the JSON/exit code on the wrong path.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--timeout', '5000'],
+      { HERDR_AGENTS_PROVIDER_RETRIES: '1', HERDR_AGENTS_PROVIDER_RETRY_DELAY: '0' });
+    assert.equal(r.status, 14, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'capacity');
+    assert.equal(j.lane, 'build');
+    assert.equal(j.model, 'grok-4.7');
+    assert.equal(j.retries, 1);
+    assert.match(j.cause, /529/);
+    assert.match(r.stderr, /agent 'build' is still at provider capacity after 1 continue\(s\): .*529.* Ask the user whether to wait and resend, switch the assistant, or pause\./);
+  } finally { fix.cleanup(); }
+});
+
+// ---------- item 15: the prompt-arrival check (S5 + amendment) ----------
+
+// The state turning to working right after the send is an arrival: no
+// resend, no keys, the JSON stays on the plain submitted shape.
+test('dispatch: arrival confirmed by the state turning working → no resend', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-arrive-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    // Mutation captured: not checking the arrival (or checking the old
+    // screen-change rule) would skip or mis-time this fake's state turn
+    // and the log counts below fail.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '3', FAKE_PROMPT_ARRIVE: '1' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.ok(!('resent' in j) && !('enter_sent' in j), 'no arrival keys on a plain arrival');
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'one prompt only');
+    assert.equal(log.filter((l) => l.startsWith('agent send-keys')).length, 0, 'no keys sent');
+  } finally { fix.cleanup(); }
+});
+
+// The pane never moved (screen == H0, state idle): the single resend is
+// sent, it arrives, and the JSON carries resent after auto_approved.
+test('dispatch: an ignored prompt is resent once and the JSON carries resent', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-resent-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    fix.promptSkip(); // the first prompt is a silent no-op; the second arrives
+    // Mutation captured: never resending (or resending twice) changes the
+    // prompt count below or drops the resent key / the resend warn.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '2', FAKE_PROMPT_ARRIVE: '1' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.equal(j.resent, true, 'the resend is reported');
+    assert.deepEqual(Object.keys(j),
+      ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists', 'auto_approved', 'resent']);
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 2, 'exactly two prompts');
+    assert.match(r.stderr, /prompt to 'build' did not arrive \(screen unchanged, agent not working\); sending it once more/);
+  } finally { fix.cleanup(); }
+});
+
+// Swallowed twice (the resend lands in the scrollback but the state stays
+// idle and there is no report): not-received, exit 15, the error-case keys
+// without raw.
+test('dispatch: a prompt ignored twice ends not-received with exit 15', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-notreceived-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    fix.promptSkip(); // the first prompt is swallowed; the resend hits the
+    // default "accepted into the scrollback" fake (state stays idle)
+    // Mutation captured: exiting 0 instead of 15, or a JSON with the raw
+    // key (or missing wait_status), fails the asserts below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '2' });
+    assert.equal(r.status, 15, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'not-received');
+    assert.deepEqual(Object.keys(j),
+      ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists'],
+      'the error-case keys without raw');
+    assert.equal(j.report_exists, false);
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 2, 'one prompt + one resend');
+    assert.match(r.stderr, /prompt to 'build' was not received after one resend; read the pane \(herdr agent read build --source visible\) before sending anything else/);
+  } finally { fix.cleanup(); }
+});
+
+// 0 turns the check off: one prompt and nothing else — no H0 screen read,
+// no arrival probes, no resend — even for an idle pane.
+test('dispatch: prompt_check_seconds=0 sends one prompt and probes nothing', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-nocheck-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle'); // an idle pane would be `not-received` if the check ran
+    // Mutation captured: running the arrival check anyway (or resending)
+    // adds agent get/read lines or a second prompt to the log below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(parsePretty(r.stdout).wait_status, 'submitted');
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'one prompt only');
+    assert.equal(log.filter((l) => l.startsWith('agent get ')).length, 0, 'no arrival probes');
+    assert.equal(log.filter((l) => l.startsWith('agent read ')).length, 0, 'no screen reads (not even the H0)');
+  } finally { fix.cleanup(); }
+});
+
+// The prompt text is visible in the input box and the state stays idle:
+// one Enter key, no second prompt, the JSON carries enter_sent.
+test('dispatch: a prompt sitting in the input box gets one Enter (enter_sent)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-enter-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    fs.writeFileSync(fix.env.FAKE_SENDKEYS_WORK, '1\n'); // the Enter starts the worker
+    // Mutation captured: not detecting the input box (or resending instead
+    // of the Enter, or sending the key before the window) changes the log
+    // and the enter_sent key below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '2', FAKE_PROMPT_INPUT: '1' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.equal(j.enter_sent, true, 'the Enter is reported');
+    assert.ok(!('resent' in j), 'no resend in the input-box case');
+    assert.deepEqual(Object.keys(j),
+      ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists', 'auto_approved', 'enter_sent']);
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'no second prompt');
+    assert.deepEqual(log.filter((l) => l.startsWith('agent send-keys')),
+      ['agent send-keys build enter'], 'exactly one Enter');
+    assert.match(r.stderr, /prompt to 'build' sat in the input box; sent Enter/);
+  } finally { fix.cleanup(); }
+});
+
+// The same input-box case, but the fake swallows the Enter (state stays
+// idle, no report): not-received, exit 15, and still no second prompt —
+// the input-box case never resends.
+test('dispatch: an input-box prompt that ignores the Enter ends not-received (exit 15)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-enter-ignored-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    // No FAKE_SENDKEYS_WORK: the fake swallows the Enter.
+    // Mutation captured: resending after the ignored Enter (a second
+    // agent prompt) or reporting `submitted` instead of 15 fails the
+    // asserts below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '2', FAKE_PROMPT_INPUT: '1' });
+    assert.equal(r.status, 15, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'not-received');
+    assert.deepEqual(Object.keys(j),
+      ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists']);
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'no second prompt after the Enter');
+    assert.deepEqual(log.filter((l) => l.startsWith('agent send-keys')),
+      ['agent send-keys build enter'], 'the Enter was still sent once');
+    assert.match(r.stderr, /prompt to 'build' sat in the input box; sent Enter/);
+    assert.match(r.stderr, /prompt to 'build' was not received after an Enter on the text left in its input box/);
+    assert.ok(!r.stderr.includes('after one resend'), 'no resend happened, so the message does not claim one');
+  } finally { fix.cleanup(); }
+});
+
 test('dispatch: usage errors (missing args, unknown option, brief not found, not in roster)', { timeout: 30000 }, () => {
   const fix = makeFix('ha-dispatch-usage-');
   try {
@@ -623,6 +870,33 @@ test('dispatch: usage errors (missing args, unknown option, brief not found, not
     const notInRoster = cmd(fix, ['dispatch', 'ghost', fix.brief('b.md', FULL_BRIEF)]);
     assert.equal(notInRoster.status, 3, notInRoster.stderr);
     assert.match(notInRoster.stderr, /agent 'ghost' is not in this skill's roster \(spawn it first, or pass a name you spawned\)/);
+  } finally { fix.cleanup(); }
+});
+
+// A worker that ends on a question screen (with the wait): the final JSON
+// carries wait_status `question` and the question key after auto_approved,
+// exit 7; the .question file lands under <state>/wait/ (dispatch clears it
+// on the next dispatch).
+test('dispatch: a worker that ends in a question exits 7 with the question in the JSON', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-question-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'codex', 'implementer', 'xai', fix.repo, 'gpt-5', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('blocked');
+    fix.screen('  1. Use the local cache\n  2. Fetch from remote\n\nEnter to submit answer, esc to cancel\n');
+    fix.promptSkip(); // silent no-op: the screen stays exactly the question screen
+    // Mutation captured: a `question` wait falling through to the default
+    // case (or a JSON without the question key after auto_approved)
+    // changes the rc and the key set below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--timeout', '10000'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '3' });
+    assert.equal(r.status, 7, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'question');
+    assert.equal(j.question, '  1. Use the local cache\n  2. Fetch from remote\nEnter to submit answer, esc to cancel');
+    assert.deepEqual(Object.keys(j),
+      ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists', 'auto_approved', 'question']);
+    assert.ok(fs.existsSync(path.join(fix.ws, 'wait', 'build.question')), 'the .question file is kept for the next wait');
   } finally { fix.cleanup(); }
 });
 

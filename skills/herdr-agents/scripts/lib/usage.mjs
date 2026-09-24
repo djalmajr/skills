@@ -70,9 +70,10 @@ flags win over env):
 Exit codes: 2 usage/env · 3 unknown role/agent · 4 Herdr failure (includes
 \`herdr agent get\` transport/permission errors reported as \`unavailable\`) ·
 5 same-family reviewer · 6 settled without report or agent really gone ·
-7 agent blocked (startup or approval) · 8 max_workers reached ·
+7 agent blocked (startup or approval) or asked a question · 8 max_workers reached ·
 9 wait timeout · 10 lane busy · 11 quota exhausted · 12 planner is the orchestrator ·
-13 lane kind-mismatch (set lane.<name>.kind, or release the lane).
+13 lane kind-mismatch (set lane.<name>.kind, or release the lane) ·
+14 provider error or capacity · 15 prompt not received.
 `;
 
 // Print the help text to stdout (bash `usage`; exit 0, no Herdr needed).

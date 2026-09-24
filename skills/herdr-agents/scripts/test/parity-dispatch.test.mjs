@@ -234,10 +234,14 @@ function dispatchValue(opts) {
     const results = [];
     const stepFiles = [];
     for (const step of opts.steps) {
+      // The fake agents never turn `working` after a prompt, so the
+      // arrival check would end every scenario as not-received; it is off
+      // here and covered by dispatch.test.mjs.
       const stepEnv = {
         ...fix.env,
         HERDR_ENV: '1',
         HERDR_AGENTS_REGRID: 'off',
+        HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0',
         PATH: `${path.join(fix.root, 'bin')}${path.delimiter}${process.env.PATH}`,
         ...(step.env ?? {}),
       };

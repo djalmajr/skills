@@ -3,14 +3,26 @@
 // header, the role line, the role body, the brief, and the report contract,
 // byte-identical to the bash printf sequence — the $TMPDIR routing of a
 // worker whose cwd is not the project root, and the `dispatch` command
-// (prompt submission, the pane task title, the optional wait and the exit
-// codes 0/4/6/7/9/11). Port of the original bash implementation :3870-3886
-// (family_conflicts), :3887-3899 (lint_brief), :3900-4102 (cmd_dispatch).
+// (prompt submission, the prompt-arrival check, the pane task title, the
+// optional wait and the exit codes 0/4/6/7/9/11/14/15). Port of the
+// original bash implementation
+// :3870-3886 (family_conflicts), :3887-3899 (lint_brief), :3900-4102
+// (cmd_dispatch).
+//
+// S5 item 15 (+orchestrator amendment): before the send the visible screen
+// is hashed (H0); for prompt_check_seconds (0 turns the check off) the
+// agent is probed at min(1000, poll interval) ms — arrived when the state
+// is working/blocked or a non-empty report exists; at the window's end, the
+// prompt text sitting in the input box gets one Enter (enter_sent), a still
+// H0 screen gets the single resend (resent), any other screen change counts
+// as received; still nothing → `not-received` (exit 15). A `question` wait
+// ends 7.
 //
 // Faithful-port notes:
 //   - the dispatch JSON keeps the bash `jq -n` key order (agent, role, kind,
 //     composed_prompt, report, wait_status, report_exists, auto_approved,
-//     and lane/model/match/renewal only on a quota);
+//     and lane/model/match/renewal only on a quota, and lane/model/cause —
+//     plus retries on a capacity — only on a provider-error/capacity);
 //   - the wait JSON lines are captured, not printed (bash `out="$(wait_for
 //     …)"`); waitFor's sink parameter (lib/wait.mjs) makes that possible
 //     without changing the `wait` command;
@@ -24,15 +36,15 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { dieFriction, nowStamp, rosterLine, rosterRows, stateDir, warn, workspaceId } from './state.mjs';
+import { dieFriction, nowStamp, rosterLine, rosterRows, sleepSync, stateDir, warn, workspaceId } from './state.mjs';
 import { cfg, DieError } from './config.mjs';
 import { hasWord } from './text.mjs';
 import { projectRoot } from './platform.mjs';
 import { fmGet, roleBody, roleFile, roleIsEdit, historyHasEdit, REVIEW_ROLES } from './roles.mjs';
-import { agentPrompt } from './herdr.mjs';
+import { agentPrompt, agentState, agentRead, agentSendKeys } from './herdr.mjs';
 import { briefTask, paneTaskTitle } from './tasks.mjs';
 import { jqPretty } from './herdtabs.mjs';
-import { waitFor } from './wait.mjs';
+import { waitFor, pollIntervalMs, cksumField } from './wait.mjs';
 
 // ---------- family_conflicts (:3870) ----------
 
@@ -93,8 +105,29 @@ export function lintBrief(brief, ctx, env = process.env) {
   warn(`brief ${brief} is missing sections:${missing} — workers without owned/forbidden files collide, without a report section never finish`);
 }
 
-// ---------- the composed prompt (:3930-3958) ----------
+// ---------- prompt arrival (item 15 + amendment) ----------
 
+// The exact start of the text dispatch sends to the worker (the input-box
+// marker below must track it).
+const PROMPT_MARKER = 'Read the file ';
+
+// The last `n` non-empty lines of a screen (CRLF normalized).
+export function lastNonEmptyLines(screen, n) {
+  return String(screen ?? '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .filter((l) => l.trim() !== '')
+    .slice(-n);
+}
+
+// True when one of the last 15 non-empty visible lines carries the start of
+// the dispatched text: the prompt is sitting in the CLI's input box (the
+// screen changed, the agent is idle, no Enter was ever sent).
+export function promptSitsInInput(screen) {
+  return lastNonEmptyLines(screen, 15).some((l) => l.includes(PROMPT_MARKER));
+}
+
+// ---------- the composed prompt (:3930-3958) ----------
 // The composed prompt file: `# Role: <name>`, the role line, the role body,
 // `# Brief` with the brief verbatim (`cat` — no CRLF normalization), and
 // `# Report contract` with the report path, the report language when
@@ -126,9 +159,9 @@ export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env 
 // ---------- cmd_dispatch (:3900) ----------
 
 // `dispatch <agent> <brief.md> [--role R] [--timeout MS] [--no-wait]
-// [--allow-same-family]` → the final JSON, rc 0/4/6/7/9/11. The `${1:?}` /
-// `${2:?}` parameter errors are bash builtins (exit 1, no friction entry),
-// so they use a plain stderr line, not dieFriction.
+// [--allow-same-family]` → the final JSON, rc 0/4/6/7/9/11/14/15. The
+// `${1:?}` / `${2:?}` parameter errors are bash builtins (exit 1, no
+// friction entry), so they use a plain stderr line, not dieFriction.
 export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   const agent = argv[0];
   const brief = argv[1];
@@ -213,13 +246,38 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   fs.mkdirSync(path.dirname(composed), { recursive: true });
   fs.writeFileSync(composed, composePrompt(rf, role, agent, fs.readFileSync(brief, 'utf8'), report, ctx, env));
   fs.writeFileSync(path.join(sd, `last-report-${agent}`), `${report}\n`);
-  for (const suf of ['size', 'screen', 'since', 'blocked', 'approvals', 'quota']) {
+  for (const suf of ['size', 'screen', 'since', 'blocked', 'approvals', 'quota',
+    'provider', 'provider-cause', 'capacity-retries', 'capacity-at',
+    'question', 'stuck-hash', 'stuck-since', 'stuck-warned']) {
     fs.rmSync(path.join(sd, 'wait', `${agent}.${suf}`), { force: true });
   }
 
   // Submit. Bash merges stdout+stderr into `result` (2>&1) and fails on a
-  // non-zero exit.
-  const text = `Read the file ${composed} in full and execute it. It contains your role, your brief, and your report contract. When finished, write your report to ${report} and reply with exactly that path and nothing else.`;
+  // non-zero exit. The prompt always starts with PROMPT_MARKER (the
+  // input-box marker of the arrival check below).
+  const text = `${PROMPT_MARKER}${composed} in full and execute it. It contains your role, your brief, and your report contract. When finished, write your report to ${report} and reply with exactly that path and nothing else.`;
+  // Item 15 (+amendment): the acceptance of the `agent prompt` call is not
+  // proof the prompt reached the worker (a dead pane kept its welcome
+  // screen; a CLI kept the text sitting in its input box). With the check
+  // on (prompt_check_seconds a positive integer; 0 turns it off, and an
+  // invalid value fails safe = off) the visible screen is hashed before
+  // the send (H0) and, for prompt_check_seconds at min(1000, poll
+  // interval) ms, the agent is probed:
+  //   1. arrived when the state is working or blocked, or a non-empty
+  //      report exists (a screen change alone no longer counts);
+  //   2. at the window's end, when one of the last 15 non-empty visible
+  //      lines carries the marker, the prompt sat in the input box: one
+  //      Enter key, then a fresh window with only rule 1;
+  //   3. still on the exact H0 screen (and not 2): the single resend of
+  //      the same text (fresh H0), then a fresh window with only rule 1;
+  //   4. a changed screen (and not 2, and not arrived): considered
+  //      received (a worker detected by a screen that does not report
+  //      working), no resend.
+  // Still nothing: `not-received`, exit 15.
+  const rawWin = String(cfg(ctx, 'prompt_check_seconds', '15', env));
+  const checkOn = /^[0-9]+$/.test(rawWin) && Number(rawWin) > 0;
+  let H0 = '';
+  if (checkOn) H0 = cksumField(agentRead(env, agent, { source: 'visible' }));
   let status = 'submitted';
   const p = agentPrompt(agent, text, env);
   if (!p.ok) {
@@ -227,6 +285,60 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
     process.stdout.write(jqPretty({ agent, role, kind, composed_prompt: composed, report, wait_status: 'error', report_exists: false, raw: p.raw }));
     warn(`prompt submission failed; inspect with: herdr agent get ${agent} && herdr agent read ${agent}. Do not resend blindly.`);
     return 4;
+  }
+  let resent = false;
+  let enterSent = false;
+  if (checkOn) {
+    const windowMs = Number(rawWin) * 1000;
+    const pollMs = Math.min(1000, pollIntervalMs(env));
+    // Rule 1 only: the state or the report says the prompt landed.
+    const arrived = () => {
+      const st = agentState(agent, env);
+      if (st.state === 'working' || st.state === 'blocked') return true;
+      try { return fs.statSync(report).size > 0; } catch { return false; }
+    };
+    const waitForArrival = (ms) => {
+      const deadline = Date.now() + ms;
+      for (;;) {
+        if (arrived()) return true;
+        if (Date.now() >= deadline) break;
+        sleepSync(pollMs);
+      }
+      return arrived();
+    };
+    // Same keys as the error case above (without raw).
+    const notReceived = (what) => {
+      let reportNow = false;
+      try { reportNow = fs.statSync(report).size > 0; } catch { reportNow = false; }
+      process.stdout.write(jqPretty({ agent, role, kind, composed_prompt: composed, report,
+        wait_status: 'not-received', report_exists: reportNow }));
+      warn(`prompt to '${agent}' was not received after ${what}; read the pane (herdr agent read ${agent} --source visible) before sending anything else`);
+      return 15;
+    };
+    if (!waitForArrival(windowMs)) {
+      const screen = agentRead(env, agent, { source: 'visible' });
+      if (promptSitsInInput(screen)) {
+        // (2) the text is visible in the input box: it sat there without
+        // an Enter. Send one Enter and re-check with only rule 1.
+        agentSendKeys(agent, 'enter', env);
+        enterSent = true;
+        warn(`prompt to '${agent}' sat in the input box; sent Enter`);
+        if (!waitForArrival(windowMs)) return notReceived('an Enter on the text left in its input box');
+      } else if (String(cksumField(screen)) === String(H0)) {
+        // (3) the screen never moved: resend the same text once.
+        warn(`prompt to '${agent}' did not arrive (screen unchanged, agent not working); sending it once more`);
+        H0 = cksumField(agentRead(env, agent, { source: 'visible' }));
+        if (agentPrompt(agent, text, env).ok) {
+          resent = true;
+          if (!waitForArrival(windowMs)) return notReceived('one resend');
+        } else {
+          return notReceived('one resend');
+        }
+      }
+      // (4) the screen changed without the input marker — a worker
+      // detected by a screen that does not report working: received, no
+      // resend.
+    }
   }
 
   // The task the pane shows: `<role>: <task>` from the brief's H1 (or the
@@ -245,6 +357,9 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   let qrenew = '';
   let qlane = '';
   let qmodel = '';
+  let pcause = '';
+  let preties = 0;
+  let qtext = '';
   if (wait === 1) {
     const lines = [];
     try {
@@ -261,6 +376,13 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
       qrenew = last.renewal ?? '';
       qlane = last.lane ?? '';
       qmodel = last.model ?? '';
+    } else if (last.status === 'provider-error' || last.status === 'capacity') {
+      qlane = last.lane ?? '';
+      qmodel = last.model ?? '';
+      pcause = last.cause ?? '';
+      preties = Number.isInteger(last.retries) ? last.retries : 0;
+    } else if (last.status === 'question') {
+      qtext = last.question ?? '';
     }
   }
 
@@ -275,10 +397,20 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
     agent, role, kind, composed_prompt: composed, report,
     wait_status: status, report_exists: reportExists, auto_approved: approvals,
   };
+  if (status === 'question') out.question = qtext;
+  if (enterSent) out.enter_sent = true;
+  if (resent) out.resent = true;
   if (status === 'quota') Object.assign(out, { lane: qlane, model: qmodel, match: qmatch, renewal: qrenew });
+  if (status === 'provider-error' || status === 'capacity') {
+    Object.assign(out, { lane: qlane, model: qmodel, cause: pcause });
+    if (status === 'capacity') out.retries = preties;
+  }
   process.stdout.write(jqPretty(out));
 
   switch (status) {
+    case 'question':
+      // waitFor already warned; the JSON line carries the question text.
+      return 7;
     case 'blocked':
       warn(`agent '${agent}' is blocked on an approval or question; run: herdr agent read ${agent} --source recent-unwrapped --lines 80`);
       return 7;
@@ -297,6 +429,12 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
     case 'quota':
       warn(`agent '${agent}' hit a quota limit${qmatch !== '' ? `: ${qmatch}` : ''}. Ask the user: switch the lane kind/model, wait for renewal, take the slice, or pause.`);
       return 11;
+    case 'provider-error':
+      warn(`agent '${agent}' stopped on a provider error: ${pcause}. It is idle without a report; ask the user whether to resend the brief, switch the assistant, or wait.`);
+      return 14;
+    case 'capacity':
+      warn(`agent '${agent}' is still at provider capacity after ${preties} continue(s): ${pcause}. Ask the user whether to wait and resend, switch the assistant, or pause.`);
+      return 14;
     default:
       // done (or the no-wait `submitted`): waitFor's own rank code, 0 here.
       return wrc === 0 ? 0 : wrc;

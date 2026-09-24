@@ -287,7 +287,7 @@
   },
   "wait-quota-vs-blocked": {
     "files": {
-      "herdr.log": "agent get build\nagent read build --source visible --lines 20\nagent get review\nagent get review\nagent get build\nagent read build --source visible --lines 20\n",
+      "herdr.log": "agent get build\nagent read build --source visible --lines 20\nagent get review\nagent read review --source visible --lines 40\nagent get review\nagent read review --source visible --lines 40\nagent get build\nagent read build --source visible --lines 20\n",
       "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\nreview\tp2\tcodex\treviewer\txai\t1\t<ROOT>/repo\tnow\tgpt-5\tfull\treviewer\treview\n",
       "state/ws/friction.log": "TS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\nTS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\n",
       "state/ws/wait/build.quota": "You exceeded your current quota\n",
@@ -295,14 +295,14 @@
     },
     "stepFiles": [
       {
-        "herdr.log": "agent get build\nagent read build --source visible --lines 20\nagent get review\n",
+        "herdr.log": "agent get build\nagent read build --source visible --lines 20\nagent get review\nagent read review --source visible --lines 40\n",
         "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\nreview\tp2\tcodex\treviewer\txai\t1\t<ROOT>/repo\tnow\tgpt-5\tfull\treviewer\treview\n",
         "state/ws/friction.log": "TS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\n",
         "state/ws/wait/build.quota": "You exceeded your current quota\n",
         "state/ws/wait/review.blocked": ""
       },
       {
-        "herdr.log": "agent get build\nagent read build --source visible --lines 20\nagent get review\nagent get review\nagent get build\nagent read build --source visible --lines 20\n",
+        "herdr.log": "agent get build\nagent read build --source visible --lines 20\nagent get review\nagent read review --source visible --lines 40\nagent get review\nagent read review --source visible --lines 40\nagent get build\nagent read build --source visible --lines 20\n",
         "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\nreview\tp2\tcodex\treviewer\txai\t1\t<ROOT>/repo\tnow\tgpt-5\tfull\treviewer\treview\n",
         "state/ws/friction.log": "TS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\nTS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\n",
         "state/ws/wait/build.quota": "You exceeded your current quota\n",
@@ -374,14 +374,18 @@
       "herdr.log": "agent get build\nagent read build --source visible\n",
       "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\n",
       "state/ws/wait/build.screen": "644527843\n",
-      "state/ws/wait/build.since": "EPOCH"
+      "state/ws/wait/build.since": "EPOCH",
+      "state/ws/wait/build.stuck-hash": "2929481568\n",
+      "state/ws/wait/build.stuck-since": "EPOCH"
     },
     "stepFiles": [
       {
         "herdr.log": "agent get build\nagent read build --source visible\n",
         "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\n",
         "state/ws/wait/build.screen": "644527843\n",
-        "state/ws/wait/build.since": "EPOCH"
+        "state/ws/wait/build.since": "EPOCH",
+        "state/ws/wait/build.stuck-hash": "2929481568\n",
+        "state/ws/wait/build.stuck-since": "EPOCH"
       }
     ],
     "steps": [

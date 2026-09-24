@@ -211,11 +211,27 @@ trusting a version named here.
   takes it as the final answer, no tool runs and the worker stops with
   `settled-no-report` (tool-call markup on screen). Ask in the brief for one
   file per tool call and at most a few hundred lines per call.
-- **A dead provider looks like a finished worker.** `settled-no-report` with
-  `Request timed out`, `Retry failed` or `Connection error` on the screen is
-  the provider, not the worker. A running worker keeps the provider address
-  it started with: after changing the endpoint in the CLI's config, release
-  the old worker (`release <name> --close --force`) and spawn a new one.
+- **A dead provider looks like a finished worker.** The wait reports it as
+  `provider-error` (exit 14) with the screen line as the cause (for example
+  `Request timed out`, `Retry failed after N attempts`, `Connection error`,
+  `503: {…}`; the exact patterns are in `scripts/lib/provider.mjs`) when no
+  capacity marker is on the line: it is the provider, not the worker. A plain 503 is not retried; only the capacity markers below
+  are. A running worker keeps the provider address it started with: after
+  changing the endpoint in the CLI's config, release the old worker
+  (`release <name> --close --force`) and spawn a new one.
+- **A server at capacity refuses at once.** A gateway that serves a fixed
+  number of concurrent requests per model answers the rest at once instead
+  of queueing them, usually with an error whose type names a capacity limit
+  (`"type":"…capacity…"`), `overloaded`, or status 529 (exact patterns in
+  `scripts/lib/provider.mjs`). When the worker's
+  last error line carries one of those markers, the wait treats it as
+  transient: it sends the worker "continue" up to
+  `provider_retries` times, `provider_retry_delay` seconds apart, and only
+  then reports `capacity` (exit 14). Give pi room of its own too —
+  `"retry": { "maxRetries": 8, "baseDelayMs": 5000 }` in
+  `~/.pi/agent/settings.json` (the default is 3 tries from 2 s) — and count
+  the live workers on that server across **every** workspace against its
+  limit before opening another.
 - **First open in a new folder (pi).** pi asks to trust a folder the first
   time it opens there; `spawn` waits on that dialog (exit 7). For temporary
   worktrees, use an already trusted folder or accept once by hand.
