@@ -742,7 +742,8 @@ roster_line() { roster_rows | awk -F'\t' -v n="$1" '$1==n' | tail -n1; }
 roster_lock() {
   local l i=0; l="$(state_dir)/agents.lock"
   until mkdir "$l" 2>/dev/null; do
-    if [ -n "$(find "$l" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then rmdir "$l" 2>/dev/null || true; continue; fi
+    # An orphan that cannot be removed counts as a try (no busy loop).
+    if [ -n "$(find "$l" -maxdepth 0 -mmin +1 2>/dev/null)" ] && rmdir "$l" 2>/dev/null; then continue; fi
     i=$((i+1)); [ "$i" -lt 200 ] || die "roster lock $l held for too long; remove it if no herdr-agents command is running" 4
     sleep 0.05
   done

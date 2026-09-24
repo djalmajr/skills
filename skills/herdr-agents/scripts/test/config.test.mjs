@@ -1,0 +1,334 @@
+// JS port of the scenarios in scripts/test-config-set.sh (the
+// `setup --detect` / `setup --no-hooks` scenarios belong to the setup slice
+// and are not ported here). Drives the CLI exactly like the bash suite and
+// keeps the same assertions: valid/invalid keys and values, --user, comment
+// preservation, `#` in values, verbatim rewrite.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
+import { loadConfig, cfg, cfgSource, normalizeKey, configKeyOk, configValueOk, configFileFor } from '../lib/config.mjs';
+
+function setup() {
+  let root = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-config-'));
+  root = fs.realpathSync(root); // git reports the resolved path (macOS /var -> /private/var)
+  const repo = path.join(root, 'repo');
+  const home = path.join(root, 'home');
+  const conf = path.join(root, 'conf');
+  const state = path.join(root, 'state');
+  const tmp = path.join(root, 'tmp');
+  for (const d of [repo, home, conf, state, tmp]) fs.mkdirSync(d, { recursive: true });
+  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore' });
+  // Like test-config-set.sh: HOME/XDG/HERDR_AGENTS_DIR/TMPDIR isolated, no
+  // Herdr workspace (the session layer does not participate).
+  const env = fixtureEnv({ HOME: home, XDG_CONFIG_HOME: conf, HERDR_AGENTS_DIR: state, TMPDIR: tmp });
+  const run = (...args) => {
+    const r = spawnSync(nodeBin(), [JS_ENTRY, ...args], { cwd: repo, env, encoding: 'utf8' });
+    return { rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: r.stderr ?? '' };
+  };
+  return {
+    root, repo, home, conf, state, tmp, env, run,
+    proj: path.join(repo, '.agents', 'herdr-agents.conf'),
+    user: path.join(conf, 'herdr-agents', 'config'),
+    cleanup() { fs.rmSync(root, { recursive: true, force: true }); },
+  };
+}
+
+const SEED = [
+  '# keep this comment',
+  'max_workers=3 # live cap',
+  '# tail comment',
+  'reuse_workers=on',
+  '',
+  'max_workers=1',
+  '',
+].join('\n');
+
+test('config shows defaults for unset keys (multi_role on defaults)', (t) => {
+  const s = setup();
+  try {
+    const r = s.run('config');
+    assert.equal(r.rc, 0, `rc ${r.rc}: ${r.err}`);
+    const line = r.out.split('\n').find((l) => l.startsWith('multi_role'));
+    assert.ok(line, 'multi_role row missing');
+    const fields = line.split(/\s+/).filter(Boolean);
+    assert.deepEqual(fields.slice(1), ['on', 'defaults'], `multi_role default: ${fields.slice(1).join(' ')}`);
+  } finally { s.cleanup(); }
+});
+
+test('config set preserves whole-line and trailing comments, collapses duplicates', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.proj), { recursive: true });
+    fs.writeFileSync(s.proj, SEED);
+    const r = s.run('config', 'set', 'max_workers', '5');
+    assert.equal(r.rc, 0, r.err);
+    const expected = [
+      '# keep this comment',
+      'max_workers=5 # live cap',
+      '# tail comment',
+      'reuse_workers=on',
+      '',
+      '',
+    ].join('\n');
+    assert.equal(fs.readFileSync(s.proj, 'utf8'), expected, 'set max_workers did not preserve comments');
+  } finally { s.cleanup(); }
+});
+
+test('config set appends a missing key and does not duplicate existing ones', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.proj), { recursive: true });
+    fs.writeFileSync(s.proj, SEED);
+    s.run('config', 'set', 'max_workers', '5');
+    const r = s.run('config', 'set', 'multi_role', 'on');
+    assert.equal(r.rc, 0, r.err);
+    const content = fs.readFileSync(s.proj, 'utf8');
+    assert.match(content, /^multi_role=on$/m, 'multi_role was not appended');
+    const workers = content.split('\n').filter((l) => l.startsWith('max_workers='));
+    assert.equal(workers.length, 1, `max_workers duplicated: ${workers}`);
+    assert.match(content, /^# keep this comment$/m, 'leading comment lost');
+    assert.match(content, /^# tail comment$/m, 'tail comment lost');
+  } finally { s.cleanup(); }
+});
+
+test('config set writes dotted role/lane/model keys', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.proj), { recursive: true });
+    fs.writeFileSync(s.proj, SEED);
+    let r = s.run('config', 'set', 'role.reviewer.kind', 'grok');
+    assert.equal(r.rc, 0, r.err);
+    let content = fs.readFileSync(s.proj, 'utf8');
+    assert.match(content, /^role\.reviewer\.kind=grok$/m, 'kind was not written');
+    assert.match(content, /^# keep this comment$/m, 'comment lost after kind set');
+    // Generic kinds (pi/opencode) are valid kind values.
+    r = s.run('config', 'set', 'role.build.kind', 'pi');
+    assert.equal(r.rc, 0, r.err);
+    r = s.run('config', 'set', 'lane.build.kind', 'opencode');
+    assert.equal(r.rc, 0, r.err);
+    r = s.run('config', 'set', 'model.opencode.worker', 'my-provider/my-model');
+    assert.equal(r.rc, 0, r.err);
+    content = fs.readFileSync(s.proj, 'utf8');
+    assert.match(content, /^role\.build\.kind=pi$/m, 'role.build.kind=pi was not written');
+    assert.match(content, /^lane\.build\.kind=opencode$/m, 'lane.build.kind=opencode was not written');
+    assert.match(content, /^model\.opencode\.worker=my-provider\/my-model$/m, 'model.opencode.worker was not written');
+  } finally { s.cleanup(); }
+});
+
+test('unknown key / invalid value / empty value refuse with rc 2 and leave the file', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.proj), { recursive: true });
+    fs.writeFileSync(s.proj, SEED);
+    const before = fs.readFileSync(s.proj, 'utf8');
+    const bad = [
+      ['nope', '1'],
+      ['max_workers', '-1'],
+      ['multi_role', 'yes'],
+      ['role.reviewer.kind', 'notepad'],
+    ];
+    for (const args of bad) {
+      const r = s.run('config', 'set', ...args);
+      assert.equal(r.rc, 2, `rc for ${args.join(' ')}: ${r.err}`);
+    }
+    // --user on the same bad set also refuses (approvals is an enum).
+    const r = s.run('config', 'set', 'approvals', 'FULL');
+    assert.equal(r.rc, 2, `rc for approvals FULL: ${r.err}`);
+    // A `#` starts a comment for the loader, so a value with it is refused.
+    const r2 = s.run('config', 'set', 'feedback_repo', 'org/repo#frag');
+    assert.equal(r2.rc, 2, `rc for hash value: ${r2.err}`);
+    assert.equal(fs.readFileSync(s.proj, 'utf8'), before, 'validation rewrote the file');
+    // The user file was never touched either (no --user in the bad sets).
+    assert.ok(!fs.existsSync(s.user), 'user file should not exist yet');
+  } finally { s.cleanup(); }
+});
+
+test('config set --user writes the user file, not the project file', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.proj), { recursive: true });
+    fs.writeFileSync(s.proj, SEED);
+    const r = s.run('config', 'set', 'reuse_workers', 'off', '--user');
+    assert.equal(r.rc, 0, r.err);
+    assert.match(fs.readFileSync(s.user, 'utf8'), /^reuse_workers=off$/m, 'user file missing the key');
+    assert.match(fs.readFileSync(s.proj, 'utf8'), /^reuse_workers=on$/m, 'user set changed the project file');
+  } finally { s.cleanup(); }
+});
+
+test('values reach the file verbatim: no escape processing, no key injection', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.proj), { recursive: true });
+    fs.writeFileSync(s.proj, '# seed\n');
+    let r = s.run('config', 'set', 'model.claude.worker', 'claude-opus-4\\.[0-9]');
+    assert.equal(r.rc, 0, r.err);
+    let content = fs.readFileSync(s.proj, 'utf8');
+    assert.ok(content.split('\n').includes('model.claude.worker=claude-opus-4\\.[0-9]'), `backslash lost: ${content}`);
+    r = s.run('config', 'set', 'herd_label', 'ok\\nrole.reviewer.kind=grok');
+    assert.equal(r.rc, 0, r.err);
+    content = fs.readFileSync(s.proj, 'utf8');
+    assert.ok(!content.split('\n').includes('role.reviewer.kind=grok'), `escape injected another key: ${content}`);
+    assert.ok(content.split('\n').includes('herd_label=ok\\nrole.reviewer.kind=grok'), `value not kept verbatim: ${content}`);
+  } finally { s.cleanup(); }
+});
+
+// ---- unit: loader / validation ---------------------------------------------
+
+test('key normalization matches the bash sed/tr pipeline', (t) => {
+  assert.equal(normalizeKey('role.implementer.kind'), 'role_implementer_kind');
+  assert.equal(normalizeKey('model.claude.worker'), 'model_claude_worker');
+  assert.equal(normalizeKey('lane.build-roles'), 'lane_build_roles');
+  assert.equal(normalizeKey('args - codex'), 'args_codex');
+  assert.equal(normalizeKey('a$b'), 'ab');
+});
+
+test('configKeyOk: scalar plus dotted patterns', (t) => {
+  assert.ok(configKeyOk('max_workers'));
+  assert.ok(configKeyOk('role.x.kind'));
+  assert.ok(configKeyOk('role.x.model'));
+  assert.ok(configKeyOk('role.x.effort'));
+  assert.ok(configKeyOk('lane.x.roles'));
+  assert.ok(configKeyOk('lane.x.approvals'));
+  assert.ok(configKeyOk('model.pi.worker'));
+  assert.ok(configKeyOk('effort.grok'));
+  assert.ok(configKeyOk('args.codex'));
+  assert.ok(!configKeyOk('nope'));
+  assert.ok(!configKeyOk('role.x.timeout'));
+  assert.ok(!configKeyOk('role.X.kind'));
+  assert.ok(!configKeyOk('effort.x')); // needs at least two chars after the dot
+  assert.ok(!configKeyOk('model.'));
+});
+
+test('configValueOk: enums, ladders and role resolution', (t) => {
+  assert.ok(configValueOk('max_workers', '3'));
+  assert.ok(!configValueOk('max_workers', '-1'));
+  assert.ok(!configValueOk('max_workers', '3.5'));
+  assert.ok(configValueOk('panes', '4'));
+  assert.ok(!configValueOk('panes', '2'));
+  assert.ok(configValueOk('lanes', 'off'));
+  assert.ok(!configValueOk('lanes', 'no'));
+  assert.ok(configValueOk('approvals', 'edits'));
+  assert.ok(!configValueOk('approvals', 'FULL'));
+  assert.ok(configValueOk('lane.build.approvals', 'full'));
+  assert.ok(!configValueOk('lane.build.approvals', 'ask-please'));
+  assert.ok(configValueOk('role.x.kind', 'pi'));
+  assert.ok(configValueOk('role.x.kind', 'opencode'));
+  assert.ok(!configValueOk('role.x.kind', 'notepad'));
+  assert.ok(configValueOk('lane.build.effort', 'xhigh'));
+  assert.ok(!configValueOk('lane.build.effort', 'ultra'));
+  assert.ok(!configValueOk('feedback_repo', 'org#frag'));
+  assert.ok(!configValueOk('feedback_repo', 'a\nb'));
+  assert.ok(!configValueOk('feedback_repo', 'a\tb'));
+});
+
+test('a CRLF config file loads the same as the same file with LF (decision 7)', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.proj), { recursive: true });
+    const lf = 'max_workers=7\n# comment\nreuse_workers=off\n';
+    fs.writeFileSync(s.proj, lf);
+    const ctxLf = loadConfig(s.env, s.repo);
+    assert.equal(cfg(ctxLf, 'max_workers', '', s.env), '7');
+    assert.equal(cfg(ctxLf, 'reuse_workers', '', s.env), 'off');
+    assert.ok(!ctxLf.entries.get('max_workers').value.includes('\r'), 'CRLF leaked into the value');
+    const crlf = lf.replace(/\n/g, '\r\n');
+    fs.writeFileSync(s.proj, crlf);
+    const ctxCrlf = loadConfig(s.env, s.repo);
+    assert.equal(cfg(ctxCrlf, 'max_workers', '', s.env), '7');
+    assert.equal(cfg(ctxCrlf, 'reuse_workers', '', s.env), 'off');
+    assert.equal(ctxCrlf.sources.join(' '), ctxLf.sources.join(' '), 'layers differ between CRLF and LF');
+  } finally { s.cleanup(); }
+});
+
+test('empty file values fall back but keep their layer as source', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.user), { recursive: true });
+    fs.writeFileSync(s.user, 'report_language=\n');
+    const ctx = loadConfig(s.env, s.repo);
+    // report_language= in defaults is empty; cfg uses the fallback...
+    assert.equal(cfg(ctx, 'report_language', 'fallback', s.env), 'fallback');
+    // ...but the user layer (which redefines it as empty) is the reported source.
+    assert.equal(cfgSource(ctx, 'report_language', s.env), 'user');
+    assert.ok(ctx.sources.includes('user'));
+  } finally { s.cleanup(); }
+});
+
+test('surrounding double quotes are stripped once (no escape handling)', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.user), { recursive: true });
+    fs.writeFileSync(s.user, 'herd_label="impl rev"\n');
+    const ctx = loadConfig(s.env, s.repo);
+    assert.equal(cfg(ctx, 'herd_label', '', s.env), 'impl rev');
+  } finally { s.cleanup(); }
+});
+
+test('configFileFor resolves user vs project', (t) => {
+  const s = setup();
+  try {
+    assert.equal(configFileFor('user', s.env, s.repo), path.join(s.conf, 'herdr-agents', 'config'));
+    assert.equal(configFileFor('project', s.env, s.repo), path.join(s.repo, '.agents', 'herdr-agents.conf'));
+  } finally { s.cleanup(); }
+});
+
+// --- rewrites keep the file safe (review of slice 1) ------------------------
+// Bash rewrites through mktemp (0600) + mv; the JS rewrite must keep the
+// original mode, create new files 0600, leave no temp file behind, and never
+// lose the file when the final rename fails.
+
+const CONFIG_URL = new URL('../lib/config.mjs', import.meta.url).href;
+
+// Runs configWritePair / configClearKey in a child whose fs.renameSync throws,
+// because die() exits the process.
+function runWithFailingRename(fn, file, ...args) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-rename-'));
+  const script = path.join(dir, 'child.mjs');
+  fs.writeFileSync(script, [
+    "import fs from 'node:fs';",
+    "fs.renameSync = () => { const e = new Error('injected rename failure'); e.code = 'EIO'; throw e; };",
+    `const mod = await import(${JSON.stringify(CONFIG_URL)});`,
+    `mod.${fn}(...process.argv.slice(2));`,
+  ].join('\n'));
+  const r = spawnSync(nodeBin(), [script, file, ...args], { encoding: 'utf8' });
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { rc: r.status, err: r.stderr ?? '' };
+}
+
+test('config set keeps the file mode and creates new files 0600', { skip: process.platform === 'win32' }, () => {
+  const s = setup();
+  try {
+    const userFile = path.join(s.conf, 'herdr-agents', 'config');
+    let r = s.run('config', 'set', '--user', 'max_workers', '5');
+    assert.equal(r.rc, 0, r.err);
+    assert.equal(fs.statSync(userFile).mode & 0o777, 0o600, 'new user file is not 0600');
+    const proj = path.join(s.repo, '.agents', 'herdr-agents.conf');
+    fs.mkdirSync(path.dirname(proj), { recursive: true });
+    fs.writeFileSync(proj, 'max_workers=2\n');
+    fs.chmodSync(proj, 0o640);
+    r = s.run('config', 'set', 'max_workers', '3');
+    assert.equal(r.rc, 0, r.err);
+    assert.equal(fs.statSync(proj).mode & 0o777, 0o640, 'project file mode changed');
+    assert.deepEqual(fs.readdirSync(path.dirname(proj)), ['herdr-agents.conf'], 'a temp file was left next to the config');
+  } finally { s.cleanup(); }
+});
+
+test('a failed rename leaves the config and the session file untouched', () => {
+  const s = setup();
+  try {
+    const file = path.join(s.root ?? path.dirname(s.repo), 'keep.conf');
+    fs.writeFileSync(file, '# keep\nmax_workers=2\n');
+    let r = runWithFailingRename('configWritePair', file, 'max_workers', '5');
+    assert.equal(r.rc, 4, r.err);
+    assert.match(r.err, /file left untouched/);
+    assert.equal(fs.readFileSync(file, 'utf8'), '# keep\nmax_workers=2\n');
+    r = runWithFailingRename('configClearKey', file, 'max_workers');
+    assert.equal(r.rc, 4, r.err);
+    assert.equal(fs.readFileSync(file, 'utf8'), '# keep\nmax_workers=2\n');
+    assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((n) => n.includes('keep.conf')), ['keep.conf'], 'a temp file was left behind');
+  } finally { s.cleanup(); }
+});
