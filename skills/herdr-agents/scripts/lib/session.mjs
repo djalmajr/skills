@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { die, readTextFile, runCli } from './platform.mjs';
-import { configKeyOk, configValueOk, configWritePair, configClearKey, stateRootPath, stateRoot } from './config.mjs';
+import { DieError, configKeyOk, configValueOk, configWritePair, configClearKey, stateRootPath, stateRoot } from './config.mjs';
 
 export function sessionConfPath(ctx, env = process.env, cwd = process.cwd()) {
   let ws = env.HERDR_WORKSPACE_ID || '';
@@ -63,7 +63,12 @@ export function cmdSessionSet(argv, ctx, env = process.env, cwd = process.cwd())
   if (!sf) die('session set: no Herdr workspace here (run inside Herdr, or set HERDR_WORKSPACE_ID)', 2);
   try { stateRoot(ctx, env, cwd); } catch { /* keep the .gitignore entry current; ignore failures like bash */ }
   fs.mkdirSync(path.dirname(sf), { recursive: true });
-  configWritePair(sf, key, value, env);
+  try {
+    configWritePair(sf, key, value, env);
+  } catch (e) {
+    if (e instanceof DieError) die(e.message, e.code);
+    throw e;
+  }
   process.stdout.write(`set ${key}=${value} in ${sf} (session: this Herdr workspace only; above project and user, below flags and HERDR_AGENTS_*)\n`);
 }
 

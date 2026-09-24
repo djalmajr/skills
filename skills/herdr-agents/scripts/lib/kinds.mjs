@@ -14,21 +14,12 @@
 //   - Windows: kindExe returns the canonical name (`cursor-agent` for
 //     cursor); installation checks use findExecutable (PATHEXT) and every
 //     CLI call goes through runCli.
-import { KNOWN_KINDS } from './config.mjs';
+import { DieError, KNOWN_KINDS } from './config.mjs';
 import { findExecutable, runCli } from './platform.mjs';
 // Function-level use only (cursorModelWithEffort), so the models<->kinds
 // import cycle is safe under Node and Bun.
 import { parseCursorModels } from './models.mjs';
-
-// die() as an exception: command entry points catch this and die() so unit
-// tests can assert the message and code without killing the process.
-export class DieError extends Error {
-  constructor(message, code) {
-    super(message);
-    this.name = 'DieError';
-    this.code = code;
-  }
-}
+export { DieError };
 
 // warn() port (no friction log: kinds/models/model are not friction
 // commands). Injected into the arg functions so cmd_model can suppress it,

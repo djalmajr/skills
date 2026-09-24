@@ -23,6 +23,16 @@ export const CONFIG_SCALAR_KEYS = [
 export const KNOWN_KINDS = ['claude', 'codex', 'grok', 'agy', 'gemini', 'cursor', 'pi', 'opencode'];
 export const EFFORT_LADDER = ['low', 'medium', 'high', 'xhigh', 'max'];
 
+// A library error with the same message/code contract as die(), without
+// exiting the process. Command boundaries translate it back to die().
+export class DieError extends Error {
+  constructor(message, code) {
+    super(message);
+    this.name = 'DieError';
+    this.code = code;
+  }
+}
+
 export function skillDir() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 }
@@ -197,13 +207,36 @@ export function configWritePair(dest, key, value, env = process.env) {
   if (!found) out.push(`${key}=${value}`);
   const content = out.join('\n') + '\n';
   if (!content.includes(`${key}=`)) {
-    die(`config set: rewrite of ${dest} dropped ${key} (file left untouched)`, 4);
+    throw new DieError(`config set: rewrite of ${dest} dropped ${key} (file left untouched)`, 4);
   }
   try {
     atomicWrite(dest, content);
   } catch {
-    die(`config set: could not rewrite ${dest} (file left untouched)`, 4);
+    throw new DieError(`config set: could not rewrite ${dest} (file left untouched)`, 4);
   }
+}
+
+// file_key_value <file> <key> (:1134) — the LAST assignment of the exact
+// trimmed key in the raw file, ignoring comments; '' when the file is
+// missing or the key has no non-empty value. Keys are compared as written
+// (dotted, unnormalized), so the lane migrator reads role.<r>.kind and
+// lane.<l>.model straight from the file.
+export function fileKeyValue(file, key) {
+  let raw;
+  try { raw = readTextFile(file); } catch { return ''; }
+  let v = '';
+  for (const rawLine of splitLines(raw)) {
+    let body = rawLine;
+    const m = body.match(/[ \t]#.*$/);
+    if (m) body = body.slice(0, m.index);
+    const stripped = body.trim();
+    if (stripped === '' || stripped.startsWith('#')) continue;
+    const eq = stripped.indexOf('=');
+    if (eq === -1) continue;
+    const k = stripped.slice(0, eq).trim();
+    if (k === key) v = stripped.slice(eq + 1).trim();
+  }
+  return v;
 }
 
 // session_clear rewrite: same as config_write_pair without a value — drops
@@ -272,6 +305,11 @@ export function cmdConfigSet(argv, ctx, env = process.env, cwd = process.cwd()) 
   if (!configValueOk(key, value, env, cwd)) die(`config set: invalid value '${value}' for ${key}`, 2);
   const dest = configFileFor(where, env, cwd);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  configWritePair(dest, key, value, env);
+  try {
+    configWritePair(dest, key, value, env);
+  } catch (e) {
+    if (e instanceof DieError) die(e.message, e.code);
+    throw e;
+  }
   process.stdout.write(`set ${key}=${value} in ${dest}\n`);
 }

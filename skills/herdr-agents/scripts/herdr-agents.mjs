@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// herdr-agents — JavaScript entry (slices 1-3 of the bash port).
+// herdr-agents — JavaScript entry (slices 1-4 of the bash port).
 //
 // Dispatches the ported commands (`config`, `config set`, `session`,
 // `roles`, `role`, `kinds`, `models <kind>`, `model <kind> <spec>
@@ -16,7 +16,10 @@ import { cmdRoles, cmdRole } from './lib/roles.mjs';
 import { cmdKinds } from './lib/kinds.mjs';
 import { cmdModels, cmdModel } from './lib/models.mjs';
 import { requireEnv } from './lib/herdr.mjs';
-import { cmdStatus, cmdRoster, cmdFriction, setFrictionLog, stateDir } from './lib/state.mjs';
+import { setFrictionLog, stateDir } from './lib/state.mjs';
+import { cmdStatus } from './lib/commands/status.mjs';
+import { cmdRoster } from './lib/commands/roster.mjs';
+import { cmdFriction } from './lib/commands/friction.mjs';
 import { findExecutable } from './lib/platform.mjs';
 
 const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'status', 'roster', 'friction'];

@@ -1,10 +1,12 @@
-// Roles: directories, resolution, frontmatter (fm_get / role_body) and the
-// `roles` / `role` commands. Port of scripts/herdr-agents.sh :403-457.
+// Roles: directories, resolution, frontmatter (fm_get / role_body), the
+// edit/reviewer role rules (slice 4, :3253-3281) and the `roles` / `role`
+// commands. Port of scripts/herdr-agents.sh :403-457, :3253-3281.
 // Frontmatter files are read CRLF-normalized (decision 7).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { die, readTextFile, projectRoot } from './platform.mjs';
+import { hasWord } from './text.mjs';
 
 export function skillDir() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -95,6 +97,37 @@ function splitLines(text) {
 
 function pad(s, n) {
   return s.length >= n ? s : s + ' '.repeat(n - s.length);
+}
+
+// ---------- edit / review role rules (:3253-3281) ----------
+
+// EDIT_ROLES / REVIEW_ROLES_ALL (:70, :72), space lists like the bash vars.
+export const EDIT_ROLES = 'implementer designer tasker';
+export const REVIEW_ROLES_ALL = 'reviewer security-reviewer ui-reviewer inspector';
+
+// role_is_edit <role> — EDIT_ROLES, or frontmatter `mode: edit`.
+export function roleIsEdit(role, env = process.env, cwd = process.cwd()) {
+  if (hasWord(EDIT_ROLES, role)) return true;
+  const f = roleFile(role, env, cwd);
+  if (!f) return false;
+  return fmGet(f, 'mode') === 'edit';
+}
+
+// history_has_edit <comma-separated roles> — any history token is an edit
+// role. Walks the tokens directly (no stdin in bash either: callers sit
+// inside roster read-loops).
+export function historyHasEdit(hist, env = process.env, cwd = process.cwd()) {
+  if (!hist) return false;
+  for (const part of hist.split(',')) {
+    const r = part.trim();
+    if (r && roleIsEdit(r, env, cwd)) return true;
+  }
+  return false;
+}
+
+// is_review_role <role> — REVIEW_ROLES_ALL.
+export function isReviewRole(role) {
+  return hasWord(REVIEW_ROLES_ALL, role);
 }
 
 // cmd_roles() port: one line per role file, first directory wins per name,

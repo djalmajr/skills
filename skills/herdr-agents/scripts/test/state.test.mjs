@@ -1,9 +1,10 @@
 // State (slice 3): the roster lock and concurrent writers, stale-lock
 // recovery, the 200-try exhaustion (rc 4 with the decision-2 message),
 // lock release on throw, atomic rewrite metadata (mode kept, no temp
-// file), the roster operations, sanitizeCause, quota detection and the
-// lane fallback. The lock exhaustion test spins ~10 s (200 x 50 ms), so
-// the file carries generous timeouts.
+// file), the roster operations, sanitizeCause (now lib/text.mjs) and the
+// friction log. The lock exhaustion test spins ~10 s (200 x 50 ms), so
+// the file carries generous timeouts. The quota and lane tests moved to
+// quota.test.mjs / lanes.test.mjs in slice 4.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -13,11 +14,11 @@ import { spawn, spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { nodeBin } from './parity.mjs';
 import { atomicWrite } from '../lib/platform.mjs';
+import { sanitizeCause } from '../lib/text.mjs';
 import {
   stateDir, rosterRows, rosterLine, withRosterLock, rosterAppend,
   rosterRemove, rosterSetRole, rosterReplacePane, lastReport, lastReportPath,
-  sanitizeCause, quotaDetect, redactSecrets, laneOfRole, warn, setFrictionLog,
-  nowStamp, nowIso,
+  warn, setFrictionLog, nowStamp, nowIso,
 } from '../lib/state.mjs';
 
 const STATE_MJS = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'lib', 'state.mjs');
@@ -280,73 +281,6 @@ test('sanitizeCause: one line, printable only, spaces collapsed, at most 200 cha
   assert.equal(sanitizeCause('a  b   c '), 'a b c');
   assert.equal(sanitizeCause('a'.repeat(300)).length, 200);
   assert.equal(sanitizeCause(''), '');
-});
-
-test('quotaDetect: the test-quota.sh hit/miss matrix', () => {
-  const hit = (state, text, label) => {
-    const out = quotaDetect(state, text);
-    assert.ok(out, `${label}: expected a match`);
-    assert.ok(out[0], `${label}: non-empty match line`);
-  };
-  const miss = (state, text, label) => {
-    assert.equal(quotaDetect(state, text), null, `${label}: expected no match`);
-  };
-  hit('idle', 'You have hit your usage limit for grok', 'usage limit');
-  hit('idle', 'Individual quota reached', 'individual');
-  hit('idle', 'Error: quota exceeded', 'quota exceeded');
-  hit('idle', 'RESOURCE_EXHAUSTED: project', 'resource');
-  hit('idle', '429 Too Many Requests', '429');
-  hit('idle', 'rate limit exceeded, retry later', 'rate limit exceeded');
-  hit("idle", "You've hit your limit for today", 'you have hit');
-  hit('idle', 'You exceeded your current quota, please check your plan and billing details.', 'openai quota');
-  hit('idle', 'You have reached your API usage limits: monthly threshold', 'anthropic reached');
-  hit("idle", "You've reached your API usage limits", 'anthropic contraction');
-  hit('done', 'INDIVIDUAL QUOTA REACHED', 'case-insensitive');
-  miss('idle', 'implement a rate limit for the API client', 'prose rate limit');
-  miss('idle', 'return "rate limit"', 'code rate limit');
-  miss('idle', 'return "rate limit exceeded"', 'return phrase');
-  miss('idle', '// 429 Too Many Requests', 'slash comment');
-  miss('idle', '# quota exceeded', 'hash comment');
-  miss('idle', '/* RESOURCE_EXHAUSTED */', 'block comment');
-  miss('idle', 'func Limit() { quota exceeded }', 'func keyword');
-  miss('idle', 'function check() { quota exceeded }', 'function keyword');
-  miss('idle', 'msg = "quota exceeded"', 'assignment');
-  miss('idle', '"rate limit exceeded"', 'quoted phrase');
-  miss("idle", "You've hit your stride", 'stride');
-  miss('working', '429 Too Many Requests', 'working 429');
-  miss('working', 'hit your usage limit', 'working usage');
-  miss('idle', '', 'empty screen');
-});
-
-test('quotaDetect: renewal line kept, secrets redacted', () => {
-  const out = quotaDetect('idle', 'Individual quota reached token=sk_live_abcdefghij\nResets at 5:00pm');
-  assert.ok(out, 'matched');
-  assert.match(out[0], /Individual quota reached/);
-  assert.match(out[1], /Resets at 5:00pm/);
-  assert.ok(!out[0].includes('sk_live_'), 'no secret leak');
-  assert.match(out[0], /\[redacted\]/);
-  assert.equal(redactSecrets('Bearer abc123.~+/'), 'Bearer [redacted]');
-  assert.equal(redactSecrets('pk-proj-abcdefgh12'), '[redacted]');
-});
-
-test('laneOfRole: presets (panes 3 and 4) and custom lanes', () => {
-  const empty = { entries: new Map(), sources: [] };
-  const env = {};
-  assert.equal(laneOfRole(empty, 'implementer', env), 'build');
-  assert.equal(laneOfRole(empty, 'tasker', env), 'build');
-  assert.equal(laneOfRole(empty, 'scouter', env), 'explore');
-  assert.equal(laneOfRole(empty, 'reviewer', env), 'review');
-  assert.equal(laneOfRole(empty, 'inspector', env), 'review');
-  assert.equal(laneOfRole(empty, 'nosuchrole', env), '');
-  const p3 = { entries: new Map([['panes', { value: '3', source: 'project' }]]), sources: ['project'] };
-  assert.equal(laneOfRole(p3, 'implementer', env), 'build');
-  assert.equal(laneOfRole(p3, 'scouter', env), 'read');
-  assert.equal(laneOfRole(p3, 'reviewer', env), 'read');
-  const custom = { entries: new Map([['lane_foo_roles', { value: 'implementer,scouter', source: 'project' }]]), sources: ['project'] };
-  assert.equal(laneOfRole(custom, 'implementer', env), 'foo');
-  assert.equal(laneOfRole(custom, 'reviewer', env), '', 'custom lanes replace the presets entirely');
-  const envCustom = { ...custom, HERDR_AGENTS_LANE_BAR_ROLES: 'tasker' };
-  assert.equal(laneOfRole(custom, 'tasker', envCustom), 'bar');
 });
 
 test('friction: warn() appends a TSV line with the command name', () => {

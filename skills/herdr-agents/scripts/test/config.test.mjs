@@ -283,20 +283,29 @@ test('configFileFor resolves user vs project', (t) => {
 
 const CONFIG_URL = new URL('../lib/config.mjs', import.meta.url).href;
 
-// Runs configWritePair / configClearKey in a child whose fs.renameSync throws,
-// because die() exits the process.
+// Runs the config command / configClearKey in a child whose fs.renameSync
+// throws, so the command boundary must preserve die()'s exit contract.
 function runWithFailingRename(fn, file, ...args) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-rename-'));
+  const home = path.join(dir, 'home');
+  const conf = path.join(dir, 'conf');
+  const state = path.join(dir, 'state');
+  const tmp = path.join(dir, 'tmp');
+  for (const d of [home, conf, state, tmp]) fs.mkdirSync(d, { recursive: true });
+  const env = fixtureEnv({ HOME: home, XDG_CONFIG_HOME: conf, HERDR_AGENTS_DIR: state, TMPDIR: tmp });
   const script = path.join(dir, 'child.mjs');
   fs.writeFileSync(script, [
     "import fs from 'node:fs';",
     "fs.renameSync = () => { const e = new Error('injected rename failure'); e.code = 'EIO'; throw e; };",
     `const mod = await import(${JSON.stringify(CONFIG_URL)});`,
-    `mod.${fn}(...process.argv.slice(2));`,
+    fn === 'cmdConfigSet'
+      ? 'const ctx = mod.loadConfig(process.env, process.cwd());\nmod.cmdConfigSet(["max_workers", "5"], ctx, process.env, process.cwd());'
+      : `mod.${fn}(...process.argv.slice(2));`,
   ].join('\n'));
-  const r = spawnSync(nodeBin(), [script, file, ...args], { encoding: 'utf8' });
+  const cwd = fn === 'cmdConfigSet' ? path.dirname(path.dirname(file)) : undefined;
+  const r = spawnSync(nodeBin(), [script, file, ...args], { cwd, env, encoding: 'utf8' });
   fs.rmSync(dir, { recursive: true, force: true });
-  return { rc: r.status, err: r.stderr ?? '' };
+  return { rc: r.status, out: r.stdout ?? '', err: r.stderr ?? '' };
 }
 
 test('config set keeps the file mode and creates new files 0600', { skip: process.platform === 'win32' }, () => {
@@ -320,15 +329,17 @@ test('config set keeps the file mode and creates new files 0600', { skip: proces
 test('a failed rename leaves the config and the session file untouched', () => {
   const s = setup();
   try {
-    const file = path.join(s.root ?? path.dirname(s.repo), 'keep.conf');
+    const file = s.proj;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, '# keep\nmax_workers=2\n');
-    let r = runWithFailingRename('configWritePair', file, 'max_workers', '5');
+    let r = runWithFailingRename('cmdConfigSet', file);
     assert.equal(r.rc, 4, r.err);
-    assert.match(r.err, /file left untouched/);
+    assert.equal(r.out, '');
+    assert.equal(r.err, `herdr-agents: config set: could not rewrite ${file} (file left untouched)\n`);
     assert.equal(fs.readFileSync(file, 'utf8'), '# keep\nmax_workers=2\n');
     r = runWithFailingRename('configClearKey', file, 'max_workers');
     assert.equal(r.rc, 4, r.err);
     assert.equal(fs.readFileSync(file, 'utf8'), '# keep\nmax_workers=2\n');
-    assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((n) => n.includes('keep.conf')), ['keep.conf'], 'a temp file was left behind');
+    assert.deepEqual(fs.readdirSync(path.dirname(file)).filter((n) => n.includes('herdr-agents.conf')), ['herdr-agents.conf'], 'a temp file was left behind');
   } finally { s.cleanup(); }
 });

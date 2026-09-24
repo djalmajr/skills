@@ -5,7 +5,7 @@
 // is `unavailable` with a sanitized cause — never `gone`. `agentState`
 // never throws, so command substitutions stay safe.
 import { die, runCli, findExecutable } from './platform.mjs';
-import { sanitizeCause } from './state.mjs';
+import { sanitizeCause } from './text.mjs';
 
 // A ceiling for every `herdr` call (decision: the bash script left these
 // calls untimed and hung with a stuck server; 30 s is generous for a local
