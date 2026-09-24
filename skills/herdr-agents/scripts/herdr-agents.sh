@@ -515,7 +515,9 @@ effort_rank() { case "$1" in low) echo 1 ;; medium) echo 2 ;; high) echo 3 ;; xh
 # grok: `--reasoning-effort xhigh|high|medium|low` (verified 2026-09-21, grok 1.0.40, grok-4.7).
 # pi: --thinking accepts …xhigh|max. opencode's TUI maps no effort flag
 # (empty ceiling = nothing to clamp; kind_effort_args warns).
-kind_effort_ceiling() { case "$1" in claude|pi) echo max ;; codex|cursor|grok) echo xhigh ;; agy|gemini) echo high ;; *) echo "" ;; esac; }
+# codex: the highest level a Codex model can advertise; the ceiling that
+# applies is the chosen model's (codex_effort_ceiling).
+kind_effort_ceiling() { case "$1" in claude|pi|codex) echo max ;; cursor|grok) echo xhigh ;; agy|gemini) echo high ;; *) echo "" ;; esac; }
 
 clamp_to() { # <effort> <ceiling>
   [ -n "$2" ] || { printf '%s\n' "$1"; return; }
@@ -658,12 +660,20 @@ codex_model_ceiling() {
     | tr ' ' '\n' | awk '{r=0} $0=="low"{r=1} $0=="medium"{r=2} $0=="high"{r=3} $0=="xhigh"{r=4} $0=="max"{r=5} r>best{best=r;name=$0} END{print name}'
 }
 
+# codex_effort_ceiling <slug> → the ceiling that applies to a Codex model: the
+# levels it advertises, else xhigh when the cache does not list it (no
+# cache, a model outside it, or no model = the CLI's own default).
+codex_effort_ceiling() {
+  local mc; mc="$(codex_model_ceiling "$1")"
+  printf '%s\n' "${mc:-xhigh}"
+}
+
 cmd_models() { local k="${1:?kind}"; model_ids "$k" | version_sort_desc; }
 cmd_model() {
   local kind="${1:?kind}" spec="${2:?spec}" effort="${3:-}" r; r="$(resolve_model "$kind" "$spec" "$effort")"
   local args; args="$( { kind_model_args "$kind" "$r" "$effort"; kind_effort_args "$kind" "$effort" "$r"; } 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
   jq -n --arg kind "$kind" --arg spec "$spec" --arg effort "$effort" --arg model "$r" --arg family "$(agent_family "$kind" "$r")" --arg args "$args" \
-    --arg ceiling "$([ "$kind" = codex ] && codex_model_ceiling "$r" || kind_effort_ceiling "$kind")" \
+    --arg ceiling "$([ "$kind" = codex ] && codex_effort_ceiling "$r" || kind_effort_ceiling "$kind")" \
     '{kind:$kind,spec:$spec,effort:$effort,model:$model,family:$family,effort_ceiling:$ceiling,agent_args:$args}'
 }
 
@@ -3227,9 +3237,10 @@ resolved_role_kind() {
   printf '%s\n' "$v"
 }
 
-# resolve_spawn_effort <role> <lane> <kind> [kind-layer] — the effort spawn
-# would use with no flag. kind-layer (spawn_kind_layer) must be the one the
-# spawn itself used, so the reuse check applies the same lane effort rule.
+# resolve_spawn_effort <role> <lane> <kind> [kind-layer] [model] — the effort
+# spawn would use with no flag. kind-layer (spawn_kind_layer) must be the one
+# the spawn itself used, so the reuse check applies the same lane effort
+# rule; model is the session's, so codex gets the same model ceiling.
 resolve_spawn_effort() {
   local role="$1" lane="$2" kind="$3" role_key f effort
   role_key="$(printf '%s' "$role" | tr '-' '_')"
@@ -3242,6 +3253,7 @@ resolve_spawn_effort() {
   fi
   if [ -n "$effort" ] && has_word "$EFFORT_LADDER" "$effort"; then
     effort="$(clamp_to "$(clamp_to "$effort" "$(kind_effort_ceiling "$kind")")" "$(cfg max_effort)")"
+    [ "$kind" = codex ] && effort="$(clamp_to "$effort" "$(codex_effort_ceiling "${5:-}")")"
   fi
   printf '%s\n' "$effort"
 }
@@ -3452,9 +3464,18 @@ cmd_spawn() {
   fi
   if [ -n "$model_spec" ]; then
     model="$(resolve_model "$kind" "$model_spec" "$effort")"
-    if [ "$kind" = codex ] && [ -n "$effort" ]; then
-      local mc; mc="$(codex_model_ceiling "$model")"
-      if [ -n "$mc" ] && [ "$(effort_rank "$effort")" -gt "$(effort_rank "$mc")" ]; then warn "codex model $model supports up to '$mc'; effort '$effort' clamped"; effort="$mc"; fi
+  fi
+  # codex: the model's own ceiling (xhigh when the cache does not list it),
+  # also with no model spec (the CLI's default model).
+  if [ "$kind" = codex ] && [ -n "$effort" ]; then
+    local mc; mc="$(codex_effort_ceiling "$model")"
+    if [ "$(effort_rank "$effort")" -gt "$(effort_rank "$mc")" ]; then
+      if [ -n "$(codex_model_ceiling "$model")" ]; then
+        warn "codex model $model supports up to '$mc'; effort '$effort' clamped"
+      else
+        warn "codex model ${model:-(CLI default)} is not in ~/.codex/models_cache.json; effort '$effort' clamped to '$mc'"
+      fi
+      effort="$mc"
     fi
   fi
 
@@ -3477,7 +3498,7 @@ cmd_spawn() {
           local session_role session_model session_effort mismatch=0
           session_role="$(roster_line "$dname" | cut -f4)"
           session_model="$(roster_line "$dname" | awk -F'\t' 'NF>=9 { print $9 }')"
-          session_effort="$(resolve_spawn_effort "$session_role" "$lane" "$actual_kind" "$kind_layer")"
+          session_effort="$(resolve_spawn_effort "$session_role" "$lane" "$actual_kind" "$kind_layer" "$session_model")"
           [ "$actual_kind" = "$kind" ] || mismatch=1
           [ "${session_model}" = "${model:-}" ] || mismatch=1
           [ "${session_effort}" = "${effort:-}" ] || mismatch=1

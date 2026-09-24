@@ -195,6 +195,13 @@ export function resolveModel(kind, spec, effort, env = process.env, warn = defau
   return spec;
 }
 
+// codex_effort_ceiling — the ceiling that applies to a Codex model: the levels
+// it advertises, else xhigh when the cache does not list it (no cache, a
+// model outside it, or no model = the CLI's own default).
+export function codexEffortCeiling(model, env = process.env) {
+  return codexModelCeiling(model, env) || 'xhigh';
+}
+
 // codex_model_ceiling :636-650 — highest reasoning effort the cached model
 // advertises; '' when the file or the model is absent.
 export function codexModelCeiling(model, env = process.env) {
@@ -261,7 +268,7 @@ export function cmdModel(argv, env = process.env) {
     effort,
     model: r,
     family: agentFamily(kind, r),
-    effort_ceiling: kind === 'codex' ? codexModelCeiling(r, env) : kindEffortCeiling(kind),
+    effort_ceiling: kind === 'codex' ? codexEffortCeiling(r, env) : kindEffortCeiling(kind),
     agent_args: agentArgs.join(' '),
   };
   process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);

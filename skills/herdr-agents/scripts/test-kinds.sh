@@ -17,6 +17,11 @@ export HERDR_AGENTS_LIB=1
 export HOME="$TEST_ROOT/home" XDG_CONFIG_HOME="$TEST_ROOT/config" TMPDIR="$TEST_ROOT/tmp"
 # Hermetic session layer: resolve it to a fake, empty workspace state.
 export HERDR_AGENTS_DIR="$TEST_ROOT/state" HERDR_WORKSPACE_ID=ws-test
+# Hermetic project layer too: the project config comes from the git root of
+# the working directory, so a checkout inside another project would load its
+# .agents/herdr-agents.conf.
+mkdir -p "$TEST_ROOT/project"
+cd "$TEST_ROOT/project"
 unset HERDR_ENV || true
 # shellcheck source=herdr-agents.sh
 . "$SKILL_SCRIPT"
@@ -25,7 +30,16 @@ load_config
 # --- ceilings (grok 4.7 has xhigh; verified 2026-09-21) --------------------
 expect 'grok ceiling' "$(kind_effort_ceiling grok)" xhigh
 expect 'cursor ceiling' "$(kind_effort_ceiling cursor)" xhigh
-expect 'codex ceiling' "$(kind_effort_ceiling codex)" xhigh
+expect 'codex kind ceiling (the model decides at spawn)' "$(kind_effort_ceiling codex)" max
+# codex: the ceiling that applies is the model's (models_cache.json), else xhigh.
+mkdir -p "$HOME/.codex"
+printf '%s\n' '{"models":[{"slug":"big","supported_reasoning_levels":[{"effort":"high"},{"effort":"max"}]},{"slug":"small","supported_reasoning_levels":[{"effort":"xhigh"}]}]}' > "$HOME/.codex/models_cache.json"
+expect 'codex model that advertises max' "$(codex_effort_ceiling big)" max
+expect 'codex model that stops at xhigh' "$(codex_effort_ceiling small)" xhigh
+expect 'codex model outside the cache' "$(codex_effort_ceiling not-listed)" xhigh
+expect 'codex with no model (CLI default)' "$(codex_effort_ceiling '')" xhigh
+rm -f "$HOME/.codex/models_cache.json"
+expect 'codex with no cache' "$(codex_effort_ceiling big)" xhigh
 expect 'claude ceiling' "$(kind_effort_ceiling claude)" max
 expect 'agy ceiling' "$(kind_effort_ceiling agy)" high
 expect 'xhigh kept on grok' "$(clamp_to xhigh "$(kind_effort_ceiling grok)")" xhigh

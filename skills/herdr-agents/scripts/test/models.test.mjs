@@ -15,7 +15,7 @@ import { fixtureEnv } from './parity.mjs';
 import { writeFakeCli, listingFake, sleepingFake, ECHO_FAKE } from './fakes.mjs';
 import { cmdInvocation, findExecutable, runCli } from '../lib/platform.mjs';
 import {
-  EFFORT_SUFFIX_RE, codexModelCeiling, modelIds, modelsCacheFile,
+  EFFORT_SUFFIX_RE, codexEffortCeiling, codexModelCeiling, modelIds, modelsCacheFile,
   ereRegExp, parseAgyModels, parseCursorModels, parseGrokModels, resolveModel,
   versionSortDesc,
 } from '../lib/models.mjs';
@@ -223,8 +223,14 @@ test('codexModelCeiling comes from the cached model', (t) => {
     assert.equal(codexModelCeiling('gpt-5.1', s.env), 'medium');
     assert.equal(codexModelCeiling('codex-astra', s.env), 'max');
     assert.equal(codexModelCeiling('nope', s.env), '');
+    // The ceiling that applies: the model's, else the conservative xhigh.
+    assert.equal(codexEffortCeiling('codex-astra', s.env), 'max');
+    assert.equal(codexEffortCeiling('gpt-5.1', s.env), 'medium');
+    assert.equal(codexEffortCeiling('nope', s.env), 'xhigh');
+    assert.equal(codexEffortCeiling('', s.env), 'xhigh');
     fs.rmSync(path.join(s.home, '.codex', 'models_cache.json'));
     assert.equal(codexModelCeiling('gpt-5', s.env), ''); // missing file: empty
+    assert.equal(codexEffortCeiling('gpt-5', s.env), 'xhigh');
   } finally { s.cleanup(); }
 });
 

@@ -488,14 +488,63 @@ test('resolveSpawnEffort: the chain and the kind-layer rule', () => {
   } finally { fix.cleanup(); }
 });
 
+// Codex models advertise their own levels in ~/.codex/models_cache.json.
+function seedCodexCache(fix) {
+  fs.mkdirSync(path.join(fix.env.HOME, '.codex'), { recursive: true });
+  fs.writeFileSync(path.join(fix.env.HOME, '.codex', 'models_cache.json'), JSON.stringify({
+    models: [
+      { slug: 'big', supported_reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'].map((effort) => ({ effort })) },
+      { slug: 'small', supported_reasoning_levels: ['low', 'medium', 'high', 'xhigh'].map((effort) => ({ effort })) },
+    ],
+  }));
+}
+
+test('resolveSpawnEffort: codex takes the ceiling of the session model', () => {
+  const { fix, proj } = confFix('ha-spawn-codex-effort-');
+  try {
+    seedCodexCache(fix);
+    proj('effort.codex=max\n');
+    const e = (model) => resolveSpawnEffort('implementer', '', 'codex', '', fix.ctx, fix.env, fix.repo, model);
+    assert.equal(e('big'), 'max', 'a model that advertises max keeps max');
+    assert.equal(e('small'), 'xhigh', 'a model that stops at xhigh');
+    assert.equal(e('not-listed'), 'xhigh', 'a model outside the cache keeps the conservative xhigh');
+    assert.equal(e(''), 'xhigh', 'no model (the CLI default) keeps the conservative xhigh');
+    proj('effort.codex=max\nmax_effort=high\n');
+    assert.equal(e('big'), 'high', 'max_effort still applies');
+  } finally { fix.cleanup(); }
+});
+
 // ---------- cmdSpawn end-to-end (child process) ----------
 
 function runSpawn(fix, args, over = {}) {
   const env = { ...fix.env, ...over };
   delete env.HERDR_PANE_ID;
   delete env.HERDR_TAB_ID;
-  return spawnSync(nodeBin(), [JS_ENTRY, 'spawn', ...args], { env, cwd: fix.repo, encoding: 'utf8' });
+  return spawnSync(nodeBin(), [JS_ENTRY, 'spawn', ...args], { env, cwd: fix.repo, encoding: 'utf8', timeout: 30000 });
 }
+
+test('spawn: codex effort max reaches the CLI when the model advertises it', () => {
+  const cases = [
+    { model: 'big', effort: 'max', warn: null },
+    { model: 'small', effort: 'xhigh', warn: "codex model small supports up to 'xhigh'; effort 'max' clamped" },
+    { model: 'not-listed', effort: 'xhigh', warn: "codex model not-listed is not in ~/.codex/models_cache.json; effort 'max' clamped to 'xhigh'" },
+  ];
+  for (const c of cases) {
+    const { fix, proj } = confFix('ha-spawn-codex-max-');
+    try {
+      seedCodexCache(fix);
+      proj(`role.implementer.kind=codex\nrole.implementer.effort=max\nmodel.codex.worker=${c.model}\n`);
+      const r = runSpawn(fix, ['implementer']);
+      assert.equal(r.status, 0, r.stderr);
+      const j = JSON.parse(r.stdout);
+      assert.equal(j.kind, 'codex');
+      assert.equal(j.effort, c.effort, `${c.model}: effort`);
+      assert.ok(j.agent_args.includes(`model_reasoning_effort="${c.effort}"`), j.agent_args);
+      if (c.warn) assert.ok(r.stderr.includes(c.warn), r.stderr);
+      else assert.ok(!r.stderr.includes('clamped'), r.stderr);
+    } finally { fix.cleanup(); }
+  }
+});
 
 test('spawn: planner is 12, unknown role 3, sub-orchestrator not in a lane 3, usage 2', () => {
   const fix = makeFix('ha-spawn-cmd-1-');

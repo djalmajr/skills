@@ -7,7 +7,7 @@ column is what the reviewer-vs-implementer rule compares.
 | Kind | Executable | Family | Effort ceiling | Effort flag | Model flag | `approvals: full` |
 |---|---|---|---|---|---|---|
 | `claude` | `claude` | anthropic | max | `--effort <low…max>` | `--model` | `--permission-mode bypassPermissions --settings '{"enableAllProjectMcpServers":true}'` |
-| `codex` | `codex` | openai | xhigh | `-c model_reasoning_effort="<level>"` | `-m` | `-s workspace-write -a never` |
+| `codex` | `codex` | openai | max, then the model's own levels (`xhigh` when `~/.codex/models_cache.json` does not list the model) | `-c model_reasoning_effort="<level>"` | `-m` | `-s workspace-write -a never` |
 | `grok` | `grok` | xai | xhigh | `--reasoning-effort <xhigh|high|medium|low>` (alias `--effort`) | `--model` | `--permission-mode bypassPermissions --always-approve` |
 | `agy` | `agy` | google | high | `--effort <low|medium|high>` | `--model` | `--dangerously-skip-permissions` |
 | `gemini` | `gemini` | google | high | `--effort` (assumed like agy) | `--model` | not mapped |

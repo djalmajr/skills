@@ -241,8 +241,10 @@ the chosen model's advertised reasoning levels, not from the kind.
 
 - **`effort`** is one normalized ladder, `low < medium < high < xhigh < max`,
   translated to each CLI's own flag and **clamped** to what the kind
-  supports (`kinds` prints the ceiling: claude and pi `max`; codex, cursor
+  supports (`kinds` prints the ceiling: claude, pi and codex `max`; cursor
   and grok `xhigh`; agy, gemini `high`; the opencode TUI maps no effort).
+  For Codex the chosen model's advertised levels apply on top, and a model
+  that `~/.codex/models_cache.json` does not list stays at `xhigh`.
   Asking for `max` on `agy` yields `high` with a warning. **No effort anywhere means the agent's own
   configured default** (for example Codex `model_reasoning_effort` in
   `~/.codex/config.toml`); the skill never guesses one.

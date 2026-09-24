@@ -51,7 +51,8 @@ test('kind effort ceilings and clamp_to', (t) => {
   // Ceilings (grok 4.7 has xhigh; verified 2026-09-21).
   assert.equal(kindEffortCeiling('grok'), 'xhigh');
   assert.equal(kindEffortCeiling('cursor'), 'xhigh');
-  assert.equal(kindEffortCeiling('codex'), 'xhigh');
+  // codex: up to max; the model's own ceiling applies at spawn.
+  assert.equal(kindEffortCeiling('codex'), 'max');
   assert.equal(kindEffortCeiling('claude'), 'max');
   assert.equal(kindEffortCeiling('agy'), 'high');
   assert.equal(kindEffortCeiling('gemini'), 'high');

@@ -17,7 +17,7 @@ import {
   agentFamily, clampTo, effortRank, kindApprovalArgs, kindContextArgs,
   kindEffortArgs, kindEffortCeiling, kindExe, kindModelArgs,
 } from './kinds.mjs';
-import { codexModelCeiling, resolveModel } from './models.mjs';
+import { codexEffortCeiling, codexModelCeiling, resolveModel } from './models.mjs';
 import {
   fmGet, historyHasEdit, isReviewRole, resolveRole, roleFile, roleIsEdit,
 } from './roles.mjs';
@@ -95,8 +95,9 @@ export function resolvedRoleKind(role, ctx, env = process.env, cwd = process.cwd
 
 // resolve_spawn_effort :3222: the effort spawn would use with no flag —
 // lane effort (same layer or above the kind's), role.<r>.effort,
-// effort.<kind>, frontmatter; clamped to the kind ceiling and max_effort.
-export function resolveSpawnEffort(role, lane, kind, kindLayer = '', ctx, env = process.env, cwd = process.cwd()) {
+// effort.<kind>, frontmatter; clamped to the kind ceiling and max_effort,
+// and for codex to the ceiling of `model` (the session's).
+export function resolveSpawnEffort(role, lane, kind, kindLayer = '', ctx, env = process.env, cwd = process.cwd(), model = '') {
   let effort = laneAttr(ctx, lane, 'effort', kindLayer === '' ? null : kindLayer, env);
   if (effort === '') effort = cfg(ctx, `role_${String(role).replace(/-/g, '_')}_effort`, '', env);
   if (effort === '') effort = cfg(ctx, `effort_${kind}`, '', env);
@@ -106,6 +107,7 @@ export function resolveSpawnEffort(role, lane, kind, kindLayer = '', ctx, env = 
   }
   if (effort !== '' && hasWord(EFFORT_LADDER.join(' '), effort)) {
     effort = clampTo(clampTo(effort, kindEffortCeiling(kind)), cfg(ctx, 'max_effort', '', env));
+    if (kind === 'codex') effort = clampTo(effort, codexEffortCeiling(model, env));
   }
   return effort;
 }
@@ -325,14 +327,18 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
       effort = clamped;
     }
   }
-  if (modelSpec !== '') {
-    model = resolveModel(kind, modelSpec, effort, env);
-    if (kind === 'codex' && effort !== '') {
-      const mc = codexModelCeiling(model, env);
-      if (mc !== '' && effortRank(effort) > effortRank(mc)) {
+  if (modelSpec !== '') model = resolveModel(kind, modelSpec, effort, env);
+  // codex: the model's own ceiling (xhigh when the cache does not list it),
+  // also with no model spec (the CLI's default model).
+  if (kind === 'codex' && effort !== '') {
+    const mc = codexEffortCeiling(model, env);
+    if (effortRank(effort) > effortRank(mc)) {
+      if (codexModelCeiling(model, env) !== '') {
         warn(`codex model ${model} supports up to '${mc}'; effort '${effort}' clamped`);
-        effort = mc;
+      } else {
+        warn(`codex model ${model || '(CLI default)'} is not in ~/.codex/models_cache.json; effort '${effort}' clamped to '${mc}'`);
       }
+      effort = mc;
     }
   }
   if (reuse === '') reuse = cfg(ctx, 'reuse_workers', 'on', env);
@@ -356,7 +362,7 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
           // different kind, model or effort must not reuse it with exit 0.
           const sessionRole = lf[3] ?? '';
           const sessionModel = lf.length >= 9 ? (lf[8] ?? '') : '';
-          const sessionEffort = resolveSpawnEffort(sessionRole, lane, actualKind, kindLayer, ctx, env, cwd);
+          const sessionEffort = resolveSpawnEffort(sessionRole, lane, actualKind, kindLayer, ctx, env, cwd, sessionModel);
           const mismatch = actualKind !== kind
             || sessionModel !== model
             || sessionEffort !== effort;

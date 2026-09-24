@@ -429,4 +429,35 @@ printf '%s\n' "$RUN_OUT" | jq -e '.kind=="grok" and .model=="grok-4.7"' >/dev/nu
   || fail "lane model under a frontmatter kind: $RUN_OUT"
 rm -f "$USER_CONF" "$PROJ_CONF"
 
+# 9) codex effort follows the model's own ceiling: max reaches the CLI when
+# the model advertises it; a model that stops at xhigh is clamped, and the
+# reuse check compares the same clamped effort (no false kind-mismatch, 13).
+mkdir -p "$TEST_ROOT/home/.codex"
+printf '%s\n' '{"models":[{"slug":"big","supported_reasoning_levels":[{"effort":"xhigh"},{"effort":"max"}]},{"slug":"small","supported_reasoning_levels":[{"effort":"xhigh"}]}]}' \
+  > "$TEST_ROOT/home/.codex/models_cache.json"
+reset_roster
+printf '%s\n' 'role.implementer.kind=codex' 'role.implementer.effort=max' 'model.codex.worker=big' > "$PROJ_CONF"
+run_cmd spawn implementer
+[ "$RUN_RC" = 0 ] || fail "codex max spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.kind=="codex" and .model=="big" and .effort=="max" and (.agent_args | contains("model_reasoning_effort=\"max\""))' >/dev/null \
+  || fail "codex max json: $RUN_OUT"
+reset_roster
+printf '%s\n' 'role.implementer.kind=codex' 'role.implementer.effort=max' 'model.codex.worker=small' > "$PROJ_CONF"
+run_cmd spawn implementer
+[ "$RUN_RC" = 0 ] || fail "codex small spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.effort=="xhigh"' >/dev/null || fail "codex small json: $RUN_OUT"
+case "$RUN_ERR" in *"codex model small supports up to 'xhigh'; effort 'max' clamped"*) ;; *) fail "codex small warning: $RUN_ERR" ;; esac
+printf '%s\n' '{"result":{"agents":[{"name":"build","pane_id":"p-build","agent_status":"idle"}]}}' > "$TEST_ROOT/live.json"
+printf '%s\n' idle > "$MODE"
+run_cmd spawn implementer
+[ "$RUN_RC" = 0 ] || fail "codex small reuse rc $RUN_RC (13 = kind-mismatch) err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.name=="build" and .reused==true' >/dev/null || fail "codex small reuse: $RUN_OUT"
+reset_roster
+printf '%s\n' 'role.implementer.kind=codex' 'role.implementer.effort=max' 'model.codex.worker=not-listed' > "$PROJ_CONF"
+run_cmd spawn implementer
+[ "$RUN_RC" = 0 ] || fail "codex unlisted spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.effort=="xhigh"' >/dev/null || fail "codex unlisted json: $RUN_OUT"
+case "$RUN_ERR" in *"codex model not-listed is not in ~/.codex/models_cache.json; effort 'max' clamped to 'xhigh'"*) ;; *) fail "codex unlisted warning: $RUN_ERR" ;; esac
+rm -f "$PROJ_CONF" "$TEST_ROOT/home/.codex/models_cache.json"
+
 echo 'lane checks passed'

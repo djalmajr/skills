@@ -83,12 +83,14 @@ export function effortRank(effort) {
   }
 }
 
-// Empty ceiling (unknown kind, opencode) = nothing to clamp.
+// Empty ceiling (unknown kind, opencode) = nothing to clamp. codex: the
+// highest level a Codex model can advertise; the ceiling that applies is the
+// chosen model's (codexEffortCeiling in lib/models.mjs).
 export function kindEffortCeiling(kind) {
   switch (kind) {
     case 'claude':
-    case 'pi': return 'max';
-    case 'codex':
+    case 'pi':
+    case 'codex': return 'max';
     case 'cursor':
     case 'grok': return 'xhigh';
     case 'agy':
