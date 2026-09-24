@@ -1,0 +1,67 @@
+{
+  "fail": {
+    "args": [
+      "regrid"
+    ],
+    "err": "PROG: regrid: could not park the workers of tab t0 in a temporary tab\n",
+    "files": {
+      "herdr.log": "pane list\npane list --workspace ws\nagent get w1\npane list --workspace ws\npane move p1 --new-tab --label herd-park --no-focus\n",
+      "panes": "C\tt0\np1\tt0\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nw1\tp1\tgrok\timplementer\txai\t1\t/tmp\t\n\n",
+      "state/ws/friction.log": "TS\terror(exit 4)\tregrid\tregrid: could not park the workers of tab t0 in a temporary tab\n",
+      "state/ws/herd-tab": ""
+    },
+    "out": "",
+    "rc": 4
+  },
+  "herd": {
+    "args": [
+      "regrid"
+    ],
+    "err": "",
+    "files": {
+      "herdr.log": "pane list\npane list --workspace ws\ntab get t1\ntab get t2\ntab get t3\nagent get s1\nagent get b1\nagent get b2\nagent get b3\ntab create --workspace ws --cwd <ROOT>/repo --label herd --no-focus\npane move q2 --tab t-new-1 --split right --target-pane r-new-1 --ratio 0.5 --no-focus\npane close r-new-1\npane move q3 --tab t-new-1 --split right --target-pane q2 --ratio 0.5000 --no-focus\npane move q4 --tab t-new-1 --split down --target-pane q3 --ratio 0.5000 --no-focus\npane list --workspace ws\ntab get t1\ntab get t-new-1\ntab get t1\ntab rename t1 impl\ntab get t-new-1\ntab rename t-new-1 impl 2\npane list\n",
+      "panes": "q1\tt1\nq2\tt-new-1\nq3\tt-new-1\nq4\tt-new-1\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\ns1\tq1\tgrok\timplementer\txai\t1\t/tmp\t\n\nb1\tq2\tgrok\timplementer\txai\t1\t/tmp\t\n\nb2\tq3\tgrok\timplementer\txai\t1\t/tmp\t\n\nb3\tq4\tgrok\timplementer\txai\t1\t/tmp\t\n\ng1\tq5\tgrok\timplementer\txai\t1\t/tmp\t\n\n",
+      "state/ws/herd-tab": "t1\timpl\tauto\nt-new-1\timpl 2\tauto\n",
+      "t-new-1": null,
+      "t1": null,
+      "t2": null,
+      "t3": null
+    },
+    "out": "{\"regridded\":[{\"tab\":\"t-new-1\",\"label\":\"herd\",\"panes\":3,\"cols\":2}]}\n",
+    "rc": 0
+  },
+  "kept": {
+    "args": [
+      "regrid"
+    ],
+    "err": "",
+    "files": {
+      "herdr.log": "pane list\npane list --workspace ws\nagent get stuck\nagent get dead\npane list --workspace ws\npane move p2 --new-tab --label herd-park --no-focus\npane move p2 --tab t0 --split right --target-pane C --ratio 0.5000 --no-focus\npane list --workspace ws\npane list\n",
+      "panes": "C\tt0\np2\tt0\np3\tt0\n",
+      "park-1": null,
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nstuck\tp2\tgrok\timplementer\txai\t1\t/tmp\t\n\ndead\tp3\tgrok\timplementer\txai\t1\t/tmp\t\n\n",
+      "state/ws/herd-tab": ""
+    },
+    "out": "{\"regridded\":[{\"tab\":\"t0\",\"label\":\"caller\",\"panes\":2,\"cols\":2}]}\n",
+    "rc": 0
+  },
+  "pull": {
+    "args": [
+      "regrid"
+    ],
+    "err": "",
+    "files": {
+      "herdr.log": "pane list\npane list --workspace ws\nagent get w1\ntab get t1\ntab get t2\nagent get w2\npane move p2 --tab t0 --split right --target-pane C --ratio 0.5 --no-focus\npane list --workspace ws\npane move p1 --new-tab --label herd-park --no-focus\npane move p2 --tab park-1 --split down --target-pane p1 --ratio 0.5 --no-focus\npane move p1 --tab t0 --split right --target-pane C --ratio 0.5000 --no-focus\npane move p2 --tab t0 --split down --target-pane p1 --ratio 0.5000 --no-focus\ntab get t1\ntab get t2\npane list --workspace ws\npane list\n",
+      "panes": "C\tt0\np1\tt0\np2\tt0\n",
+      "park-1": null,
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nw1\tp1\tgrok\timplementer\txai\t1\t/tmp\t\n\nw2\tp2\tgrok\tscouter\txai\t1\t/tmp\t\n\n",
+      "state/ws/herd-tab": "",
+      "t1": null,
+      "t2": null
+    },
+    "out": "{\"regridded\":[{\"tab\":\"t0\",\"label\":\"caller\",\"panes\":3,\"cols\":2}]}\n",
+    "rc": 0
+  }
+}

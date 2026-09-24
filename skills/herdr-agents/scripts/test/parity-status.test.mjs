@@ -1,20 +1,31 @@
-// Parity (slice 3): the `status`, `roster` and `friction` scenarios of
-// test-status.sh (plus the roster/table cases and the env error paths)
-// run against `bash scripts/herdr-agents.sh` and
-// `node scripts/herdr-agents.mjs` in an identical fixture must produce
-// identical stdout, exit code and (prefix-normalized) stderr. A fake
-// `herdr` on PATH (mode-file driven, exactly like test-status.sh) is the
-// only `herdr` the implementations see.
+// Golden (slice 9a-A; slice 3 scenario coverage): the `status`, `roster`
+// and `friction` scenarios of test-status.sh (plus the roster/table cases
+// and the env error paths) now run only the JS and compare against the
+// reference recorded once from the bash script in
+// test/golden/parity-status.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
+// JS value for review). A fake `herdr` on PATH (mode-file driven, exactly
+// like test-status.sh) is the only `herdr` the implementations see. The
+// node-semantics test is unchanged: it never ran the bash reference.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeFixture, runImpl, parityScenario } from './parity.mjs';
+import { makeFixture, runImpl, goldenScenario } from './parity.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { findExecutable } from '../lib/platform.mjs';
 
-// Small wrapper so each scenario reads like the acceptance criterion.
-function parity(t, name, opts) {
-  parityScenario(t, name, opts);
-}
+// Record mode runs the bash reference: it needs bash and jq. Check mode
+// runs the JS against the record and needs the sh fake `herdr`, so it is
+// skipped solely on Windows.
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the sh fake herdr (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
+      ? 'record mode needs bash and jq on PATH'
+      : false);
+
+const SUITE = 'parity-status';
 
 const NL = '\\n'; // a literal \n in the generated bash (printf interprets it)
 const ESC = '\\033'; // a literal \033 (bash printf octal escape)
@@ -93,9 +104,9 @@ function writeFake(fix) {
 }
 
 const R8 = '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\n';
-const WORKER8 = 'worker\tp1\tgrok\timplementer\txai\t1\t/tmp/work\tnow\n';
-const STUCK8 = 'stuck\tp2\tgrok\timplementer\txai\t1\t/tmp/work\tnow\n';
-const DEAD8 = 'dead\tp3\tgrok\timplementer\txai\t1\t/tmp/work\tnow\n';
+const WORKER8 = 'worker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n';
+const STUCK8 = 'stuck\tp2\tgrok\timplementer\txai\t1\t/work\tnow\n';
+const DEAD8 = 'dead\tp3\tgrok\timplementer\txai\t1\t/work\tnow\n';
 const R12 = '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n';
 
 // Common seed: fake herdr + ws state dir + mode file + optional roster /
@@ -135,7 +146,7 @@ function run(fix, impl, args) {
   return runImpl(impl, args, { env: { ...fix.env, ...withFakes({ HERDR_ENV: '1' }) }, cwd: fix.repo });
 }
 
-test('parity: status agent get classification (test-status.sh scenarios)', { timeout: 120000 }, (t) => {
+test('parity: status agent get classification (test-status.sh scenarios)', { timeout: 120000, skip: SKIP }, () => {
   const ws = (fix) => path.join(fix.state, 'ws');
   // One scenario per mode, mirroring the suite's reset_roster + mode.
   const modes = [
@@ -148,13 +159,13 @@ test('parity: status agent get classification (test-status.sh scenarios)', { tim
     ['blocked', { mode: 'blocked' }],
   ];
   for (const [label, o] of modes) {
-    parity(t, `status-${label}`, {
+    goldenScenario(SUITE, `status-${label}`, {
       seed: (fix) => seed(fix, { ...o, roster: R8 + WORKER8 }),
       steps: [S(['status', 'worker'])],
     });
   }
   // A ready report wins: `done`, and herdr is never queried.
-  parity(t, 'status-report-wins', {
+  goldenScenario(SUITE, 'status-report-wins', {
     seed: (fix) => seed(fix, {
       mode: 'denied',
       roster: R8 + WORKER8,
@@ -164,36 +175,36 @@ test('parity: status agent get classification (test-status.sh scenarios)', { tim
     steps: [S(['status', 'worker'])],
   });
   // Batch: one unqueryable (stuck) and one really gone (dead) at once.
-  parity(t, 'status-batch', {
+  goldenScenario(SUITE, 'status-batch', {
     seed: (fix) => seed(fix, { mode: 'denied', roster: R8 + WORKER8 + STUCK8 + DEAD8 }),
     steps: [S(['status', 'stuck', 'dead'])],
     files: ['state/ws/agents.tsv'],
   });
   // Unknown agent: no herdr query at all.
-  parity(t, 'status-unknown', {
+  goldenScenario(SUITE, 'status-unknown', {
     seed: (fix) => seed(fix, { mode: 'working', roster: R8 + WORKER8 }),
     steps: [S(['status', 'nosuch'])],
   });
   // Quota on an idle screen: JSON instead of TSV, exit 11.
-  parity(t, 'status-quota', {
+  goldenScenario(SUITE, 'status-quota', {
     seed: (fix) => seed(fix, {
       mode: 'idle',
-      roster: R12 + 'build\tp1\tgrok\timplementer\txai\t1\t/tmp/work\t20260101T000000\tgrok-4.7\tfull\timplementer\tbuild\n',
+      roster: R12 + 'build\tp1\tgrok\timplementer\txai\t1\t/work\t20260101T000000\tgrok-4.7\tfull\timplementer\tbuild\n',
       screen: 'Error: quota exceeded for this account\n',
     }),
     steps: [S(['status', 'build'])],
   });
 });
 
-test('parity: roster table (rows, role history, tabs, other live agents)', { timeout: 120000 }, (t) => {
+test('parity: roster table (rows, role history, tabs, other live agents)', { timeout: 120000, skip: SKIP }, () => {
   const ws = (fix) => path.join(fix.state, 'ws');
-  parity(t, 'roster-table', {
+  goldenScenario(SUITE, 'roster-table', {
     seed: (fix) => seed(fix, {
       mode: 'working',
       roster: R12
-        + 'build\tp1\tgrok\timplementer\txai\t1\t/tmp/work\t20260101T000000\tgrok-4.7\tfull\ttasker,implementer\tbuild\n'
-        + 'task\tp5\tgrok\ttasker\txai\t1\t/tmp/work\t20260101T000000\tgrok-4.7\tfull\tdesigner\t\n'
-        + 'old8\tp2\tagy\tdesigner\tgoogle\t1\t/tmp/work2\tnow\n',
+        + 'build\tp1\tgrok\timplementer\txai\t1\t/work\t20260101T000000\tgrok-4.7\tfull\ttasker,implementer\tbuild\n'
+        + 'task\tp5\tgrok\ttasker\txai\t1\t/work\t20260101T000000\tgrok-4.7\tfull\tdesigner\t\n'
+        + 'old8\tp2\tagy\tdesigner\tgoogle\t1\t/work2\tnow\n',
       lastReports: [
         { agent: 'build', path: path.join(ws(fix), 'reports', 'build.md') },
         { agent: 'task', path: path.join(ws(fix), 'reports', 'task.md') },
@@ -214,18 +225,18 @@ test('parity: roster table (rows, role history, tabs, other live agents)', { tim
     files: ['state/ws/agents.tsv'],
   });
   // Empty roster: header, the (empty) other-live section, the footer.
-  parity(t, 'roster-empty', {
+  goldenScenario(SUITE, 'roster-empty', {
     seed: (fix) => seed(fix, { roster: R12 }),
     steps: [S(['roster'])],
   });
 });
 
-test('parity: friction empty and seeded', { timeout: 120000 }, (t) => {
-  parity(t, 'friction-empty', {
+test('parity: friction empty and seeded', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'friction-empty', {
     seed: (fix) => seed(fix, {}),
     steps: [S(['friction'])],
   });
-  parity(t, 'friction-seeded', {
+  goldenScenario(SUITE, 'friction-seeded', {
     seed: (fix) => seed(fix, {
       friction: '2026-01-02T03:04:05\twarning\tstatus\told warning\n2026-01-02T03:04:06\terror(exit 4)\tstatus\told error\n',
     }),
@@ -233,8 +244,8 @@ test('parity: friction empty and seeded', { timeout: 120000 }, (t) => {
   });
 });
 
-test('parity: status env error paths (usage, outside Herdr, herdr missing)', { timeout: 120000 }, (t) => {
-  parity(t, 'status-env-errors', {
+test('parity: status env error paths (usage, outside Herdr, herdr missing)', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'status-env-errors', {
     seed: (fix) => seed(fix, { roster: R8 + WORKER8 }),
     steps: [
       S(['status']), // no agent name: die 2
@@ -244,27 +255,37 @@ test('parity: status env error paths (usage, outside Herdr, herdr missing)', { t
   });
 });
 
-test('parity: status denied also logs a friction entry (both implementations)', { timeout: 120000 }, () => {
-  // The friction line carries a timestamp, so compare it by shape rather
-  // than byte-for-byte: run each implementation and check its log line.
-  for (const impl of ['bash', 'node']) {
-    const fix = makeFixture();
-    try {
-      seed(fix, { mode: 'denied', roster: R8 + WORKER8 });
-      const r = run(fix, impl, ['status', 'worker']);
-      assert.equal(r.rc, 4, `${impl}: rc`);
-      const log = fs.readFileSync(path.join(fix.state, 'ws', 'friction.log'), 'utf8').trim();
-      assert.match(log, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\twarning\tstatus\tagent 'worker': herdr agent get failed: Error: Os \{ code: 13, kind: PermissionDenied, message: "Permission denied" \}$/);
-    } finally {
-      fix.cleanup();
-    }
+// The friction line carries a timestamp, so it is recorded by shape: run
+// the implementation (the bash reference to record, the JS to check) and
+// normalize the timestamp to TS.
+function frictionValue(impl) {
+  const fix = makeFixture();
+  try {
+    seed(fix, { mode: 'denied', roster: R8 + WORKER8 });
+    const r = runImpl(impl, ['status', 'worker'], { env: { ...fix.env, ...withFakes({ HERDR_ENV: '1' }) }, cwd: fix.repo });
+    const raw = fs.readFileSync(path.join(fix.state, 'ws', 'friction.log'), 'utf8').trim();
+    const friction = raw.split('\n').map((l) => l.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, 'TS')).join('\n');
+    return normalizeRoots({ rc: r.rc, friction }, { '<ROOT>': fix.root });
+  } finally {
+    fix.cleanup();
   }
+}
+
+test('parity: status denied also logs a friction entry (both implementations)', { timeout: 120000, skip: SKIP }, () => {
+  let refValue;
+  let actValue;
+  const reference = () => (refValue !== undefined ? refValue : (refValue = frictionValue('bash'))); // record only
+  const actual = () => (actValue !== undefined ? actValue : (actValue = frictionValue('node'))); // check/update
+  golden(SUITE, 'status-denied-friction', actual, reference);
+  const v = goldenMode() === 'record' ? reference() : actual();
+  assert.equal(v.rc, 4, 'rc');
+  assert.match(v.friction, /^TS\twarning\tstatus\tagent 'worker': herdr agent get failed: Error: Os \{ code: 13, kind: PermissionDenied, message: "Permission denied" \}$/);
 });
 
-// Node-only semantics (parity against bash is the harness's job; these
-// guard the shape the bash suite asserts: column counts, sanitized cause,
-// no `agent get` when it must not run, the quota JSON).
-test('node semantics: status columns, cause, no stray herdr queries, quota JSON', { timeout: 120000 }, () => {
+// Node-only semantics (parity against the record is the golden value's
+// job; these guard the shape the bash suite asserts: column counts,
+// sanitized cause, no `agent get` when it must not run, the quota JSON).
+test('node semantics: status columns, cause, no stray herdr queries, quota JSON', { timeout: 120000, skip: SKIP }, () => {
   const fix = makeFixture();
   try {
     const ws = path.join(fix.state, 'ws');
@@ -293,7 +314,7 @@ test('node semantics: status columns, cause, no stray herdr queries, quota JSON'
     fs.rmSync(path.join(ws, 'last-report-worker'), { force: true });
     seed(fix, {
       mode: 'idle',
-      roster: R12 + 'build\tp1\tgrok\timplementer\txai\t1\t/tmp/work\t20260101T000000\tgrok-4.7\tfull\timplementer\tbuild\n',
+      roster: R12 + 'build\tp1\tgrok\timplementer\txai\t1\t/work\t20260101T000000\tgrok-4.7\tfull\timplementer\tbuild\n',
       screen: 'hit your usage limit\ntry again in 2 hours\n',
     });
     r = run(fix, 'node', ['status', 'build']);
@@ -309,4 +330,3 @@ test('node semantics: status columns, cause, no stray herdr queries, quota JSON'
     fix.cleanup();
   }
 });
-

@@ -1,12 +1,61 @@
-// Parity: the same CLI scenario run against `bash scripts/herdr-agents.sh`
-// and `node scripts/herdr-agents.mjs` must produce identical stdout,
-// exit code and (prefix-normalized) stderr. Covers `config`, `config set`
-// (valid/invalid, --user, verbatim values, lane.roles), `session set/show/
-// clear`, `roles`, `role` — 15 scenarios, well over the 12 required.
+// Golden (slice 9a-A): the former bash × JS parity scenarios now run only
+// the JS (`node scripts/herdr-agents.mjs`) and compare against the
+// reference recorded once from the bash script in
+// test/golden/parity-config.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
+// JS value for review). Covers `config`, `config set` (valid/invalid,
+// --user, verbatim values, lane.roles), `session set/show/clear`, `roles`,
+// `role` — 17 scenarios.
 import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { parityScenario } from './parity.mjs';
+import { fileURLToPath } from 'node:url';
+import { makeFixture, normalizeErr, goldenScenario, runImpl } from './parity.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { findExecutable } from '../lib/platform.mjs';
+
+// Record mode runs the bash reference: it needs bash and jq (the script's
+// living path dies without them). Check mode runs the JS against the
+// record and is skipped solely on Windows (POSIX fixture contract).
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the POSIX fixture contract (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
+      ? 'record mode needs bash and jq on PATH'
+      : false);
+
+const SUITE = 'parity-config';
+
+// The bundled skill root: the `roles`/`role` output points at the bundled
+// role files, whose absolute path must not leak into the recorded value.
+const SKILL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+// Same value shape as goldenScenario (steps + files), but normalizes the
+// skill root as well: only the roles scenarios reference it.
+function configValue(impl, opts) {
+  const fix = makeFixture();
+  try {
+    fix.reset();
+    if (opts.seed) opts.seed(fix);
+    const steps = [];
+    for (const step of opts.steps) {
+      const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
+      const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
+      steps.push({ args: step.args, rc: r.rc, out: r.out, err: normalizeErr(r.err) });
+    }
+    const readRel = (root, rel) => { try { return fs.readFileSync(path.join(root, rel), 'utf8'); } catch { return null; } };
+    const files = (opts.files ?? []).map((rel) => ({ rel, content: readRel(fix.root, rel) }));
+    return normalizeRoots({ steps, files }, { '<ROOT>': fix.root, '<SKILL>': SKILL_ROOT });
+  } finally {
+    fix.cleanup();
+  }
+}
+
+function configScenario(name, opts) {
+  golden(SUITE, name,
+    () => configValue('node', opts), // actual: the JS entry (check/update)
+    () => configValue('bash', opts)); // reference: the bash script (record only)
+}
 
 function seedProj(text) {
   return (fix) => {
@@ -25,21 +74,21 @@ const SEED_PROJ = [
   '',
 ].join('\n');
 
-test('parity: config on a fresh repo', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'config-fresh', {
+test('parity: config on a fresh repo', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'config-fresh', {
     steps: [{ args: ['config'] }],
   });
 });
 
-test('parity: config set creates the project file', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'config-set-fresh', {
+test('parity: config set creates the project file', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'config-set-fresh', {
     steps: [{ args: ['config', 'set', 'max_workers', '5'] }],
     files: ['repo/.agents/herdr-agents.conf'],
   });
 });
 
-test('parity: config set preserves comments, collapses duplicates, appends', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'config-set-rewrite', {
+test('parity: config set preserves comments, collapses duplicates, appends', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'config-set-rewrite', {
     seed: seedProj(SEED_PROJ),
     steps: [
       { args: ['config', 'set', 'max_workers', '7'] },
@@ -50,8 +99,8 @@ test('parity: config set preserves comments, collapses duplicates, appends', { t
   });
 });
 
-test('parity: dotted keys (role/lane/model) are written', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'config-set-dotted', {
+test('parity: dotted keys (role/lane/model) are written', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'config-set-dotted', {
     seed: seedProj('# seed\n'),
     steps: [
       { args: ['config', 'set', 'role.reviewer.kind', 'grok'] },
@@ -64,8 +113,8 @@ test('parity: dotted keys (role/lane/model) are written', { timeout: 120000 }, (
   });
 });
 
-test('parity: invalid keys/values refuse with rc 2 and leave the file alone', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'config-set-invalid', {
+test('parity: invalid keys/values refuse with rc 2 and leave the file alone', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'config-set-invalid', {
     seed: seedProj(SEED_PROJ),
     steps: [
       { args: ['config', 'set', 'nope', '1'] },
@@ -82,8 +131,8 @@ test('parity: invalid keys/values refuse with rc 2 and leave the file alone', { 
   });
 });
 
-test('parity: --user writes the user file, not the project file', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'config-set-user', {
+test('parity: --user writes the user file, not the project file', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'config-set-user', {
     seed: seedProj(SEED_PROJ),
     steps: [
       { args: ['config', 'set', 'reuse_workers', 'off', '--user'] },
@@ -93,8 +142,8 @@ test('parity: --user writes the user file, not the project file', { timeout: 120
   });
 });
 
-test('parity: values reach the file verbatim (backslashes, no key injection)', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'config-set-verbatim', {
+test('parity: values reach the file verbatim (backslashes, no key injection)', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'config-set-verbatim', {
     seed: seedProj('# seed\n'),
     steps: [
       { args: ['config', 'set', 'model.claude.worker', 'claude-opus-4\\.[0-9]'] },
@@ -105,8 +154,8 @@ test('parity: values reach the file verbatim (backslashes, no key injection)', {
   });
 });
 
-test('parity: lane.<name>.roles validates the roles', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'config-set-lane-roles', {
+test('parity: lane.<name>.roles validates the roles', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'config-set-lane-roles', {
     seed: seedProj('# seed\n'),
     steps: [
       { args: ['config', 'set', 'lane.build.roles', 'implementer,designer'] },
@@ -116,8 +165,8 @@ test('parity: lane.<name>.roles validates the roles', { timeout: 120000 }, (t) =
   });
 });
 
-test('parity: session set writes the layer and config shows source session', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'session-set', {
+test('parity: session set writes the layer and config shows source session', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'session-set', {
     steps: [
       { args: ['session', 'set', 'lane.build.kind', 'pi'] },
       { args: ['config'] },
@@ -127,8 +176,8 @@ test('parity: session set writes the layer and config shows source session', { t
   });
 });
 
-test('parity: session clear drops one key, then removes the layer', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'session-clear', {
+test('parity: session clear drops one key, then removes the layer', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'session-clear', {
     seed: (fix) => {
       fs.mkdirSync(path.join(fix.repo, '.agents'), { recursive: true });
       fs.writeFileSync(path.join(fix.repo, '.agents', 'herdr-agents.conf'), 'lane.build.kind=codex\n');
@@ -146,8 +195,8 @@ test('parity: session clear drops one key, then removes the layer', { timeout: 1
   });
 });
 
-test('parity: session errors (bad subcommand/key/value, usage) leave the file alone', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'session-errors-seeded', {
+test('parity: session errors (bad subcommand/key/value, usage) leave the file alone', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'session-errors-seeded', {
     seed: (fix) => {
       fs.mkdirSync(path.join(fix.state, 'ws'), { recursive: true });
       fs.writeFileSync(path.join(fix.state, 'ws', 'session.conf'), 'lane.build.kind=pi\n');
@@ -163,8 +212,8 @@ test('parity: session errors (bad subcommand/key/value, usage) leave the file al
   });
 });
 
-test('parity: env beats session; session beats project', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'precedence', {
+test('parity: env beats session; session beats project', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'precedence', {
     seed: (fix) => {
       fs.mkdirSync(path.join(fix.repo, '.agents'), { recursive: true });
       fs.writeFileSync(path.join(fix.repo, '.agents', 'herdr-agents.conf'), 'lane.build.kind=codex\n');
@@ -177,8 +226,8 @@ test('parity: env beats session; session beats project', { timeout: 120000 }, (t
   });
 });
 
-test('parity: without a resolvable workspace set refuses, config still works', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'no-workspace', {
+test('parity: without a resolvable workspace set refuses, config still works', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'no-workspace', {
     steps: [
       { args: ['session', 'set', 'lane.build.kind', 'pi'], env: { HERDR_WORKSPACE_ID: '' } },
       { args: ['config'], env: { HERDR_WORKSPACE_ID: '' } },
@@ -187,8 +236,8 @@ test('parity: without a resolvable workspace set refuses, config still works', {
   });
 });
 
-test('parity: roles table and role JSON (including errors)', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'roles-role', {
+test('parity: roles table and role JSON (including errors)', { timeout: 120000, skip: SKIP }, () => {
+  configScenario('roles-role', {
     steps: [
       { args: ['roles'] },
       { args: ['role', 'implementer'] },
@@ -199,8 +248,8 @@ test('parity: roles table and role JSON (including errors)', { timeout: 120000 }
   });
 });
 
-test('parity: a project role dir shadows the skill role', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'project-roles', {
+test('parity: a project role dir shadows the skill role', { timeout: 120000, skip: SKIP }, () => {
+  configScenario('project-roles', {
     seed: (fix) => {
       const d = path.join(fix.repo, '.agents', 'herdr-roles');
       fs.mkdirSync(d, { recursive: true });
@@ -222,8 +271,8 @@ test('parity: a project role dir shadows the skill role', { timeout: 120000 }, (
   });
 });
 
-test('parity: relative state dir keeps the .gitignore entry current (state_root side effect)', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'state-gitignore', {
+test('parity: relative state dir keeps the .gitignore entry current (state_root side effect)', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'state-gitignore', {
     steps: [
       // HERDR_AGENTS_DIR emptied: the state dir resolves relative (cfg state_dir .herdr-agents).
       { args: ['session', 'set', 'max_workers', '7'], env: { HERDR_AGENTS_DIR: '' } },
@@ -234,8 +283,8 @@ test('parity: relative state dir keeps the .gitignore entry current (state_root 
   });
 });
 
-test('parity: bare `session` shows the empty-session message', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'session-bare-show', {
+test('parity: bare `session` shows the empty-session message', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'session-bare-show', {
     steps: [{ args: ['session'] }],
   });
 });

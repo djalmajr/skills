@@ -1,25 +1,40 @@
-// Parity (slice 5a): `layout-plan --layout` and `tab-label`, output by
-// output — the same fixture (fake `herdr` via an sh launcher, temporary
-// HOME / XDG_CONFIG_HOME / HERDR_AGENTS_DIR / TMPDIR, HERDR_WORKSPACE_ID=ws)
-// runs against `bash scripts/herdr-agents.sh` and `node
-// scripts/herdr-agents.mjs`:
+// Golden (slice 9a-A; slice 5a scenario coverage): the former bash × JS
+// parity scenarios now run only the JS and compare against the reference
+// recorded once from the bash script in test/golden/parity-layout.json
+// (test/golden.mjs: HERDR_AGENTS_GOLDEN=record records, unset checks,
+// =update overwrites the JS value for review). Same fixtures as before
+// (fake `herdr` via an sh launcher, temporary HOME / XDG_CONFIG_HOME /
+// HERDR_AGENTS_DIR / TMPDIR, HERDR_WORKSPACE_ID=ws):
 //   - `layout-plan --layout` over six fixtures (vazio, só o chamador,
 //     cheio, mínimo, empate, 3×2), byte-for-byte stdout;
 //   - `tab-label` (list, rename, --auto, error with a tab it does not
 //     track, error with no herd tab at all): stdout, normalized stderr,
 //     exit code and the final `herd-tab` file (and the fake's tab-label
 //     files) after the run.
+//
+// The bash script runs only as the `reference` (record mode); the JS runs
+// only as the `actual` (check/update mode). Each side builds its own
+// fixture from the same seed and returns the same value shape; the fixture
+// root becomes <ROOT> in every string of the recorded value.
 import test from 'node:test';
-import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fixtureEnv, nodeBin, normalizeErr, parityScenario } from './parity.mjs';
+import { fixtureEnv, normalizeErr, goldenScenario, runImpl } from './parity.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { findExecutable } from '../lib/platform.mjs';
 
-const SCRIPTS = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const BASH_ENTRY = path.join(SCRIPTS, 'herdr-agents.sh');
-const JS_ENTRY = path.join(SCRIPTS, 'herdr-agents.mjs');
+// Record mode runs the bash reference: it needs bash and jq. Check mode
+// runs the JS against the record and needs the sh fake `herdr`, so it is
+// skipped solely on Windows.
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the sh fake herdr (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
+      ? 'record mode needs bash and jq on PATH'
+      : false);
+
+const SUITE = 'parity-layout';
 
 // ---------- layout-plan fixtures ----------
 
@@ -46,9 +61,9 @@ function seedLayoutFixtures(fix) {
   ]));
 }
 
-// Twelve bash/node runs: past bun's 5 s default test timeout.
-test('parity: layout-plan --layout (six fixtures, byte for byte)', { timeout: 120000 }, () => {
-  parityScenario(null, 'layout-plan', {
+// Six steps; the golden value records rc/stdout/normalized stderr per step.
+test('parity: layout-plan --layout (six fixtures, byte for byte)', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'layout-plan', {
     seed: seedLayoutFixtures,
     steps: [
       // vazio: no panes at all → the caller pane stands in, split right
@@ -70,8 +85,8 @@ test('parity: layout-plan --layout (six fixtures, byte for byte)', { timeout: 12
 
 // ---------- tab-label ----------
 
-// sh fake herdr (parity runs the bash script too, so the fake stays a sh
-// launcher): tab labels live in files under $HA_TABS; `pane list` reads
+// sh fake herdr (record mode runs the bash script too, so the fake stays a
+// sh launcher): tab labels live in files under $HA_TABS; `pane list` reads
 // $HA_PANES; every call is logged to $HA_LOG.
 const TAB_FAKE = `#!/bin/sh
 printf '%s\\n' "$*" >> "$HA_LOG"
@@ -92,8 +107,8 @@ case "$1 $2" in
 esac
 `;
 
-// One fixture per scenario; `seed()` resets it so the bash and node runs
-// start from the same state.
+// One fixture per scenario; `seed()` resets it so each implementation
+// starts from the same state.
 function makeTabFixture(prefix, name) {
   let root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   root = fs.realpathSync(root);
@@ -155,47 +170,46 @@ function makeTabFixture(prefix, name) {
   };
 }
 
-function runTabScenario(t, name, steps, files) {
-  void t;
+// Run the steps against one implementation in a fresh fixture and return
+// the golden value: rc, stdout and normalized stderr per step plus the
+// final content of `files` (relative to the fixture root). The fixture
+// root becomes <ROOT> in every string.
+function tabValue(impl, name, steps, files) {
   const fix = makeTabFixture(`ha-par-tabs-${name}-`, name);
   try {
-    const runs = [];
-    for (const impl of ['bash', 'node']) {
-      fix.seed();
-      const rs = [];
-      for (const step of steps) {
-        const [binx, ...binArgs] = impl === 'bash' ? ['bash', BASH_ENTRY] : [nodeBin(), JS_ENTRY];
-        const r = spawnSync(binx, [...binArgs, ...step.args], { cwd: fix.repo, env: fix.stepEnv, encoding: 'utf8' });
-        rs.push({ rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: r.stderr ?? '' });
-      }
-      runs.push({ rs, files: files.map((rel) => ({ rel, content: fix.read(rel) })) });
+    fix.seed();
+    const rs = [];
+    for (const step of steps) {
+      const r = runImpl(impl, step.args, { env: fix.stepEnv, cwd: fix.repo });
+      rs.push({ args: step.args, rc: r.rc, out: r.out, err: normalizeErr(r.err) });
     }
-    const [bashR, nodeR] = runs;
-    for (let i = 0; i < bashR.rs.length; i += 1) {
-      const where = `${name}: step ${i + 1} (${steps[i].args.join(' ')})`;
-      assert.equal(nodeR.rs[i].rc, bashR.rs[i].rc, `${where}: exit code (bash=${bashR.rs[i].rc} node=${nodeR.rs[i].rc})`);
-      assert.equal(nodeR.rs[i].out, bashR.rs[i].out, `${where}: stdout (node output first)\nnode:\n${nodeR.rs[i].out}\nbash:\n${bashR.rs[i].out}`);
-      assert.equal(normalizeErr(nodeR.rs[i].err), normalizeErr(bashR.rs[i].err), `${where}: stderr normalized\nnode:\n${nodeR.rs[i].err}\nbash:\n${bashR.rs[i].err}`);
-    }
-    for (let i = 0; i < files.length; i += 1) {
-      assert.equal(nodeR.files[i].content, bashR.files[i].content,
-        `${name}: file ${files[i]} after the run (node content first)\nnode:\n${nodeR.files[i].content}\nbash:\n${bashR.files[i].content}`);
-    }
-  } finally { fix.cleanup(); }
+    return normalizeRoots({ steps: rs, files: files.map((rel) => ({ rel, content: fix.read(rel) })) },
+      { '<ROOT>': fix.root });
+  } finally {
+    fix.cleanup();
+  }
 }
 
-test('parity: tab-label (list, rename, --auto, unknown tab)', { timeout: 180000 }, (t) => {
-  runTabScenario(t, 'full', [
+test('parity: tab-label (list, rename, --auto, unknown tab)', { timeout: 180000, skip: SKIP }, () => {
+  const steps = [
     { args: ['tab-label'] },
     { args: ['tab-label', 'nova', 'aba'] },
     { args: ['tab-label', '--tab', 't3', '--auto'] },
     { args: ['tab-label', '--tab', 'nope', 'x'] },
-  ], ['state/ws/herd-tab', 'tabs/t1', 'tabs/t2', 'tabs/t3']);
+  ];
+  const files = ['state/ws/herd-tab', 'tabs/t1', 'tabs/t2', 'tabs/t3'];
+  golden(SUITE, 'tab-label',
+    () => tabValue('node', 'full', steps, files), // actual: the JS entry (check/update)
+    () => tabValue('bash', 'full', steps, files)); // reference: the bash script (record only)
 });
 
-test('parity: tab-label with no herd tab at all', { timeout: 120000 }, (t) => {
-  runTabScenario(t, 'no-tab', [
+test('parity: tab-label with no herd tab at all', { timeout: 120000, skip: SKIP }, () => {
+  const steps = [
     { args: ['tab-label'] },
     { args: ['tab-label', 'x'] },
-  ], ['state/ws/herd-tab']);
+  ];
+  const files = ['state/ws/herd-tab'];
+  golden(SUITE, 'tab-label-no-tab',
+    () => tabValue('node', 'no-tab', steps, files), // actual: the JS entry (check/update)
+    () => tabValue('bash', 'no-tab', steps, files)); // reference: the bash script (record only)
 });

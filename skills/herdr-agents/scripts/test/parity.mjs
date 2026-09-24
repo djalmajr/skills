@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { findExecutable } from '../lib/platform.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
 
 const SCRIPTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BASH_ENTRY = path.join(SCRIPTS_DIR, 'herdr-agents.sh');
@@ -70,7 +71,8 @@ export function makeFixture() {
 
 export function runImpl(impl, args, { env, cwd }) {
   const [bin, ...binArgs] = impl === 'bash' ? ['bash', BASH_ENTRY] : [nodeBin(), JS_ENTRY];
-  const r = spawnSync(bin, [...binArgs, ...args], { cwd, env, encoding: 'utf8' });
+  // The timeout turns a hung child into a failed test instead of a hung run.
+  const r = spawnSync(bin, [...binArgs, ...args], { cwd, env, encoding: 'utf8', timeout: 60000 });
   return { rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: r.stderr ?? '' };
 }
 
@@ -120,3 +122,30 @@ export function parityScenario(t, name, opts) {
     assert.equal(nodeFiles[i].content, bashFiles[i].content, `${name}: file ${opts.files[i]} after the run (node content first)`);
   }
 }
+
+// goldenScenario(suite, name, opts): parityScenario against a recorded
+// reference (test/golden.mjs). The same fixture, seed, steps and files; only
+// one implementation runs: the bash script to record, the JS to check or
+// update. The fixture root becomes <ROOT> in every string of the value.
+export function goldenScenario(suite, name, opts) {
+  const run = (impl) => {
+    const fix = makeFixture();
+    try {
+      fix.reset();
+      if (opts.seed) opts.seed(fix);
+      const steps = [];
+      for (const step of opts.steps) {
+        const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
+        const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
+        steps.push({ args: step.args, rc: r.rc, out: r.out, err: normalizeErr(r.err) });
+      }
+      const files = (opts.files ?? []).map((rel) => ({ rel, content: readRel(fix.root, rel) }));
+      return normalizeRoots({ steps, files }, { '<ROOT>': fix.root });
+    } finally {
+      fix.cleanup();
+    }
+  };
+  golden(suite, name, () => run('node'), () => run('bash'));
+}
+
+export { golden, goldenMode, normalizeRoots };

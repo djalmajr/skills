@@ -1,0 +1,401 @@
+{
+  "clean": {
+    "files": {
+      "herdr.log": "agent list\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nlive\tpl\tgrok\timplementer\txai\t1\t/work\tnow\n",
+      "state/ws/briefs/new.md": "new brief\n",
+      "state/ws/last-report-live": "<ROOT>/state/ws/reports/kept.md\n",
+      "state/ws/reports/kept.md": "old but pointed\n"
+    },
+    "stepFiles": [
+      {
+        "herdr.log": "agent list\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nlive\tpl\tgrok\timplementer\txai\t1\t/work\tnow\n",
+        "state/ws/briefs/new.md": "new brief\n",
+        "state/ws/last-report-live": "<ROOT>/state/ws/reports/kept.md\n",
+        "state/ws/reports/kept.md": "old but pointed\n"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "clean"
+        ],
+        "err": "",
+        "out": "dropped gone agent worker\nremoved 2 files older than 7 days under <ROOT>/state/ws\n",
+        "rc": 0
+      }
+    ]
+  },
+  "collect": {
+    "files": {
+      "herdr.log": "agent get worker\nagent get worker\nagent read worker --source recent-unwrapped --lines 120\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n",
+      "state/ws/friction.log": "TS\twarning\tcollect\tno report file yet for 'worker', and herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }. The worker may still be live.\nTS\twarning\tcollect\tno report file yet for 'worker' (expected <none dispatched>); falling back to recent terminal output\n",
+      "state/ws/last-report-worker": "<ROOT>/state/ws/reports/worker.md\n",
+      "state/ws/reports/worker.md": "report body\n"
+    },
+    "stepFiles": [
+      {
+        "herdr.log": "agent get worker\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n",
+        "state/ws/friction.log": "TS\twarning\tcollect\tno report file yet for 'worker', and herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }. The worker may still be live.\n"
+      },
+      {
+        "herdr.log": "agent get worker\nagent get worker\nagent read worker --source recent-unwrapped --lines 120\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n",
+        "state/ws/friction.log": "TS\twarning\tcollect\tno report file yet for 'worker', and herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }. The worker may still be live.\nTS\twarning\tcollect\tno report file yet for 'worker' (expected <none dispatched>); falling back to recent terminal output\n"
+      },
+      {
+        "herdr.log": "agent get worker\nagent get worker\nagent read worker --source recent-unwrapped --lines 120\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n",
+        "state/ws/friction.log": "TS\twarning\tcollect\tno report file yet for 'worker', and herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }. The worker may still be live.\nTS\twarning\tcollect\tno report file yet for 'worker' (expected <none dispatched>); falling back to recent terminal output\n",
+        "state/ws/last-report-worker": "<ROOT>/state/ws/reports/worker.md\n",
+        "state/ws/reports/worker.md": "report body\n"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "collect",
+          "worker"
+        ],
+        "err": "PROG: warning: no report file yet for 'worker', and herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }. The worker may still be live.\n",
+        "out": "",
+        "rc": 4
+      },
+      {
+        "args": [
+          "collect",
+          "worker"
+        ],
+        "err": "PROG: warning: no report file yet for 'worker' (expected <none dispatched>); falling back to recent terminal output\n",
+        "out": "terminal-fallback",
+        "rc": 6
+      },
+      {
+        "args": [
+          "collect",
+          "worker"
+        ],
+        "err": "",
+        "out": "<!-- report: <ROOT>/state/ws/reports/worker.md -->\nreport body\n",
+        "rc": 0
+      }
+    ]
+  },
+  "release": {
+    "files": {
+      "herdr.log": "agent get worker\nagent get worker\npane close p1\npane list --workspace ws\nagent get worker\npane report-metadata p1 --source herdr-agents --clear-title\npane list --workspace ws\nagent get worker\npane close p1\npane list --workspace ws\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\n",
+      "state/ws/friction.log": "TS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\nTS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\nTS\terror(exit 3)\trelease\tagent 'worker' is still working and has not written <ROOT>/state/ws/reports/worker.md; closing now discards its work. Run 'wait worker' first, or release --close --force\n",
+      "state/ws/reports/worker.md": "done\n"
+    },
+    "stepFiles": [
+      {
+        "herdr.log": "agent get worker\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n",
+        "state/ws/friction.log": "TS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\n"
+      },
+      {
+        "herdr.log": "agent get worker\nagent get worker\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n",
+        "state/ws/friction.log": "TS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\nTS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\n"
+      },
+      {
+        "herdr.log": "agent get worker\nagent get worker\npane close p1\npane list --workspace ws\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\n",
+        "state/ws/friction.log": "TS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\nTS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\n"
+      },
+      {
+        "herdr.log": "agent get worker\nagent get worker\npane close p1\npane list --workspace ws\nagent get worker\npane report-metadata p1 --source herdr-agents --clear-title\npane list --workspace ws\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\n",
+        "state/ws/friction.log": "TS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\nTS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\n"
+      },
+      {
+        "herdr.log": "agent get worker\nagent get worker\npane close p1\npane list --workspace ws\nagent get worker\npane report-metadata p1 --source herdr-agents --clear-title\npane list --workspace ws\nagent get worker\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n",
+        "state/ws/friction.log": "TS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\nTS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\nTS\terror(exit 3)\trelease\tagent 'worker' is still working and has not written <ROOT>/state/ws/reports/worker.md; closing now discards its work. Run 'wait worker' first, or release --close --force\n",
+        "state/ws/last-report-worker": "<ROOT>/state/ws/reports/worker.md\n",
+        "state/ws/reports/worker.md": ""
+      },
+      {
+        "herdr.log": "agent get worker\nagent get worker\npane close p1\npane list --workspace ws\nagent get worker\npane report-metadata p1 --source herdr-agents --clear-title\npane list --workspace ws\nagent get worker\npane close p1\npane list --workspace ws\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\n",
+        "state/ws/friction.log": "TS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\nTS\terror(exit 4)\trelease\tagent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\nTS\terror(exit 3)\trelease\tagent 'worker' is still working and has not written <ROOT>/state/ws/reports/worker.md; closing now discards its work. Run 'wait worker' first, or release --close --force\n",
+        "state/ws/reports/worker.md": "done\n"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "release",
+          "worker",
+          "--close"
+        ],
+        "err": "PROG: agent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\n",
+        "out": "",
+        "rc": 4
+      },
+      {
+        "args": [
+          "release",
+          "worker"
+        ],
+        "err": "PROG: agent 'worker': herdr agent get failed (Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.\n",
+        "out": "",
+        "rc": 4
+      },
+      {
+        "args": [
+          "release",
+          "worker",
+          "--close",
+          "--force"
+        ],
+        "err": "",
+        "out": "closed pane p1\nreleased worker\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "release",
+          "worker"
+        ],
+        "err": "",
+        "out": "released worker\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "release",
+          "worker",
+          "--close"
+        ],
+        "err": "PROG: agent 'worker' is still working and has not written <ROOT>/state/ws/reports/worker.md; closing now discards its work. Run 'wait worker' first, or release --close --force\n",
+        "out": "",
+        "rc": 3
+      },
+      {
+        "args": [
+          "release",
+          "worker",
+          "--close"
+        ],
+        "err": "",
+        "out": "closed pane p1\nreleased worker\n",
+        "rc": 0
+      }
+    ]
+  },
+  "release-title-clear": {
+    "files": {
+      "herdr.log": "pane report-metadata p1 --source herdr-agents --clear-title\npane list --workspace ws\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n",
+      "state/ws/reports/build.md": "done\n"
+    },
+    "stepFiles": [
+      {
+        "herdr.log": "pane report-metadata p1 --source herdr-agents --clear-title\npane list --workspace ws\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n",
+        "state/ws/reports/build.md": "done\n"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "release",
+          "build"
+        ],
+        "err": "",
+        "out": "released build\n",
+        "rc": 0
+      }
+    ]
+  },
+  "wait-denied-gone": {
+    "files": {
+      "herdr.log": "agent get worker\nagent get worker\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n",
+      "state/ws/friction.log": "TS\twarning\twait\tagent 'worker': herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }\n"
+    },
+    "stepFiles": [
+      {
+        "herdr.log": "agent get worker\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n",
+        "state/ws/friction.log": "TS\twarning\twait\tagent 'worker': herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }\n"
+      },
+      {
+        "herdr.log": "agent get worker\nagent get worker\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n",
+        "state/ws/friction.log": "TS\twarning\twait\tagent 'worker': herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }\n"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "wait",
+          "worker",
+          "--timeout",
+          "2000"
+        ],
+        "err": "PROG: warning: agent 'worker': herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }\n",
+        "out": "{\"agent\":\"worker\",\"status\":\"unavailable\",\"report\":\"\",\"error\":\"Error: Os { code: 13, kind: PermissionDenied, message: \\\"Permission denied\\\" }\"}\n",
+        "rc": 4
+      },
+      {
+        "args": [
+          "wait",
+          "worker",
+          "--timeout",
+          "2000"
+        ],
+        "err": "",
+        "out": "{\"agent\":\"worker\",\"status\":\"gone\",\"report\":\"\"}\n",
+        "rc": 6
+      }
+    ]
+  },
+  "wait-quota": {
+    "files": {
+      "herdr.log": "agent get build\nagent read build --source visible --lines 20\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\n",
+      "state/ws/friction.log": "TS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : hit your usage limit; renewal: try again in 2 hours\n",
+      "state/ws/wait/build.quota": "hit your usage limit\ntry again in 2 hours\n"
+    },
+    "stepFiles": [
+      {
+        "herdr.log": "agent get build\nagent read build --source visible --lines 20\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\n",
+        "state/ws/friction.log": "TS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : hit your usage limit; renewal: try again in 2 hours\n",
+        "state/ws/wait/build.quota": "hit your usage limit\ntry again in 2 hours\n"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "wait",
+          "build",
+          "--timeout",
+          "5000"
+        ],
+        "err": "PROG: warning: quota: agent 'build' lane=build kind=grok model=grok-4.7 : hit your usage limit; renewal: try again in 2 hours\n",
+        "out": "{\"agent\":\"build\",\"status\":\"quota\",\"report\":\"\",\"lane\":\"build\",\"kind\":\"grok\",\"model\":\"grok-4.7\",\"match\":\"hit your usage limit\",\"renewal\":\"try again in 2 hours\"}\n",
+        "rc": 11
+      }
+    ]
+  },
+  "wait-quota-vs-blocked": {
+    "files": {
+      "herdr.log": "agent get build\nagent read build --source visible --lines 20\nagent get review\nagent get review\nagent get build\nagent read build --source visible --lines 20\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\nreview\tp2\tcodex\treviewer\txai\t1\t<ROOT>/repo\tnow\tgpt-5\tfull\treviewer\treview\n",
+      "state/ws/friction.log": "TS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\nTS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\n",
+      "state/ws/wait/build.quota": "You exceeded your current quota\n",
+      "state/ws/wait/review.blocked": ""
+    },
+    "stepFiles": [
+      {
+        "herdr.log": "agent get build\nagent read build --source visible --lines 20\nagent get review\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\nreview\tp2\tcodex\treviewer\txai\t1\t<ROOT>/repo\tnow\tgpt-5\tfull\treviewer\treview\n",
+        "state/ws/friction.log": "TS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\n",
+        "state/ws/wait/build.quota": "You exceeded your current quota\n",
+        "state/ws/wait/review.blocked": ""
+      },
+      {
+        "herdr.log": "agent get build\nagent read build --source visible --lines 20\nagent get review\nagent get review\nagent get build\nagent read build --source visible --lines 20\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\nreview\tp2\tcodex\treviewer\txai\t1\t<ROOT>/repo\tnow\tgpt-5\tfull\treviewer\treview\n",
+        "state/ws/friction.log": "TS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\nTS\twarning\twait\tquota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\n",
+        "state/ws/wait/build.quota": "You exceeded your current quota\n",
+        "state/ws/wait/review.blocked": ""
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "wait",
+          "build",
+          "review",
+          "--timeout",
+          "8000"
+        ],
+        "err": "PROG: warning: quota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\n",
+        "out": "{\"agent\":\"build\",\"status\":\"quota\",\"report\":\"\",\"lane\":\"build\",\"kind\":\"grok\",\"model\":\"grok-4.7\",\"match\":\"You exceeded your current quota\",\"renewal\":\"\"}\n{\"agent\":\"review\",\"status\":\"blocked\",\"report\":\"\"}\n",
+        "rc": 11
+      },
+      {
+        "args": [
+          "wait",
+          "review",
+          "build",
+          "--timeout",
+          "8000"
+        ],
+        "err": "PROG: warning: quota: agent 'build' lane=build kind=grok model=grok-4.7 : You exceeded your current quota\n",
+        "out": "{\"agent\":\"review\",\"status\":\"blocked\",\"report\":\"\"}\n{\"agent\":\"build\",\"status\":\"quota\",\"report\":\"\",\"lane\":\"build\",\"kind\":\"grok\",\"model\":\"grok-4.7\",\"match\":\"You exceeded your current quota\",\"renewal\":\"\"}\n",
+        "rc": 11
+      }
+    ]
+  },
+  "wait-title-mark": {
+    "files": {
+      "herdr.log": "pane report-metadata p1 --source herdr-agents --title implementer: porte da config ✓\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\n",
+      "state/ws/last-report-build": "<ROOT>/state/ws/reports/build.md\n",
+      "state/ws/reports/build.md": "done\n",
+      "state/ws/task-build": "implementer: porte da config ✓\n",
+      "state/ws/wait/build.size": "       5\n"
+    },
+    "stepFiles": [
+      {
+        "herdr.log": "pane report-metadata p1 --source herdr-agents --title implementer: porte da config ✓\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\n",
+        "state/ws/last-report-build": "<ROOT>/state/ws/reports/build.md\n",
+        "state/ws/reports/build.md": "done\n",
+        "state/ws/task-build": "implementer: porte da config ✓\n",
+        "state/ws/wait/build.size": "       5\n"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "wait",
+          "build",
+          "--timeout",
+          "5000"
+        ],
+        "err": "",
+        "out": "{\"agent\":\"build\",\"status\":\"done\",\"report\":\"<ROOT>/state/ws/reports/build.md\"}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "wait-working-timeout": {
+    "files": {
+      "herdr.log": "agent get build\nagent read build --source visible\n",
+      "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\n",
+      "state/ws/wait/build.screen": "644527843\n",
+      "state/ws/wait/build.since": "EPOCH"
+    },
+    "stepFiles": [
+      {
+        "herdr.log": "agent get build\nagent read build --source visible\n",
+        "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\n",
+        "state/ws/wait/build.screen": "644527843\n",
+        "state/ws/wait/build.since": "EPOCH"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "wait",
+          "build",
+          "--timeout",
+          "2000"
+        ],
+        "err": "",
+        "out": "{\"agent\":\"build\",\"status\":\"timeout\"}\n",
+        "rc": 9
+      }
+    ]
+  }
+}

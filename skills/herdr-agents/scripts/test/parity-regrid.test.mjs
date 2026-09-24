@@ -1,10 +1,13 @@
-// Parity (slice 8a): `regrid`, output by output and call by call. The same
-// fixture (a state-tracking sh fake `herdr`, temporary HOME / XDG_CONFIG_HOME
-// / HERDR_AGENTS_DIR / TMPDIR, HERDR_WORKSPACE_ID=ws) runs against
-// `bash scripts/herdr-agents.sh` and `node scripts/herdr-agents.mjs` and is
-// compared on rc, stdout, normalized stderr and, after the run, the fake's
-// call log (every `herdr` argv line, byte for byte), the pane-state file,
-// the tab-label files and the `herd-tab` file:
+// Golden (slice 9a-A; slice 8a scenario coverage): the former bash × JS
+// parity scenarios now run only the JS and compare against the reference
+// recorded once from the bash script in test/golden/parity-regrid.json
+// (test/golden.mjs: HERDR_AGENTS_GOLDEN=record records, unset checks,
+// =update overwrites the JS value for review). The same fixture (a
+// state-tracking sh fake `herdr`, temporary HOME / XDG_CONFIG_HOME /
+// HERDR_AGENTS_DIR / TMPDIR, HERDR_WORKSPACE_ID=ws) is compared on rc,
+// stdout, normalized stderr and, after the run, the fake's call log
+// (every `herdr` argv line, byte for byte), the pane-state file, the
+// tab-label files and the `herd-tab` file:
 //   - pull: layout=split pulls a worker back to the caller's tab while it
 //     fits, parks and rebuilds the grid, and forgets emptied herd tabs;
 //   - herd: layout=tab keeps a single-pane herd tab, rebuilds a 3-pane one
@@ -14,18 +17,32 @@
 //     query is not absence), a gone worker's pane is dropped
 //     (test-status.sh :295-330);
 //   - fail: a failed move exits 4 with the bash message and the same
-//     friction entry (timestamps normalized).
+//     friction entry (timestamps normalized to TS in the recorded value).
+//
+// The bash script runs only as the `reference` (record mode); the JS runs
+// only as the `actual` (check/update mode). Each side builds its own
+// fixture from the same seed and returns the same value shape; the fixture
+// root becomes <ROOT> in every string of the recorded value.
 import test from 'node:test';
-import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fixtureEnv, nodeBin, normalizeErr } from './parity.mjs';
+import { fixtureEnv, normalizeErr, runImpl } from './parity.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { findExecutable } from '../lib/platform.mjs';
 
-const SCRIPTS = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const BASH_ENTRY = path.join(SCRIPTS, 'herdr-agents.sh');
-const JS_ENTRY = path.join(SCRIPTS, 'herdr-agents.mjs');
+// Record mode runs the bash reference: it needs bash and jq. Check mode
+// runs the JS against the record and needs the sh fake `herdr`, so it is
+// skipped solely on Windows.
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the sh fake herdr (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
+      ? 'record mode needs bash and jq on PATH'
+      : false);
+
+const SUITE = 'parity-regrid';
 
 // State-tracking sh fake herdr. The pane→tab table lives in $HA_STATE as
 // `pane<TAB>tab` lines (the seed file is $HA_SEED). Tab labels are files in
@@ -114,7 +131,7 @@ function makeFix(prefix, name, seed) {
   const state = path.join(root, 'state');
   const tmp = path.join(root, 'tmp');
   for (const d of [repo, home, conf, state, tmp]) fs.mkdirSync(d, { recursive: true });
-  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore' });
+  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore', timeout: 10000 });
   const env = fixtureEnv({
     HOME: home,
     XDG_CONFIG_HOME: conf,
@@ -183,6 +200,8 @@ function makeFix(prefix, name, seed) {
       };
       const fr = read('state/ws/friction.log');
       if (fr !== null) {
+        // The friction line carries a wall-clock timestamp: normalize it so
+        // the recorded value is stable across runs.
         out['state/ws/friction.log'] = fr.split('\n').map((l) => l.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, 'TS')).join('\n');
       }
       Object.assign(out, walk(tabs));
@@ -194,33 +213,25 @@ function makeFix(prefix, name, seed) {
 
 const ROW = (name, pane, role, tab) => `${name}\t${pane}\tgrok\t${role}\txai\t1\t/tmp\t\n`;
 
-function runScenario(name, seed, envOver, args) {
+// Run the args against one implementation in a fresh fixture and return
+// the golden value: rc, stdout, normalized stderr and the final files
+// (the fake's call log, the pane-state file, the roster, the `herd-tab`
+// file, the tab-label files, and the friction log with TS timestamps).
+// The fixture root becomes <ROOT> in every string.
+function regridValue(impl, name, seed, envOver, args) {
   const fix = makeFix(`ha-parity-regrid-${name}-`, name, seed);
-  let bashRes, bashFiles, nodeRes, nodeFiles;
   try {
-    for (const impl of ['bash', 'node']) {
-      fix.setup();
-      const r = spawnSync(
-        impl === 'bash' ? 'bash' : nodeBin(),
-        [impl === 'bash' ? BASH_ENTRY : JS_ENTRY, ...args],
-        { cwd: fix.repo, env: fix.stepEnv(envOver), encoding: 'utf8', timeout: 20000 },
-      );
-      const files = fix.files();
-      if (impl === 'bash') { bashRes = r; bashFiles = files; } else { nodeRes = r; nodeFiles = files; }
-    }
-  } finally { fix.cleanup(); }
-  const where = `${name} (${args.join(' ')})`;
-  assert.equal(nodeRes.status, bashRes.status, `${where}: exit code (bash=${bashRes.status} node=${nodeRes.status})\nnode stderr:\n${nodeRes.stderr}\nbash stderr:\n${bashRes.stderr}`);
-  assert.equal(nodeRes.stdout, bashRes.stdout, `${where}: stdout (node first)\nnode:\n${nodeRes.stdout}\nbash:\n${bashRes.stdout}`);
-  assert.equal(normalizeErr(nodeRes.stderr), normalizeErr(bashRes.stderr), `${where}: stderr normalized (node first)\nnode:\n${nodeRes.stderr}\nbash:\n${bashRes.stderr}`);
-  for (const [rel, b] of Object.entries(bashFiles)) {
-    assert.equal(nodeFiles[rel], b, `${where}: file ${rel} after the run (node first)\nnode:\n${nodeFiles[rel]}\nbash:\n${b}`);
+    fix.setup();
+    const r = runImpl(impl, args, { env: fix.stepEnv(envOver), cwd: fix.repo });
+    return normalizeRoots({ args, rc: r.rc, out: r.out, err: normalizeErr(r.err), files: fix.files() },
+      { '<ROOT>': fix.root });
+  } finally {
+    fix.cleanup();
   }
-  assert.deepEqual(Object.keys(nodeFiles).sort(), Object.keys(bashFiles).sort(), `${where}: the set of changed files`);
 }
 
-test('parity: regrid pulls a worker back to the caller tab, parks, grids, forgets emptied tabs', { timeout: 120000 }, () => {
-  runScenario('pull', {
+test('parity: regrid pulls a worker back to the caller tab, parks, grids, forgets emptied tabs', { timeout: 120000, skip: SKIP }, () => {
+  const seed = {
     roster: [
       '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted',
       ROW('w1', 'p1', 'implementer', 't0'),
@@ -229,11 +240,15 @@ test('parity: regrid pulls a worker back to the caller tab, parks, grids, forget
     panes: 'C\tt0\np1\tt0\np2\tt1\n',
     tabs: { t1: 'herd', t2: 'herd' },
     herdTab: 't1\therd\tauto\nt2\therd\tauto\n',
-  }, { HERDR_TAB_ID: 't0', HERDR_PANE_ID: 'C', HERDR_AGENTS_SPLIT_MAX_PANES: '4' }, ['regrid']);
+  };
+  const envOver = { HERDR_TAB_ID: 't0', HERDR_PANE_ID: 'C', HERDR_AGENTS_SPLIT_MAX_PANES: '4' };
+  golden(SUITE, 'pull',
+    () => regridValue('node', 'pull', seed, envOver, ['regrid']), // actual (check/update)
+    () => regridValue('bash', 'pull', seed, envOver, ['regrid'])); // reference (record only)
 });
 
-test('parity: regrid with layout=tab keeps, rebuilds and forgets the herd tabs', { timeout: 120000 }, () => {
-  runScenario('herd', {
+test('parity: regrid with layout=tab keeps, rebuilds and forgets the herd tabs', { timeout: 120000, skip: SKIP }, () => {
+  const seed = {
     roster: [
       '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted',
       ROW('s1', 'q1', 'implementer', 't1'),
@@ -245,11 +260,15 @@ test('parity: regrid with layout=tab keeps, rebuilds and forgets the herd tabs',
     panes: 'q1\tt1\nq2\tt2\nq3\tt2\nq4\tt2\n', // q5 is gone
     tabs: { t1: 'solo', t2: 'herd', t3: 'herd' },
     herdTab: 't1\tsolo\tauto\nt2\t-\tauto\nt3\therd\tauto\n',
-  }, { HERDR_AGENTS_LAYOUT: 'tab' }, ['regrid']);
+  };
+  const envOver = { HERDR_AGENTS_LAYOUT: 'tab' };
+  golden(SUITE, 'herd',
+    () => regridValue('node', 'herd', seed, envOver, ['regrid']), // actual (check/update)
+    () => regridValue('bash', 'herd', seed, envOver, ['regrid'])); // reference (record only)
 });
 
-test('parity: regrid keeps an unqueryable worker pane and drops a gone one', { timeout: 120000 }, () => {
-  runScenario('kept', {
+test('parity: regrid keeps an unqueryable worker pane and drops a gone one', { timeout: 120000, skip: SKIP }, () => {
+  const seed = {
     roster: [
       '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted',
       ROW('stuck', 'p2', 'implementer', 't0'),
@@ -258,11 +277,15 @@ test('parity: regrid keeps an unqueryable worker pane and drops a gone one', { t
     panes: 'C\tt0\np2\tt0\np3\tt0\n',
     agentModes: { stuck: 'denied', dead: 'gone' },
     herdTab: '',
-  }, { HERDR_TAB_ID: 't0', HERDR_PANE_ID: 'C' }, ['regrid']);
+  };
+  const envOver = { HERDR_TAB_ID: 't0', HERDR_PANE_ID: 'C' };
+  golden(SUITE, 'kept',
+    () => regridValue('node', 'kept', seed, envOver, ['regrid']), // actual (check/update)
+    () => regridValue('bash', 'kept', seed, envOver, ['regrid'])); // reference (record only)
 });
 
-test('parity: regrid exits 4 on a failed move, with the bash message and friction entry', { timeout: 120000 }, () => {
-  runScenario('fail', {
+test('parity: regrid exits 4 on a failed move, with the bash message and friction entry', { timeout: 120000, skip: SKIP }, () => {
+  const seed = {
     roster: [
       '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted',
       ROW('w1', 'p1', 'implementer', 't0'),
@@ -270,5 +293,9 @@ test('parity: regrid exits 4 on a failed move, with the bash message and frictio
     panes: 'C\tt0\np1\tt0\n',
     moveFail: true,
     herdTab: '',
-  }, { HERDR_TAB_ID: 't0', HERDR_PANE_ID: 'C' }, ['regrid']);
+  };
+  const envOver = { HERDR_TAB_ID: 't0', HERDR_PANE_ID: 'C' };
+  golden(SUITE, 'fail',
+    () => regridValue('node', 'fail', seed, envOver, ['regrid']), // actual (check/update)
+    () => regridValue('bash', 'fail', seed, envOver, ['regrid'])); // reference (record only)
 });

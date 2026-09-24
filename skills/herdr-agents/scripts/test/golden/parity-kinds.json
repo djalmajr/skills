@@ -1,0 +1,278 @@
+{
+  "kinds-table": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "kinds"
+        ],
+        "err": "",
+        "out": "KIND     EXECUTABLE    FAMILY     EFFORT   INSTALLED\nclaude   claude        anthropic  max      yes\ncodex    codex         openai     max      yes\ngrok     grok          xai        xhigh    yes\nagy      agy           google     high     yes\ngemini   gemini        google     high     no\ncursor   cursor-agent  by model   xhigh    yes\npi       pi            by model   max      yes\nopencode opencode      by model            yes\n",
+        "rc": 0
+      }
+    ]
+  },
+  "model-agy-alternates": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "model",
+          "agy",
+          "gemini|opus",
+          "low"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"agy\",\n  \"spec\": \"gemini|opus\",\n  \"effort\": \"low\",\n  \"model\": \"gemini-3.8-flash\",\n  \"family\": \"google\",\n  \"effort_ceiling\": \"high\",\n  \"agent_args\": \"--model gemini-3.8-flash --effort low\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "model",
+          "agy",
+          "opus"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"agy\",\n  \"spec\": \"opus\",\n  \"effort\": \"\",\n  \"model\": \"claude-opus-4-6\",\n  \"family\": \"google\",\n  \"effort_ceiling\": \"high\",\n  \"agent_args\": \"--model claude-opus-4-6\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "model",
+          "agy",
+          "gemini",
+          "high"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"agy\",\n  \"spec\": \"gemini\",\n  \"effort\": \"high\",\n  \"model\": \"gemini-3.8-flash-high\",\n  \"family\": \"google\",\n  \"effort_ceiling\": \"high\",\n  \"agent_args\": \"--model gemini-3.8-flash-high\"\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "model-cursor": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "model",
+          "cursor",
+          "grok",
+          "xhigh"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"cursor\",\n  \"spec\": \"grok\",\n  \"effort\": \"xhigh\",\n  \"model\": \"grok-4.7-high\",\n  \"family\": \"xai\",\n  \"effort_ceiling\": \"xhigh\",\n  \"agent_args\": \"--model grok-4.7-high\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "model",
+          "cursor",
+          "grok"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"cursor\",\n  \"spec\": \"grok\",\n  \"effort\": \"\",\n  \"model\": \"grok-4.7-max\",\n  \"family\": \"xai\",\n  \"effort_ceiling\": \"xhigh\",\n  \"agent_args\": \"--model grok-4.7-max\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "model",
+          "cursor",
+          "claude",
+          "max"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"cursor\",\n  \"spec\": \"claude\",\n  \"effort\": \"max\",\n  \"model\": \"claude-opus-4-8-max\",\n  \"family\": \"anthropic\",\n  \"effort_ceiling\": \"xhigh\",\n  \"agent_args\": \"--model claude-opus-4-8-max\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "model",
+          "cursor",
+          "grok",
+          "low"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"cursor\",\n  \"spec\": \"grok\",\n  \"effort\": \"low\",\n  \"model\": \"grok-4.7-max\",\n  \"family\": \"xai\",\n  \"effort_ceiling\": \"xhigh\",\n  \"agent_args\": \"--model grok-4.7-max\"\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "model-cursor-die": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "model",
+          "cursor",
+          "nosuchmodel"
+        ],
+        "err": "PROG: no cursor model matches 'nosuchmodel'; cursor-agent rejects model ids absent from --list-models (context overrides are only usable when that model/account exposes them)\n",
+        "out": "",
+        "rc": 2
+      }
+    ]
+  },
+  "model-exact-regex": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "model",
+          "grok",
+          "grok",
+          "xhigh"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"grok\",\n  \"spec\": \"grok\",\n  \"effort\": \"xhigh\",\n  \"model\": \"grok-4.7\",\n  \"family\": \"xai\",\n  \"effort_ceiling\": \"xhigh\",\n  \"agent_args\": \"--model grok-4.7 --reasoning-effort xhigh\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "model",
+          "grok",
+          "grok-4.7"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"grok\",\n  \"spec\": \"grok-4.7\",\n  \"effort\": \"\",\n  \"model\": \"grok-4.7\",\n  \"family\": \"xai\",\n  \"effort_ceiling\": \"xhigh\",\n  \"agent_args\": \"--model grok-4.7\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "model",
+          "codex",
+          "gpt",
+          "xhigh"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"codex\",\n  \"spec\": \"gpt\",\n  \"effort\": \"xhigh\",\n  \"model\": \"gpt-5.1\",\n  \"family\": \"openai\",\n  \"effort_ceiling\": \"medium\",\n  \"agent_args\": \"-m gpt-5.1 -c model_reasoning_effort=\\\"xhigh\\\"\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "model",
+          "codex",
+          "astra"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"codex\",\n  \"spec\": \"astra\",\n  \"effort\": \"\",\n  \"model\": \"codex-astra\",\n  \"family\": \"openai\",\n  \"effort_ceiling\": \"max\",\n  \"agent_args\": \"-m codex-astra\"\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "model-generic": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "model",
+          "pi",
+          "my-provider/my-model",
+          "high"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"pi\",\n  \"spec\": \"my-provider/my-model\",\n  \"effort\": \"high\",\n  \"model\": \"my-provider/my-model\",\n  \"family\": \"unknown\",\n  \"effort_ceiling\": \"max\",\n  \"agent_args\": \"--model my-provider/my-model --thinking high\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "model",
+          "opencode",
+          "my-provider/gpt-5",
+          "high"
+        ],
+        "err": "",
+        "out": "{\n  \"kind\": \"opencode\",\n  \"spec\": \"my-provider/gpt-5\",\n  \"effort\": \"high\",\n  \"model\": \"my-provider/gpt-5\",\n  \"family\": \"openai\",\n  \"effort_ceiling\": \"\",\n  \"agent_args\": \"-m my-provider/gpt-5\"\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "model-usage": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "model"
+        ],
+        "err": "PROG: 1: kind\n",
+        "out": "",
+        "rc": 1
+      },
+      {
+        "args": [
+          "model",
+          "grok"
+        ],
+        "err": "PROG: 2: spec\n",
+        "out": "",
+        "rc": 1
+      }
+    ]
+  },
+  "models-listing": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "models",
+          "grok"
+        ],
+        "err": "",
+        "out": "grok-4.7\ngrok-4.7-build-fast\ngrok-4.6\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "models",
+          "cursor"
+        ],
+        "err": "",
+        "out": "claude-opus-4-8-max\ngrok-4.7-high\ngrok-4.7-max\ngrok-4.6\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "models",
+          "agy"
+        ],
+        "err": "",
+        "out": "gpt-oss-120b\nclaude-opus-4-6\ngemini-3.8-flash\ngemini-3.8-flash-high\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "models",
+          "codex"
+        ],
+        "err": "",
+        "out": "gpt-5.1\ngpt-5\ncodex-astra\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "models",
+          "pi"
+        ],
+        "err": "",
+        "out": "\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "models",
+          "unknownkind"
+        ],
+        "err": "",
+        "out": "\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "models"
+        ],
+        "err": "PROG: 1: kind\n",
+        "out": "",
+        "rc": 1
+      }
+    ]
+  }
+}

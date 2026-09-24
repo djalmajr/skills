@@ -1,19 +1,39 @@
-// Parity (slice 7b): `setup --detect` run against
-// `bash scripts/herdr-agents.sh` and `node scripts/herdr-agents.mjs` in an
-// identical fixture must produce identical stdout, exit code and
-// (prefix-normalized) stderr. Scenarios: the test-detect-custom.sh cases
-// (pi + opencode provider files with secrets that never leave the output,
-// a malformed models.json, and no provider files at all), no agent CLI on
+// Golden (slice 9a-B; slice 7b scenario coverage): `setup --detect` now
+// runs only the JS and compares against the reference recorded once from
+// the bash script in test/golden/parity-setup-detect.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
+// JS value for review). Scenarios: the test-detect-custom.sh cases (pi +
+// opencode provider files with secrets that never leave the output, a
+// malformed models.json, and no provider files at all), no agent CLI on
 // the PATH, custom lanes, role.<r>.kind and model.<kind>.worker in
-// different layers, and the $OPENCODE_CONFIG file. The PATH is fully
-// controlled (as in test-detect-custom.sh): fake agent CLIs, symlinks to
-// the host jq/git and a `timeout` shim — no host CLI can leak in.
+// different layers, and the $OPENCODE_CONFIG file. The recorded value
+// holds, per step: the exit code, stdout and the prefix-normalized stderr.
+// The PATH is fully controlled (as in test-detect-custom.sh): fake agent
+// CLIs, symlinks to the host jq/git and a `timeout` shim — no host CLI can
+// leak in.
+//
+// The bash script runs only as the `reference` (record mode); the JS runs
+// only as the `actual` (check/update mode). Each side builds its own
+// fixture from the same seed and returns the same value shape; the fixture
+// root becomes <ROOT> in every string of the recorded value.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { makeFixture, runImpl, normalizeErr } from './parity.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
 import { findExecutable } from '../lib/platform.mjs';
+
+// Record mode runs the bash reference: it needs bash and jq. Check mode
+// runs the JS against the record and is skipped solely on Windows.
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the POSIX fixture contract (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
+      ? 'record mode needs bash and jq on PATH'
+      : false);
+
+const SUITE = 'parity-setup-detect';
 
 // The provider files of test-detect-custom.sh, with the secrets that must
 // never appear in the output.
@@ -79,16 +99,13 @@ const CODEX_JSON = JSON.stringify({
 
 const SECRETS = ['PISECRET987654321', 'OPENSECRET42', 'USERSECRET111', 'header-secret-value'];
 
-const HAS_JQ = Boolean(findExecutable('jq'));
-const SKIP = HAS_JQ ? false : 'jq is required for the bash parity run';
-
 // Write the host jq/git symlinks, the `timeout` shim (bash pipelines
 // `timeout <s> <cli>`; JS runCli times out on its own) and the requested
 // fake agent CLIs into <fixture>/fakes. Returns the fakes dir.
 function seedFakes(fix, agents = []) {
   const fakes = path.join(fix.root, 'fakes');
-  // The seed runs once per implementation (the fixture reset does not touch
-  // the fakes dir): start from a clean directory.
+  // The seed runs once per golden side (the fixture is fresh per side):
+  // start from a clean directory.
   fs.rmSync(fakes, { recursive: true, force: true });
   fs.mkdirSync(fakes, { recursive: true });
   for (const name of ['jq', 'git']) {
@@ -121,48 +138,47 @@ function seedFakes(fix, agents = []) {
   return fakes;
 }
 
-// Like parityScenario, but returns the per-implementation results so the
-// caller can make extra assertions on the node output.
-function parityDetect(name, opts) {
-  const fix = makeFixture();
-  let bashRes;
-  let nodeRes;
-  try {
-    for (const impl of ['bash', 'node']) {
-      fix.reset();
-      if (opts.seed) opts.seed(fix);
-      const results = [];
-      for (const step of opts.steps) {
-        const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
-        results.push(runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo }));
-      }
-      if (impl === 'bash') bashRes = results;
-      else nodeRes = results;
-    }
-  } finally {
-    fix.cleanup();
-  }
-  assert.equal(nodeRes.length, bashRes.length, `${name}: step count`);
-  for (let i = 0; i < bashRes.length; i++) {
-    const where = `${name}: step ${i + 1} (${opts.steps[i].args.join(' ')})`;
-    assert.equal(nodeRes[i].rc, bashRes[i].rc, `${where}: exit code (bash=${bashRes[i].rc} node=${nodeRes[i].rc})`);
-    assert.equal(nodeRes[i].out, bashRes[i].out, `${where}: stdout (node output first)`);
-    assert.equal(normalizeErr(nodeRes[i].err), normalizeErr(bashRes[i].err), `${where}: stderr normalized`);
-  }
-  return { bash: bashRes, node: nodeRes };
-}
-
 // The fully controlled PATH (test-detect-custom.sh pattern): the fakes dir
 // (jq/git symlinks + timeout shim + the agent fakes) then the system dirs —
 // no host agent CLI can leak in. The getter resolves after the seed ran.
-// OPENCODE_CONFIG is pinned to "" (unset in both implementations) so a host
-// value can never point the runs at the operator's real config file.
+// OPENCODE_CONFIG is pinned to "" (unset in both sides) so a host value can
+// never point the runs at the operator's real config file.
 const ctrlPath = (st) => ({ get PATH() { return `${st.fakes}:/usr/bin:/bin`; }, OPENCODE_CONFIG: '' });
 
-test('parity: setup --detect with the custom provider files (test-detect-custom.sh)', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+// Run every step against one implementation in a fresh fixture and return
+// the golden value: rc, stdout and prefix-normalized stderr per step. The
+// fixture root becomes <ROOT> in every string of the value.
+function detectValue(impl, opts) {
+  const fix = makeFixture();
+  try {
+    fix.reset();
+    if (opts.seed) opts.seed(fix);
+    const results = [];
+    for (const step of opts.steps) {
+      const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
+      const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
+      results.push({ args: step.args, rc: r.rc, out: r.out, err: normalizeErr(r.err) });
+    }
+    return normalizeRoots({ steps: results }, { '<ROOT>': fix.root });
+  } finally {
+    fix.cleanup();
+  }
+}
+
+// Golden wrapper: record runs the bash reference, check/update run the JS;
+// the value is returned for the per-scenario assertions.
+function detectScenario(name, opts) {
+  let refValue;
+  let actValue;
+  const reference = () => (refValue !== undefined ? refValue : (refValue = detectValue('bash', opts))); // record only
+  const actual = () => (actValue !== undefined ? actValue : (actValue = detectValue('node', opts))); // check/update
+  golden(SUITE, name, actual, reference);
+  return goldenMode() === 'record' ? reference() : actual();
+}
+
+test('parity: setup --detect with the custom provider files (test-detect-custom.sh)', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDetect('detect-custom', {
+  const r = detectScenario('detect-custom', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, ['pi', 'grok', 'cursor-agent', 'agy']);
       fs.mkdirSync(path.join(fix.home, '.pi', 'agent'), { recursive: true });
@@ -175,12 +191,12 @@ test('parity: setup --detect with the custom provider files (test-detect-custom.
     },
     steps: [{ args: ['setup', '--detect'], env: ctrlPath(st) }],
   });
-  const r = res.node[0];
-  assert.equal(r.rc, 0, 'detect exits 0');
+  const s = r.steps[0];
+  assert.equal(s.rc, 0, 'detect exits 0');
   for (const secret of [...SECRETS, 'SECOND_KEY']) {
-    assert.ok(!r.out.includes(secret), `the output must not contain ${secret}`);
+    assert.ok(!s.out.includes(secret), `the output must not contain ${secret}`);
   }
-  const doc = JSON.parse(r.out);
+  const doc = JSON.parse(s.out);
   const kind = (k) => doc.kinds.find((x) => x.kind === k);
   assert.equal(kind('pi').installed, true);
   assert.deepEqual(kind('pi').custom_models, [
@@ -207,10 +223,9 @@ test('parity: setup --detect with the custom provider files (test-detect-custom.
   assert.deepEqual(Object.keys(doc.config), ['max_workers', 'multi_role', 'reuse_workers', 'panes', 'lanes', 'effective_lanes', 'presets', 'role_kinds', 'worker_models']);
 });
 
-test('parity: setup --detect with a malformed pi models.json degrades to []', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --detect with a malformed pi models.json degrades to []', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDetect('detect-bad-pi', {
+  const r = detectScenario('detect-bad-pi', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, ['pi', 'grok']);
       fs.mkdirSync(path.join(fix.home, '.pi', 'agent'), { recursive: true });
@@ -221,8 +236,9 @@ test('parity: setup --detect with a malformed pi models.json degrades to []', { 
     },
     steps: [{ args: ['setup', '--detect'], env: ctrlPath(st) }],
   });
-  const doc = JSON.parse(res.node[0].out);
-  assert.equal(res.node[0].rc, 0, 'a malformed file is not a failure');
+  const s = r.steps[0];
+  const doc = JSON.parse(s.out);
+  assert.equal(s.rc, 0, 'a malformed file is not a failure');
   assert.deepEqual(doc.kinds.find((k) => k.kind === 'pi').custom_models, []);
   // The opencode files are fine: their models still show up.
   assert.deepEqual(doc.kinds.find((k) => k.kind === 'opencode').custom_models.map((e) => e.id), [
@@ -230,10 +246,9 @@ test('parity: setup --detect with a malformed pi models.json degrades to []', { 
   ]);
 });
 
-test('parity: setup --detect with no agent CLI on the PATH and no provider files', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --detect with no agent CLI on the PATH and no provider files', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDetect('detect-bare', {
+  const r = detectScenario('detect-bare', {
     seed: (fix) => {
       st.fakes = seedFakes(fix);
       fs.rmSync(path.join(fix.home, '.pi'), { recursive: true, force: true });
@@ -242,8 +257,9 @@ test('parity: setup --detect with no agent CLI on the PATH and no provider files
     },
     steps: [{ args: ['setup', '--detect'], env: ctrlPath(st) }],
   });
-  const doc = JSON.parse(res.node[0].out);
-  assert.equal(res.node[0].rc, 0);
+  const s = r.steps[0];
+  const doc = JSON.parse(s.out);
+  assert.equal(s.rc, 0);
   for (const k of doc.kinds) {
     assert.equal(k.installed, false, `${k.kind} must not be installed`);
     assert.deepEqual(k.models, [], `${k.kind} has no model list`);
@@ -252,10 +268,9 @@ test('parity: setup --detect with no agent CLI on the PATH and no provider files
   assert.equal(doc.recommended_reviewer, null, 'no installed kind: no reviewer');
 });
 
-test('parity: setup --detect with custom lanes', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --detect with custom lanes', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDetect('detect-lanes', {
+  const r = detectScenario('detect-lanes', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, ['pi', 'grok']);
       fs.mkdirSync(path.join(fix.repo, '.agents'), { recursive: true });
@@ -264,7 +279,8 @@ test('parity: setup --detect with custom lanes', { timeout: 120000, skip: SKIP }
     },
     steps: [{ args: ['setup', '--detect'], env: ctrlPath(st) }],
   });
-  const doc = JSON.parse(res.node[0].out);
+  const s = r.steps[0];
+  const doc = JSON.parse(s.out);
   assert.deepEqual(doc.config.effective_lanes, [
     { name: 'build', roles: ['implementer', 'designer'], kind: 'codex', model: '', effort: '', approvals: '' },
     { name: 'review', roles: ['reviewer'], kind: '', model: '', effort: '', approvals: '' },
@@ -276,10 +292,9 @@ test('parity: setup --detect with custom lanes', { timeout: 120000, skip: SKIP }
   assert.deepEqual(doc.config.presets['4'].map((l) => l.name), ['build', 'explore', 'review']);
 });
 
-test('parity: setup --detect with role.<r>.kind and model.<kind>.worker in different layers', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --detect with role.<r>.kind and model.<kind>.worker in different layers', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDetect('detect-layers', {
+  const r = detectScenario('detect-layers', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, ['pi', 'grok']);
       fs.mkdirSync(path.join(fix.conf, 'herdr-agents'), { recursive: true });
@@ -299,7 +314,8 @@ test('parity: setup --detect with role.<r>.kind and model.<kind>.worker in diffe
       },
     }],
   });
-  const doc = JSON.parse(res.node[0].out);
+  const s = r.steps[0];
+  const doc = JSON.parse(s.out);
   const role = (k) => doc.config.role_kinds.find((e) => e.key === k);
   const model = (k) => doc.config.worker_models.find((e) => e.key === k);
   // User layer, project layer, the env layer and the role-file fallback.
@@ -315,10 +331,9 @@ test('parity: setup --detect with role.<r>.kind and model.<kind>.worker in diffe
   assert.deepEqual(doc.recommended_reviewer, { kind: 'grok', family: 'xai', model: '' });
 });
 
-test('parity: setup --detect with the $OPENCODE_CONFIG file between project and user', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --detect with the $OPENCODE_CONFIG file between project and user', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '', ocFile: '' };
-  const res = parityDetect('detect-oc-env', {
+  const r = detectScenario('detect-oc-env', {
     seed: (fix) => {
       st.fakes = seedFakes(fix);
       st.ocFile = path.join(fix.root, 'oc-env.json');
@@ -346,8 +361,9 @@ test('parity: setup --detect with the $OPENCODE_CONFIG file between project and 
       },
     }],
   });
-  const doc = JSON.parse(res.node[0].out);
-  assert.ok(!res.node[0].out.includes('ENVSECRET555'), 'the $OPENCODE_CONFIG file keeps its secret');
+  const s = r.steps[0];
+  const doc = JSON.parse(s.out);
+  assert.ok(!s.out.includes('ENVSECRET555'), 'the $OPENCODE_CONFIG file keeps its secret');
   assert.deepEqual(doc.kinds.find((k) => k.kind === 'opencode').custom_models.map((e) => e.id), [
     'pp/pm', 'pp/dup', 'sp/sm', 'pp/em', 'pp/xm',
   ]);

@@ -1,17 +1,29 @@
-// Parity (slice 4): lanes and quota, output by output — the bash script
-// sourced with HERDR_AGENTS_LIB=1 (exactly like test-lanes.sh /
-// test-quota.sh) versus the lib/*.mjs modules:
+// Golden (slice 9a-A; slice 4 scenario coverage): the former bash × JS
+// parity scenarios now run only the JS and compare against the reference
+// recorded once from the bash script in test/golden/parity-lanes.json
+// (test/golden.mjs: HERDR_AGENTS_GOLDEN=record records, unset checks,
+// =update overwrites the JS value for review):
 //   - lane_names / lane_of_role / max_workers over a config matrix
 //     (presets 3/4, custom, env, hyphen in the lane name, lanes off,
-//     explicit max_workers, empty lane roles, C-locale case order);
+//     explicit max_workers, empty lane roles, C-locale case order):
+//     the bash script sourced with HERDR_AGENTS_LIB=1 (exactly like
+//     test-lanes.sh / test-quota.sh) versus the lib/*.mjs modules;
 //   - quota_detect / renewal_value on every screen of the unit matrix
 //     plus Bearer, api_key=, sk-proj- and JSON "message" lines;
-//   - apply_lane_file on nine seed files: the final file byte for byte,
-//     its final mode, the printed lines, the warnings, and no temporary
-//     files left in the destination or TMPDIR. The Bash 0600 result and the
-//     JS source-mode preservation are both asserted explicitly.
+//   - apply_lane_file on ten seed files: the final file byte for byte,
+//     the printed lines, the warnings, and no temporary files left in
+//     the destination or TMPDIR. The final file mode is expected per
+//     implementation (Bash's mktemp + mv ends at 0600; the JS atomic
+//     writer preserves the source mode) and is checked on its own side,
+//     not against the record;
+//   - setup_lane_spec over valid and rejected specs.
 // The probes pin LC_ALL=C so the bash `sort -u` / grep collation runs in
 // the C locale the brief defines for laneNames (code-unit order).
+//
+// The bash script runs only as the `reference` (record mode); the JS runs
+// only as the `actual` (check/update mode). Each side builds its own
+// fixture from the same seed and returns the same value shape; the fixture
+// root becomes <ROOT> in every string of the recorded value.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -20,6 +32,19 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASH_ENTRY, fixtureEnv, nodeBin, normalizeErr } from './parity.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { findExecutable } from '../lib/platform.mjs';
+
+// Record mode runs the bash reference: it needs bash and jq. Check mode
+// runs the JS against the record and is skipped solely on Windows.
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the POSIX fixture contract (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
+      ? 'record mode needs bash and jq on PATH'
+      : false);
+
+const SUITE = 'parity-lanes';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const JSCONFIG = path.join(ROOT, 'lib', 'config.mjs');
@@ -36,7 +61,7 @@ function mkFix(prefix) {
   const state = path.join(root, 'state');
   const tmp = path.join(root, 'tmp');
   for (const d of [repo, home, conf, state, tmp]) fs.mkdirSync(d, { recursive: true });
-  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore' });
+  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore', timeout: 10000 });
   const env = fixtureEnv({
     HOME: home,
     XDG_CONFIG_HOME: conf,
@@ -62,6 +87,20 @@ function seed(fix, sc) {
     fs.mkdirSync(path.join(fix.conf, 'herdr-agents'), { recursive: true });
     if (sc.user !== null) fs.writeFileSync(path.join(fix.conf, 'herdr-agents', 'config'), sc.user);
   }
+}
+
+// Run one probe (a script written into the fixture) under one interpreter
+// and return the golden value: rc, stdout, normalized stderr.
+function probeValue({ bin, probeName, probeText, name, setup, envOver, cwd }) {
+  const fix = mkFix(`ha-par-${name}-`);
+  try {
+    setup(fix);
+    const env = { ...fix.env, ...(envOver ?? {}) };
+    const f = path.join(fix.root, probeName);
+    fs.writeFileSync(f, probeText);
+    const r = spawnSync(bin, [f], { cwd: cwd === 'root' ? fix.root : fix.repo, env, encoding: 'utf8', timeout: 60000 });
+    return { rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: normalizeErr(r.stderr ?? '') };
+  } finally { fix.cleanup(); }
 }
 
 // ---------- lane_names / lane_of_role / max_workers ----------
@@ -93,55 +132,35 @@ console.log(\`COUNT \${laneCount(ctx, env)}\`);
 console.log(\`MAXWORKERS \${maxWorkers(ctx, env)}\`);
 `;
 
-function lanesScenario(t, name, sc) {
-  void t;
-  const fix = mkFix(`ha-par-lanes-${name}-`);
-  try {
-    const results = [];
-    for (const impl of ['bash', 'node']) {
-      seed(fix, sc);
-      const env = { ...fix.env, ...(sc.env ?? {}) };
-      const probe = impl === 'bash' ? LANES_BASH_PROBE(BASH_ENTRY) : LANES_JS_PROBE;
-      if (impl === 'bash') {
-        const f = path.join(fix.root, 'probe.sh');
-        fs.writeFileSync(f, probe);
-        const r = spawnSync('bash', [f], { cwd: fix.repo, env, encoding: 'utf8' });
-        results.push({ rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: r.stderr ?? '' });
-      } else {
-        const f = path.join(fix.root, 'probe.mjs');
-        fs.writeFileSync(f, probe);
-        const r = spawnSync(nodeBin(), [f], { cwd: fix.repo, env, encoding: 'utf8' });
-        results.push({ rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: r.stderr ?? '' });
-      }
-    }
-    assert.equal(results[1].rc, results[0].rc, `${name}: exit code (bash=${results[0].rc} node=${results[1].rc})`);
-    assert.equal(results[1].out, results[0].out, `${name}: stdout (node output first)\nnode:\n${results[1].out}\nbash:\n${results[0].out}`);
-    assert.equal(normalizeErr(results[1].err), normalizeErr(results[0].err), `${name}: stderr normalized`);
-  } finally { fix.cleanup(); }
+function lanesScenario(name, sc) {
+  const setup = (fix) => seed(fix, sc);
+  golden(SUITE, name,
+    () => probeValue({ bin: nodeBin(), probeName: 'probe.mjs', probeText: LANES_JS_PROBE, name, setup, envOver: sc.env ?? {} }), // actual (check/update)
+    () => probeValue({ bin: 'bash', probeName: 'probe.sh', probeText: LANES_BASH_PROBE(BASH_ENTRY), name, setup, envOver: sc.env ?? {} })); // reference (record only)
 }
 
-test('parity: lane_names / lane_of_role / max_workers matrix', { timeout: 120000 }, (t) => {
-  lanesScenario(t, 'preset-4', {});
-  lanesScenario(t, 'preset-3', { project: 'panes=3\n' });
-  lanesScenario(t, 'preset-3-env', { env: { HERDR_AGENTS_PANES: '3' } });
-  lanesScenario(t, 'custom-file', { project: 'panes=4\nlane.ops.roles=implementer,tasker\n' });
-  lanesScenario(t, 'custom-env', { env: { HERDR_AGENTS_LANE_OPS_ROLES: 'implementer,tasker' } });
-  lanesScenario(t, 'hyphen-file-key', { project: 'lane.ui-review.roles=ui-reviewer,inspector\n' });
-  lanesScenario(t, 'hyphen-env-invisible', { env: { 'HERDR_AGENTS_LANE_UI-REVIEW_ROLES': 'ui-reviewer,inspector' } });
-  lanesScenario(t, 'hyphen-env-plus-file', { project: 'lane.ui-review.roles=ui-reviewer,inspector\n', env: { 'HERDR_AGENTS_LANE_UI-REVIEW_ROLES': 'ui-reviewer,inspector' } });
-  lanesScenario(t, 'mixed-file-env', { project: 'lane.a.roles=scouter\n', env: { HERDR_AGENTS_LANE_B_ROLES: 'researcher' } });
-  lanesScenario(t, 'lanes-off', { env: { HERDR_AGENTS_LANES: 'off' } });
-  lanesScenario(t, 'explicit-max', { project: 'max_workers=5\n' });
-  lanesScenario(t, 'explicit-max-env', { env: { HERDR_AGENTS_MAX_WORKERS: '0' } });
-  lanesScenario(t, 'empty-roles', { project: 'lane.empty.roles=\nlane.ops.roles=implementer\n', env: { HERDR_AGENTS_LANE_B_ROLES: 'researcher' } });
-  lanesScenario(t, 'case-order', { project: 'lane.A.roles=reviewer\nlane.b.roles=scouter\n' });
-  lanesScenario(t, 'user-layer', { user: 'panes=3\nlane.u.roles=implementer\n' });
-  lanesScenario(t, 'user-and-project', { user: 'lane.u.roles=implementer\n', project: 'lane.p.roles=tasker\n' });
+test('parity: lane_names / lane_of_role / max_workers matrix', { timeout: 120000, skip: SKIP }, () => {
+  lanesScenario('preset-4', {});
+  lanesScenario('preset-3', { project: 'panes=3\n' });
+  lanesScenario('preset-3-env', { env: { HERDR_AGENTS_PANES: '3' } });
+  lanesScenario('custom-file', { project: 'panes=4\nlane.ops.roles=implementer,tasker\n' });
+  lanesScenario('custom-env', { env: { HERDR_AGENTS_LANE_OPS_ROLES: 'implementer,tasker' } });
+  lanesScenario('hyphen-file-key', { project: 'lane.ui-review.roles=ui-reviewer,inspector\n' });
+  lanesScenario('hyphen-env-invisible', { env: { 'HERDR_AGENTS_LANE_UI-REVIEW_ROLES': 'ui-reviewer,inspector' } });
+  lanesScenario('hyphen-env-plus-file', { project: 'lane.ui-review.roles=ui-reviewer,inspector\n', env: { 'HERDR_AGENTS_LANE_UI-REVIEW_ROLES': 'ui-reviewer,inspector' } });
+  lanesScenario('mixed-file-env', { project: 'lane.a.roles=scouter\n', env: { HERDR_AGENTS_LANE_B_ROLES: 'researcher' } });
+  lanesScenario('lanes-off', { env: { HERDR_AGENTS_LANES: 'off' } });
+  lanesScenario('explicit-max', { project: 'max_workers=5\n' });
+  lanesScenario('explicit-max-env', { env: { HERDR_AGENTS_MAX_WORKERS: '0' } });
+  lanesScenario('empty-roles', { project: 'lane.empty.roles=\nlane.ops.roles=implementer\n', env: { HERDR_AGENTS_LANE_B_ROLES: 'researcher' } });
+  lanesScenario('case-order', { project: 'lane.A.roles=reviewer\nlane.b.roles=scouter\n' });
+  lanesScenario('user-layer', { user: 'panes=3\nlane.u.roles=implementer\n' });
+  lanesScenario('user-and-project', { user: 'lane.u.roles=implementer\n', project: 'lane.p.roles=tasker\n' });
   // Bash word-splits a lane's roles: a space separates them like a comma.
-  lanesScenario(t, 'space-separated-roles', { project: 'lane.x.roles=reviewer inspector\n' });
-  lanesScenario(t, 'space-separated-env', { env: { HERDR_AGENTS_LANE_X_ROLES: 'scouter  researcher,reviewer' } });
+  lanesScenario('space-separated-roles', { project: 'lane.x.roles=reviewer inspector\n' });
+  lanesScenario('space-separated-env', { env: { HERDR_AGENTS_LANE_X_ROLES: 'scouter  researcher,reviewer' } });
   // `lane..roles`: an empty lane name is not counted.
-  lanesScenario(t, 'empty-lane-name', { project: 'lane..roles=reviewer\nlane.y.roles=scouter\n' });
+  lanesScenario('empty-lane-name', { project: 'lane..roles=reviewer\nlane.y.roles=scouter\n' });
 });
 
 // ---------- quota_detect / renewal_value ----------
@@ -249,24 +268,10 @@ function seedQuota(fix) {
   fs.writeFileSync(path.join(fix.root, 'manifest.tsv'), man.join('\n') + '\n');
 }
 
-test('parity: quota_detect / renewal_value (all unit screens + Bearer/api_key/sk-proj/JSON/CRLF)', { timeout: 120000 }, () => {
-  const fix = mkFix('ha-par-quota-');
-  try {
-    const results = [];
-    for (const impl of ['bash', 'node']) {
-      seedQuota(fix);
-      const probe = impl === 'bash' ? QUOTA_BASH_PROBE(BASH_ENTRY) : QUOTA_JS_PROBE;
-      const f = path.join(fix.root, impl === 'bash' ? 'probe.sh' : 'probe.mjs');
-      fs.writeFileSync(f, probe);
-      const r = impl === 'bash'
-        ? spawnSync('bash', [f], { cwd: fix.root, env: fix.env, encoding: 'utf8' })
-        : spawnSync(nodeBin(), [f], { cwd: fix.root, env: fix.env, encoding: 'utf8' });
-      results.push({ rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: r.stderr ?? '' });
-    }
-    assert.equal(results[1].rc, results[0].rc, `exit code (bash=${results[0].rc} node=${results[1].rc})\nnode stderr:\n${results[1].err}\nbash stderr:\n${results[0].err}`);
-    assert.equal(results[1].out, results[0].out, `stdout (node output first)\nnode:\n${results[1].out}\nbash:\n${results[0].out}`);
-    assert.equal(normalizeErr(results[1].err), normalizeErr(results[0].err), 'stderr normalized');
-  } finally { fix.cleanup(); }
+test('parity: quota_detect / renewal_value (all unit screens + Bearer/api_key/sk-proj/JSON/CRLF)', { timeout: 120000, skip: SKIP }, () => {
+  golden(SUITE, 'quota',
+    () => probeValue({ bin: nodeBin(), probeName: 'probe.mjs', probeText: QUOTA_JS_PROBE, name: 'quota', setup: seedQuota, cwd: 'root' }), // actual (check/update)
+    () => probeValue({ bin: 'bash', probeName: 'probe.sh', probeText: QUOTA_BASH_PROBE(BASH_ENTRY), name: 'quota', setup: seedQuota, cwd: 'root' })); // reference (record only)
 });
 
 // ---------- apply_lane_file ----------
@@ -299,8 +304,12 @@ const lines = applyLaneFile(process.env.HA_DEST, process.env.HA_PANES, process.e
 console.log(lines.join('\\n'));
 `;
 
-function applyScenario(t, name, sc) {
-  void t;
+// Run the apply probe under one interpreter in a fresh fixture and return
+// the golden value: rc, printed lines, normalized warnings, the final file
+// (byte for byte) and the leftover temporary files (dest dir + TMPDIR).
+// `mode` (the final file mode) and `inputMode` are for the per-side mode
+// assertions only — they are not part of the record.
+function applyValue({ bin, probeName, probeText }, name, sc) {
   const fix = mkFix(`ha-par-apply-${name}-`);
   try {
     const dest = path.join(fix.root, 'dest', 'herdr-agents.conf');
@@ -309,51 +318,60 @@ function applyScenario(t, name, sc) {
     const freshMode = fs.statSync(modeProbe).mode & 0o777;
     fs.rmSync(modeProbe);
     const inputMode = sc.file === null ? freshMode : 0o640;
-    const run = (impl) => {
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      if (sc.file !== null) {
-        fs.writeFileSync(dest, sc.file);
-        if (process.platform !== 'win32') fs.chmodSync(dest, inputMode);
-      }
-      else fs.rmSync(dest, { force: true });
-      const env = { ...fix.env, HA_DEST: dest, HA_PANES: sc.panes };
-      const probe = impl === 'bash' ? APPLY_BASH_PROBE(BASH_ENTRY) : APPLY_JS_PROBE;
-      const f = path.join(fix.root, impl === 'bash' ? 'probe.sh' : 'probe.mjs');
-      fs.writeFileSync(f, probe);
-      const r = impl === 'bash'
-        ? spawnSync('bash', [f], { cwd: fix.repo, env, encoding: 'utf8' })
-        : spawnSync(nodeBin(), [f], { cwd: fix.repo, env, encoding: 'utf8' });
-      return {
-        rc: r.status === null ? -1 : r.status,
-        out: r.stdout ?? '',
-        err: r.stderr ?? '',
-        file: (() => { try { return fs.readFileSync(dest, 'utf8'); } catch { return null; } })(),
-        mode: (() => { try { return fs.statSync(dest).mode & 0o777; } catch { return null; } })(),
-        temps: [...new Set([path.dirname(dest), fix.tmp].flatMap((dir) => fs.readdirSync(dir)
-          .filter((n) => n.startsWith('herdr-agents-conf.') || (n.startsWith('.herdr-agents.conf.') && n.endsWith('.tmp')))
-          .map((n) => path.join(dir, n))))].sort(),
-      };
-    };
-    const bashR = run('bash');
-    const nodeR = run('node');
-    assert.equal(nodeR.rc, bashR.rc, `${name}: exit code (bash=${bashR.rc} node=${nodeR.rc})`);
-    assert.equal(nodeR.out, bashR.out, `${name}: printed lines (node first)\nnode:\n${nodeR.out}\nbash:\n${bashR.out}`);
-    assert.equal(normalizeErr(nodeR.err), normalizeErr(bashR.err), `${name}: warnings normalized\nnode:\n${nodeR.err}\nbash:\n${bashR.err}`);
-    assert.equal(nodeR.file, bashR.file, `${name}: final file (node first)\nnode:\n${nodeR.file}\nbash:\n${bashR.file}`);
-    assert.deepEqual(nodeR.temps, bashR.temps, `${name}: leftover temporary files`);
-    assert.deepEqual(nodeR.temps, [], `${name}: Node left a temporary file`);
-    assert.deepEqual(bashR.temps, [], `${name}: Bash left a temporary file`);
-    if (process.platform !== 'win32') {
-      // Bash's mktemp + mv ends at 0600; the JS atomic writer preserves the
-      // source mode (or the process umask mode for a newly created file).
-      assert.equal(bashR.mode, 0o600, `${name}: Bash final mode`);
-      assert.equal(nodeR.mode, inputMode, `${name}: JS final mode`);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    if (sc.file !== null) {
+      fs.writeFileSync(dest, sc.file);
+      if (process.platform !== 'win32') fs.chmodSync(dest, inputMode);
     }
+    else fs.rmSync(dest, { force: true });
+    const env = { ...fix.env, HA_DEST: dest, HA_PANES: sc.panes };
+    const f = path.join(fix.root, probeName);
+    fs.writeFileSync(f, probeText);
+    const r = spawnSync(bin, [f], { cwd: fix.repo, env, encoding: 'utf8', timeout: 60000 });
+    return {
+      rc: r.status === null ? -1 : r.status,
+      out: r.stdout ?? '',
+      err: normalizeErr(r.stderr ?? ''),
+      file: (() => { try { return fs.readFileSync(dest, 'utf8'); } catch { return null; } })(),
+      mode: (() => { try { return fs.statSync(dest).mode & 0o777; } catch { return null; } })(),
+      temps: [...new Set([path.dirname(dest), fix.tmp].flatMap((dir) => fs.readdirSync(dir)
+        .filter((n) => n.startsWith('herdr-agents-conf.') || (n.startsWith('.herdr-agents.conf.') && n.endsWith('.tmp')))
+        .map((n) => path.join(dir, n))))].sort(),
+      inputMode,
+      root: fix.root,
+    };
   } finally { fix.cleanup(); }
 }
 
-test('parity: apply_lane_file (nine seeds: bytes, modes, printed lines, warnings, no temps)', { timeout: 180000 }, (t) => {
-  for (const sc of APPLY_CASES) applyScenario(t, sc.name, sc);
+function applyScenario(name, sc) {
+  let refValue;
+  let actValue;
+  const reference = () => {
+    const v = applyValue({ bin: 'bash', probeName: 'probe.sh', probeText: APPLY_BASH_PROBE(BASH_ENTRY) }, name, sc); // bash probe (record only)
+    if (process.platform !== 'win32') {
+      // Bash's mktemp + mv ends at 0600.
+      assert.equal(v.mode, 0o600, `${name}: Bash final mode`);
+    }
+    assert.deepEqual(v.temps, [], `${name}: Bash left a temporary file`);
+    refValue = normalizeRoots({ rc: v.rc, out: v.out, err: v.err, file: v.file, temps: v.temps }, { '<ROOT>': v.root });
+    return refValue;
+  };
+  const actual = () => {
+    const v = applyValue({ bin: nodeBin(), probeName: 'probe.mjs', probeText: APPLY_JS_PROBE }, name, sc); // JS probe (check/update)
+    if (process.platform !== 'win32') {
+      // The JS atomic writer preserves the source mode (or the process
+      // umask mode for a newly created file).
+      assert.equal(v.mode, v.inputMode, `${name}: JS final mode`);
+    }
+    assert.deepEqual(v.temps, [], `${name}: Node left a temporary file`);
+    actValue = normalizeRoots({ rc: v.rc, out: v.out, err: v.err, file: v.file, temps: v.temps }, { '<ROOT>': v.root });
+    return actValue;
+  };
+  golden(SUITE, name, actual, reference);
+}
+
+test('parity: apply_lane_file (nine seeds: bytes, modes, printed lines, warnings, no temps)', { timeout: 180000, skip: SKIP }, () => {
+  for (const sc of APPLY_CASES) applyScenario(sc.name, sc);
 });
 
 // ---------- setup_lane_spec ----------
@@ -361,22 +379,26 @@ test('parity: apply_lane_file (nine seeds: bytes, modes, printed lines, warnings
 const SPECS = ['build=codex', 'build=codex:gpt-6:high', 'x=claude:m:high::', 'x=claude:::',
   'x=claude:m:high:e:', 'x=claude\n:m', 'build', 'Build=codex', 'build=nope', 'build=codex:m:huge', 'build=codex:g#x'];
 
-test('parity: setup_lane_spec over valid and rejected specs', { timeout: 120000 }, () => {
+// Run setup_lane_spec on one spec under one interpreter in a fresh fixture
+// and return the golden value: rc, stdout, normalized stderr.
+function specValue(bin, binArgs, spec) {
   const fix = mkFix('ha-par-spec-');
   try {
-    for (const spec of SPECS) {
-      const bash = spawnSync('bash', ['-c', `export HERDR_AGENTS_LIB=1; . ${JSON.stringify(BASH_ENTRY)}; load_config; setup_lane_spec "$1"`, 'probe', spec],
-        { cwd: fix.repo, env: fix.env, encoding: 'utf8' });
-      const js = spawnSync(nodeBin(), ['--input-type=module', '-e', `
+    const r = spawnSync(bin, [...binArgs, spec], { cwd: fix.repo, env: fix.env, encoding: 'utf8', timeout: 60000 });
+    return { rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: normalizeErr(r.stderr ?? '') };
+  } finally { fix.cleanup(); }
+}
+
+test('parity: setup_lane_spec over valid and rejected specs', { timeout: 120000, skip: SKIP }, () => {
+  for (const spec of SPECS) {
+    golden(SUITE, spec,
+      () => specValue(nodeBin(), ['--input-type=module', '-e', `
 import { setupLaneSpec } from ${JSON.stringify(pathToFileURL(JSLANES).href)};
 try {
   const r = setupLaneSpec(process.argv[1]);
   process.stdout.write([r.name, r.kind, r.model, r.effort].join('\\t') + '\\n');
 } catch (e) { process.stderr.write('herdr-agents: ' + e.message + '\\n'); process.exit(e.code); }
-`, spec], { cwd: fix.repo, env: fix.env, encoding: 'utf8' });
-      assert.equal(js.status, bash.status, `${JSON.stringify(spec)}: exit code (bash=${bash.status} node=${js.status} ${js.stderr})`);
-      assert.equal(js.stdout, bash.stdout, `${JSON.stringify(spec)}: stdout`);
-      assert.equal(normalizeErr(js.stderr), normalizeErr(bash.stderr), `${JSON.stringify(spec)}: stderr`);
-    }
-  } finally { fix.cleanup(); }
+`], spec), // actual (check/update)
+      () => specValue('bash', ['-c', `export HERDR_AGENTS_LIB=1; . ${JSON.stringify(BASH_ENTRY)}; load_config; setup_lane_spec "$1"`, 'probe'], spec)); // reference (record only)
+  }
 });

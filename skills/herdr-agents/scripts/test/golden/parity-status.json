@@ -1,0 +1,263 @@
+{
+  "friction-empty": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "friction"
+        ],
+        "err": "",
+        "out": "no friction recorded under <ROOT>/state/ws/friction.log\n",
+        "rc": 0
+      }
+    ]
+  },
+  "friction-seeded": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "friction"
+        ],
+        "err": "",
+        "out": "friction log (<ROOT>/state/ws/friction.log): timestamp, level, command, message\n2026-01-02T03:04:05\twarning\tstatus\told warning\n2026-01-02T03:04:06\terror(exit 4)\tstatus\told error\n",
+        "rc": 0
+      }
+    ]
+  },
+  "roster-empty": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "roster"
+        ],
+        "err": "",
+        "out": "NAME                 ROLE               KIND     PANE     TAB              STATE     REPORT           CWD\n\n# other live agents (not spawned by this skill)\n\nlayout=split reuse_workers=on multi_role=on auto_approve=off\n",
+        "rc": 0
+      }
+    ]
+  },
+  "roster-table": {
+    "files": [
+      {
+        "content": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t/work\t20260101T000000\tgrok-4.7\tfull\ttasker,implementer\tbuild\ntask\tp5\tgrok\ttasker\txai\t1\t/work\t20260101T000000\tgrok-4.7\tfull\tdesigner\t\nold8\tp2\tagy\tdesigner\tgoogle\t1\t/work2\tnow\n",
+        "rel": "state/ws/agents.tsv"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "roster"
+        ],
+        "err": "",
+        "out": "NAME                 ROLE               KIND     PANE     TAB              STATE     REPORT           CWD\nbuild                implementer        grok     p1       herd-build-12345 working   ready            /work\ntask                 tasker (designer)  grok     p5       herd-build-12345 gone      pending          /work\nold8                 designer           agy      p2       t2               idle      none             /work2\n\n# other live agents (not spawned by this skill)\norchestrator         -                  null     p0       -                null     \nstray                -                  claude   p9       -                blocked  \n\nlayout=split reuse_workers=on multi_role=on auto_approve=off\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "status",
+          "task"
+        ],
+        "err": "",
+        "out": "task\tworking\t<ROOT>/state/ws/reports/task.md\n",
+        "rc": 0
+      }
+    ]
+  },
+  "status-batch": {
+    "files": [
+      {
+        "content": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\nworker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\nstuck\tp2\tgrok\timplementer\txai\t1\t/work\tnow\ndead\tp3\tgrok\timplementer\txai\t1\t/work\tnow\n",
+        "rel": "state/ws/agents.tsv"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "stuck",
+          "dead"
+        ],
+        "err": "PROG: warning: agent 'stuck': herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }\n",
+        "out": "stuck\tunavailable\t\tError: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }\ndead\tgone\t\n",
+        "rc": 4
+      }
+    ]
+  },
+  "status-blocked": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "worker"
+        ],
+        "err": "",
+        "out": "worker\tblocked\t\n",
+        "rc": 0
+      }
+    ]
+  },
+  "status-denied": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "worker"
+        ],
+        "err": "PROG: warning: agent 'worker': herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }\n",
+        "out": "worker\tunavailable\t\tError: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }\n",
+        "rc": 4
+      }
+    ]
+  },
+  "status-denied-friction": {
+    "friction": "TS\twarning\tstatus\tagent 'worker': herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" }",
+    "rc": 4
+  },
+  "status-denied-multi": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "worker"
+        ],
+        "err": "PROG: warning: agent 'worker': herdr agent get failed: Error: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" } second-line [31mred\n",
+        "out": "worker\tunavailable\t\tError: Os { code: 13, kind: PermissionDenied, message: \"Permission denied\" } second-line [31mred\n",
+        "rc": 4
+      }
+    ]
+  },
+  "status-down": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "worker"
+        ],
+        "err": "PROG: warning: agent 'worker': herdr agent get failed: server_not_running: no herdr server is running\n",
+        "out": "worker\tunavailable\t\tserver_not_running: no herdr server is running\n",
+        "rc": 4
+      }
+    ]
+  },
+  "status-env-errors": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status"
+        ],
+        "err": "PROG: status: give at least one agent name\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "status",
+          "worker"
+        ],
+        "err": "PROG: not running inside Herdr (HERDR_ENV != 1); refusing to control a session from outside\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "status",
+          "worker"
+        ],
+        "err": "PROG: herdr CLI not found in PATH\n",
+        "out": "",
+        "rc": 2
+      }
+    ]
+  },
+  "status-idle": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "worker"
+        ],
+        "err": "",
+        "out": "worker\tno-report-yet\t\n",
+        "rc": 0
+      }
+    ]
+  },
+  "status-missing": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "worker"
+        ],
+        "err": "PROG: warning: agent 'worker': herdr agent get failed: {\"error\":{\"code\":\"agent_not_found\",\"message\":\"agent target \"$target\" not found\"},\"id\":\"cli:agent:get\"}\n",
+        "out": "worker\tunavailable\t\t{\"error\":{\"code\":\"agent_not_found\",\"message\":\"agent target \"$target\" not found\"},\"id\":\"cli:agent:get\"}\n",
+        "rc": 4
+      }
+    ]
+  },
+  "status-quota": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "build"
+        ],
+        "err": "PROG: warning: quota: agent 'build' lane=build kind=grok model=grok-4.7 : Error: quota exceeded for this account\n",
+        "out": "{\"agent\":\"build\",\"status\":\"quota\",\"report\":\"\",\"lane\":\"build\",\"kind\":\"grok\",\"model\":\"grok-4.7\",\"match\":\"Error: quota exceeded for this account\",\"renewal\":\"\"}\n",
+        "rc": 11
+      }
+    ]
+  },
+  "status-report-wins": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "worker"
+        ],
+        "err": "",
+        "out": "worker\tdone\t<ROOT>/state/ws/reports/worker.md\n",
+        "rc": 0
+      }
+    ]
+  },
+  "status-unknown": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "nosuch"
+        ],
+        "err": "",
+        "out": "nosuch\tunknown-agent\t\n",
+        "rc": 0
+      }
+    ]
+  },
+  "status-working": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "status",
+          "worker"
+        ],
+        "err": "",
+        "out": "worker\tworking\t\n",
+        "rc": 0
+      }
+    ]
+  }
+}

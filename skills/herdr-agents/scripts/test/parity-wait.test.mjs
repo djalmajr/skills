@@ -1,20 +1,43 @@
-// Parity (slice 6a): the `wait` scenarios of test-quota.sh (quota, a worker
-// working until the timeout, quota on one lane against blocked on the
-// other in both argument orders, the ✓ title and the `release` title
-// clear) and the `wait`/`collect`/`release` scenarios of test-status.sh
-// (denied/gone, the collect fallbacks, the release refusal paths), plus a
-// `clean` with a dead worker and old files, run against
-// `bash scripts/herdr-agents.sh` and `node scripts/herdr-agents.mjs` in an
-// identical fixture (fake `herdr` logging every call). stdout, the exit
-// code and the prefix-normalized stderr must match, as must the roster,
-// every file under <state>/wait/, the task-* / last-report-* files and the
-// fake herdr log. Wall-clock values (the .since epoch, the friction and
-// approvals-log timestamps) are normalized before the comparison.
+// Golden (slice 9a-A; slice 6a scenario coverage): the `wait` scenarios of
+// test-quota.sh (quota, a worker working until the timeout, quota on one
+// lane against blocked on the other in both argument orders, the ✓ title
+// and the `release` title clear) and the `wait`/`collect`/`release`
+// scenarios of test-status.sh (denied/gone, the collect fallbacks, the
+// release refusal paths), plus a `clean` with a dead worker and old files,
+// now run only the JS and compare against the reference recorded once from
+// the bash script in test/golden/parity-wait.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
+// JS value for record review). Same fixture as before (fake `herdr`
+// logging every call). The recorded value holds, per step: stdout, the
+// exit code, the prefix-normalized stderr and every file under <state>/ws
+// (the intermediate states matter: a refused release leaves the roster
+// row, a done wait leaves the task file with ✓), plus the task-* /
+// last-report-* files and the fake herdr log. Wall-clock values (the
+// .since epoch, the friction and approvals-log timestamps) are normalized
+// before recording; the fixture root becomes <ROOT> in every string.
+//
+// The bash script runs only as the `reference` (record mode); the JS runs
+// only as the `actual` (check/update mode).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeFixture, runImpl, normalizeErr } from './parity.mjs';
+import { spawnSync } from 'node:child_process';
+import { makeFixture, nodeBin, normalizeErr, BASH_ENTRY, JS_ENTRY } from './parity.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { findExecutable } from '../lib/platform.mjs';
+
+// Record mode runs the bash reference: it needs bash and jq. Check mode
+// runs the JS against the record and needs the sh fake `herdr`, so it is
+// skipped solely on Windows.
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the sh fake herdr (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
+      ? 'record mode needs bash and jq on PATH'
+      : false);
+
+const SUITE = 'parity-wait';
 
 // ---------- the fake herdr (bash, the only herdr both implementations see) ----------
 
@@ -72,8 +95,8 @@ const R12 = '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel
 const row12 = (fix, name, pane, kind, role, model, lane) =>
   `${name}\t${pane}\t${kind}\t${role}\txai\t1\t${fix.repo}\tnow\t${model}\tfull\t${role}\t${lane}\n`;
 const R8 = '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\n';
-const WORKER8 = 'worker\tp1\tgrok\timplementer\txai\t1\t/tmp/work\tnow\n';
-const REVIEW8 = 'review\tp2\tcodex\treviewer\topenai\t1\t/tmp/work\tnow\n';
+const WORKER8 = 'worker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n';
+const REVIEW8 = 'review\tp2\tcodex\treviewer\topenai\t1\t/work\tnow\n';
 
 function baseWs(fix) {
   const ws = path.join(fix.state, 'ws');
@@ -128,8 +151,7 @@ function readRel(root, rel) {
 }
 
 // The fixture state: herdr.log + every file under <state>/ws, with the
-// wall-clock values normalized (they differ between the two runs by
-// construction).
+// wall-clock values normalized (they differ between runs by construction).
 function collectState(fix) {
   const out = {};
   const put = (rel, content) => {
@@ -160,66 +182,69 @@ function collectState(fix) {
   return out;
 }
 
-// Run every step against bash, reset the fixture, run the same steps
-// against node, then compare rc/stdout/stderr per step and the state files
-// after every step (the intermediate states matter: a refused release
-// leaves the roster row, a done wait leaves the task file with ✓).
-function parityWait(name, opts) {
+// Run every step against one implementation in a fresh fixture and return
+// the golden value: rc, stdout, normalized stderr per step, the state
+// files after every step (the intermediate states matter) and the final
+// state file set. `entry` is [bin, ...binArgs]: the JS entry for the
+// actual, the bash script for the reference. The fixture root becomes
+// <ROOT> in every string of the value.
+function waitValue(entry, name, opts) {
   const fix = makeFixture();
-  const both = {};
   try {
-    for (const impl of ['bash', 'node']) {
-      fix.reset();
-      if (opts.seed) opts.seed(fix);
-      const results = [];
-      const stepFiles = [];
-      for (const step of opts.steps) {
-        if (step.setup) step.setup(fix);
-        const stepEnv = {
-          ...fix.env,
-          HERDR_ENV: '1',
-          HERDR_AGENTS_REGRID: 'off',
-          PATH: `${path.join(fix.root, 'bin')}${path.delimiter}${process.env.PATH}`,
-          ...(step.env ?? {}),
-        };
-        results.push(runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo }));
-        stepFiles.push(collectState(fix));
+    fix.reset();
+    if (opts.seed) opts.seed(fix);
+    const results = [];
+    const stepFiles = [];
+    for (const step of opts.steps) {
+      if (step.setup) step.setup(fix);
+      const stepEnv = {
+        ...fix.env,
+        HERDR_ENV: '1',
+        HERDR_AGENTS_REGRID: 'off',
+        PATH: `${path.join(fix.root, 'bin')}${path.delimiter}${process.env.PATH}`,
+        ...(step.env ?? {}),
+      };
+      const r = spawnSync(entry[0], [...entry.slice(1), ...step.args], { env: stepEnv, cwd: fix.repo, encoding: 'utf8', timeout: 60000 });
+      results.push({ args: step.args, rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: normalizeErr(r.stderr ?? '') });
+      const state = collectState(fix);
+      // pollInsensitive: how many polls fit before a timeout depends on the
+      // clock, so the call log keeps each distinct call once, in first-seen
+      // order (which calls happen, not how many times).
+      if (opts.pollInsensitive && typeof state['herdr.log'] === 'string') {
+        state['herdr.log'] = [...new Set(state['herdr.log'].split('\n').filter((l) => l !== ''))].map((l) => `${l}\n`).join('');
       }
-      both[impl] = { results, files: stepFiles.at(-1), stepFiles };
+      stepFiles.push(state);
     }
+    return normalizeRoots({ steps: results, stepFiles, files: stepFiles.at(-1) }, { '<ROOT>': fix.root });
   } finally {
     fix.cleanup();
   }
-  assert.equal(both.node.results.length, both.bash.results.length, `${name}: step count`);
-  for (let i = 0; i < both.bash.results.length; i += 1) {
-    const where = `${name}: step ${i + 1} (${opts.steps[i].args.join(' ')})`;
-    assert.equal(both.node.results[i].rc, both.bash.results[i].rc,
-      `${where}: exit code (bash=${both.bash.results[i].rc} node=${both.node.results[i].rc})`);
-    assert.equal(both.node.results[i].out, both.bash.results[i].out, `${where}: stdout (node output first)`);
-    assert.equal(normalizeErr(both.node.results[i].err), normalizeErr(both.bash.results[i].err), `${where}: stderr normalized`);
-    const bfiles = Object.keys(both.bash.stepFiles[i]).sort();
-    assert.deepEqual(Object.keys(both.node.stepFiles[i]).sort(), bfiles, `${where}: state file sets differ`);
-    for (const rel of bfiles) {
-      assert.equal(both.node.stepFiles[i][rel], both.bash.stepFiles[i][rel],
-        `${where}: file ${rel} after the step (node content first)`);
-    }
-  }
-  return { bash: both.bash, node: both.node, stateDir: path.join(fix.state, 'ws') };
+}
+
+// Golden wrapper: record runs the bash reference, check/update run the JS;
+// the value is returned for the per-scenario assertions.
+function waitScenario(name, opts) {
+  let refValue;
+  let actValue;
+  const reference = () => (refValue !== undefined ? refValue : (refValue = waitValue(['bash', BASH_ENTRY], name, opts))); // record only
+  const actual = () => (actValue !== undefined ? actValue : (actValue = waitValue([nodeBin(), JS_ENTRY], name, opts))); // check/update
+  golden(SUITE, name, actual, reference);
+  return goldenMode() === 'record' ? reference() : actual();
 }
 
 const lines = (out) => out.trim().split('\n').filter((l) => l !== '').map((l) => JSON.parse(l));
 
 // ---------- scenarios ----------
 
-test('parity wait: quota (test-quota.sh)', { timeout: 120000 }, () => {
-  const { bash: r } = parityWait('wait-quota', {
+test('parity wait: quota (test-quota.sh)', { timeout: 120000, skip: SKIP }, () => {
+  const r = waitScenario('wait-quota', {
     seed: (fix) => seedQuotaFix(fix, row12(fix, 'build', 'p1', 'grok', 'implementer', 'grok-4.7', 'build'), {
       screen: 'hit your usage limit\ntry again in 2 hours\n',
     }),
     steps: [{ args: ['wait', 'build', '--timeout', '5000'] }],
   });
-  assert.equal(r.results[0].rc, 11);
-  const q = lines(r.results[0].out)[0];
+  assert.equal(r.steps[0].rc, 11);
+  const q = lines(r.steps[0].out)[0];
   assert.equal(q.status, 'quota');
   assert.equal(q.lane, 'build');
   assert.equal(q.kind, 'grok');
@@ -228,20 +253,21 @@ test('parity wait: quota (test-quota.sh)', { timeout: 120000 }, () => {
   assert.match(q.renewal, /try again in 2 hours/);
 });
 
-test('parity wait: a worker working until the timeout (test-quota.sh)', { timeout: 120000 }, () => {
-  const { bash: r } = parityWait('wait-working-timeout', {
+test('parity wait: a worker working until the timeout (test-quota.sh)', { timeout: 120000, skip: SKIP }, () => {
+  const r = waitScenario('wait-working-timeout', {
     seed: (fix) => seedQuotaFix(fix, row12(fix, 'build', 'p1', 'grok', 'implementer', 'grok-4.7', 'build'), {
       mode: 'working',
       screen: '429 Too Many Requests\n',
     }),
     steps: [{ args: ['wait', 'build', '--timeout', '2000'] }],
+    pollInsensitive: true,
   });
-  assert.equal(r.results[0].rc, 9);
-  assert.deepEqual(lines(r.results[0].out), [{ agent: 'build', status: 'timeout' }]);
-  assert.ok(!r.results[0].out.includes('"status":"quota"'), 'a working agent never becomes quota');
+  assert.equal(r.steps[0].rc, 9);
+  assert.deepEqual(lines(r.steps[0].out), [{ agent: 'build', status: 'timeout' }]);
+  assert.ok(!r.steps[0].out.includes('"status":"quota"'), 'a working agent never becomes quota');
 });
 
-test('parity wait: quota on one lane outranks blocked on the other, both orders (test-quota.sh)', { timeout: 120000 }, () => {
+test('parity wait: quota on one lane outranks blocked on the other, both orders (test-quota.sh)', { timeout: 120000, skip: SKIP }, () => {
   const roster = (fix) => row12(fix, 'build', 'p1', 'grok', 'implementer', 'grok-4.7', 'build')
     + row12(fix, 'review', 'p2', 'codex', 'reviewer', 'gpt-5', 'review');
   const seed = (fix) => seedQuotaFix(fix, roster(fix), {
@@ -251,7 +277,7 @@ test('parity wait: quota on one lane outranks blocked on the other, both orders 
     },
     waitFiles: { review: 'blocked' },
   });
-  const r0 = parityWait('wait-quota-vs-blocked', {
+  const r = waitScenario('wait-quota-vs-blocked', {
     seed,
     steps: [
       { args: ['wait', 'build', 'review', '--timeout', '8000'] },
@@ -259,10 +285,9 @@ test('parity wait: quota on one lane outranks blocked on the other, both orders 
         setup: (fix) => fs.writeFileSync(path.join(fix.state, 'ws', 'wait', 'review.blocked'), '') },
     ],
   });
-  const r = r0.bash;
   for (const i of [0, 1]) {
-    assert.equal(r.results[i].rc, 11, `order ${i}: rc (quota outranks blocked)`);
-    const l = lines(r.results[i].out);
+    assert.equal(r.steps[i].rc, 11, `order ${i}: rc (quota outranks blocked)`);
+    const l = lines(r.steps[i].out);
     assert.equal(l.length, 2);
     const build = l.find((x) => x.agent === 'build');
     const review = l.find((x) => x.agent === 'review');
@@ -276,8 +301,8 @@ test('parity wait: quota on one lane outranks blocked on the other, both orders 
 // file (dispatch's state) is seeded and the slice's half is checked: `wait`
 // adds the check mark when the report lands, `release` (without --close)
 // clears the title.
-test('parity wait: the report marks the pane title ✓ (test-quota.sh)', { timeout: 120000 }, () => {
-  const { bash: r, stateDir } = parityWait('wait-title-mark', {
+test('parity wait: the report marks the pane title ✓ (test-quota.sh)', { timeout: 120000, skip: SKIP }, () => {
+  const r = waitScenario('wait-title-mark', {
     seed: (fix) => seedQuotaFix(fix, row12(fix, 'build', 'p1', 'grok', 'implementer', 'grok-4.7', 'build'), {
       screen: '',
       lastReport: { agent: 'build', body: 'done\n' },
@@ -285,9 +310,9 @@ test('parity wait: the report marks the pane title ✓ (test-quota.sh)', { timeo
     }),
     steps: [{ args: ['wait', 'build', '--timeout', '5000'] }],
   });
-  assert.equal(r.results[0].rc, 0);
-  assert.deepEqual(lines(r.results[0].out), [
-    { agent: 'build', status: 'done', report: path.join(stateDir, 'reports', 'build.md') },
+  assert.equal(r.steps[0].rc, 0);
+  assert.deepEqual(lines(r.steps[0].out), [
+    { agent: 'build', status: 'done', report: '<ROOT>/state/ws/reports/build.md' },
   ]);
   assert.equal(r.files['state/ws/task-build'], 'implementer: porte da config ✓\n', 'the task file gains the check mark once');
   assert.equal(r.files['state/ws/wait/build.size'], '       5\n', 'the wc -c padded size is recorded');
@@ -295,8 +320,8 @@ test('parity wait: the report marks the pane title ✓ (test-quota.sh)', { timeo
     `the report marks the title: ${r.files['herdr.log']}`);
 });
 
-test('parity release: the pane title is cleared without --close (test-quota.sh)', { timeout: 120000 }, () => {
-  const { bash: r } = parityWait('release-title-clear', {
+test('parity release: the pane title is cleared without --close (test-quota.sh)', { timeout: 120000, skip: SKIP }, () => {
+  const r = waitScenario('release-title-clear', {
     seed: (fix) => seedQuotaFix(fix, row12(fix, 'build', 'p1', 'grok', 'implementer', 'grok-4.7', 'build'), {
       screen: '',
       lastReport: { agent: 'build', body: 'done\n' },
@@ -304,8 +329,8 @@ test('parity release: the pane title is cleared without --close (test-quota.sh)'
     }),
     steps: [{ args: ['release', 'build'] }],
   });
-  assert.equal(r.results[0].rc, 0);
-  assert.match(r.results[0].out, /released build/);
+  assert.equal(r.steps[0].rc, 0);
+  assert.match(r.steps[0].out, /released build/);
   const log = r.files['herdr.log'];
   assert.ok(log.includes('pane report-metadata p1 --source herdr-agents --clear-title'),
     `release without --close clears the title: ${log}`);
@@ -314,26 +339,26 @@ test('parity release: the pane title is cleared without --close (test-quota.sh)'
   assert.equal(r.files['state/ws/task-build'], undefined);
 });
 
-test('parity wait: denied (unavailable) and gone (test-status.sh)', { timeout: 120000 }, () => {
-  const { bash: r } = parityWait('wait-denied-gone', {
+test('parity wait: denied (unavailable) and gone (test-status.sh)', { timeout: 120000, skip: SKIP }, () => {
+  const r = waitScenario('wait-denied-gone', {
     seed: (fix) => seedStatusFix(fix, WORKER8, 'denied'),
     steps: [
       { args: ['wait', 'worker', '--timeout', '2000'] },
       { args: ['wait', 'worker', '--timeout', '2000'], setup: (fix) => setMode(fix, 'missing') },
     ],
   });
-  assert.equal(r.results[0].rc, 4);
-  const un = lines(r.results[0].out)[0];
+  assert.equal(r.steps[0].rc, 4);
+  const un = lines(r.steps[0].out)[0];
   assert.equal(un.status, 'unavailable');
   assert.match(un.error, /PermissionDenied/);
-  assert.ok(!r.results[0].out.includes('"status":"gone"'), 'never degraded to gone');
-  assert.ok(!/gone/.test(r.results[0].err), 'stderr never says gone');
-  assert.equal(r.results[1].rc, 6);
-  assert.deepEqual(lines(r.results[1].out), [{ agent: 'worker', status: 'gone', report: '' }]);
+  assert.ok(!r.steps[0].out.includes('"status":"gone"'), 'never degraded to gone');
+  assert.ok(!/gone/.test(r.steps[0].err), 'stderr never says gone');
+  assert.equal(r.steps[1].rc, 6);
+  assert.deepEqual(lines(r.steps[1].out), [{ agent: 'worker', status: 'gone', report: '' }]);
 });
 
-test('parity collect: query failure, the gone fallback, the ready report (test-status.sh)', { timeout: 120000 }, () => {
-  const { bash: r } = parityWait('collect', {
+test('parity collect: query failure, the gone fallback, the ready report (test-status.sh)', { timeout: 120000, skip: SKIP }, () => {
+  const r = waitScenario('collect', {
     seed: (fix) => seedStatusFix(fix, WORKER8, 'denied'),
     steps: [
       { args: ['collect', 'worker'] },
@@ -350,19 +375,19 @@ test('parity collect: query failure, the gone fallback, the ready report (test-s
       },
     ],
   });
-  assert.equal(r.results[0].rc, 4);
-  assert.ok(!r.results[0].out.includes('terminal-fallback'), 'no terminal fallback on a query failure');
+  assert.equal(r.steps[0].rc, 4);
+  assert.ok(!r.steps[0].out.includes('terminal-fallback'), 'no terminal fallback on a query failure');
   assert.ok(!/^agent read/m.test(r.stepFiles[0]['herdr.log']), 'no agent read before the failure');
-  assert.match(r.results[0].err, /PermissionDenied/);
-  assert.equal(r.results[1].rc, 6);
-  assert.match(r.results[1].out, /terminal-fallback/);
-  assert.equal(r.results[2].rc, 0);
-  assert.match(r.results[2].out, /report body/);
-  assert.match(r.results[2].out, /^<!-- report: .*worker\.md -->$/m);
+  assert.match(r.steps[0].err, /PermissionDenied/);
+  assert.equal(r.steps[1].rc, 6);
+  assert.match(r.steps[1].out, /terminal-fallback/);
+  assert.equal(r.steps[2].rc, 0);
+  assert.match(r.steps[2].out, /report body/);
+  assert.match(r.steps[2].out, /^<!-- report: .*worker\.md -->$/m);
 });
 
-test('parity release: the refusal paths and the finished close (test-status.sh)', { timeout: 120000 }, () => {
-  const { bash: r } = parityWait('release', {
+test('parity release: the refusal paths and the finished close (test-status.sh)', { timeout: 120000, skip: SKIP }, () => {
+  const r = waitScenario('release', {
     seed: (fix) => seedStatusFix(fix, WORKER8, 'denied'),
     steps: [
       { args: ['release', 'worker', '--close'] },
@@ -394,24 +419,24 @@ test('parity release: the refusal paths and the finished close (test-status.sh)'
   });
   // denied: refused (rc 4), the pane is not closed, the row survives —
   // with and without --close.
-  assert.equal(r.results[0].rc, 4);
-  assert.match(r.results[0].err, /PermissionDenied/);
+  assert.equal(r.steps[0].rc, 4);
+  assert.match(r.steps[0].err, /PermissionDenied/);
   assert.ok(/^worker\t/m.test(r.stepFiles[0]['state/ws/agents.tsv']), 'the row survives the refused --close');
-  assert.equal(r.results[1].rc, 4);
+  assert.equal(r.steps[1].rc, 4);
   assert.ok(/^worker\t/m.test(r.stepFiles[1]['state/ws/agents.tsv']), 'the row survives the refused no-close');
   // --force: the pane closes, the row goes.
-  assert.equal(r.results[2].rc, 0);
-  assert.match(r.results[2].out, /closed pane p1/);
-  assert.match(r.results[2].out, /released worker/);
+  assert.equal(r.steps[2].rc, 0);
+  assert.match(r.steps[2].out, /closed pane p1/);
+  assert.match(r.steps[2].out, /released worker/);
   // gone: released.
-  assert.equal(r.results[3].rc, 0);
-  assert.match(r.results[3].out, /released worker/);
+  assert.equal(r.steps[3].rc, 0);
+  assert.match(r.steps[3].out, /released worker/);
   // still working with a pending report: refused (rc 3), no pane close.
-  assert.equal(r.results[4].rc, 3);
-  assert.match(r.results[4].err, /closing now discards its work/);
+  assert.equal(r.steps[4].rc, 3);
+  assert.match(r.steps[4].err, /closing now discards its work/);
   // finished: no agent get, the pane closes.
-  assert.equal(r.results[5].rc, 0);
-  assert.match(r.results[5].out, /released worker/);
+  assert.equal(r.steps[5].rc, 0);
+  assert.match(r.steps[5].out, /released worker/);
   assert.ok(!/^worker\t/m.test(r.files['state/ws/agents.tsv']), 'the final release drops the row');
   // The accumulated herdr log pins what happened per step: the agent was
   // queried by the two denied steps, the gone step and the working step
@@ -424,11 +449,11 @@ test('parity release: the refusal paths and the finished close (test-status.sh)'
   assert.equal((log.match(/^pane list --workspace ws$/gm) ?? []).length, 3, 'the relabel ran on the three successful releases');
 });
 
-test('parity clean: a dead worker is dropped, old files go, pointed reports stay', { timeout: 120000 }, () => {
+test('parity clean: a dead worker is dropped, old files go, pointed reports stay', { timeout: 120000, skip: SKIP }, () => {
   const seed = (fix) => {
     writeFakeHerdr(fix);
     const ws = baseWs(fix);
-    fs.writeFileSync(path.join(ws, 'agents.tsv'), R8 + WORKER8 + 'live\tpl\tgrok\timplementer\txai\t1\t/tmp/work\tnow\n');
+    fs.writeFileSync(path.join(ws, 'agents.tsv'), R8 + WORKER8 + 'live\tpl\tgrok\timplementer\txai\t1\t/work\tnow\n');
     fs.writeFileSync(path.join(fix.root, 'live.json'), JSON.stringify({ result: { agents: [{ name: 'live', pane_id: 'pl' }] } }) + '\n');
     fs.mkdirSync(path.join(ws, 'briefs'), { recursive: true });
     fs.mkdirSync(path.join(ws, 'reports'), { recursive: true });
@@ -445,12 +470,12 @@ test('parity clean: a dead worker is dropped, old files go, pointed reports stay
     fs.writeFileSync(path.join(ws, 'last-report-live'), path.join(ws, 'reports', 'kept.md') + '\n');
     fs.writeFileSync(path.join(ws, 'wait', 'worker.size'), '3\n');
   };
-  const { bash: r, stateDir } = parityWait('clean', {
+  const r = waitScenario('clean', {
     seed,
     steps: [{ args: ['clean'] }],
   });
-  assert.equal(r.results[0].rc, 0);
-  assert.equal(r.results[0].out, `dropped gone agent worker\nremoved 2 files older than 7 days under ${stateDir}\n`);
+  assert.equal(r.steps[0].rc, 0);
+  assert.equal(r.steps[0].out, `dropped gone agent worker\nremoved 2 files older than 7 days under <ROOT>/state/ws\n`);
   assert.ok(!/^worker\t/m.test(r.files['state/ws/agents.tsv']), 'the dead worker is out of the roster');
   assert.equal(r.files['state/ws/last-report-worker'], undefined, 'its last-report pointer is gone');
   assert.equal(r.files['state/ws/wait/worker.size'], undefined, 'its wait files are gone');

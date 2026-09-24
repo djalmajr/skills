@@ -1,34 +1,53 @@
-// Parity (slice 7d): `doctor`, `doctor --fix` and `explain` run against
-// `bash scripts/herdr-agents.sh` and `node scripts/herdr-agents.mjs` in an
-// identical fixture must produce identical stdout, exit code and
-// (prefix-normalized) stderr, and leave the same config file. Scenarios:
-// the doctor/doctor --fix parts of test-doctor-fix.sh (the legacy preset
-// writes, the divergent review lane, the controlled-PATH kinds checks, the
-// setup --panes / --detect / setup --no-hooks steps) and the
-// doctor/explain parts of test-friendly.sh (first-run detection, the idle
-// and roster explain, the waiting-for-report and quota lines, the
-// no-arguments die, the ambiguous workspaces and the header-only rosters).
+// Golden (slice 9a-B; slice 7d scenario coverage): `doctor`,
+// `doctor --fix` and `explain` now run only the JS and compare against the
+// reference recorded once from the bash script in
+// test/golden/parity-doctor.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
+// JS value for review). Scenarios: the doctor/doctor --fix parts of
+// test-doctor-fix.sh (the legacy preset writes, the divergent review lane,
+// the controlled-PATH kinds checks, the setup --panes / --detect /
+// setup --no-hooks steps) and the doctor/explain parts of
+// test-friendly.sh (first-run detection, the idle and roster explain, the
+// waiting-for-report and quota lines, the no-arguments die, the ambiguous
+// workspaces and the header-only rosters). The recorded value holds, per
+// step: the exit code, the normalized stdout, the prefix-normalized stderr,
+// and the final config file.
 //
 // Steps may mutate the fixture between runs (`before(fix)`, like the bash
 // suites write the roster/config between run_cmd calls); the whole sequence
-// is replayed per implementation. Accepted differences, normalized here
-// (decisions of the slice brief): the bash still has the jq line
-// (decision 5) — dropped, and the final ok count lowered by one; the entry
-// path where the bash prints `$0` (decision 2b) — both entries normalize to
-// PROG; the doctor --fix diff header — the bash shows its process
-// substitution path (/dev/fd/N) and a timestamp, the JS shows the
-// unifiedDiff a/<file> / b/<file> labels; both normalize to FIXDIFF. The
-// PATH is fully controlled (fakes dir + system dirs) so no host CLI can
-// leak in.
+// is replayed per side. Accepted differences, normalized here (decisions of
+// the slice brief): the bash still has the jq line (decision 5) — dropped,
+// and the final ok count lowered by one; the entry path where the bash
+// prints `$0` (decision 2b) — both entries normalize to PROG; the
+// doctor --fix diff header — the bash shows its process substitution path
+// (/dev/fd/N) and a timestamp, the JS shows the unifiedDiff a/<file> /
+// b/<file> labels; both normalize to FIXDIFF. The bash-side normalization
+// is applied inside the reference, so the recorded value is already
+// normalized. The PATH is fully controlled (fakes dir + system dirs) so no
+// host CLI can leak in.
+//
+// The bash script runs only as the `reference` (record mode); the JS runs
+// only as the `actual` (check/update mode). Each side builds its own
+// fixture from the same seed and returns the same value shape; the fixture
+// root becomes <ROOT> in every string of the recorded value.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { BASH_ENTRY, JS_ENTRY, makeFixture, runImpl, normalizeErr } from './parity.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
 import { findExecutable } from '../lib/platform.mjs';
 
-const HAS_JQ = Boolean(findExecutable('jq'));
-const SKIP_JQ = HAS_JQ ? false : 'jq is required for the bash parity run';
+// Record mode runs the bash reference: it needs bash and jq. Check mode
+// runs the JS against the record and is skipped solely on Windows.
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the POSIX fixture contract (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
+      ? 'record mode needs bash and jq on PATH'
+      : false);
+
+const SUITE = 'parity-doctor';
 
 const AGENTS_SEED = '# Agent instructions\n';
 const TSV_HEADER = '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n';
@@ -73,8 +92,8 @@ if [ "$1" = models ]; then printf '%s\n' grok-4.7 grok-4 grok-3; fi
 `;
 
 // seedFakes: the jq/git symlinks, the timeout shim and the requested fakes
-// into <fixture>/fakes. The seed runs once per implementation (the
-// harness resets the fixture, not the fakes dir): start from a clean dir.
+// into <fixture>/fakes. The seed runs once per golden side (the fixture is
+// fresh per side): start from a clean dir.
 function seedFakes(fix, { herdr = null, grok = false } = {}) {
   const fakes = path.join(fix.root, 'fakes');
   fs.rmSync(fakes, { recursive: true, force: true });
@@ -127,7 +146,10 @@ const writeTsv = (fix, text) => {
 };
 
 // normOut: the accepted doctor-output differences (jq line + count, the
-// $0/entry path, the doctor --fix diff header).
+// $0/entry path, the doctor --fix diff header). Applied to both sides —
+// it is the normalization the parity comparison used — so the recorded
+// (bash) value is already normalized and the JS value normalizes the same
+// way.
 function normOut(out) {
   const lines = out.split('\n');
   let dropOk = 0;
@@ -153,102 +175,96 @@ function normOut(out) {
     .replace(/^\+\+\+ \S+.*$/m, '+++ FIXDIFF');
 }
 
-// One parity scenario: seed the fixture once per implementation, replay
-// every step (with its before-hook) with both, compare rc / normalized
-// stdout / normalized stderr per step, and compare the final config file.
-function parityDoctor(name, opts) {
+// Run every step against one implementation in a fresh fixture (with the
+// before-hooks), and return the golden value: rc, normalized stdout,
+// prefix-normalized stderr per step and the final config file. The fixture
+// root becomes <ROOT> in every string of the value.
+function doctorValue(impl, opts) {
   const fix = makeFixture();
-  let bashRes;
-  let nodeRes;
-  let bashConf;
-  let nodeConf;
   try {
-    for (const impl of ['bash', 'node']) {
-      fix.reset();
-      fs.rmSync(path.join(fix.repo, 'AGENTS.md'), { force: true });
-      fs.rmSync(path.join(fix.repo, 'CLAUDE.md'), { force: true });
-      fs.rmSync(path.join(fix.repo, '.claude'), { recursive: true, force: true });
-      fs.writeFileSync(path.join(fix.repo, 'AGENTS.md'), AGENTS_SEED);
-      if (opts.seed) opts.seed(fix);
-      const results = [];
-      for (const step of opts.steps) {
-        if (step.before) step.before(fix);
-        const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
-        results.push(runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo }));
-      }
-      const conf = fs.existsSync(PROJ_CONF(fix)) ? fs.readFileSync(PROJ_CONF(fix), 'utf8') : null;
-      if (impl === 'bash') { bashRes = results; bashConf = conf; }
-      else { nodeRes = results; nodeConf = conf; }
+    fix.reset();
+    fs.rmSync(path.join(fix.repo, 'AGENTS.md'), { force: true });
+    fs.rmSync(path.join(fix.repo, 'CLAUDE.md'), { force: true });
+    fs.rmSync(path.join(fix.repo, '.claude'), { recursive: true, force: true });
+    fs.writeFileSync(path.join(fix.repo, 'AGENTS.md'), AGENTS_SEED);
+    if (opts.seed) opts.seed(fix);
+    const results = [];
+    for (const step of opts.steps) {
+      if (step.before) step.before(fix);
+      const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
+      const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
+      results.push({ args: step.args, rc: r.rc, out: normOut(r.out), err: normalizeErr(r.err) });
     }
+    const conf = fs.existsSync(PROJ_CONF(fix)) ? fs.readFileSync(PROJ_CONF(fix), 'utf8') : null;
+    return normalizeRoots({ steps: results, conf }, { '<ROOT>': fix.root });
   } finally {
     fix.cleanup();
   }
-  assert.equal(nodeRes.length, bashRes.length, `${name}: step count`);
-  for (let i = 0; i < bashRes.length; i++) {
-    const where = `${name}: step ${i + 1} (${opts.steps[i].args.join(' ')})`;
-    assert.equal(nodeRes[i].rc, bashRes[i].rc, `${where}: exit code (bash=${bashRes[i].rc} node=${nodeRes[i].rc})`);
-    assert.equal(normOut(nodeRes[i].out), normOut(bashRes[i].out), `${where}: stdout (normalized) — node:\n${nodeRes[i].out}\n--- bash:\n${bashRes[i].out}`);
-    assert.equal(normalizeErr(nodeRes[i].err), normalizeErr(bashRes[i].err), `${where}: stderr normalized — node:\n${nodeRes[i].err}\n--- bash:\n${bashRes[i].err}`);
-  }
-  assert.equal(nodeConf, bashConf, `${name}: the final config file must be identical`);
-  return { bash: bashRes, node: nodeRes, conf: nodeConf };
+}
+
+// Golden wrapper: record runs the bash reference, check/update run the JS;
+// the value is returned for the per-scenario assertions.
+function doctorScenario(name, opts) {
+  let refValue;
+  let actValue;
+  const reference = () => (refValue !== undefined ? refValue : (refValue = doctorValue('bash', opts))); // record only
+  const actual = () => (actValue !== undefined ? actValue : (actValue = doctorValue('node', opts))); // check/update
+  golden(SUITE, name, actual, reference);
+  return goldenMode() === 'record' ? reference() : actual();
 }
 
 const stPath = (st) => ctrlPath(st);
 
 // ---------- test-doctor-fix.sh scenarios ----------
 
-test('parity: doctor --fix without panes dies 2 and leaves the file (test-doctor-fix.sh)', { timeout: 60000 }, (t) => {
-  void t;
+test('parity: doctor --fix without panes dies 2 and leaves the file (test-doctor-fix.sh)', { timeout: 60000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('fix-nopanes', {
+  const r = doctorScenario('fix-nopanes', {
     seed: (fix) => {
       st.fakes = seedFakes(fix);
       writeConf(fix, LEGACY);
     },
     steps: [{ args: ['doctor', '--fix'], env: stPath(st) }],
   });
-  const r = res.node[0];
-  assert.equal(r.rc, 2, r.err);
-  assert.ok(r.err.includes('doctor --fix: panes is not set in'), r.err);
-  assert.ok(r.err.includes('doctor --fix --panes 3'), r.err);
-  assert.equal(r.out, '', 'nothing on stdout');
-  assert.equal(res.conf, LEGACY, 'the file is untouched by the die');
+  const s = r.steps[0];
+  assert.equal(s.rc, 2, s.err);
+  assert.ok(s.err.includes('doctor --fix: panes is not set in'), s.err);
+  assert.ok(s.err.includes('doctor --fix --panes 3'), s.err);
+  assert.equal(s.out, '', 'nothing on stdout');
+  assert.equal(r.conf, LEGACY, 'the file is untouched by the die');
 });
 
-test('parity: doctor on the legacy config warns about the missing panes and the cap (test-doctor-fix.sh)', { timeout: 60000 }, (t) => {
-  void t;
+test('parity: doctor on the legacy config warns about the missing panes and the cap (test-doctor-fix.sh)', { timeout: 60000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('doctor-legacy', {
+  const r = doctorScenario('doctor-legacy', {
     seed: (fix) => {
       st.fakes = seedFakes(fix);
       writeConf(fix, LEGACY);
     },
     steps: [{ args: ['doctor'], env: stPath(st) }],
   });
-  const r = res.node[0];
-  assert.equal(r.rc, 0, r.err);
-  assert.ok(r.out.includes('panes is not set'), r.out);
-  assert.ok(r.out.includes('split_max_panes=6'), r.out);
-  assert.ok(r.out.includes('role_planner_model is set (project)'), r.out);
+  const s = r.steps[0];
+  assert.equal(s.rc, 0, s.err);
+  assert.ok(s.out.includes('panes is not set'), s.out);
+  assert.ok(s.out.includes('split_max_panes=6'), s.out);
+  assert.ok(s.out.includes('role_planner_model is set (project)'), s.out);
 });
 
-test('parity: doctor --fix --panes 3 writes the preset 3 (test-doctor-fix.sh)', { timeout: 60000 }, (t) => {
-  void t;
+test('parity: doctor --fix --panes 3 writes the preset 3 (test-doctor-fix.sh)', { timeout: 60000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('fix3', {
+  const r = doctorScenario('fix3', {
     seed: (fix) => {
       st.fakes = seedFakes(fix);
       writeConf(fix, LEGACY);
     },
     steps: [{ args: ['doctor', '--fix', '--panes', '3'], env: stPath(st) }],
   });
-  const r = res.node[0];
-  assert.equal(r.rc, 0, r.err);
-  assert.ok(r.out.includes('set panes=3'), r.out);
-  assert.ok(r.out.includes('doctor --fix: updated'), r.out);
-  assert.ok(r.out.includes('first_run:'), 'the check re-runs after the fix');
-  const conf = res.conf;
+  const s = r.steps[0];
+  assert.equal(s.rc, 0, s.err);
+  assert.ok(s.out.includes('set panes=3'), s.out);
+  assert.ok(s.out.includes('doctor --fix: updated'), s.out);
+  assert.ok(s.out.includes('first_run:'), 'the check re-runs after the fix');
+  const conf = r.conf;
   for (const line of ['panes=3', 'lane.build.roles=implementer,designer,tasker', 'lane.read.roles=scouter,researcher,reviewer,security-reviewer,ui-reviewer,inspector', 'max_workers=2', 'split_max_panes=3', 'reuse_workers=on', 'lane.build.kind=grok', 'lane.read.kind=grok', '# keep this comment', '# tail comment']) {
     assert.ok(conf.split('\n').includes(line), `missing ${line}:\n${conf}`);
   }
@@ -257,41 +273,39 @@ test('parity: doctor --fix --panes 3 writes the preset 3 (test-doctor-fix.sh)', 
   assert.ok(!conf.includes('lane.explore.roles'), conf);
 });
 
-test('parity: doctor --fix --panes 4 writes the preset 4 (test-doctor-fix.sh)', { timeout: 60000 }, (t) => {
-  void t;
+test('parity: doctor --fix --panes 4 writes the preset 4 (test-doctor-fix.sh)', { timeout: 60000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('fix4', {
+  const r = doctorScenario('fix4', {
     seed: (fix) => {
       st.fakes = seedFakes(fix);
       writeConf(fix, LEGACY);
     },
     steps: [{ args: ['doctor', '--fix', '--panes', '4'], env: stPath(st) }],
   });
-  const r = res.node[0];
-  assert.equal(r.rc, 0, r.err);
-  const conf = res.conf;
+  const s = r.steps[0];
+  assert.equal(s.rc, 0, s.err);
+  const conf = r.conf;
   for (const line of ['panes=4', 'lane.explore.roles=scouter,researcher', 'lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector', 'max_workers=3', 'split_max_panes=4', 'lane.build.kind=grok', 'lane.explore.kind=grok', 'lane.review.kind=grok']) {
     assert.ok(conf.split('\n').includes(line), `missing ${line}:\n${conf}`);
   }
   assert.ok(!conf.includes('role.reviewer.kind'), conf);
 });
 
-test('parity: doctor --fix --panes 4 on a divergent review lane keeps the per-role kinds (test-doctor-fix.sh)', { timeout: 60000 }, (t) => {
-  void t;
+test('parity: doctor --fix --panes 4 on a divergent review lane keeps the per-role kinds (test-doctor-fix.sh)', { timeout: 60000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('fix4-divergent', {
+  const r = doctorScenario('fix4-divergent', {
     seed: (fix) => {
       st.fakes = seedFakes(fix);
       writeConf(fix, DIVERGENT);
     },
     steps: [{ args: ['doctor', '--fix', '--panes', '4'], env: stPath(st) }],
   });
-  const r = res.node[0];
-  assert.equal(r.rc, 0, r.err);
-  assert.ok(r.err.includes('reviewer=codex') && r.err.includes('security-reviewer=claude'), r.err);
-  assert.ok(r.err.includes('setup --lane review='), r.err);
-  assert.ok(!r.err.includes('models differ'), 'a frontmatter model is not a lane conflict');
-  const conf = res.conf;
+  const s = r.steps[0];
+  assert.equal(s.rc, 0, s.err);
+  assert.ok(s.err.includes('reviewer=codex') && s.err.includes('security-reviewer=claude'), s.err);
+  assert.ok(s.err.includes('setup --lane review='), s.err);
+  assert.ok(!s.err.includes('models differ'), 'a frontmatter model is not a lane conflict');
+  const conf = r.conf;
   assert.ok(conf.split('\n').includes('role.reviewer.kind=codex'), conf);
   assert.ok(conf.split('\n').includes('role.security-reviewer.kind=claude'), conf);
   assert.ok(!/^lane\.review\.kind=/m.test(conf), conf);
@@ -301,10 +315,9 @@ test('parity: doctor --fix --panes 4 on a divergent review lane keeps the per-ro
   assert.ok(!conf.includes('role.planner.model'), conf);
 });
 
-test('parity: doctor warns only about the kinds the effective config uses (test-doctor-fix.sh, controlled PATH)', { timeout: 90000 }, (t) => {
-  void t;
+test('parity: doctor warns only about the kinds the effective config uses (test-doctor-fix.sh, controlled PATH)', { timeout: 90000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('kinds', {
+  const r = doctorScenario('kinds', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, { grok: true });
       writeConf(fix, LEGACY);
@@ -325,11 +338,11 @@ test('parity: doctor warns only about the kinds the effective config uses (test-
       },
     ],
   });
-  const ok = res.node[0];
+  const ok = r.steps[0];
   assert.equal(ok.rc, 0, ok.err);
   assert.ok(ok.out.includes('kinds installed: grok'), ok.out);
   assert.ok(!ok.out.includes('kinds in use but not in PATH'), ok.out);
-  const missing = res.node[1];
+  const missing = r.steps[1];
   assert.equal(missing.rc, 0, missing.err);
   const kline = missing.out.split('\n').find((l) => l.includes('kinds in use but not in PATH')) ?? '';
   assert.ok(kline.includes('codex'), kline);
@@ -338,10 +351,9 @@ test('parity: doctor warns only about the kinds the effective config uses (test-
   }
 });
 
-test('parity: doctor with lanes off counts no planner kind (test-doctor-fix.sh, controlled PATH)', { timeout: 60000 }, (t) => {
-  void t;
+test('parity: doctor with lanes off counts no planner kind (test-doctor-fix.sh, controlled PATH)', { timeout: 60000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('kinds-lanes-off', {
+  const r = doctorScenario('kinds-lanes-off', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, { grok: true });
       const roles = ['implementer', 'designer', 'tasker', 'scouter', 'researcher', 'reviewer', 'security-reviewer', 'ui-reviewer', 'inspector', 'sub-orchestrator'];
@@ -349,16 +361,15 @@ test('parity: doctor with lanes off counts no planner kind (test-doctor-fix.sh, 
     },
     steps: [{ args: ['doctor'], env: stPath(st) }],
   });
-  const r = res.node[0];
-  assert.equal(r.rc, 0, r.err);
-  assert.ok(r.out.includes('kinds installed: grok'), r.out);
-  assert.ok(!r.out.includes('kinds in use but not in PATH'), r.out);
+  const s = r.steps[0];
+  assert.equal(s.rc, 0, s.err);
+  assert.ok(s.out.includes('kinds installed: grok'), s.out);
+  assert.ok(!s.out.includes('kinds in use but not in PATH'), s.out);
 });
 
-test('parity: setup --panes / --detect / the config-prompt steps (test-doctor-fix.sh tail, slices 7a/7b)', { timeout: 120000, skip: SKIP_JQ }, (t) => {
-  void t;
+test('parity: setup --panes / --detect / the config-prompt steps (test-doctor-fix.sh tail, slices 7a/7b)', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('setup-tail', {
+  const r = doctorScenario('setup-tail', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, { grok: true });
       writeConf(fix, LEGACY);
@@ -386,22 +397,21 @@ test('parity: setup --panes / --detect / the config-prompt steps (test-doctor-fi
       },
     ],
   });
-  assert.equal(res.node[0].rc, 0, res.node[0].err);
-  assert.ok(res.node[0].out.includes('set panes=4'), res.node[0].out);
-  assert.equal(res.node[1].rc, 0, res.node[1].err);
-  assert.ok(res.node[1].out.includes('effective_lanes'), res.node[1].out);
-  assert.equal(res.node[2].rc, 0, res.node[2].err);
-  assert.ok(res.node[2].err.includes('ask the user'), res.node[2].err);
-  assert.equal(res.node[3].rc, 0, res.node[3].err);
-  assert.ok(!res.node[3].err.includes('sets neither'), res.node[3].err);
+  assert.equal(r.steps[0].rc, 0, r.steps[0].err);
+  assert.ok(r.steps[0].out.includes('set panes=4'), r.steps[0].out);
+  assert.equal(r.steps[1].rc, 0, r.steps[1].err);
+  assert.ok(r.steps[1].out.includes('effective_lanes'), r.steps[1].out);
+  assert.equal(r.steps[2].rc, 0, r.steps[2].err);
+  assert.ok(r.steps[2].err.includes('ask the user'), r.steps[2].err);
+  assert.equal(r.steps[3].rc, 0, r.steps[3].err);
+  assert.ok(!r.steps[3].err.includes('sets neither'), r.steps[3].err);
 });
 
 // ---------- test-friendly.sh doctor/explain scenarios ----------
 
-test('parity: doctor first-run detection (test-friendly.sh)', { timeout: 120000 }, (t) => {
-  void t;
+test('parity: doctor first-run detection (test-friendly.sh)', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('first-run', {
+  const r = doctorScenario('first-run', {
     seed: (fix) => {
       st.fakes = seedFakes(fix); // no herdr fake: the doctor sees none on PATH
     },
@@ -426,7 +436,7 @@ test('parity: doctor first-run detection (test-friendly.sh)', { timeout: 120000 
       {
         before: (fix) => {
           fs.rmSync(PROJ_CONF(fix), { force: true });
-          writeTsv(fix, TSV_HEADER + 'build\tp1\tgrok\timplementer\txai\t1\t/tmp/work\tt1\tgrok-4.7\tfull\timplementer\tbuild\n');
+          writeTsv(fix, TSV_HEADER + 'build\tp1\tgrok\timplementer\txai\t1\t/work\tt1\tgrok-4.7\tfull\timplementer\tbuild\n');
         },
         args: ['doctor'],
         env: stPath(st),
@@ -442,17 +452,16 @@ test('parity: doctor first-run detection (test-friendly.sh)', { timeout: 120000 
       },
     ],
   });
-  assert.ok(res.node[0].out.includes('first_run: true'), res.node[0].out);
-  assert.ok(res.node[1].out.includes('first_run: true'), 'header-only roster counts as agents: ' + res.node[1].out);
-  assert.ok(res.node[2].out.includes('first_run: false'), 'config choice: ' + res.node[2].out);
-  assert.ok(res.node[3].out.includes('first_run: false'), 'roster row: ' + res.node[3].out);
-  assert.ok(res.node[4].out.includes('first_run: true'), 'max_workers alone: ' + res.node[4].out);
+  assert.ok(r.steps[0].out.includes('first_run: true'), r.steps[0].out);
+  assert.ok(r.steps[1].out.includes('first_run: true'), 'header-only roster counts as agents: ' + r.steps[1].out);
+  assert.ok(r.steps[2].out.includes('first_run: false'), 'config choice: ' + r.steps[2].out);
+  assert.ok(r.steps[3].out.includes('first_run: false'), 'roster row: ' + r.steps[3].out);
+  assert.ok(r.steps[4].out.includes('first_run: true'), 'max_workers alone: ' + r.steps[4].out);
 });
 
-test('parity: explain idle, roster, waiting-for-report and quota (test-friendly.sh)', { timeout: 120000 }, (t) => {
-  void t;
+test('parity: explain idle, roster, waiting-for-report and quota (test-friendly.sh)', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('explain', {
+  const r = doctorScenario('explain', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, { herdr: HERDR_FAKE, grok: true });
       fs.mkdirSync(path.join(fix.state, 'ws'), { recursive: true });
@@ -463,15 +472,15 @@ test('parity: explain idle, roster, waiting-for-report and quota (test-friendly.
       // A roster with the fake herdr (build working, review idle).
       {
         before: (fix) => writeTsv(fix,
-          'build\tp1\tgrok\timplementer\txai\t1\t/tmp/work\tt1\tgrok-4.7\tfull\timplementer\tbuild\n' +
-          'review\tp2\tcodex\treviewer\topenai\t1\t/tmp/work\tt2\tgpt-5\task\treviewer\treview\n'),
+          'build\tp1\tgrok\timplementer\txai\t1\t/work\tt1\tgrok-4.7\tfull\timplementer\tbuild\n' +
+          'review\tp2\tcodex\treviewer\topenai\t1\t/work\tt2\tgpt-5\task\treviewer\treview\n'),
         args: ['explain'],
         env: stPath(st),
       },
       // A recorded report whose file is missing: the worker waits on it.
       {
         before: (fix) => {
-          writeTsv(fix, 'queued\tp1\tgrok\timplementer\txai\t1\t/tmp/work\tt1\tgrok-4.7\tfull\timplementer\tbuild\n');
+          writeTsv(fix, 'queued\tp1\tgrok\timplementer\txai\t1\t/work\tt1\tgrok-4.7\tfull\timplementer\tbuild\n');
           fs.mkdirSync(path.join(fix.state, 'ws', 'reports'), { recursive: true });
           fs.writeFileSync(path.join(fix.state, 'ws', 'last-report-queued'), path.join(fix.state, 'ws', 'reports', 'queued.md') + '\n');
           fs.rmSync(path.join(fix.state, 'ws', 'reports', 'queued.md'), { force: true });
@@ -482,7 +491,7 @@ test('parity: explain idle, roster, waiting-for-report and quota (test-friendly.
       // An agent whose visible screen says the quota was reached.
       {
         before: (fix) => {
-          writeTsv(fix, 'capped\tp2\tcodex\treviewer\topenai\t1\t/tmp/work\tt2\tgpt-5\task\treviewer\treview\n');
+          writeTsv(fix, 'capped\tp2\tcodex\treviewer\topenai\t1\t/work\tt2\tgpt-5\task\treviewer\treview\n');
           fs.rmSync(path.join(fix.state, 'ws', 'last-report-capped'), { force: true });
         },
         args: ['explain'],
@@ -490,40 +499,38 @@ test('parity: explain idle, roster, waiting-for-report and quota (test-friendly.
       },
     ],
   });
-  const r0 = res.node[0];
+  const r0 = r.steps[0];
   assert.equal(r0.rc, 0, r0.err);
   assert.ok(r0.out.includes('Nothing is running yet.'), r0.out);
   assert.ok(r0.out.includes('never commit'), r0.out);
   assert.ok(r0.out.includes('Four panels are recommended'), r0.out);
   assert.ok(!/^\{/.test(r0.out), 'explain is never JSON');
-  const r1 = res.node[1];
+  const r1 = r.steps[1];
   assert.equal(r1.rc, 0, r1.err);
   assert.ok(r1.out.includes('build: implementer, grok, model grok-4.7, working'), r1.out);
   assert.ok(r1.out.includes('review: reviewer, codex, model gpt-5, idle'), r1.out);
   assert.ok(r1.out.includes('Panels: 4.'), r1.out);
   assert.ok(r1.out.includes('Recommendation: 4 panels'), r1.out);
-  assert.ok(res.node[2].out.includes('build: implementer, grok, model grok-4.7, waiting for report'), res.node[2].out);
-  assert.ok(res.node[3].out.includes('review: reviewer, codex, model gpt-5, out of quota'), res.node[3].out);
+  assert.ok(r.steps[2].out.includes('build: implementer, grok, model grok-4.7, waiting for report'), r.steps[2].out);
+  assert.ok(r.steps[3].out.includes('review: reviewer, codex, model gpt-5, out of quota'), r.steps[3].out);
 });
 
-test('parity: explain --json dies 2 (test-friendly.sh)', { timeout: 60000 }, (t) => {
-  void t;
+test('parity: explain --json dies 2 (test-friendly.sh)', { timeout: 60000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('explain-args', {
+  const r = doctorScenario('explain-args', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, { herdr: HERDR_FAKE });
     },
     steps: [{ args: ['explain', '--json'], env: stPath(st) }],
   });
-  const r = res.node[0];
-  assert.equal(r.rc, 2, r.err);
-  assert.ok(r.err.includes('explain: takes no arguments'), r.err);
+  const s = r.steps[0];
+  assert.equal(s.rc, 2, s.err);
+  assert.ok(s.err.includes('explain: takes no arguments'), s.err);
 });
 
-test('parity: explain with two rosters and no current workspace names the ambiguity (test-friendly.sh)', { timeout: 60000 }, (t) => {
-  void t;
+test('parity: explain with two rosters and no current workspace names the ambiguity (test-friendly.sh)', { timeout: 60000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('explain-ambiguous', {
+  const r = doctorScenario('explain-ambiguous', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, { herdr: NOPANE_FAKE });
       for (const w of ['ws-a', 'ws-b']) {
@@ -537,17 +544,16 @@ test('parity: explain with two rosters and no current workspace names the ambigu
     // is not running inside one of the workspaces.
     steps: [{ args: ['explain'], env: { ...stPath(st), HERDR_WORKSPACE_ID: '' } }],
   });
-  const r = res.node[0];
-  assert.equal(r.rc, 0, r.err);
-  assert.ok(r.out.includes('more than one Herdr workspace'), r.out);
-  assert.ok(r.out.includes('Run explain from a panel inside the workspace you are asking about.'), r.out);
-  assert.ok(!r.out.includes('Nothing is running'), r.out);
+  const s = r.steps[0];
+  assert.equal(s.rc, 0, s.err);
+  assert.ok(s.out.includes('more than one Herdr workspace'), s.out);
+  assert.ok(s.out.includes('Run explain from a panel inside the workspace you are asking about.'), s.out);
+  assert.ok(!s.out.includes('Nothing is running'), s.out);
 });
 
-test('parity: explain with two header-only rosters answers with the idle paragraph (test-friendly.sh)', { timeout: 60000 }, (t) => {
-  void t;
+test('parity: explain with two header-only rosters answers with the idle paragraph (test-friendly.sh)', { timeout: 60000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityDoctor('explain-empty-workspaces', {
+  const r = doctorScenario('explain-empty-workspaces', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, { herdr: NOPANE_FAKE });
       for (const w of ['ws-c', 'ws-d']) {
@@ -558,8 +564,8 @@ test('parity: explain with two header-only rosters answers with the idle paragra
     },
     steps: [{ args: ['explain'], env: { ...stPath(st), HERDR_WORKSPACE_ID: '' } }],
   });
-  const r = res.node[0];
-  assert.equal(r.rc, 0, r.err);
-  assert.ok(!r.out.includes('more than one Herdr workspace'), r.out);
-  assert.ok(r.out.includes('Nothing is running yet.'), r.out);
+  const s = r.steps[0];
+  assert.equal(s.rc, 0, s.err);
+  assert.ok(!s.out.includes('more than one Herdr workspace'), s.out);
+  assert.ok(s.out.includes('Nothing is running yet.'), s.out);
 });

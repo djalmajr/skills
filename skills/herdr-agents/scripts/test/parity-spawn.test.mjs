@@ -1,30 +1,50 @@
-// Parity: `herdr-agents spawn` — JS port vs the bash reference (herdr-agents.sh).
+// Golden (slice 9a-A): the `herdr-agents spawn` scenarios now run only the
+// JS (`node scripts/herdr-agents.mjs`) and compare against the reference
+// recorded once from the bash script in test/golden/parity-spawn.json
+// (test/golden.mjs: HERDR_AGENTS_GOLDEN=record records, unset checks,
+// =update overwrites the JS value for review).
 //
-// Mirrors test-lanes.sh:165-420 (spawn scenarios, incl. the config-layer cases)
-// plus the brief's extra criteria (agent_pane_busy x2, agent_not_ready, --pane,
-// overflow to a herd tab on a full caller tab). Each scenario runs against the
-// bash script and the JS entry in fresh, identical fixtures (fake `herdr` CLI
-// + fake agent CLIs) and compares, per step: exit code, stdout, normalized
-// stderr, the recorded herdr CLI calls; plus the relevant final files.
+// Mirrors test-lanes.sh:165-420 (spawn scenarios, incl. the config-layer
+// cases) plus the extra criteria (agent_pane_busy x2, agent_not_ready,
+// --pane, overflow to a herd tab on a full caller tab). Each scenario runs
+// in a fresh fixture (fake `herdr` CLI + fake agent CLIs) and the recorded
+// value holds, per step: exit code, stdout, normalized stderr and the
+// recorded herdr CLI calls (omitted for the busy2 scenario, as before);
+// plus the final roster (created_at normalized to T) and `herd-tab` file.
+// The fixture root becomes <ROOT> in every string of the recorded value.
+//
+// The bash script runs only as the `reference` (record mode); the JS runs
+// only as the `actual` (check/update mode).
 //
 // node --test test/parity-spawn.test.mjs
 
 import { test } from 'node:test';
-import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { fixtureEnv, nodeBin, normalizeErr, BASH_ENTRY, JS_ENTRY } from './parity.mjs';
+import { BASH_ENTRY, JS_ENTRY, fixtureEnv, nodeBin, normalizeErr } from './parity.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { findExecutable } from '../lib/platform.mjs';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
+// Record mode runs the bash reference: it needs bash and jq. Check mode
+// runs the JS against the record and needs the sh fake CLIs, so it is
+// skipped solely on Windows.
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the sh fake CLIs (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
+      ? 'record mode needs bash and jq on PATH'
+      : false);
+
+const SUITE = 'parity-spawn';
 
 const HEADER =
   '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n';
 
-// The fake herdr speaks the exact shapes the skill consumes. State comes from
-// env-pointed files so scenario steps can mutate it between commands.
+// The fake herdr speaks the exact shapes the skill consumes. State comes
+// from env-pointed files so scenario steps can mutate it between commands.
 const FAKE_HERDR = `#!/bin/sh
 printf '%s\\n' "$*" >> "$HA_LOG"
 target="\${3:-}"
@@ -138,80 +158,66 @@ function makeParityFixture(name) {
         PATH: `${bin}:${process.env.PATH ?? ''}`,
       };
     },
-    rosterFile() {
-      try { return fs.readFileSync(this.files.roster, 'utf8'); } catch { return null; }
-    },
   };
   return fix;
 }
 
-function makeFixturePair(name) {
-  const a = makeParityFixture(`${name}-bash-`);
-  const b = makeParityFixture(`${name}-js-`);
-  for (const f of [a, b]) {
-    fs.writeFileSync(path.join(f.bin, 'herdr'), FAKE_HERDR, { mode: 0o755 });
-    fs.writeFileSync(path.join(f.bin, 'grok'), '#!/bin/sh\n[ "${1:-}" = models ] && printf "%s\\n" grok-4.7\n', { mode: 0o755 });
-    fs.writeFileSync(path.join(f.bin, 'agy'), '#!/bin/sh\n[ "${1:-}" = models ] && printf "gemini-2.5 (latest)\\n"\n', { mode: 0o755 });
-    f.seed();
-  }
-  return [a, b];
+// The roster's `started` column differs per run; normalize it to T before
+// it is recorded.
+function normRosterCols(s) {
+  if (s == null) return null;
+  return s.split('\n').map((l) => {
+    if (l === '' || l.startsWith('#')) return l;
+    const f = l.split('\t');
+    if (f.length > 7) f[7] = 'T'; // created_at differs per run
+    return f.join('\t');
+  }).join('\n');
 }
 
-function runImpl(binArgs, fix, script, baseEnv) {
-  const normText = (s) => (s ?? '').split(fix.root).join('<ROOT>');
-  const normRoster = (s) => {
-    if (s == null) return null;
-    return normText(s).split('\n').map((l) => {
-      if (l === '' || l.startsWith('#')) return l;
-      const f = l.split('\t');
-      if (f.length > 7) f[7] = 'T'; // created_at differs per run
-      return f.join('\t');
-    }).join('\n');
-  };
-  const steps = [];
-  for (const step of script) {
-    if (step.fs) { step.fs(fix); continue; }
-    fs.rmSync(fix.herdrLog, { force: true });
-    const r = spawnSync(binArgs[0], [...binArgs.slice(1), ...step.args], {
-      cwd: fix.repo,
-      env: { ...baseEnv, HERDR_ENV: '1', HERDR_AGENTS_LAYOUT: 'tab', HERDR_AGENTS_REGRID: 'off', ...step.env },
-      encoding: 'utf8',
-    });
-    const log = fs.existsSync(fix.herdrLog) ? fs.readFileSync(fix.herdrLog, 'utf8') : '';
-    steps.push({ rc: r.status, out: normText(r.stdout), err: normText(normalizeErr(r.stderr || '')), log: normText(log) });
-  }
-  const files = {};
-  for (const [label, file] of Object.entries(fix.files)) {
-    const raw = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
-    files[label] = label === 'roster' ? normRoster(raw) : normText(raw);
-  }
-  return { steps, files };
-}
-
-function paritySpawn(name, script, opts = {}) {
-  const [a, b] = makeFixturePair(name);
+// Run the step script against one implementation in a fresh fixture and
+// return the golden value: rc, stdout, normalized stderr and the herdr
+// call log per step (omitted when opts.skipLog), plus the final roster and
+// `herd-tab` file. `entry` is [bin, ...binArgs]: the JS entry for the
+// actual, the bash script for the reference. The fixture root becomes
+// <ROOT> in every string of the value.
+function spawnValue(entry, name, script, opts = {}) {
+  const fix = makeParityFixture(name);
   try {
-    const ea = a.env(), eb = b.env();
-    const ra = runImpl(['bash', BASH_ENTRY], a, script, ea);
-    const rb = runImpl([nodeBin(), JS_ENTRY], b, script, eb);
-    assert.equal(ra.steps.length, rb.steps.length, `${name}: step count`);
-    ra.steps.forEach((s, i) => {
-      const t = rb.steps[i];
-      const runStep = script.filter((x) => x.args)[i];
-      const label = `step ${i + 1} (${runStep?.args?.join(' ') ?? 'run'})`;
-      assert.equal(s.rc, t.rc, `${name} ${label}: rc (bash ${s.rc} vs js ${t.rc}); bash stderr: ${s.err}; js stderr: ${t.err}`);
-      assert.equal(s.out, t.out, `${name} ${label}: stdout`);
-      assert.equal(s.err, t.err, `${name} ${label}: stderr`);
-      if (!opts.skipLog) assert.equal(s.log, t.log, `${name} ${label}: herdr calls`);
-    });
-    for (const label of Object.keys(ra.files)) {
-      assert.equal(ra.files[label], rb.files[label], `${name}: final file ${label}`);
+    fs.writeFileSync(path.join(fix.bin, 'herdr'), FAKE_HERDR, { mode: 0o755 });
+    fs.writeFileSync(path.join(fix.bin, 'grok'), '#!/bin/sh\n[ "${1:-}" = models ] && printf "%s\\n" grok-4.7\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(fix.bin, 'agy'), '#!/bin/sh\n[ "${1:-}" = models ] && printf "gemini-2.5 (latest)\\n"\n', { mode: 0o755 });
+    fix.seed();
+    const baseEnv = fix.env();
+    const steps = [];
+    for (const step of script) {
+      if (step.fs) { step.fs(fix); continue; }
+      fs.rmSync(fix.herdrLog, { force: true });
+      const r = spawnSync(entry[0], [...entry.slice(1), ...step.args], {
+        cwd: fix.repo,
+        env: { ...baseEnv, HERDR_ENV: '1', HERDR_AGENTS_LAYOUT: 'tab', HERDR_AGENTS_REGRID: 'off', ...step.env },
+        encoding: 'utf8',
+        timeout: 60000,
+      });
+      const st = {
+        args: step.args,
+        rc: r.status === null ? -1 : r.status,
+        out: r.stdout ?? '',
+        err: normalizeErr(r.stderr ?? ''),
+      };
+      if (!opts.skipLog) {
+        st.log = fs.existsSync(fix.herdrLog) ? fs.readFileSync(fix.herdrLog, 'utf8') : '';
+      }
+      steps.push(st);
     }
+    const files = {};
+    for (const [label, file] of Object.entries(fix.files)) {
+      const raw = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+      files[label] = label === 'roster' ? normRosterCols(raw) : raw;
+    }
+    return normalizeRoots({ steps, files }, { '<ROOT>': fix.root });
   } finally {
-    fs.rmSync(a.root, { recursive: true, force: true });
-    fs.rmSync(b.root, { recursive: true, force: true });
+    fs.rmSync(fix.root, { recursive: true, force: true });
   }
-  return { a, b };
 }
 
 // ---- scenario helpers ------------------------------------------------------
@@ -241,17 +247,20 @@ const rmHerdTab = (fix) => fs.rmSync(fix.files.herdTab, { force: true });
 
 // ---- scenarios (test-lanes.sh:165-420 + brief extras) ----------------------
 
-test('parity spawn: planner is 12, a sub-orchestrator outside a lane is 3', { timeout: 120000 }, () => {
-  paritySpawn('errors', [
+test('parity spawn: planner is 12, a sub-orchestrator outside a lane is 3', { timeout: 120000, skip: SKIP }, () => {
+  const script = [
     { fs: resetRoster },
     { args: ['spawn', 'planner'] },
     { fs: resetRoster },
     { args: ['spawn', 'sub-orchestrator'] },
-  ]);
+  ];
+  golden(SUITE, 'errors',
+    () => spawnValue([nodeBin(), JS_ENTRY], 'errors', script), // actual (check/update)
+    () => spawnValue(['bash', BASH_ENTRY], 'errors', script)); // reference (record only)
 });
 
-test('parity spawn: fresh worker, lane reuse, kind mismatch, lane-kind reuse', { timeout: 120000 }, () => {
-  paritySpawn('kind', [
+test('parity spawn: fresh worker, lane reuse, kind mismatch, lane-kind reuse', { timeout: 120000, skip: SKIP }, () => {
+  const script = [
     { fs: resetRoster },
     { args: ['spawn', 'implementer'] },
     { fs: (f) => { addWorkers(f, ['explore', 'scouter', 'explore']); live(f, [{ name: 'explore', pane_id: 'p-explore', agent_status: 'idle' }]); mode(f, 'idle'); rmHerdTab(f); } },
@@ -270,11 +279,14 @@ test('parity spawn: fresh worker, lane reuse, kind mismatch, lane-kind reuse', {
     { fs: (f) => { addWorkers(f, ['build', 'designer', 'build', 'grok']); } },
     { args: ['spawn', 'implementer'] },
     { fs: (f) => { conf(f, null); } },
-  ]);
+  ];
+  golden(SUITE, 'kind',
+    () => spawnValue([nodeBin(), JS_ENTRY], 'kind', script), // actual (check/update)
+    () => spawnValue(['bash', BASH_ENTRY], 'kind', script)); // reference (record only)
 });
 
-test('parity spawn: busy 10, gone recreated, worker cap 8, locked 5, lane kind, lanes=off reuse', { timeout: 120000 }, () => {
-  paritySpawn('lane-states', [
+test('parity spawn: busy 10, gone recreated, worker cap 8, locked 5, lane kind, lanes=off reuse', { timeout: 120000, skip: SKIP }, () => {
+  const script = [
     { fs: (f) => { addWorkers(f, ['build', 'implementer', 'build']); live(f, [{ name: 'build', pane_id: 'p-build', agent_status: 'working' }]); mode(f, 'working'); } },
     { args: ['spawn', 'tasker'] },
     { fs: (f) => { addWorkers(f, ['build', 'implementer', 'build']); live(f, []); mode(f, 'gone'); } },
@@ -307,13 +319,16 @@ test('parity spawn: busy 10, gone recreated, worker cap 8, locked 5, lane kind, 
       mode(f, 'idle');
     } },
     { args: ['spawn', 'implementer'], env: { HERDR_AGENTS_LANES: 'off' } },
-  ]);
+  ];
+  golden(SUITE, 'lane-states',
+    () => spawnValue([nodeBin(), JS_ENTRY], 'lane-states', script), // actual (check/update)
+    () => spawnValue(['bash', BASH_ENTRY], 'lane-states', script)); // reference (record only)
 });
 
 // The config-layer cases of test-lanes.sh:324-399 (case 5 needs the unported
 // `doctor` command and is skipped here; it is covered by the JS unit tests).
-test('parity spawn: config layers (user vs project vs env, kind/model/effort precedence)', { timeout: 120000 }, () => {
-  paritySpawn('layers', [
+test('parity spawn: config layers (user vs project vs env, kind/model/effort precedence)', { timeout: 120000, skip: SKIP }, () => {
+  const script = [
     // case 1: user lane.kind + model, project lane.kind wins; project kind model wins.
     { fs: (f) => {
       conf(f, 'lane.explore.kind = "grok"\nlane.explore.model = "grok-4.7"\nlane.explore.model.codex.worker = "gpt-6-luna"\n');
@@ -363,34 +378,48 @@ test('parity spawn: config layers (user vs project vs env, kind/model/effort pre
     { fs: (f) => { conf(f, 'lane.build.model = "grok-4.7"\n'); } },
     { args: ['spawn', 'implementer'] },
     { fs: (f) => { conf(f, null); } },
-  ]);
+  ];
+  golden(SUITE, 'layers',
+    () => spawnValue([nodeBin(), JS_ENTRY], 'layers', script), // actual (check/update)
+    () => spawnValue(['bash', BASH_ENTRY], 'layers', script)); // reference (record only)
 });
 
-test('parity spawn: agent_pane_busy twice, then success (15x1s retry budget)', { timeout: 120000 }, () => {
-  paritySpawn('busy2', [
+test('parity spawn: agent_pane_busy twice, then success (15x1s retry budget)', { timeout: 120000, skip: SKIP }, () => {
+  // The retry budget makes the call log timing-dependent: recorded without
+  // the log, as the parity comparison skipped it before.
+  const script = [
     { fs: (f) => { resetRoster(f); mode(f, 'busy2'); } },
     { args: ['spawn', 'implementer'] },
     { fs: (f) => { mode(f, 'idle'); } },
-  ], { skipLog: true });
+  ];
+  golden(SUITE, 'busy2',
+    () => spawnValue([nodeBin(), JS_ENTRY], 'busy2', script, { skipLog: true }), // actual (check/update)
+    () => spawnValue(['bash', BASH_ENTRY], 'busy2', script, { skipLog: true })); // reference (record only)
 });
 
-test('parity spawn: agent_not_ready registers, prints JSON + screen, exits 7', { timeout: 120000 }, () => {
-  paritySpawn('notready', [
+test('parity spawn: agent_not_ready registers, prints JSON + screen, exits 7', { timeout: 120000, skip: SKIP }, () => {
+  const script = [
     { fs: (f) => { resetRoster(f); mode(f, 'notready'); } },
     { args: ['spawn', 'implementer'] },
-  ]);
+  ];
+  golden(SUITE, 'notready',
+    () => spawnValue([nodeBin(), JS_ENTRY], 'notready', script), // actual (check/update)
+    () => spawnValue(['bash', BASH_ENTRY], 'notready', script)); // reference (record only)
 });
 
-test('parity spawn: --pane places the worker in a given pane', { timeout: 120000 }, () => {
-  paritySpawn('given-pane', [
+test('parity spawn: --pane places the worker in a given pane', { timeout: 120000, skip: SKIP }, () => {
+  const script = [
     { fs: resetRoster },
     { args: ['spawn', 'implementer', '--pane', 'p-x', '--name', 'solo'] },
     { args: ['spawn', 'scouter', '--pane', 'p-y', '--tab-label', 'extra', '--name', 'side'] },
-  ]);
+  ];
+  golden(SUITE, 'given-pane',
+    () => spawnValue([nodeBin(), JS_ENTRY], 'given-pane', script), // actual (check/update)
+    () => spawnValue(['bash', BASH_ENTRY], 'given-pane', script)); // reference (record only)
 });
 
 // The caller's split tab is full → the worker overflows into a herd tab.
-test('parity spawn: a full caller tab overflows the worker into a herd tab', { timeout: 120000 }, () => {
+test('parity spawn: a full caller tab overflows the worker into a herd tab', { timeout: 120000, skip: SKIP }, () => {
   const layoutDoc = {
     result: {
       layout: {
@@ -414,7 +443,7 @@ test('parity spawn: a full caller tab overflows the worker into a herd tab', { t
       ],
     },
   };
-  paritySpawn('overflow', [
+  const script = [
     { fs: (f) => {
       addWorkers(f, ['w1', 'implementer', 'build'], ['w2', 'scouter', 'explore'], ['w3', 'reviewer', 'review']);
       live(f, [
@@ -437,5 +466,8 @@ test('parity spawn: a full caller tab overflows the worker into a herd tab', { t
         HERDR_AGENTS_MAX_WORKERS: '4',
       },
     },
-  ]);
+  ];
+  golden(SUITE, 'overflow',
+    () => spawnValue([nodeBin(), JS_ENTRY], 'overflow', script), // actual (check/update)
+    () => spawnValue(['bash', BASH_ENTRY], 'overflow', script)); // reference (record only)
 });

@@ -1,0 +1,227 @@
+{
+  "Build=codex": {
+    "err": "PROG: setup: invalid lane name 'Build'\n",
+    "out": "",
+    "rc": 2
+  },
+  "build": {
+    "err": "PROG: setup: --lane expects name=kind[:model[:effort]]\n",
+    "out": "",
+    "rc": 2
+  },
+  "build=codex": {
+    "err": "",
+    "out": "build\tcodex\t\t\n",
+    "rc": 0
+  },
+  "build=codex:g#x": {
+    "err": "PROG: setup: --lane value cannot contain #\n",
+    "out": "",
+    "rc": 2
+  },
+  "build=codex:gpt-6:high": {
+    "err": "",
+    "out": "build\tcodex\tgpt-6\thigh\n",
+    "rc": 0
+  },
+  "build=codex:m:huge": {
+    "err": "PROG: setup: invalid effort 'huge'\n",
+    "out": "",
+    "rc": 2
+  },
+  "build=nope": {
+    "err": "PROG: setup: unknown kind 'nope'\n",
+    "out": "",
+    "rc": 2
+  },
+  "case-order": {
+    "err": "",
+    "out": "A\nb\nROLE implementer NONE\nROLE designer NONE\nROLE tasker NONE\nROLE scouter b\nROLE researcher NONE\nROLE reviewer A\nROLE security-reviewer NONE\nROLE ui-reviewer NONE\nROLE inspector NONE\nROLE sub-orchestrator NONE\nCOUNT 2\nMAXWORKERS 2\n",
+    "rc": 0
+  },
+  "custom": {
+    "err": "PROG: warning: lane roles in <ROOT>/dest/herdr-agents.conf are custom; left in place. Remove them to restore the panes=4 preset.\n",
+    "file": "lane.ops.roles=implementer,tasker\nlane.ops.kind=grok\npanes=4\nmax_workers=1\nsplit_max_panes=4\nreuse_workers=on\n",
+    "out": "set lane.ops.kind=grok\nset panes=4\nset max_workers=1\nset split_max_panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n",
+    "rc": 0,
+    "temps": []
+  },
+  "custom-env": {
+    "err": "",
+    "out": "ops\nROLE implementer ops\nROLE designer NONE\nROLE tasker ops\nROLE scouter NONE\nROLE researcher NONE\nROLE reviewer NONE\nROLE security-reviewer NONE\nROLE ui-reviewer NONE\nROLE inspector NONE\nROLE sub-orchestrator NONE\nCOUNT 1\nMAXWORKERS 1\n",
+    "rc": 0
+  },
+  "custom-file": {
+    "err": "",
+    "out": "ops\nROLE implementer ops\nROLE designer NONE\nROLE tasker ops\nROLE scouter NONE\nROLE researcher NONE\nROLE reviewer NONE\nROLE security-reviewer NONE\nROLE ui-reviewer NONE\nROLE inspector NONE\nROLE sub-orchestrator NONE\nCOUNT 1\nMAXWORKERS 1\n",
+    "rc": 0
+  },
+  "custom-space-roles": {
+    "err": "PROG: warning: lane roles in <ROOT>/dest/herdr-agents.conf are custom; left in place. Remove them to restore the panes=4 preset.\n",
+    "file": "lane.x.roles=implementer designer\nlane.x.kind=grok\npanes=4\nmax_workers=1\nsplit_max_panes=4\nreuse_workers=on\n",
+    "out": "set lane.x.kind=grok\nset panes=4\nset max_workers=1\nset split_max_panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n",
+    "rc": 0,
+    "temps": []
+  },
+  "divergent-kind": {
+    "err": "PROG: warning: lane 'build' kinds differ (implementer=grok designer=agy tasker=grok). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane build=<kind>[:<model>[:<effort>]]'.\nPROG: warning: lane 'review' kinds differ (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\n",
+    "file": "role.implementer.kind=grok\nrole.designer.kind=agy\nlane.explore.kind=grok\npanes=4\nlane.build.roles=implementer,designer,tasker\nlane.explore.roles=scouter,researcher\nlane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nmax_workers=3\nsplit_max_panes=4\nreuse_workers=on\n",
+    "out": "set lane.explore.kind=grok\nset panes=4\nset lane.build.roles=implementer,designer,tasker\nset lane.explore.roles=scouter,researcher\nset lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nset max_workers=3\nset split_max_panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n",
+    "rc": 0,
+    "temps": []
+  },
+  "empty": {
+    "err": "PROG: warning: lane 'build' kinds differ (implementer=grok designer=agy tasker=grok). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane build=<kind>[:<model>[:<effort>]]'.\nPROG: warning: lane 'review' kinds differ (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\n",
+    "file": "lane.explore.kind=grok\npanes=4\nlane.build.roles=implementer,designer,tasker\nlane.explore.roles=scouter,researcher\nlane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nmax_workers=3\nsplit_max_panes=4\nreuse_workers=on\n",
+    "out": "set lane.explore.kind=grok\nset panes=4\nset lane.build.roles=implementer,designer,tasker\nset lane.explore.roles=scouter,researcher\nset lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nset max_workers=3\nset split_max_panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n",
+    "rc": 0,
+    "temps": []
+  },
+  "empty-lane-name": {
+    "err": "",
+    "out": "y\nROLE implementer NONE\nROLE designer NONE\nROLE tasker NONE\nROLE scouter y\nROLE researcher NONE\nROLE reviewer NONE\nROLE security-reviewer NONE\nROLE ui-reviewer NONE\nROLE inspector NONE\nROLE sub-orchestrator NONE\nCOUNT 1\nMAXWORKERS 1\n",
+    "rc": 0
+  },
+  "empty-roles": {
+    "err": "",
+    "out": "b\nops\nROLE implementer ops\nROLE designer NONE\nROLE tasker NONE\nROLE scouter NONE\nROLE researcher b\nROLE reviewer NONE\nROLE security-reviewer NONE\nROLE ui-reviewer NONE\nROLE inspector NONE\nROLE sub-orchestrator NONE\nCOUNT 2\nMAXWORKERS 2\n",
+    "rc": 0
+  },
+  "existing-lane-kind": {
+    "err": "PROG: warning: lane 'review' kinds differ (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\n",
+    "file": "lane.build.kind=codex\nlane.explore.kind=grok\npanes=4\nlane.build.roles=implementer,designer,tasker\nlane.explore.roles=scouter,researcher\nlane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nmax_workers=3\nsplit_max_panes=4\nreuse_workers=on\n",
+    "out": "set lane.explore.kind=grok\nset panes=4\nset lane.build.roles=implementer,designer,tasker\nset lane.explore.roles=scouter,researcher\nset lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nset max_workers=3\nset split_max_panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n",
+    "rc": 0,
+    "temps": []
+  },
+  "explicit-max": {
+    "err": "",
+    "out": "build\nexplore\nreview\nROLE implementer build\nROLE designer build\nROLE tasker build\nROLE scouter explore\nROLE researcher explore\nROLE reviewer review\nROLE security-reviewer review\nROLE ui-reviewer review\nROLE inspector review\nROLE sub-orchestrator NONE\nCOUNT 3\nMAXWORKERS 5\n",
+    "rc": 0
+  },
+  "explicit-max-env": {
+    "err": "",
+    "out": "build\nexplore\nreview\nROLE implementer build\nROLE designer build\nROLE tasker build\nROLE scouter explore\nROLE researcher explore\nROLE reviewer review\nROLE security-reviewer review\nROLE ui-reviewer review\nROLE inspector review\nROLE sub-orchestrator NONE\nCOUNT 3\nMAXWORKERS 0\n",
+    "rc": 0
+  },
+  "hyphen-env-invisible": {
+    "err": "",
+    "out": "build\nexplore\nreview\nROLE implementer build\nROLE designer build\nROLE tasker build\nROLE scouter explore\nROLE researcher explore\nROLE reviewer review\nROLE security-reviewer review\nROLE ui-reviewer review\nROLE inspector review\nROLE sub-orchestrator NONE\nCOUNT 3\nMAXWORKERS 3\n",
+    "rc": 0
+  },
+  "hyphen-env-plus-file": {
+    "err": "",
+    "out": "ui_review\nROLE implementer NONE\nROLE designer NONE\nROLE tasker NONE\nROLE scouter NONE\nROLE researcher NONE\nROLE reviewer NONE\nROLE security-reviewer NONE\nROLE ui-reviewer ui_review\nROLE inspector ui_review\nROLE sub-orchestrator NONE\nCOUNT 1\nMAXWORKERS 1\n",
+    "rc": 0
+  },
+  "hyphen-file-key": {
+    "err": "",
+    "out": "ui_review\nROLE implementer NONE\nROLE designer NONE\nROLE tasker NONE\nROLE scouter NONE\nROLE researcher NONE\nROLE reviewer NONE\nROLE security-reviewer NONE\nROLE ui-reviewer ui_review\nROLE inspector ui_review\nROLE sub-orchestrator NONE\nCOUNT 1\nMAXWORKERS 1\n",
+    "rc": 0
+  },
+  "lanes-off": {
+    "err": "",
+    "out": "build\nexplore\nreview\nROLE implementer build\nROLE designer build\nROLE tasker build\nROLE scouter explore\nROLE researcher explore\nROLE reviewer review\nROLE security-reviewer review\nROLE ui-reviewer review\nROLE inspector review\nROLE sub-orchestrator NONE\nCOUNT 3\nMAXWORKERS 3\n",
+    "rc": 0
+  },
+  "mixed-file-env": {
+    "err": "",
+    "out": "a\nb\nROLE implementer NONE\nROLE designer NONE\nROLE tasker NONE\nROLE scouter a\nROLE researcher b\nROLE reviewer NONE\nROLE security-reviewer NONE\nROLE ui-reviewer NONE\nROLE inspector NONE\nROLE sub-orchestrator NONE\nCOUNT 2\nMAXWORKERS 2\n",
+    "rc": 0
+  },
+  "planner-keys": {
+    "err": "PROG: warning: lane 'review' kinds differ (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\n",
+    "file": "lane.build.kind=grok\nlane.explore.kind=grok\npanes=4\nlane.build.roles=implementer,designer,tasker\nlane.explore.roles=scouter,researcher\nlane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nmax_workers=3\nsplit_max_panes=4\nreuse_workers=on\n",
+    "out": "set lane.build.kind=grok\nset lane.explore.kind=grok\nset panes=4\nset lane.build.roles=implementer,designer,tasker\nset lane.explore.roles=scouter,researcher\nset lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nset max_workers=3\nset split_max_panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n",
+    "rc": 0,
+    "temps": []
+  },
+  "preset-3": {
+    "err": "",
+    "out": "build\nread\nROLE implementer build\nROLE designer build\nROLE tasker build\nROLE scouter read\nROLE researcher read\nROLE reviewer read\nROLE security-reviewer read\nROLE ui-reviewer read\nROLE inspector read\nROLE sub-orchestrator NONE\nCOUNT 2\nMAXWORKERS 2\n",
+    "rc": 0
+  },
+  "preset-3-env": {
+    "err": "",
+    "out": "build\nread\nROLE implementer build\nROLE designer build\nROLE tasker build\nROLE scouter read\nROLE researcher read\nROLE reviewer read\nROLE security-reviewer read\nROLE ui-reviewer read\nROLE inspector read\nROLE sub-orchestrator NONE\nCOUNT 2\nMAXWORKERS 2\n",
+    "rc": 0
+  },
+  "preset-4": {
+    "err": "",
+    "out": "build\nexplore\nreview\nROLE implementer build\nROLE designer build\nROLE tasker build\nROLE scouter explore\nROLE researcher explore\nROLE reviewer review\nROLE security-reviewer review\nROLE ui-reviewer review\nROLE inspector review\nROLE sub-orchestrator NONE\nCOUNT 3\nMAXWORKERS 3\n",
+    "rc": 0
+  },
+  "preset3-to-4": {
+    "err": "PROG: warning: lane 'build' kinds differ (implementer=grok designer=agy tasker=grok). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane build=<kind>[:<model>[:<effort>]]'.\nPROG: warning: lane 'review' kinds differ (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\n",
+    "file": "lane.explore.kind=grok\npanes=4\nlane.build.roles=implementer,designer,tasker\nlane.explore.roles=scouter,researcher\nlane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nmax_workers=3\nsplit_max_panes=4\nreuse_workers=on\n",
+    "out": "set lane.explore.kind=grok\nset panes=4\nset lane.build.roles=implementer,designer,tasker\nset lane.explore.roles=scouter,researcher\nset lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nset max_workers=3\nset split_max_panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n",
+    "rc": 0,
+    "temps": []
+  },
+  "preset4-to-3": {
+    "err": "PROG: warning: lane 'build' kinds differ (implementer=grok designer=agy tasker=grok). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane build=<kind>[:<model>[:<effort>]]'.\nPROG: warning: lane 'read' kinds differ (scouter=grok researcher=grok reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane read=<kind>[:<model>[:<effort>]]'.\n",
+    "file": "panes=3\nlane.build.roles=implementer,designer,tasker\nlane.read.roles=scouter,researcher,reviewer,security-reviewer,ui-reviewer,inspector\nmax_workers=2\nsplit_max_panes=3\nreuse_workers=on\n",
+    "out": "set panes=3\nset lane.build.roles=implementer,designer,tasker\nset lane.read.roles=scouter,researcher,reviewer,security-reviewer,ui-reviewer,inspector\nset max_workers=2\nset split_max_panes=3\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n",
+    "rc": 0,
+    "temps": []
+  },
+  "quota": {
+    "err": "",
+    "out": "CASE 001\nDETECT\nYou have hit your usage limit for grok\nRENEWAL [5:00]\nCASE 002\nDETECT\nIndividual quota reached\nRENEWAL [09:15:00]\nCASE 003\nDETECT\nError: quota exceeded\nRENEWAL [2:30]\nCASE 004\nDETECT\nRESOURCE_EXHAUSTED: project\nRENEWAL [2:30P.M.]\nCASE 005\nDETECT\n429 Too Many Requests\nRENEWAL [2026-09-24]\nCASE 006\nDETECT\nrate limit exceeded, retry later\nRENEWAL [5 minutes]\nCASE 007\nDETECT\nYou've hit your limit for today\nRENEWAL [2 hours]\nCASE 008\nDETECT\nYou exceeded your current quota, please check your plan and billing details.\nRENEWAL [5:00]\nCASE 009\nDETECT\nYou have reached your API usage limits: monthly threshold\nRENEWAL [2026-09-24]\nCASE 010\nDETECT\nYou've reached your API usage limits\nRENEWAL [5 minutes]\nCASE 011\nDETECT\nINDIVIDUAL QUOTA REACHED\nRENEWAL []\nCASE 012\nNOMATCH\nRENEWAL []\nCASE 013\nNOMATCH\nRENEWAL [5:00]\nCASE 014\nNOMATCH\nRENEWAL [09:15:00]\nCASE 015\nNOMATCH\nRENEWAL [2:30]\nCASE 016\nNOMATCH\nRENEWAL [2:30P.M.]\nCASE 017\nNOMATCH\nRENEWAL [2026-09-24]\nCASE 018\nNOMATCH\nRENEWAL [5 minutes]\nCASE 019\nNOMATCH\nRENEWAL [2 hours]\nCASE 020\nNOMATCH\nRENEWAL [5:00]\nCASE 021\nNOMATCH\nRENEWAL [2026-09-24]\nCASE 022\nNOMATCH\nRENEWAL [5 minutes]\nCASE 023\nNOMATCH\nRENEWAL []\nCASE 024\nNOMATCH\nRENEWAL []\nCASE 025\nNOMATCH\nRENEWAL [5:00]\nCASE 026\nDETECT\nIndividual quota reached token=[redacted]\nResets at 5:00pm\nRENEWAL [09:15:00]\nCASE 027\nDETECT\nBearer [redacted] and hit your usage limit\nRENEWAL [2:30]\nCASE 028\nDETECT\napi_key=[redacted] quota exceeded\nRENEWAL [2:30P.M.]\nCASE 029\nDETECT\nkey [redacted] rate limit exceeded\nRENEWAL [2026-09-24]\nCASE 030\nDETECT\n{\"message\":\"rate limit exceeded\"}\nRENEWAL [5 minutes]\nCASE 031\nNOMATCH\nRENEWAL [2 hours]\nCASE 032\nDETECT\n{\"error\":{\"code\":\"insufficient_quota\",\"message\":\"rate limit exceeded\"}}\nRENEWAL [5:00]\nCASE 033\nDETECT\nhit your usage limit\nResets at 10:00\nRENEWAL [2026-09-24]\nCASE 034\nNOMATCH\nRENEWAL [5 minutes]\nCASE 035\nNOMATCH\nRENEWAL []\nCASE 036\nDETECT\nquota exceeded, resets at 5:00pm\nquota exceeded, resets at 5:00pm\nRENEWAL []\nCASE 037\nNOMATCH\nRENEWAL [5:00]\nCASE 038\nNOMATCH\nRENEWAL [09:15:00]\nCASE 039\nNOMATCH\nRENEWAL [2:30]\nCASE 040\nNOMATCH\nRENEWAL [5:00]\nCASE 041\nNOMATCH\nRENEWAL [09:15:00]\nCASE 042\nNOMATCH\nRENEWAL [2:30]\nCASE 043\nNOMATCH\nRENEWAL [2:30P.M.]\nCASE 044\nNOMATCH\nRENEWAL [2026-09-24]\nCASE 045\nNOMATCH\nRENEWAL [5 minutes]\nCASE 046\nNOMATCH\nRENEWAL [2 hours]\nCASE 047\nNOMATCH\nRENEWAL [5:00]\nCASE 048\nNOMATCH\nRENEWAL [2026-09-24]\nCASE 049\nNOMATCH\nRENEWAL [5 minutes]\nCASE 050\nNOMATCH\nRENEWAL []\nCASE 051\nNOMATCH\nRENEWAL []\n",
+    "rc": 0
+  },
+  "space-separated-env": {
+    "err": "",
+    "out": "x\nROLE implementer NONE\nROLE designer NONE\nROLE tasker NONE\nROLE scouter x\nROLE researcher x\nROLE reviewer x\nROLE security-reviewer NONE\nROLE ui-reviewer NONE\nROLE inspector NONE\nROLE sub-orchestrator NONE\nCOUNT 1\nMAXWORKERS 1\n",
+    "rc": 0
+  },
+  "space-separated-roles": {
+    "err": "",
+    "out": "x\nROLE implementer NONE\nROLE designer NONE\nROLE tasker NONE\nROLE scouter NONE\nROLE researcher NONE\nROLE reviewer x\nROLE security-reviewer NONE\nROLE ui-reviewer NONE\nROLE inspector x\nROLE sub-orchestrator NONE\nCOUNT 1\nMAXWORKERS 1\n",
+    "rc": 0
+  },
+  "unanimous-kind": {
+    "err": "PROG: warning: lane 'review' kinds differ (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\n",
+    "file": "lane.build.kind=grok\nlane.explore.kind=grok\npanes=4\nlane.build.roles=implementer,designer,tasker\nlane.explore.roles=scouter,researcher\nlane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nmax_workers=3\nsplit_max_panes=4\nreuse_workers=on\n",
+    "out": "set lane.build.kind=grok\nset lane.explore.kind=grok\nset panes=4\nset lane.build.roles=implementer,designer,tasker\nset lane.explore.roles=scouter,researcher\nset lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nset max_workers=3\nset split_max_panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n",
+    "rc": 0,
+    "temps": []
+  },
+  "unanimous-model": {
+    "err": "PROG: warning: lane 'review' kinds differ (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\n",
+    "file": "lane.build.kind=agy\nlane.build.model=m1\nlane.explore.kind=grok\npanes=4\nlane.build.roles=implementer,designer,tasker\nlane.explore.roles=scouter,researcher\nlane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nmax_workers=3\nsplit_max_panes=4\nreuse_workers=on\n",
+    "out": "set lane.build.model=m1\nset lane.explore.kind=grok\nset panes=4\nset lane.build.roles=implementer,designer,tasker\nset lane.explore.roles=scouter,researcher\nset lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nset max_workers=3\nset split_max_panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\n",
+    "rc": 0,
+    "temps": []
+  },
+  "user-and-project": {
+    "err": "",
+    "out": "p\nu\nROLE implementer u\nROLE designer NONE\nROLE tasker p\nROLE scouter NONE\nROLE researcher NONE\nROLE reviewer NONE\nROLE security-reviewer NONE\nROLE ui-reviewer NONE\nROLE inspector NONE\nROLE sub-orchestrator NONE\nCOUNT 2\nMAXWORKERS 2\n",
+    "rc": 0
+  },
+  "user-layer": {
+    "err": "",
+    "out": "u\nROLE implementer u\nROLE designer NONE\nROLE tasker NONE\nROLE scouter NONE\nROLE researcher NONE\nROLE reviewer NONE\nROLE security-reviewer NONE\nROLE ui-reviewer NONE\nROLE inspector NONE\nROLE sub-orchestrator NONE\nCOUNT 1\nMAXWORKERS 1\n",
+    "rc": 0
+  },
+  "x=claude\n:m": {
+    "err": "",
+    "out": "x\tclaude\t\t\n",
+    "rc": 0
+  },
+  "x=claude:::": {
+    "err": "",
+    "out": "x\tclaude\t\t\n",
+    "rc": 0
+  },
+  "x=claude:m:high::": {
+    "err": "",
+    "out": "x\tclaude\tm\thigh\n",
+    "rc": 0
+  },
+  "x=claude:m:high:e:": {
+    "err": "PROG: setup: --lane 'x=claude:m:high:e:' has too many ':' fields\n",
+    "out": "",
+    "rc": 2
+  }
+}

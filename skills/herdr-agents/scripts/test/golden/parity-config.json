@@ -1,0 +1,718 @@
+{
+  "config-fresh": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        3                              defaults\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         {roles}                        defaults\nherd_label_max     16                             defaults\nreuse_workers      on                             defaults\nmulti_role         on                             defaults\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker opus                           defaults\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nrole_planner_model fable                          defaults\n\nlayers read: defaults\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      }
+    ]
+  },
+  "config-set-dotted": {
+    "files": [
+      {
+        "content": "# seed\nrole.reviewer.kind=grok\nrole.build.kind=pi\nlane.build.kind=opencode\nmodel.opencode.worker=my-provider/my-model\n",
+        "rel": "repo/.agents/herdr-agents.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "config",
+          "set",
+          "role.reviewer.kind",
+          "grok"
+        ],
+        "err": "",
+        "out": "set role.reviewer.kind=grok in <ROOT>/repo/.agents/herdr-agents.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "role.build.kind",
+          "pi"
+        ],
+        "err": "",
+        "out": "set role.build.kind=pi in <ROOT>/repo/.agents/herdr-agents.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "lane.build.kind",
+          "opencode"
+        ],
+        "err": "",
+        "out": "set lane.build.kind=opencode in <ROOT>/repo/.agents/herdr-agents.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "model.opencode.worker",
+          "my-provider/my-model"
+        ],
+        "err": "",
+        "out": "set model.opencode.worker=my-provider/my-model in <ROOT>/repo/.agents/herdr-agents.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        3                              defaults\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         {roles}                        defaults\nherd_label_max     16                             defaults\nreuse_workers      on                             defaults\nmulti_role         on                             defaults\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nlane_build_kind    opencode                       project\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker opus                           defaults\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nmodel_opencode_worker my-provider/my-model           project\nrole_build_kind    pi                             project\nrole_planner_model fable                          defaults\nrole_reviewer_kind grok                           project\n\nlayers read: defaults project\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      }
+    ]
+  },
+  "config-set-fresh": {
+    "files": [
+      {
+        "content": "max_workers=5\n",
+        "rel": "repo/.agents/herdr-agents.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "config",
+          "set",
+          "max_workers",
+          "5"
+        ],
+        "err": "",
+        "out": "set max_workers=5 in <ROOT>/repo/.agents/herdr-agents.conf\n",
+        "rc": 0
+      }
+    ]
+  },
+  "config-set-invalid": {
+    "files": [
+      {
+        "content": "# keep this comment\nmax_workers=3 # live cap\n# tail comment\nreuse_workers=on\n\nmax_workers=1\n",
+        "rel": "repo/.agents/herdr-agents.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "config",
+          "set",
+          "nope",
+          "1"
+        ],
+        "err": "PROG: config set: unknown key 'nope'\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "max_workers",
+          "-1"
+        ],
+        "err": "PROG: config set: invalid value '-1' for max_workers\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "multi_role",
+          "yes"
+        ],
+        "err": "PROG: config set: invalid value 'yes' for multi_role\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "role.reviewer.kind",
+          "notepad"
+        ],
+        "err": "PROG: config set: invalid value 'notepad' for role.reviewer.kind\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "feedback_repo",
+          "org/repo#frag"
+        ],
+        "err": "PROG: config set: invalid value 'org/repo#frag' for feedback_repo\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "approvals",
+          "FULL"
+        ],
+        "err": "PROG: config set: invalid value 'FULL' for approvals\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "config",
+          "set"
+        ],
+        "err": "PROG: usage: config set <key> <value> [--project|--user]\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "a",
+          "b",
+          "c"
+        ],
+        "err": "PROG: config set: unexpected argument 'c'\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "max_workers",
+          "5",
+          "--bogus"
+        ],
+        "err": "PROG: config set: unknown option '--bogus'\n",
+        "out": "",
+        "rc": 2
+      }
+    ]
+  },
+  "config-set-lane-roles": {
+    "files": [
+      {
+        "content": "# seed\nlane.build.roles=implementer,designer\n",
+        "rel": "repo/.agents/herdr-agents.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "config",
+          "set",
+          "lane.build.roles",
+          "implementer,designer"
+        ],
+        "err": "",
+        "out": "set lane.build.roles=implementer,designer in <ROOT>/repo/.agents/herdr-agents.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "lane.build.roles",
+          "nosuchrole"
+        ],
+        "err": "PROG: config set: invalid value 'nosuchrole' for lane.build.roles\n",
+        "out": "",
+        "rc": 2
+      }
+    ]
+  },
+  "config-set-rewrite": {
+    "files": [
+      {
+        "content": "# keep this comment\nmax_workers=7 # live cap\n# tail comment\nreuse_workers=on\n\nmulti_role=on\n",
+        "rel": "repo/.agents/herdr-agents.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "config",
+          "set",
+          "max_workers",
+          "7"
+        ],
+        "err": "",
+        "out": "set max_workers=7 in <ROOT>/repo/.agents/herdr-agents.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "multi_role",
+          "on"
+        ],
+        "err": "",
+        "out": "set multi_role=on in <ROOT>/repo/.agents/herdr-agents.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        7                              project\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         {roles}                        defaults\nherd_label_max     16                             defaults\nreuse_workers      on                             project\nmulti_role         on                             project\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker opus                           defaults\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nrole_planner_model fable                          defaults\n\nlayers read: defaults project\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      }
+    ]
+  },
+  "config-set-user": {
+    "files": [
+      {
+        "content": "reuse_workers=off\n",
+        "rel": "conf/herdr-agents/config"
+      },
+      {
+        "content": "# keep this comment\nmax_workers=3 # live cap\n# tail comment\nreuse_workers=on\n\nmax_workers=1\n",
+        "rel": "repo/.agents/herdr-agents.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "config",
+          "set",
+          "reuse_workers",
+          "off",
+          "--user"
+        ],
+        "err": "",
+        "out": "set reuse_workers=off in <ROOT>/conf/herdr-agents/config\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        1                              project\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         {roles}                        defaults\nherd_label_max     16                             defaults\nreuse_workers      on                             project\nmulti_role         on                             defaults\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker opus                           defaults\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nrole_planner_model fable                          defaults\n\nlayers read: defaults user project\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      }
+    ]
+  },
+  "config-set-verbatim": {
+    "files": [
+      {
+        "content": "# seed\nmodel.claude.worker=claude-opus-4\\.[0-9]\nherd_label=ok\\nrole.reviewer.kind=grok\n",
+        "rel": "repo/.agents/herdr-agents.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "config",
+          "set",
+          "model.claude.worker",
+          "claude-opus-4\\.[0-9]"
+        ],
+        "err": "",
+        "out": "set model.claude.worker=claude-opus-4\\.[0-9] in <ROOT>/repo/.agents/herdr-agents.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config",
+          "set",
+          "herd_label",
+          "ok\\nrole.reviewer.kind=grok"
+        ],
+        "err": "",
+        "out": "set herd_label=ok\\nrole.reviewer.kind=grok in <ROOT>/repo/.agents/herdr-agents.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        3                              defaults\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         ok\\nrole.reviewer.kind=grok    project\nherd_label_max     16                             defaults\nreuse_workers      on                             defaults\nmulti_role         on                             defaults\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker claude-opus-4\\.[0-9]           project\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nrole_planner_model fable                          defaults\n\nlayers read: defaults project\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      }
+    ]
+  },
+  "no-workspace": {
+    "files": [
+      {
+        "content": null,
+        "rel": "state/ws/session.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "session",
+          "set",
+          "lane.build.kind",
+          "pi"
+        ],
+        "err": "PROG: session set: no Herdr workspace here (run inside Herdr, or set HERDR_WORKSPACE_ID)\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        3                              defaults\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         {roles}                        defaults\nherd_label_max     16                             defaults\nreuse_workers      on                             defaults\nmulti_role         on                             defaults\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker opus                           defaults\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nrole_planner_model fable                          defaults\n\nlayers read: defaults\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: (no workspace here)\n",
+        "rc": 0
+      }
+    ]
+  },
+  "precedence": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "session",
+          "set",
+          "lane.build.kind",
+          "pi"
+        ],
+        "err": "",
+        "out": "set lane.build.kind=pi in <ROOT>/state/ws/session.conf (session: this Herdr workspace only; above project and user, below flags and HERDR_AGENTS_*)\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        3                              defaults\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         {roles}                        defaults\nherd_label_max     16                             defaults\nreuse_workers      on                             defaults\nmulti_role         on                             defaults\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nlane_build_kind    pi                             session\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker opus                           defaults\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nrole_planner_model fable                          defaults\n\nlayers read: defaults project session\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        3                              defaults\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         {roles}                        defaults\nherd_label_max     16                             defaults\nreuse_workers      on                             defaults\nmulti_role         on                             defaults\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nlane_build_kind    grok                           env\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker opus                           defaults\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nrole_planner_model fable                          defaults\n\nlayers read: defaults project session\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      }
+    ]
+  },
+  "project-roles": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "roles"
+        ],
+        "err": "",
+        "out": "ROLE               KIND     EFFORT   MODE       SOURCE\nimplementer        claude   low      edit       <ROOT>/repo/.agents/herdr-roles/implementer.md\ndesigner           agy      high     edit       <SKILL>/roles/designer.md\ninspector          agy      high     read-only  <SKILL>/roles/inspector.md\nplanner            claude   high     read-only  <SKILL>/roles/planner.md\nresearcher         grok     high     read-only  <SKILL>/roles/researcher.md\nreviewer           codex    high     read-only  <SKILL>/roles/reviewer.md\nscouter            grok     high     read-only  <SKILL>/roles/scouter.md\nsecurity-reviewer  claude   high     read-only  <SKILL>/roles/security-reviewer.md\nsub-orchestrator   claude   medium   read-only  <SKILL>/roles/sub-orchestrator.md\ntasker             grok     low      edit       <SKILL>/roles/tasker.md\nui-reviewer        agy      high     read-only  <SKILL>/roles/ui-reviewer.md\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "role",
+          "implementer"
+        ],
+        "err": "",
+        "out": "{\n  \"file\": \"<ROOT>/repo/.agents/herdr-roles/implementer.md\",\n  \"name\": \"implementer\",\n  \"kind\": \"claude\",\n  \"alternatives\": [],\n  \"mode\": \"edit\",\n  \"timeout\": \"\",\n  \"effort\": \"low\",\n  \"model\": \"\",\n  \"approvals\": \"\",\n  \"description\": \"\"\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "roles-role": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "roles"
+        ],
+        "err": "",
+        "out": "ROLE               KIND     EFFORT   MODE       SOURCE\ndesigner           agy      high     edit       <SKILL>/roles/designer.md\nimplementer        grok     xhigh    edit       <SKILL>/roles/implementer.md\ninspector          agy      high     read-only  <SKILL>/roles/inspector.md\nplanner            claude   high     read-only  <SKILL>/roles/planner.md\nresearcher         grok     high     read-only  <SKILL>/roles/researcher.md\nreviewer           codex    high     read-only  <SKILL>/roles/reviewer.md\nscouter            grok     high     read-only  <SKILL>/roles/scouter.md\nsecurity-reviewer  claude   high     read-only  <SKILL>/roles/security-reviewer.md\nsub-orchestrator   claude   medium   read-only  <SKILL>/roles/sub-orchestrator.md\ntasker             grok     low      edit       <SKILL>/roles/tasker.md\nui-reviewer        agy      high     read-only  <SKILL>/roles/ui-reviewer.md\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "role",
+          "implementer"
+        ],
+        "err": "",
+        "out": "{\n  \"file\": \"<SKILL>/roles/implementer.md\",\n  \"name\": \"implementer\",\n  \"kind\": \"grok\",\n  \"alternatives\": [\n    \"cursor\",\n    \"codex\",\n    \"claude\"\n  ],\n  \"mode\": \"edit\",\n  \"timeout\": \"1800000\",\n  \"effort\": \"xhigh\",\n  \"model\": \"\",\n  \"approvals\": \"\",\n  \"description\": \"Production code for exactly one slice — owned files only tests first when the brief asks per-item report with three states.\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "role",
+          "ui-reviewer"
+        ],
+        "err": "",
+        "out": "{\n  \"file\": \"<SKILL>/roles/ui-reviewer.md\",\n  \"name\": \"ui-reviewer\",\n  \"kind\": \"agy\",\n  \"alternatives\": [\n    \"agy\"\n  ],\n  \"mode\": \"read-only\",\n  \"timeout\": \"900000\",\n  \"effort\": \"high\",\n  \"model\": \"gemini|sonnet\",\n  \"approvals\": \"\",\n  \"description\": \"Lightweight review of simple UI-only changes (markup classes tokens small Solid components) — patch-anchored findings against the project design contract; read-only. Runs on agy with Gemini; fall back to agy's Sonnet when the Gemini quota is exhausted.\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "role",
+          "nosuchrole"
+        ],
+        "err": "PROG: unknown role 'nosuchrole' (run: herdr-agents.sh roles)\n",
+        "out": "",
+        "rc": 3
+      },
+      {
+        "args": [
+          "role"
+        ],
+        "err": "PROG: 1: role\n",
+        "out": "",
+        "rc": 1
+      }
+    ]
+  },
+  "session-bare-show": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "session"
+        ],
+        "err": "",
+        "out": "session is empty (no session overrides for this workspace)\n",
+        "rc": 0
+      }
+    ]
+  },
+  "session-clear": {
+    "files": [
+      {
+        "content": null,
+        "rel": "state/ws/session.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "session",
+          "set",
+          "lane.build.kind",
+          "pi"
+        ],
+        "err": "",
+        "out": "set lane.build.kind=pi in <ROOT>/state/ws/session.conf (session: this Herdr workspace only; above project and user, below flags and HERDR_AGENTS_*)\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "session",
+          "set",
+          "lane.review.kind",
+          "codex"
+        ],
+        "err": "",
+        "out": "set lane.review.kind=codex in <ROOT>/state/ws/session.conf (session: this Herdr workspace only; above project and user, below flags and HERDR_AGENTS_*)\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "session",
+          "clear",
+          "lane.build.kind"
+        ],
+        "err": "",
+        "out": "cleared lane.build.kind from <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        3                              defaults\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         {roles}                        defaults\nherd_label_max     16                             defaults\nreuse_workers      on                             defaults\nmulti_role         on                             defaults\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nlane_build_kind    codex                          project\nlane_review_kind   codex                          session\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker opus                           defaults\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nrole_planner_model fable                          defaults\n\nlayers read: defaults project session\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "session",
+          "clear"
+        ],
+        "err": "",
+        "out": "session cleared: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        3                              defaults\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         {roles}                        defaults\nherd_label_max     16                             defaults\nreuse_workers      on                             defaults\nmulti_role         on                             defaults\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nlane_build_kind    codex                          project\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker opus                           defaults\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nrole_planner_model fable                          defaults\n\nlayers read: defaults project\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "session",
+          "show"
+        ],
+        "err": "",
+        "out": "session is empty (no session overrides for this workspace)\n",
+        "rc": 0
+      }
+    ]
+  },
+  "session-errors-seeded": {
+    "files": [
+      {
+        "content": "lane.build.kind=pi\n",
+        "rel": "state/ws/session.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "session",
+          "bogus"
+        ],
+        "err": "PROG: session: unknown subcommand 'bogus' (set <key> <value> | clear [key] | show)\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "session",
+          "set",
+          "nope",
+          "1"
+        ],
+        "err": "PROG: session set: unknown key 'nope'\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "session",
+          "set",
+          "max_workers",
+          "-1"
+        ],
+        "err": "PROG: session set: invalid value '-1' for max_workers\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "session",
+          "clear",
+          "a",
+          "b"
+        ],
+        "err": "PROG: usage: session clear [key]\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "session",
+          "clear",
+          "nope"
+        ],
+        "err": "PROG: session clear: unknown key 'nope'\n",
+        "out": "",
+        "rc": 2
+      }
+    ]
+  },
+  "session-set": {
+    "files": [
+      {
+        "content": "lane.build.kind=pi\n",
+        "rel": "state/ws/session.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "session",
+          "set",
+          "lane.build.kind",
+          "pi"
+        ],
+        "err": "",
+        "out": "set lane.build.kind=pi in <ROOT>/state/ws/session.conf (session: this Herdr workspace only; above project and user, below flags and HERDR_AGENTS_*)\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "config"
+        ],
+        "err": "",
+        "out": "KEY                VALUE                          SOURCE\norchestrator_name  orchestrator                   defaults\nlayout             split                          defaults\nregrid             on                             defaults\nmax_workers        3                              defaults\nsplit_max_panes    4                              defaults\nsplit_min_pane     0.18                           defaults\nherd_label         {roles}                        defaults\nherd_label_max     16                             defaults\nreuse_workers      on                             defaults\nmulti_role         on                             defaults\npanes              4                              defaults\nlanes              on                             defaults\nworker_context     full                           defaults\nbrief_lint         warn                           defaults\napprovals          ask                            defaults\nauto_approve       off                            defaults\nmax_auto_approvals 20                             defaults\nmax_effort         max                            defaults\nfamily_check       strict                         defaults\nsettled_grace      45                             defaults\nspawn_timeout      60000                          defaults\ndispatch_timeout   900000                         defaults\nstate_dir          .herdr-agents                  defaults\nreport_language                                   defaults\nnotify             off                            defaults\nfeedback           ask                            defaults\nfeedback_repo      djalmajr/skills                defaults\neffort_cursor      xhigh                          defaults\neffort_grok        xhigh                          defaults\nlane_build_kind    pi                             session\nmodel_agy_worker   gemini|opus                    defaults\nmodel_claude_orchestrator fable                          defaults\nmodel_claude_worker opus                           defaults\nmodel_codex_orchestrator astra                          defaults\nmodel_codex_worker sol|gpt-5                      defaults\nmodel_cursor_worker grok|muse                      defaults\nmodel_grok_worker  grok                           defaults\nrole_planner_model fable                          defaults\n\nlayers read: defaults session\nuser file:    <ROOT>/conf/herdr-agents/config\nproject file: <ROOT>/repo/.agents/herdr-agents.conf\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "session",
+          "show"
+        ],
+        "err": "",
+        "out": "lane.build.kind=pi\n\nsession file: <ROOT>/state/ws/session.conf\n",
+        "rc": 0
+      }
+    ]
+  },
+  "state-gitignore": {
+    "files": [
+      {
+        "content": ".herdr-agents/\n",
+        "rel": "repo/.gitignore"
+      },
+      {
+        "content": "max_workers=8\n",
+        "rel": "repo/.herdr-agents/ws/session.conf"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "session",
+          "set",
+          "max_workers",
+          "7"
+        ],
+        "err": "",
+        "out": "set max_workers=7 in <ROOT>/repo/.herdr-agents/ws/session.conf (session: this Herdr workspace only; above project and user, below flags and HERDR_AGENTS_*)\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "session",
+          "show"
+        ],
+        "err": "",
+        "out": "max_workers=7\n\nsession file: <ROOT>/repo/.herdr-agents/ws/session.conf\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "session",
+          "set",
+          "max_workers",
+          "8"
+        ],
+        "err": "",
+        "out": "set max_workers=8 in <ROOT>/repo/.herdr-agents/ws/session.conf (session: this Herdr workspace only; above project and user, below flags and HERDR_AGENTS_*)\n",
+        "rc": 0
+      }
+    ]
+  }
+}

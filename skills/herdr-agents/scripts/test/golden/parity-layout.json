@@ -1,0 +1,180 @@
+{
+  "layout-plan": {
+    "files": [],
+    "steps": [
+      {
+        "args": [
+          "layout-plan",
+          "--layout",
+          "../fx-vazio.json",
+          "--me",
+          "C",
+          "--mine",
+          "A B D"
+        ],
+        "err": "",
+        "out": "{\"placement\":\"split\",\"anchor\":\"C\",\"direction\":\"right\",\"reason\":\"largest-area\",\"cap\":4,\"min_pane\":0.18,\"candidates\":[],\"grid\":{\"cells\":1,\"cols\":1,\"rows_per_col\":[1]}}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "layout-plan",
+          "--layout",
+          "../fx-caller.json",
+          "--me",
+          "C",
+          "--mine",
+          ""
+        ],
+        "err": "",
+        "out": "{\"placement\":\"split\",\"anchor\":\"C\",\"direction\":\"right\",\"reason\":\"largest-area\",\"cap\":4,\"min_pane\":0.18,\"candidates\":[{\"pane_id\":\"C\",\"caller\":true,\"width\":1,\"height\":1}],\"grid\":{\"cells\":2,\"cols\":2,\"rows_per_col\":[1,1]}}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "layout-plan",
+          "--layout",
+          "../fx-cheio.json",
+          "--me",
+          "C",
+          "--mine",
+          "A B D E F"
+        ],
+        "err": "",
+        "out": "{\"placement\":\"herd\",\"anchor\":null,\"direction\":null,\"reason\":\"full\",\"cap\":4,\"min_pane\":0.18,\"candidates\":[{\"pane_id\":\"C\",\"caller\":true,\"width\":0.333,\"height\":0.509},{\"pane_id\":\"F\",\"caller\":false,\"width\":0.333,\"height\":0.491},{\"pane_id\":\"A\",\"caller\":false,\"width\":0.333,\"height\":0.509},{\"pane_id\":\"B\",\"caller\":false,\"width\":0.333,\"height\":0.491},{\"pane_id\":\"D\",\"caller\":false,\"width\":0.333,\"height\":0.509},{\"pane_id\":\"E\",\"caller\":false,\"width\":0.333,\"height\":0.491}],\"grid\":null}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "layout-plan",
+          "--layout",
+          "../fx-min.json",
+          "--me",
+          "C",
+          "--mine",
+          "A B D E F G H I"
+        ],
+        "err": "",
+        "out": "{\"placement\":\"herd\",\"anchor\":null,\"direction\":null,\"reason\":\"min\",\"cap\":12,\"min_pane\":0.18,\"candidates\":[{\"pane_id\":\"C\",\"caller\":true,\"width\":0.333,\"height\":0.333},{\"pane_id\":\"A\",\"caller\":false,\"width\":0.333,\"height\":0.333},{\"pane_id\":\"B\",\"caller\":false,\"width\":0.333,\"height\":0.333},{\"pane_id\":\"D\",\"caller\":false,\"width\":0.333,\"height\":0.333},{\"pane_id\":\"E\",\"caller\":false,\"width\":0.333,\"height\":0.333},{\"pane_id\":\"F\",\"caller\":false,\"width\":0.333,\"height\":0.333},{\"pane_id\":\"G\",\"caller\":false,\"width\":0.333,\"height\":0.333},{\"pane_id\":\"H\",\"caller\":false,\"width\":0.333,\"height\":0.333},{\"pane_id\":\"I\",\"caller\":false,\"width\":0.333,\"height\":0.333}],\"grid\":null}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "layout-plan",
+          "--layout",
+          "../fx-empate.json",
+          "--me",
+          "C",
+          "--mine",
+          "A"
+        ],
+        "err": "",
+        "out": "{\"placement\":\"split\",\"anchor\":\"A\",\"direction\":\"down\",\"reason\":\"largest-area\",\"cap\":4,\"min_pane\":0.18,\"candidates\":[{\"pane_id\":\"C\",\"caller\":true,\"width\":0.502,\"height\":1},{\"pane_id\":\"A\",\"caller\":false,\"width\":0.498,\"height\":1}],\"grid\":{\"cells\":3,\"cols\":2,\"rows_per_col\":[1,2]}}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "layout-plan",
+          "--layout",
+          "../fx-3x2.json",
+          "--me",
+          "C",
+          "--mine",
+          "A B D E"
+        ],
+        "err": "",
+        "out": "{\"placement\":\"split\",\"anchor\":\"C\",\"direction\":\"down\",\"reason\":\"largest-area\",\"cap\":6,\"min_pane\":0.18,\"candidates\":[{\"pane_id\":\"C\",\"caller\":true,\"width\":0.333,\"height\":1},{\"pane_id\":\"A\",\"caller\":false,\"width\":0.333,\"height\":0.509},{\"pane_id\":\"B\",\"caller\":false,\"width\":0.333,\"height\":0.491},{\"pane_id\":\"D\",\"caller\":false,\"width\":0.333,\"height\":0.509},{\"pane_id\":\"E\",\"caller\":false,\"width\":0.333,\"height\":0.491}],\"grid\":{\"cells\":6,\"cols\":3,\"rows_per_col\":[2,2,2]}}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "tab-label": {
+    "files": [
+      {
+        "content": "t1\tonda\tmanual\nt2\tdes\tauto\nt3\therd\tauto\n",
+        "rel": "state/ws/herd-tab"
+      },
+      {
+        "content": "onda\n",
+        "rel": "tabs/t1"
+      },
+      {
+        "content": "des",
+        "rel": "tabs/t2"
+      },
+      {
+        "content": "herd",
+        "rel": "tabs/t3"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "tab-label"
+        ],
+        "err": "",
+        "out": "TAB        LABEL              MODE\nt1         onda               manual\nt2         herd               auto\nt3         -                  auto\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "tab-label",
+          "nova",
+          "aba"
+        ],
+        "err": "",
+        "out": "{\n  \"tab\": \"t3\",\n  \"label\": \"nova aba\",\n  \"mode\": \"manual\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "tab-label",
+          "--tab",
+          "t3",
+          "--auto"
+        ],
+        "err": "",
+        "out": "{\n  \"tab\": \"t3\",\n  \"label\": \"herd\",\n  \"mode\": \"auto\"\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "tab-label",
+          "--tab",
+          "nope",
+          "x"
+        ],
+        "err": "PROG: tab-label: nope is not a herd tab of this workspace (see: tab-label)\n",
+        "out": "",
+        "rc": 3
+      }
+    ]
+  },
+  "tab-label-no-tab": {
+    "files": [
+      {
+        "content": null,
+        "rel": "state/ws/herd-tab"
+      }
+    ],
+    "steps": [
+      {
+        "args": [
+          "tab-label"
+        ],
+        "err": "",
+        "out": "TAB        LABEL              MODE\n(no herd tab yet)\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "tab-label",
+          "x"
+        ],
+        "err": "PROG: tab-label: no herd tab yet (workers overflow into one when the caller's tab is full)\n",
+        "out": "",
+        "rc": 3
+      }
+    ]
+  }
+}

@@ -1,19 +1,36 @@
-// Parity: the same CLI scenario run against `bash scripts/herdr-agents.sh`
-// and `node scripts/herdr-agents.mjs` must produce identical stdout, exit
-// code and (prefix-normalized) stderr. Covers `kinds`, `models <kind>`
-// (three kinds with fake CLIs, codex from the models cache, and kinds
-// without a list) and `model <kind> <spec> [effort]` (exact/regex
-// resolution, effort ceilings including codex's per-model ceiling, a|b
-// alternates, cursor strict failure, usage errors) — 24 CLI invocations
-// over 8 scenarios.
+// Golden (slice 9a-A): the former bash × JS parity scenarios now run only
+// the JS (`node scripts/herdr-agents.mjs`) and compare against the
+// reference recorded once from the bash script in
+// test/golden/parity-kinds.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
+// JS value for review). Covers `kinds`, `models <kind>` (three kinds with
+// fake CLIs, codex from the models cache, and kinds without a list) and
+// `model <kind> <spec> [effort]` (exact/regex resolution, effort ceilings
+// including codex's per-model ceiling, a|b alternates, cursor strict
+// failure, usage errors) — 24 CLI invocations over 8 scenarios.
 //
-// The fake CLIs live in <fixture>/fakes; each scenario's steps prepend that
+// The fake CLIs live in <ROOT>/fakes; each scenario's steps prepend that
 // dir to PATH through a lazy getter (the fakes path only exists once the
 // scenario's seed ran, per implementation).
 import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { parityScenario } from './parity.mjs';
+import { goldenScenario } from './parity.mjs';
+import { goldenMode } from './golden.mjs';
+import { findExecutable } from '../lib/platform.mjs';
+
+// Record mode runs the bash reference: it needs bash and jq (the script's
+// living path dies without them). Check mode runs the JS against the
+// record and only needs the sh fake CLIs, so it is skipped solely on
+// Windows (the sh fakes and the POSIX fixture contract).
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the sh fake CLIs (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
+      ? 'record mode needs bash and jq on PATH'
+      : false);
+
+const SUITE = 'parity-kinds';
 
 const CODEX_JSON = JSON.stringify({
   models: [
@@ -67,15 +84,15 @@ function seed(fix) {
 
 const steps = (list) => list.map((args) => ({ args, env: fakePathEnv() }));
 
-test('parity: kinds table with fake CLIs on PATH', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'kinds-table', {
+test('parity: kinds table with fake CLIs on PATH', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'kinds-table', {
     seed,
     steps: steps([['kinds']]),
   });
 });
 
-test('parity: models <kind> (grok, cursor, agy with fakes; codex, pi; errors)', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'models-listing', {
+test('parity: models <kind> (grok, cursor, agy with fakes; codex, pi; errors)', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'models-listing', {
     seed,
     steps: steps([
       ['models', 'grok'],
@@ -89,8 +106,8 @@ test('parity: models <kind> (grok, cursor, agy with fakes; codex, pi; errors)', 
   });
 });
 
-test('parity: model exact and regex (grok, codex with per-model ceiling)', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'model-exact-regex', {
+test('parity: model exact and regex (grok, codex with per-model ceiling)', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'model-exact-regex', {
     seed,
     steps: steps([
       ['model', 'grok', 'grok', 'xhigh'],
@@ -101,8 +118,8 @@ test('parity: model exact and regex (grok, codex with per-model ceiling)', { tim
   });
 });
 
-test('parity: model cursor effort suffixes (rank ceiling, pass-through suffix)', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'model-cursor', {
+test('parity: model cursor effort suffixes (rank ceiling, pass-through suffix)', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'model-cursor', {
     seed,
     steps: steps([
       ['model', 'cursor', 'grok', 'xhigh'], // skip max (rank), take high
@@ -113,15 +130,15 @@ test('parity: model cursor effort suffixes (rank ceiling, pass-through suffix)',
   });
 });
 
-test('parity: model cursor with no match dies 2 (strict CLI)', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'model-cursor-die', {
+test('parity: model cursor with no match dies 2 (strict CLI)', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'model-cursor-die', {
     seed,
     steps: steps([['model', 'cursor', 'nosuchmodel']]),
   });
 });
 
-test('parity: model generic kinds (pi, opencode — no list, by-model family)', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'model-generic', {
+test('parity: model generic kinds (pi, opencode — no list, by-model family)', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'model-generic', {
     seed,
     steps: steps([
       ['model', 'pi', 'my-provider/my-model', 'high'],
@@ -130,8 +147,8 @@ test('parity: model generic kinds (pi, opencode — no list, by-model family)', 
   });
 });
 
-test('parity: model usage errors (missing kind/spec) are rc 1', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'model-usage', {
+test('parity: model usage errors (missing kind/spec) are rc 1', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'model-usage', {
     seed,
     steps: steps([
       ['model'],
@@ -140,8 +157,8 @@ test('parity: model usage errors (missing kind/spec) are rc 1', { timeout: 12000
   });
 });
 
-test('parity: model agy alternates a|b and gemini effort suffix', { timeout: 120000 }, (t) => {
-  parityScenario(t, 'model-agy-alternates', {
+test('parity: model agy alternates a|b and gemini effort suffix', { timeout: 120000, skip: SKIP }, () => {
+  goldenScenario(SUITE, 'model-agy-alternates', {
     seed,
     steps: steps([
       ['model', 'agy', 'gemini|opus', 'low'],
