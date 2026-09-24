@@ -174,7 +174,7 @@
           "config",
           "set"
         ],
-        "err": "PROG: usage: config set <key> <value> [--project|--user]\n",
+        "err": "PROG: usage: config set <key> <value> | <key>=<value> [--project|--user]\n",
         "out": "",
         "rc": 2
       },

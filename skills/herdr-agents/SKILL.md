@@ -380,7 +380,7 @@ $S setup [--target FILE] [--no-hooks]      # AGENTS.md block + Claude hooks (ide
 $S setup --detect                          # JSON: installed kinds, summaries, models (incl. custom providers), recommended reviewer; writes nothing
 $S setup --probe [--kind K --model M]      # JSON: ready|no-auth|quota|error per kind/model + own pi/opencode models (≤5 per kind; rest in skipped_custom); no panes
 $S setup --plan …                          # diff -u per file (config files: key before → after) of what setup/--set/--user-set/--session-set would write; writes nothing
-$S session set <key> <value>               # this-session override in <state>/session.conf (above project, below flags/env)
+$S session set <key> <value>               # this-session override in <state>/session.conf (above project, below flags/env); also <key>=<value>
 $S session show | session clear [key]
 $S roles                                   # roles with the kind, model and effort in effect and where each comes from
 $S role reviewer                           # resolved file + frontmatter
@@ -397,7 +397,7 @@ $S spawn reviewer --tab-label "onda 2"     # place the worker in the herd tab of
 $S layout-plan                             # where the next spawn lands (anchor, direction, overflow reason)
 $S status a b                              # non-blocking completion check
 $S config                                  # effective configuration and sources (incl. the session layer)
-$S config set <key> <value> [--project|--user]   # write one key (default: the project file)
+$S config set <key> <value> [--project|--user]   # write one key (default: the project file); also <key>=<value>
 $S roster                                  # live agents with role/kind/pane/state/report
 $S release impl [--close]                  # forget the agent; --close closes a pane we created
 $S clean [--older-than 7]                  # drop gone agents, delete old briefs/reports

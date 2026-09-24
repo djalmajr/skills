@@ -199,3 +199,59 @@ test('session path falls back to the workspace herdr reports', { skip: process.p
     assert.equal(sessionConfPath(loadConfig(noHerdr, repo), noHerdr, repo), '');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+// Mutation captured: dropping the key=value split makes `session set
+// lanes=off` a usage error (exit 2) instead of writing lanes=off.
+test('session set and config set take one key=value argument', () => {
+  const s = setup();
+  try {
+    const r = s.run('session', 'set', 'lanes=off');
+    assert.equal(r.rc, 0, r.err);
+    assert.ok(fs.readFileSync(s.sess, 'utf8').includes('lanes=off'), 'session.conf has lanes=off');
+    const c = s.run('config', 'set', 'max_workers=2');
+    assert.equal(c.rc, 0, c.err);
+    assert.ok(fs.readFileSync(s.proj, 'utf8').includes('max_workers=2'), 'project file has max_workers=2');
+    // The value may itself hold '=': only the first one splits.
+    const a = s.run('session', 'set', 'args.codex=-c sandbox_workspace_write.network_access=true');
+    assert.equal(a.rc, 0, a.err);
+    assert.ok(fs.readFileSync(s.sess, 'utf8').includes('args.codex=-c sandbox_workspace_write.network_access=true'));
+  } finally { s.cleanup(); }
+});
+
+// Mutation captured: without the whitespace check a zsh-unsplit "lanes off"
+// ends in the bare usage line, which hides the cause.
+test('session set with "key value" in one argument names the shell mistake', () => {
+  const s = setup();
+  try {
+    const r = s.run('session', 'set', 'lanes off');
+    assert.equal(r.rc, 2);
+    assert.match(r.err, /'lanes off' arrived as one argument; pass the key and the value as two arguments or as key=value \(zsh does not split "\$var": use \$\{=var\}\)/);
+    assert.ok(!fs.existsSync(s.sess), 'nothing written');
+  } finally { s.cleanup(); }
+});
+
+// Mutation captured: splitting key=value after the file selector is read
+// wrongly (or dropping the selector) writes the pair to the other file.
+test('config set key=value honors --user and --project', () => {
+  const s = setup();
+  try {
+    const userFile = path.join(s.root, 'conf', 'herdr-agents', 'config');
+    const snap = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : null);
+    fs.mkdirSync(path.dirname(s.proj), { recursive: true });
+    fs.writeFileSync(s.proj, '# project\nlanes=on\n');
+    fs.mkdirSync(path.dirname(userFile), { recursive: true });
+    fs.writeFileSync(userFile, '# user\nlayout=split\n');
+    let projBefore = snap(s.proj);
+    const u = s.run('config', 'set', 'max_workers=5', '--user');
+    assert.equal(u.rc, 0, u.err);
+    assert.ok(snap(userFile).includes('max_workers=5'), 'user file has the pair');
+    assert.equal(snap(s.proj), projBefore, 'project file byte-identical');
+    const userBefore = snap(userFile);
+    projBefore = snap(s.proj);
+    const p = s.run('config', 'set', '--project', 'max_workers=6');
+    assert.equal(p.rc, 0, p.err);
+    assert.ok(snap(s.proj).includes('max_workers=6'), 'project file has the pair');
+    assert.notEqual(snap(s.proj), projBefore);
+    assert.equal(snap(userFile), userBefore, 'user file byte-identical');
+  } finally { s.cleanup(); }
+});

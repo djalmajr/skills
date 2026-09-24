@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { die, readTextFile, runCli } from './platform.mjs';
-import { DieError, configKeyOk, configValueOk, configWritePair, configClearKey, stateRootPath, stateRoot } from './config.mjs';
+import { DieError, configKeyOk, configValueOk, configWritePair, configClearKey, splitPairArg, stateRootPath, stateRoot } from './config.mjs';
 
 export function sessionConfPath(ctx, env = process.env, cwd = process.cwd()) {
   let ws = env.HERDR_WORKSPACE_ID || '';
@@ -54,8 +54,9 @@ function parsePair(argv, cmd) {
 
 // cmd_session_set() port.
 export function cmdSessionSet(argv, ctx, env = process.env, cwd = process.cwd()) {
-  const { key, value, sawValue } = parsePair(argv, 'session set');
-  if (!key || sawValue === 0) die('usage: session set <key> <value>', 2);
+  const p = parsePair(argv, 'session set');
+  const { key, value, sawValue } = splitPairArg(p.key, p.value, p.sawValue, 'session set');
+  if (!key || sawValue === 0) die('usage: session set <key> <value> | <key>=<value>', 2);
   if (!value) die('session set: empty value', 2);
   if (!configKeyOk(key)) die(`session set: unknown key '${key}'`, 2);
   if (!configValueOk(key, value, env, cwd)) die(`session set: invalid value '${value}' for ${key}`, 2);

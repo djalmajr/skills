@@ -309,6 +309,20 @@ export function cmdConfig(ctx, env = process.env, cwd = process.cwd()) {
   process.stdout.write(lines.join('\n') + '\n');
 }
 
+// A single `key=value` argument is the pair, like a line of the config file
+// (`config set lanes=off`); `key value` as two arguments works as before. A
+// single argument holding a space is almost always a shell variable that was
+// not split (zsh keeps "$kv" whole): say so instead of a bare usage error.
+export function splitPairArg(key, value, sawValue, cmd) {
+  if (sawValue !== 0 || key === '') return { key, value, sawValue };
+  const eq = key.indexOf('=');
+  if (eq > 0) return { key: key.slice(0, eq), value: key.slice(eq + 1), sawValue: 1 };
+  if (/\s/.test(key)) {
+    die(`${cmd}: '${key}' arrived as one argument; pass the key and the value as two arguments or as key=value (zsh does not split "$var": use \${=var})`, 2);
+  }
+  return { key, value, sawValue };
+}
+
 // cmd_config_set() port: config set <key> <value> [--project|--user].
 export function cmdConfigSet(argv, ctx, env = process.env, cwd = process.cwd()) {
   let key = '';
@@ -322,7 +336,8 @@ export function cmdConfigSet(argv, ctx, env = process.env, cwd = process.cwd()) 
     else if (sawValue === 0) { value = a; sawValue = 1; }
     else die(`config set: unexpected argument '${a}'`, 2);
   }
-  if (!key || sawValue === 0) die('usage: config set <key> <value> [--project|--user]', 2);
+  ({ key, value, sawValue } = splitPairArg(key, value, sawValue, 'config set'));
+  if (!key || sawValue === 0) die('usage: config set <key> <value> | <key>=<value> [--project|--user]', 2);
   if (!value) die('config set: empty value', 2);
   if (!configKeyOk(key)) die(`config set: unknown key '${key}'`, 2);
   if (!configValueOk(key, value, env, cwd)) die(`config set: invalid value '${value}' for ${key}`, 2);
