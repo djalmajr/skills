@@ -273,6 +273,17 @@ EOF
   if grep -q 'the `scouter` role' "$composed"; then
     fail "dispatch used a stale role"
   fi
+  # Every composed prompt tells the worker nobody watches its terminal and
+  # never to invent; the lint asks for the expected result (the test BRIEF
+  # has none, a full contract brief passes strict).
+  grep -q 'Nobody watches this terminal' "$composed" || fail "composed prompt lacks the no-questions line"
+  grep -q 'Never invent names, endpoints, flags, credentials, URLs or requirements' "$composed" || fail "composed prompt lacks the do-not-invent line"
+  rc=0; lint_err="$(HERDR_AGENTS_BRIEF_LINT=strict cmd_dispatch res "$BRIEF" --no-wait 2>&1 >/dev/null)" || rc=$?
+  [ "$rc" -eq 2 ] || fail "strict lint accepted a brief without an expected result (rc $rc)"
+  case "$lint_err" in *'[Expected result]'*) ;; *) fail "lint message: $lint_err" ;; esac
+  full_brief="$TEST_ROOT/full-brief.md"
+  { cat "$BRIEF"; printf '\n# Expected result\n\nThe role is reported.\n\n# Acceptance criteria\n\n1. The composed prompt names the role.\n'; } > "$full_brief"
+  HERDR_AGENTS_BRIEF_LINT=strict cmd_dispatch res "$full_brief" --no-wait >/dev/null 2>&1 || fail "strict lint refused a full contract brief"
 
   reset
   printf '%s\tp9\tcodex\treviewer\topenai\t1\t/tmp/work\tnow\tgpt-5\task\treviewer\n' rev >> "$tsv"

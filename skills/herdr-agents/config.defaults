@@ -92,8 +92,8 @@ lanes=on
 # falls back to on when this key is unset.
 multi_role=on
 
-# Brief structure check on dispatch (Goal, Owned files, Forbidden, Report, a
-# no-commit line): warn | strict | off.
+# Brief structure check on dispatch (Goal, Expected result or Acceptance,
+# Owned files, Forbidden, Report, a no-commit line): warn | strict | off.
 brief_lint=warn
 
 # Default approvals for roles that do not set one: ask | edits | full.

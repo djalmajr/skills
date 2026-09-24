@@ -3882,12 +3882,13 @@ family_conflicts() {
 }
 
 # lint_brief <file>: the contract sections every brief must carry
-# (orchestration contract rules 3, 5, 6). brief_lint=warn|strict|off.
+# (orchestration contract rules 3, 5, 6, and the expected result that lets a
+# simple worker finish without inventing). brief_lint=warn|strict|off.
 lint_brief() {
   local mode; mode="$(cfg brief_lint warn)"
   [ "$mode" = off ] && return 0
   local missing="" h
-  for h in "Goal" "Owned files|Owned|Scope" "Forbidden|Non-goals|Constraints" "Report"; do
+  for h in "Goal" "Expected result|Acceptance|Definition of done" "Owned files|Owned|Scope" "Forbidden|Non-goals|Constraints" "Report"; do
     grep -qiE "^#{1,3} +($h)" "$1" || missing="$missing [${h%%|*}]"
   done
   grep -qiE "commit|push" "$1" || missing="$missing [no-git line: say 'no commit/push']"
@@ -3950,6 +3951,8 @@ cmd_dispatch() {
     if [ "$(cfg worker_context full)" = lean ]; then
       printf -- '- This brief is self-contained. Do NOT read CLAUDE.md, AGENTS.md, ai-memory rules, wiki pages or other project instruction files unless the brief names them explicitly; the rules that apply are quoted in the brief. Start on the task immediately.\n'
     fi
+    printf -- '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n'
+    printf -- '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n'
     printf -- '- Do not commit, push, tag, or open pull requests.\n'
     printf -- '- When finished, reply in the terminal with exactly the report path and nothing else.\n'
   } > "$composed"

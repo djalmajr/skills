@@ -36,10 +36,13 @@ to a file.
    `wait`, or `status`. Never hand-roll a loop over `herdr agent get`.
 2. **Never `release --close` a worker whose report is missing** while it is
    working. The script refuses; `--force` is for a worker you are abandoning.
-3. **Every brief has Goal, Owned files, Forbidden, Report and a no-commit
-   line.** `dispatch` lints it (`brief_lint=warn|strict`). Credentials, URLs
-   and seeds named in a brief must be verified first (`git grep`, seed
-   script), not guessed.
+3. **Every brief has Goal, Expected result (or Acceptance criteria), Owned
+   files, Forbidden, Report and a no-commit line.** `dispatch` lints it
+   (`brief_lint=warn|strict`) and tells every worker that nobody watches its
+   terminal (no interactive questions) and never to invent names, endpoints,
+   flags, credentials, URLs or requirements. Credentials, URLs and seeds
+   named in a brief must be verified first (`git grep`, seed script), not
+   guessed.
 4. **Reviewer from another model family** than the implementers, before push.
 5. **State never under `.agents/` or `.codex/`** (Codex sandbox denies them).
 6. **Nested orchestrators must not be sandboxed Codex**: its sandbox blocks
