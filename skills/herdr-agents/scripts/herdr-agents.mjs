@@ -6,7 +6,10 @@
 // [effort]`, `spawn <role> …`, `dispatch <agent> <brief.md> …`,
 // `run <role> <brief.md> …`, `status <agent>…`, `roster`, `friction`,
 // `tab-label`, `layout-plan`, `wait <agent>…`, `collect <agent>`,
-// `release <agent>`, `clean`). Any other command is reported as not
+// `release <agent>`, `clean`, `setup [--target FILE] [--no-hooks]
+// [--dry-run] [--panes 3|4] [--lane name=kind[:model[:effort]]]` — its
+// `--detect`/`--plan`/`--probe` forms are not ported yet and exit 2).
+// Any other command is reported as not
 // ported yet (exit 2) so the bash script remains the source of truth for
 // the rest until the later slices land. Load the config layers before
 // dispatching, like bash `main`. The living commands need the Herdr
@@ -36,9 +39,10 @@ import { cmdRelease } from './lib/commands/release.mjs';
 import { cmdClean } from './lib/commands/clean.mjs';
 import { cmdDispatch } from './lib/dispatch.mjs';
 import { cmdRun } from './lib/commands/run.mjs';
+import { cmdSetup } from './lib/commands/setup.mjs';
 import { findExecutable } from './lib/platform.mjs';
 
-const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'wait', 'collect', 'release', 'clean'];
+const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'wait', 'collect', 'release', 'clean', 'setup'];
 // The commands that log to friction when running inside Herdr (bash main's
 // living-command list, restricted to what this entry has ported).
 const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'wait', 'collect', 'release', 'clean']);
@@ -120,6 +124,9 @@ try {
       break;
     case 'clean':
       cmdClean(argv.slice(1), ctx, env);
+      break;
+    case 'setup':
+      cmdSetup(argv.slice(1), ctx, env);
       break;
     case 'roster':
       cmdRoster(ctx, env);

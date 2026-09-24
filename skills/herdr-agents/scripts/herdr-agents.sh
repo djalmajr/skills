@@ -1909,7 +1909,9 @@ setup_block_result() {
     {
       if [ -f "$file" ]; then
         cat "$file"
-        [ -s "$file" ] && [ "$(tail -c1 "$file" | od -An -c | tr -d ' ')" != '\\n' ] && printf '\n'
+        # "$(tail -c1)" is empty when the last byte is a newline (the command
+        # substitution drops it): add the missing newline only otherwise.
+        [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ] && printf '\n'
         printf '\n'
       fi
       cat "$blockfile"
@@ -1947,6 +1949,9 @@ EOF
 settings_hooks_result() {
   local file="$1" base
   base='{}'; [ -f "$file" ] && base="$(cat "$file")"
+  # An empty or blank file is an empty object (jq on empty input prints
+  # nothing, and the hooks were lost in an empty file).
+  [ -n "$(printf '%s' "$base" | tr -d '[:space:]')" ] || base='{}'
   printf '%s' "$base" | jq \
     --arg reminder "$(setup_hook_reminder)" \
     --arg doctor "$(setup_hook_doctor)" '

@@ -53,4 +53,24 @@ if grep -q 'skill script not found' <<< "$DOCTOR_OUTPUT"; then
   exit 1
 fi
 
+# One blank line between the existing text and an appended block (the
+# last-character check used to compare against the wrong literal and always
+# added a second blank line).
+[ "$(sed -n '2p' "$REPO/AGENTS.md")" = '' ] || { echo 'no blank line before the block' >&2; exit 1; }
+[ "$(sed -n '3p' "$REPO/AGENTS.md")" = '<!-- herdr-agents:start -->' ] || { echo 'more than one blank line before the block' >&2; exit 1; }
+printf '# No final newline' > "$REPO/AGENTS2.md"
+( cd "$REPO" && HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_ROOT/config" HERDR_AGENTS_DIR="$TEST_ROOT/state" \
+  bash "$SKILL_SCRIPT" setup --target AGENTS2.md --no-hooks >/dev/null )
+[ "$(sed -n '1p;2p;3p' "$REPO/AGENTS2.md" | tr '\n' '|')" = '# No final newline||<!-- herdr-agents:start -->|' ] \
+  || { echo 'unterminated file: expected its newline, one blank line, then the block' >&2; exit 1; }
+
+# An empty (or blank) settings.json is an empty object: the hooks are
+# written, never an empty file.
+for seed in '' $'\n\n'; do
+  printf '%s' "$seed" > "$REPO/.claude/settings.json"
+  run_setup
+  jq -e '[.hooks.UserPromptSubmit[]?.hooks[]?.command | select(test("herdr-agents"))] | length == 1' "$REPO/.claude/settings.json" >/dev/null \
+    || { echo "hooks lost with a settings.json of $(printf '%s' "$seed" | wc -c | tr -d ' ') bytes" >&2; exit 1; }
+done
+
 echo 'setup regression checks passed'
