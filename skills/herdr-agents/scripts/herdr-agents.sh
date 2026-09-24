@@ -476,18 +476,37 @@ kind_summary() {
 # model id the user configures, not on the CLI.
 kind_family_display() { case "$1" in cursor|pi|opencode) echo "by model" ;; *) kind_family "$1" ;; esac; }
 # agent_family <kind> [resolved model]: the family the reviewer rule compares.
-# Multi-model harnesses (cursor, pi, opencode) take it from the model id:
-# cursor running grok-4.7 is xai, the same family as the `grok` kind.
-# pi/opencode ids carry a provider/ prefix (openai/gpt-5.2 → openai).
+# Multi-model harnesses (cursor, pi, opencode) take it from the model id, in
+# order: (1) a segment that is a family name (anthropic/openai/xai/google)
+# sets the family; (2) else the LAST segment matches the id patterns
+# (claude-*, gpt-*/*codex*, grok-*, gemini-*); (3) else unknown. The provider
+# name never decides: custom-grok-gateway/my-model is unknown.
 agent_family() {
-  local fam; fam="$(kind_family "$1")"
+  local fam id seg last
+  fam="$(kind_family "$1")"
   if [ "$fam" = unknown ] && [ -n "${2:-}" ]; then
-    case "$2" in
-      *grok*) fam=xai ;;
-      gpt-*|*/gpt-*|*codex*|*-sol-*|*-luna-*) fam=openai ;;
-      claude-*|*/claude-*) fam=anthropic ;;
-      gemini-*|*/gemini-*) fam=google ;;
-    esac
+    id="$2"
+    last="${id##*/}"
+    local IFS_SAVE="$IFS"
+    IFS='/'
+    set -f
+    # shellcheck disable=SC2086
+    set -- $id
+    set +f
+    IFS="$IFS_SAVE"
+    for seg in "$@"; do
+      case "$seg" in
+        anthropic|openai|xai|google) fam="$seg"; break ;;
+      esac
+    done
+    if [ "$fam" = unknown ]; then
+      case "$last" in
+        grok-*) fam=xai ;;
+        gpt-*|*codex*) fam=openai ;;
+        claude-*) fam=anthropic ;;
+        gemini-*) fam=google ;;
+      esac
+    fi
   fi
   printf '%s\n' "$fam"
 }
@@ -954,7 +973,66 @@ lane_roles_csv() {
   if custom_lanes_present; then cfg "$key"; else preset_lane_roles "$1"; fi
 }
 
-lane_attr() { cfg "$(lane_key "$1" "$2")"; }
+# cfg_layer_rank <key> — the rank of the layer holding the effective value
+# (flag callers pass 5 themselves): env=4 > session=3 > project=2 >
+# user=1 > defaults/builtin=0.
+cfg_layer_rank() {
+  case "$(cfg_source "$1")" in
+    env) printf '%s\n' 4 ;;
+    session) printf '%s\n' 3 ;;
+    project) printf '%s\n' 2 ;;
+    user) printf '%s\n' 1 ;;
+    *) printf '%s\n' 0 ;;
+  esac
+}
+
+# lane_kind_layer <lane> — cfg_layer_rank of the effective lane.<l>.kind, or
+# -1 when no config layer sets one (role config/frontmatter may still decide).
+lane_kind_layer() {
+  [ -n "$(cfg "$(lane_key "$1" kind)")" ] || { printf '%s\n' -1; return 0; }
+  cfg_layer_rank "$(lane_key "$1" kind)"
+}
+
+# lane_attr <lane> <attr> [kind-layer] — cfg value for the lane key.
+# model|effort only belong to the kind the lane resolves to: a value from a
+# layer below the effective lane kind is ignored (prints nothing) and
+# resolution continues with the next source. kind-layer is the layer rank of
+# the kind in effect (cfg_layer_rank; 5 = the --kind flag); when omitted, the
+# effective lane.<lane>.kind layer is used.
+lane_attr() {
+  local val kr ar
+  val="$(cfg "$(lane_key "$1" "$2")")"
+  [ -n "$val" ] || return 0
+  case "$2" in
+    model|effort)
+      kr="${3:-}"
+      [ -n "$kr" ] || kr="$(lane_kind_layer "$1")"
+      if [ "$kr" -ge 0 ]; then
+        ar="$(cfg_layer_rank "$(lane_key "$1" "$2")")"
+        [ "$ar" -ge "$kr" ] || return 0
+      fi
+      ;;
+  esac
+  printf '%s\n' "$val"
+}
+
+# spawn_kind_layer <role> <lane> <kind-flag-set> — layer rank of the kind a
+# spawn uses, the reference for the lane model/effort rule: 5 for --kind,
+# else the layer of lane.<lane>.kind, else of role.<role>.kind, else 0 (the
+# role frontmatter, the lowest layer — any configured lane model/effort
+# applies then). Spawn and its reuse check use the same value.
+spawn_kind_layer() {
+  local role_key
+  if [ "${3:-0}" = 1 ]; then printf '%s\n' 5; return 0; fi
+  if [ -n "${2:-}" ] && [ -n "$(cfg "$(lane_key "$2" kind)")" ]; then
+    cfg_layer_rank "$(lane_key "$2" kind)"; return 0
+  fi
+  role_key="$(printf '%s' "$1" | tr '-' '_')"
+  if [ -n "$(cfg "role_${role_key}_kind")" ]; then
+    cfg_layer_rank "role_${role_key}_kind"; return 0
+  fi
+  printf '%s\n' 0
+}
 
 # lane_of_role <role> → lane name, or exit 1.
 lane_of_role() {
@@ -1475,6 +1553,7 @@ doctor_fix() {
 
 doctor_lane_warnings() {
   local psrc lane roles r seen="" unknown="" dup="" mixed="" has_edit has_review part lane_kind
+  local kkey klayer a akey avalue
   psrc="$(cfg_source panes)"
   case "$(cfg lanes on)" in
     on|off) ;;
@@ -1511,6 +1590,21 @@ doctor_lane_warnings() {
       mixed="$mixed $lane"
     fi
     lane_kind="$(lane_attr "$lane" kind)"
+    # A lane model/effort sitting in a layer below the layer that set the
+    # lane kind was chosen for another kind: resolution drops it; report the
+    # decision as ok so the orchestrator can see it.
+    if [ -n "$lane_kind" ]; then
+      kkey="$(lane_key "$lane" kind)"
+      klayer="$(cfg_layer_rank "$kkey")"
+      for a in model effort; do
+        akey="$(lane_key "$lane" "$a")"
+        avalue="$(cfg "$akey")"
+        [ -n "$avalue" ] || continue
+        if [ "$(cfg_layer_rank "$akey")" -lt "$klayer" ]; then
+          say ok "lanes: lane '$lane' kind $lane_kind ($(cfg_source "$kkey")); ignored lane $a $avalue from $(cfg_source "$akey") (another kind)"
+        fi
+      done
+    fi
     if [ -n "$lane_kind" ]; then
       for part in ${roles//,/ }; do
         r="$(printf '%s' "$part" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
@@ -3124,11 +3218,13 @@ resolved_role_kind() {
   printf '%s\n' "$v"
 }
 
-# resolve_spawn_effort <role> <lane> <kind> — the effort spawn would use with no flag.
+# resolve_spawn_effort <role> <lane> <kind> [kind-layer] — the effort spawn
+# would use with no flag. kind-layer (spawn_kind_layer) must be the one the
+# spawn itself used, so the reuse check applies the same lane effort rule.
 resolve_spawn_effort() {
   local role="$1" lane="$2" kind="$3" role_key f effort
   role_key="$(printf '%s' "$role" | tr '-' '_')"
-  effort="$(lane_attr "$lane" effort)"
+  effort="$(lane_attr "$lane" effort "${4:-}")"
   [ -n "$effort" ] || effort="$(cfg "role_${role_key}_effort")"
   [ -n "$effort" ] || effort="$(cfg "effort_${kind}")"
   if [ -z "$effort" ]; then
@@ -3279,7 +3375,7 @@ emit_reuse() {
 
 cmd_spawn() {
   local role="${1:?role}"; shift
-  local name="" kind="" direction="" ratio="" cwd="$PWD" pane="" timeout=""
+  local name="" kind="" kind_set=0 direction="" ratio="" cwd="$PWD" pane="" timeout=""
   local effort="" model="" approvals="" agent_args=() reuse="" tab_label=""
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -3291,7 +3387,7 @@ cmd_spawn() {
       --model) model="$2"; shift 2 ;;
       --approvals) approvals="$2"; shift 2 ;;
       --name) name="$2"; shift 2 ;;
-      --kind) kind="$2"; shift 2 ;;
+      --kind) kind="$2"; kind_set=1; shift 2 ;;
       --direction) direction="$2"; shift 2 ;;
       --ratio) ratio="$2"; shift 2 ;;
       --cwd) cwd="$2"; shift 2 ;;
@@ -3315,17 +3411,21 @@ cmd_spawn() {
   [ -n "$kind" ] || kind="$(cfg "role_${role_key}_kind")"
   [ -n "$kind" ] || kind="$(fm_get "$f" kind)"
   [ -n "$kind" ] || die "role $role has no default kind; pass --kind" 3
+  # Layer of the effective kind for the lane model/effort rule: the --kind
+  # flag sits above every config layer (rank 5).
+  local kind_layer
+  kind_layer="$(spawn_kind_layer "$role" "$lane" "$kind_set")"
   command -v "$(kind_exe "$kind")" >/dev/null || warn "executable '$(kind_exe "$kind")' not found in PATH; herdr agent start may fail"
   if [ "$role" = sub-orchestrator ] && [ "$kind" = codex ]; then
     case "$(cfg args_codex)" in *danger-full-access*) ;; *) warn "sub-orchestrator on codex: its sandbox blocks the Herdr socket (every 'herdr' call fails with Operation not permitted). Use --kind claude, or set args.codex=-s danger-full-access if you accept that." ;; esac
   fi
   local position=worker; [ "$role" = sub-orchestrator ] && position=orchestrator
-  [ -n "$effort" ] || effort="$(lane_attr "$lane" effort)"
+  [ -n "$effort" ] || effort="$(lane_attr "$lane" effort "$kind_layer")"
   [ -n "$effort" ] || effort="$(cfg "role_${role_key}_effort")"
   [ -n "$effort" ] || effort="$(cfg "effort_${kind}")"
   [ -n "$effort" ] || effort="$(fm_get "$f" effort)"
   local model_spec="$model"
-  [ -n "$model_spec" ] || model_spec="$(lane_attr "$lane" model)"
+  [ -n "$model_spec" ] || model_spec="$(lane_attr "$lane" model "$kind_layer")"
   [ -n "$model_spec" ] || model_spec="$(cfg "role_${role_key}_model")"
   [ -n "$model_spec" ] || model_spec="$(fm_get "$f" model)"
   [ -n "$model_spec" ] || model_spec="$(cfg "model_${kind}_${position}")"
@@ -3368,7 +3468,7 @@ cmd_spawn() {
           local session_role session_model session_effort mismatch=0
           session_role="$(roster_line "$dname" | cut -f4)"
           session_model="$(roster_line "$dname" | awk -F'\t' 'NF>=9 { print $9 }')"
-          session_effort="$(resolve_spawn_effort "$session_role" "$lane" "$actual_kind")"
+          session_effort="$(resolve_spawn_effort "$session_role" "$lane" "$actual_kind" "$kind_layer")"
           [ "$actual_kind" = "$kind" ] || mismatch=1
           [ "${session_model}" = "${model:-}" ] || mismatch=1
           [ "${session_effort}" = "${effort:-}" ] || mismatch=1

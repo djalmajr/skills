@@ -11,7 +11,7 @@ column is what the reviewer-vs-implementer rule compares.
 | `grok` | `grok` | xai | xhigh | `--reasoning-effort <xhigh|high|medium|low>` (alias `--effort`) | `--model` | `--permission-mode bypassPermissions --always-approve` |
 | `agy` | `agy` | google | high | `--effort <low|medium|high>` | `--model` | `--dangerously-skip-permissions` |
 | `gemini` | `gemini` | google | high | `--effort` (assumed like agy) | `--model` | not mapped |
-| `cursor` | `cursor-agent` | by model (`grok-*` → xai, `gpt-*`/`*codex*` → openai, `claude-*` → anthropic, `gemini-*` → google) | xhigh | none: suffix of the model id (`grok-4.7-xhigh`) | `--model` | `--trust --force --approve-mcps` |
+| `cursor` | `cursor-agent` | by model (a family segment `anthropic|openai|xai|google` in the id; else the LAST segment's `grok-*` → xai, `gpt-*`/`*codex*` → openai, `claude-*` → anthropic, `gemini-*` → google) | xhigh | none: suffix of the model id (`grok-4.7-xhigh`) | `--model` | `--trust --force --approve-mcps` |
 | `pi` | `pi` | by model | max | `--thinking <off…max>` | `--model <provider/id[:thinking]>` | nothing (pi has no approval prompts) |
 | `opencode` | `opencode` | by model | — | not mapped on the TUI (`--variant` is only in `opencode run`) | `-m <provider/model>` | `--auto` (edits: not mapped) |
 | `copilot` | `copilot` | mixed | — | not mapped | not mapped | not mapped |
@@ -39,8 +39,14 @@ for them.
 
 The script's family table is in `scripts/herdr-agents.sh` (`kind_family`;
 `agent_family` adds the model-id inference for multi-model harnesses such
-as cursor, pi and opencode, including `provider/`-prefixed ids).
-Extend it when you add a kind with a stable model family.
+as cursor, pi and opencode). For those kinds the family comes from the model
+id, in order: (1) a segment that is a family name (`anthropic`, `openai`,
+`xai`, `google`) sets the family (`openrouter/anthropic/claude-x-1` →
+anthropic); (2) else the LAST segment matches the id patterns (`claude-*`,
+`gpt-*`/`*codex*`, `grok-*`, `gemini-*`) — `my-provider/gpt-5` → openai;
+(3) else unknown. The provider name never decides the family:
+`custom-grok-gateway/my-model` is unknown, not xai. Extend it when you add
+a kind with a stable model family.
 
 Grok effort levels verified on 2026-09-21 (grok 1.0.40, models `grok-4.7`,
 `grok-4.7-build-fast`, `grok-4.6`): `--reasoning-effort xhigh` is accepted
@@ -155,9 +161,11 @@ budgets come from `thinkingBudgets` in `~/.pi/agent/settings.json`):
 ### Caveats
 
 - **Family is by model.** `family_check` does not know the family of a
-  `provider/id` unless the id is recognizable (e.g. `anthropic/claude-*`);
-  the same-family reviewer rule is then skipped, so pick the reviewer's
-  family by hand.
+  `provider/id` unless the id is recognizable — a family segment
+  (`anthropic/...`) or a last segment matching a known id pattern
+  (`*/gpt-*`); the provider name itself never counts. When it is not
+  recognizable, the same-family reviewer rule is skipped, so pick the
+  reviewer's family by hand.
 - **Effort the CLI does not support** (opencode's TUI) is dropped with a
   warning; pi accepts the whole ladder up to `max`.
 - **Confirm the model on screen after `spawn`**: these CLIs print the

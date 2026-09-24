@@ -35,6 +35,8 @@ printf '%s\n' "\$*" >> "$TEST_ROOT/herdr.log"
 target="\${3:-}"
 mode=\$(cat "$MODE" 2>/dev/null || echo idle)
 case "\$1 \$2" in
+  "--version"*) printf '%s\n' 'herdr 1.0.0' ;;
+  "status server"*) printf '%s\n' 'server 1.0.0' ;;
   "agent get")
     case "\$target" in
       gone|dead)
@@ -312,5 +314,109 @@ printf '%s\n' "$RUN_OUT" | jq -e '.name=="implementer" and .reused==true' >/dev/
   || fail "lanes=off json: $RUN_OUT"
 grep -q 'agent start' "$TEST_ROOT/herdr.log" && fail "lanes=off started a pane"
 unset HERDR_AGENTS_LANES
+
+# --- lane model/effort only follow the layer that set the lane kind -------
+# A lane's kind and its model/effort can come from different layers (flag >
+# env > session > project > user > defaults). The model/effort only count
+# when they sit in the kind's layer or above; from a lower layer they are
+# ignored and resolution continues with the next source.
+USER_CONF="$TEST_ROOT/config/herdr-agents/config"
+PROJ_CONF="$REPO/.agents/herdr-agents.conf"
+mkdir -p "$TEST_ROOT/config/herdr-agents" "$REPO/.agents"
+
+# 1) user lane.kind+model, project lane.kind only: the user model sits below
+# the project kind's layer and is ignored; resolution reaches model.codex.worker.
+reset_roster
+printf '%s\n' 'lane.explore.kind=grok' 'lane.explore.model=grok-4.7' > "$USER_CONF"
+printf '%s\n' 'lane.explore.kind=codex' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
+printf '%s\n' '{"result":{"agents":[]}}' > "$TEST_ROOT/live.json"
+run_cmd spawn scouter
+[ "$RUN_RC" = 0 ] || fail "layered kind spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.kind=="codex" and .model=="gpt-6-luna" and .model_spec=="gpt-6-luna"' >/dev/null \
+  || fail "layered kind json: $RUN_OUT"
+grep -qF -- '-- -m gpt-6-luna' "$TEST_ROOT/herdr.log" || fail "start args: $(cat "$TEST_ROOT/herdr.log")"
+grep -F 'grok-4.7' "$TEST_ROOT/herdr.log" && fail "user lane model leaked into start: $(cat "$TEST_ROOT/herdr.log")"
+
+# 2) project lane kind AND model: the project model (same layer as the kind)
+# wins over the user's.
+printf '%s\n' 'lane.explore.kind=codex' 'lane.explore.model=gpt-6-luna' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
+reset_roster
+printf '%s\n' '{"result":{"agents":[]}}' > "$TEST_ROOT/live.json"
+run_cmd spawn scouter
+[ "$RUN_RC" = 0 ] || fail "project model spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.kind=="codex" and .model=="gpt-6-luna" and .model_spec=="gpt-6-luna"' >/dev/null \
+  || fail "project model json: $RUN_OUT"
+
+# 3) env lane kind with no env model: the user lane model is ignored and the
+# chain reaches model.<kind>.worker.
+reset_roster
+printf '%s\n' 'lane.build.model=gpt-6-luna' 'model.pi.worker=my-provider/my-model' > "$USER_CONF"
+rm -f "$PROJ_CONF"
+export HERDR_AGENTS_LANE_BUILD_KIND=pi
+run_cmd spawn implementer
+[ "$RUN_RC" = 0 ] || fail "env kind spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.kind=="pi" and .model=="my-provider/my-model" and .model_spec=="my-provider/my-model"' >/dev/null \
+  || fail "env kind json: $RUN_OUT"
+grep -qF -- '-- --model my-provider/my-model' "$TEST_ROOT/herdr.log" || fail "start args: $(cat "$TEST_ROOT/herdr.log")"
+unset HERDR_AGENTS_LANE_BUILD_KIND
+
+# 4) same rule for effort: user lane.effort under a project lane.kind is
+# dropped; resolution reaches effort.<kind>.
+reset_roster
+printf '%s\n' 'lane.build.kind=codex' 'lane.build.effort=high' > "$USER_CONF"
+printf '%s\n' 'lane.build.kind=pi' 'effort.pi=max' > "$PROJ_CONF"
+printf '%s\n' '{"result":{"agents":[]}}' > "$TEST_ROOT/live.json"
+run_cmd spawn implementer
+[ "$RUN_RC" = 0 ] || fail "layered effort spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.kind=="pi" and .effort=="max"' >/dev/null \
+  || fail "layered effort json: $RUN_OUT"
+
+# 5) doctor reports the dropped lane model as an ok decision line (scenario 1).
+printf '%s\n' 'lane.explore.kind=grok' 'lane.explore.model=grok-4.7' > "$USER_CONF"
+printf '%s\n' 'lane.explore.kind=codex' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
+run_cmd doctor
+[ "$RUN_RC" = 0 ] || fail "doctor rc $RUN_RC err $RUN_ERR"
+okline="$(printf '%s\n' "$RUN_OUT" | grep -F "lanes: lane 'explore' kind codex (project); ignored lane model grok-4.7 from user (another kind)" | head -n1 || true)"
+[ -n "$okline" ] || fail "doctor missed the layer decision: $RUN_OUT"
+case "$okline" in ok\ *) ;; *) fail "layer decision is not an ok line: $okline" ;; esac
+rm -f "$USER_CONF" "$PROJ_CONF"
+
+# 6) --kind is the top layer for the rule in the reuse check too: a second
+# identical `spawn --kind pi` reuses the lane worker (it must not compare a
+# user lane effort the first spawn already dropped and exit 13).
+reset_roster
+printf '%s\n' 'lane.build.effort=high' > "$USER_CONF"
+printf '%s\n' 'effort.pi=max' 'model.pi.worker=my-provider/my-model' > "$PROJ_CONF"
+run_cmd spawn implementer --kind pi
+[ "$RUN_RC" = 0 ] || fail "kind flag spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.kind=="pi" and .effort=="max"' >/dev/null || fail "kind flag json: $RUN_OUT"
+printf '%s\n' '{"result":{"agents":[{"name":"build","pane_id":"p-build","agent_status":"idle"}]}}' > "$TEST_ROOT/live.json"
+printf '%s\n' idle > "$MODE"
+run_cmd spawn implementer --kind pi
+[ "$RUN_RC" = 0 ] || fail "identical kind flag spawn rc $RUN_RC (13 = kind-mismatch) err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.name=="build" and .reused==true and .status!="kind-mismatch"' >/dev/null \
+  || fail "identical kind flag spawn did not reuse: $RUN_OUT"
+
+# 7) no lane.kind anywhere: the kind comes from role.<role>.kind, and its
+# layer is the reference — a user lane model under a project role kind is
+# dropped.
+reset_roster
+printf '%s\n' 'lane.build.model=grok-4.7' > "$USER_CONF"
+printf '%s\n' 'role.implementer.kind=codex' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
+run_cmd spawn implementer
+[ "$RUN_RC" = 0 ] || fail "role kind spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.kind=="codex" and .model=="gpt-6-luna"' >/dev/null \
+  || fail "user lane model leaked over a project role kind: $RUN_OUT"
+
+# 8) kind from the role frontmatter (the lowest layer): a lane model from any
+# config layer still applies.
+reset_roster
+printf '%s\n' 'lane.build.model=grok-4.7' > "$USER_CONF"
+rm -f "$PROJ_CONF"
+run_cmd spawn implementer
+[ "$RUN_RC" = 0 ] || fail "frontmatter kind spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | jq -e '.kind=="grok" and .model=="grok-4.7"' >/dev/null \
+  || fail "lane model under a frontmatter kind: $RUN_OUT"
+rm -f "$USER_CONF" "$PROJ_CONF"
 
 echo 'lane checks passed'

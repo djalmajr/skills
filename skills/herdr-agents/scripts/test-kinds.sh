@@ -97,7 +97,9 @@ expect 'tasker → grok low' "$(fm_get "$SCRIPT_DIR/../roles/tasker.md" kind) $(
 # --- families (the reviewer rule) -----------------------------------------
 expect 'grok kind' "$(agent_family grok grok-4.7)" xai
 expect 'cursor running grok = xai' "$(agent_family cursor grok-4.7-xhigh)" xai
-expect 'cursor running cursor-grok = xai' "$(agent_family cursor cursor-grok-4.6-high)" xai
+# The provider part of an id never decides: only a family segment (1) or the
+# LAST segment's id patterns (2) count, else unknown.
+expect 'cursor-grok id = unknown (provider part never matches)' "$(agent_family cursor cursor-grok-4.6-high)" unknown
 expect 'cursor running codex = openai' "$(agent_family cursor gpt-5.3-codex-xhigh)" openai
 expect 'cursor running sol = openai' "$(agent_family cursor gpt-5.6-sol-xhigh)" openai
 expect 'cursor running claude = anthropic' "$(agent_family cursor claude-opus-5-thinking-xhigh)" anthropic
@@ -105,6 +107,16 @@ expect 'cursor running gemini = google' "$(agent_family cursor gemini-3.7-flash-
 expect 'cursor auto = unknown (check skipped)' "$(agent_family cursor auto)" unknown
 expect 'cursor without model = unknown' "$(agent_family cursor)" unknown
 expect 'stable kinds ignore the model' "$(agent_family codex grok-something)" openai
+# provider names that embed a family keyword stay unknown (brief scenarios):
+expect 'grok-named gateway = unknown' "$(agent_family opencode custom-grok-gateway/my-model)" unknown
+expect 'claude-named proxy = unknown' "$(agent_family opencode my-claude-proxy/my-model)" unknown
+expect 'family segment anthropic wins' "$(agent_family opencode openrouter/anthropic/claude-x-1)" anthropic
+expect 'family segment xai wins' "$(agent_family opencode xai/grok-4.7)" xai
+expect 'family segment google wins' "$(agent_family pi my-router/google/gemini-x)" google
+expect 'last segment gpt-* without family segment' "$(agent_family opencode my-provider/gpt-5)" openai
+expect 'last segment gemini-* without family segment' "$(agent_family pi my-provider/gemini-flash)" google
+expect 'last segment claude-* without family segment' "$(agent_family pi my-provider/claude-opus)" anthropic
+expect 'last segment *codex* without family segment' "$(agent_family cursor gpt-5.3-codex-xhigh)" openai
 # a grok implementer and a cursor/grok reviewer collide
 printf '# h\nimpl\tp1\tgrok\timplementer\txai\t1\t/tmp\tnow\n' > "$TEST_ROOT/agents.tsv"
 roster_rows() { grep -v '^#' "$TEST_ROOT/agents.tsv"; }
