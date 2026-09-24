@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-// herdr-agents — JavaScript entry (slices 1-8a of the bash port).
+// herdr-agents — JavaScript entry (slices 1-8a and 7d of the bash port).
 //
 // Dispatches the ported commands (`config`, `config set`, `session`,
 // `roles`, `role`, `kinds`, `models <kind>`, `model <kind> <spec>
 // [effort]`, `spawn <role> …`, `dispatch <agent> <brief.md> …`,
 // `run <role> <brief.md> …`, `status <agent>…`, `roster`, `friction`,
 // `tab-label`, `layout-plan`, `regrid`, `wait <agent>…`, `collect <agent>`,
-// `release <agent>`, `clean`, `setup [--target FILE] [--no-hooks]
+// `release <agent>`, `clean`, `doctor [--fix] [--panes 3|4] [--user]`,
+// `explain`, `setup [--target FILE] [--no-hooks]
 // [--dry-run] [--panes 3|4] [--lane name=kind[:model[:effort]]] [--detect]
 // [--plan …]` — its `--probe` form is not ported yet and exits 2).
 // Any other command is reported as not
@@ -41,9 +42,11 @@ import { cmdClean } from './lib/commands/clean.mjs';
 import { cmdDispatch } from './lib/dispatch.mjs';
 import { cmdRun } from './lib/commands/run.mjs';
 import { cmdSetup } from './lib/commands/setup.mjs';
+import { cmdDoctor } from './lib/commands/doctor.mjs';
+import { cmdExplain } from './lib/commands/explain.mjs';
 import { findExecutable } from './lib/platform.mjs';
 
-const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'regrid', 'wait', 'collect', 'release', 'clean', 'setup'];
+const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'regrid', 'wait', 'collect', 'release', 'clean', 'setup', 'doctor', 'explain'];
 // The commands that log to friction when running inside Herdr (bash main's
 // living-command list, restricted to what this entry has ported).
 const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'regrid', 'wait', 'collect', 'release', 'clean']);
@@ -128,6 +131,12 @@ try {
       break;
     case 'setup':
       cmdSetup(argv.slice(1), ctx, env);
+      break;
+    case 'doctor':
+      cmdDoctor(argv.slice(1), ctx, env);
+      break;
+    case 'explain':
+      cmdExplain(argv.slice(1), ctx, env);
       break;
     case 'regrid':
       cmdRegrid(argv.slice(1), ctx, env);
