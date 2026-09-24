@@ -1,9 +1,9 @@
 // Golden (slice 9a-C; slice 8b scenario coverage): `setup --probe` and
 // `init` now run only the JS (`node scripts/herdr-agents.mjs`) and compare
-// against the reference recorded once from the bash script in
-// test/golden/parity-setup-probe.json (test/golden.mjs:
-// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
-// JS value for review). Scenarios: the whole of test-probe.sh
+// against the value stored once in test/golden/parity-setup-probe.json
+// (test/golden.mjs: HERDR_AGENTS_GOLDEN unset checks the JS value against
+// the stored value, =update overwrites the stored value with the JS value for review).
+// Scenarios: the whole of test-probe.sh
 // (the aggregate JSON shape and per-kind statuses, the flag pass-through,
 // the single kind + explicit model, no-auth with and without a key that
 // never leaks, the error code, quota with and without a renewal time, the
@@ -12,41 +12,31 @@
 // skipped_custom) and the `init` part of test-friendly.sh (doctor on
 // stderr, the JSON context, first_run true and false). 16 scenarios.
 //
-// The recorded value holds, per step: the exit code, the normalized stdout
+// The stored value holds, per step: the exit code, the normalized stdout
 // and the prefix-normalized stderr, plus the final files and the fixture
 // state dir (the init JSON's state_dir is compared against it). The
-// accepted doctor-output differences (parity-doctor normalization: the
-// bash still has the jq line — decision 5 drops it from the JS — with its
-// ok-count shift, and the $0/entry path) are normalized inside the value,
-// applied to both sides, so the recorded (bash) value comes out already
-// normalized.
+// accepted doctor-output differences (parity-doctor normalization: the jq
+// line — decision 5 drops it from the JS — with its ok-count shift, and
+// the $0/entry path) are normalized inside the value, so the stored value and
+// the JS value compare on the same shape.
 //
-// The bash script runs only as the `reference` (record mode); the JS runs
-// only as the `actual` (check/update mode). Each side builds its own
-// fixture from the same seed and returns the same value shape; the fixture
-// root becomes <ROOT> in every string of the value. The PATH is fully
-// controlled (as in test-probe.sh): sh fakes per CLI (the parity runs the
-// bash script, so the fakes stay sh), symlinks to the host jq/git/timeout
-// and no herdr for the probe (it must not need one), so no host CLI can
-// leak in.
+// The PATH is fully controlled (as in test-probe.sh): sh fakes per CLI,
+// symlinks to the host jq/git/timeout and no herdr where the scenario must
+// not see one, so no host CLI can leak in.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeFixture, runImpl, normalizeErr, nodeBin, BASH_ENTRY, JS_ENTRY, LAUNCHER_ENTRIES } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { makeFixture, runImpl, normalizeErr, nodeBin, JS_ENTRY, LAUNCHER_ENTRIES } from './parity.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 import { findExecutable } from '../lib/platform.mjs';
 
-// Record mode runs the bash reference: it needs bash, jq and timeout (the
-// bash probe runs every CLI under timeout). Check mode
-// runs the JS against the record and needs the sh fakes, so it is skipped
-// solely on Windows.
+// The fixture contract is POSIX (the sh fakes), so the scenarios are
+// skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the sh fakes (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq') || !findExecutable('timeout'))
-      ? 'record mode needs bash, jq and timeout on PATH'
-      : false);
+    ? 'Windows: the sh fakes need a POSIX host'
+    : false;
 
 const SUITE = 'parity-setup-probe';
 
@@ -57,10 +47,10 @@ function readRel(root, rel) {
 // The sh fakes of test-probe.sh's make_fake (log args, behave per the mode
 // file ready|noauth|noauthkey|errkey|quota|error|quotatime|hang, default
 // ready) plus the host jq/git/timeout symlinks. Returns the fakes dir.
-// The fully controlled PATH is `<fakes>:/usr/bin:/bin` (the parity
-// convention of this repo): the symlinks carry jq/git/timeout, so the
-// host dirs of those tools — where the operator's real agent CLIs may
-// live — never reach the runs.
+// The fully controlled PATH is `<fakes>:/usr/bin:/bin` (the convention of
+// this repo): the symlinks carry jq/git/timeout, so the host dirs of those
+// tools — where the operator's real agent CLIs may live — never reach the
+// runs.
 function seedFakes(fix, agents = ['pi', 'codex', 'claude', 'grok']) {
   const fakes = path.join(fix.root, 'fakes');
   fs.rmSync(fakes, { recursive: true, force: true });
@@ -120,11 +110,9 @@ function seedSymlinks(dir) {
 }
 
 // The accepted doctor-output differences (parity-doctor normalization):
-// the bash still has the jq line (decision 5 drops it from the JS) with
-// its ok-count shift, and the $0/entry path (both normalize to PROG).
-// Applied to both sides — it is the normalization the parity comparison
-// used — so the recorded (bash) value is already normalized and the JS
-// value normalizes the same way.
+// the jq line (decision 5 drops it from the JS) with its ok-count shift,
+// and the $0/entry path (both normalize to PROG), so the JS value and
+// the stored value compare on the same shape.
 function normOut(out) {
   const lines = out.split('\n');
   let dropOk = 0;
@@ -143,19 +131,18 @@ function normOut(out) {
     }
   }
   return kept.join('\n')
-    .replaceAll(BASH_ENTRY, 'PROG')
     .replaceAll(JS_ENTRY, 'PROG')
     .replaceAll(LAUNCHER_ENTRIES[0], 'PROG')
     .replaceAll(LAUNCHER_ENTRIES[1], 'PROG');
 }
 
-// Run every step against one implementation in a fresh fixture and return
-// the golden value: per step the exit code, the normalized stdout and the
+// Run every step against the JS entry in a fresh fixture and return the
+// golden value: per step the exit code, the normalized stdout and the
 // prefix-normalized stderr, the final content of opts.files (paths
 // relative to the fixture root; missing = null) and the fixture state dir
 // (the init JSON's state_dir is compared against it). The fixture root
 // becomes <ROOT> in every string of the value.
-function probeValue(impl, opts) {
+function probeValue(opts) {
   const fix = makeFixture();
   try {
     fix.reset();
@@ -163,7 +150,7 @@ function probeValue(impl, opts) {
     const steps = [];
     for (const step of opts.steps) {
       const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
-      const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
+      const r = runImpl(step.args, { env: stepEnv, cwd: fix.repo });
       steps.push({ args: step.args, rc: r.rc, out: normOut(r.out), err: normOut(normalizeErr(r.err)) });
     }
     const files = (opts.files ?? []).map((rel) => ({ rel, content: readRel(fix.root, rel) }));
@@ -173,15 +160,13 @@ function probeValue(impl, opts) {
   }
 }
 
-// Golden wrapper: record runs the bash reference, check/update run the JS;
-// the value is returned for the per-scenario assertions.
+// Golden wrapper: check/update run the JS; the value is returned for the
+// per-scenario assertions.
 function probeScenario(name, opts) {
-  let refValue;
-  let actValue;
-  const reference = () => (refValue !== undefined ? refValue : (refValue = probeValue('bash', opts))); // record only
-  const actual = () => (actValue !== undefined ? actValue : (actValue = probeValue('node', opts))); // check/update
-  golden(SUITE, name, actual, reference);
-  return goldenMode() === 'record' ? reference() : actual();
+  let value;
+  const actual = () => (value !== undefined ? value : (value = probeValue(opts))); // check/update
+  golden(SUITE, name, actual);
+  return actual();
 }
 
 // The fully controlled PATH of the probe/init runs: the fakes dir then
@@ -421,6 +406,6 @@ test('parity: init with a project config that makes the team choice — first_ru
   assert.equal(JSON.parse(v.steps[1].out).first_run, false);
 });
 
-// The `node` used for the node-side runs, referenced so a missing node is a
-// loud failure here rather than in every scenario.
+// Touch `nodeBin()` so a missing node is a loud failure here rather than
+// in every scenario.
 void nodeBin();

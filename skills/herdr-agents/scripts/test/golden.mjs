@@ -1,13 +1,9 @@
-// Golden references for the former bash × JS parity tests. The bash script
-// was the reference implementation: its normalized result per scenario is
-// recorded once in test/golden/<suite>.json, and the tests compare the JS
-// against that record.
+// Golden values for the parity tests: the normalized JS result per scenario
+// is stored once in test/golden/<suite>.json, and the tests compare the JS
+// against that stored value.
 //
-//   HERDR_AGENTS_GOLDEN unset   compare the JS value with the record; a
-//                               missing entry fails.
-//   HERDR_AGENTS_GOLDEN=record  no longer possible: the bash reference was
-//                               removed in the switch to JS; fails with a
-//                               message pointing at =update.
+//   HERDR_AGENTS_GOLDEN unset   compare the JS value with the stored value;
+//                               a missing entry fails.
 //   HERDR_AGENTS_GOLDEN=update  write the JS value: an intentional change,
 //                               reviewed through the diff of the golden file.
 //
@@ -21,11 +17,11 @@ import { fileURLToPath } from 'node:url';
 
 const GOLDEN_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'golden');
 
-export function goldenMode(env = process.env) {
-  const v = env.HERDR_AGENTS_GOLDEN ?? '';
+export function goldenMode() {
+  const v = process.env.HERDR_AGENTS_GOLDEN ?? '';
   if (v === '') return 'check';
-  if (v === 'record' || v === 'update') return v;
-  throw new Error(`HERDR_AGENTS_GOLDEN must be unset, record or update (got '${v}')`);
+  if (v === 'update') return 'update';
+  throw new Error(`HERDR_AGENTS_GOLDEN must be unset or update (got '${v}')`);
 }
 
 const cache = new Map();
@@ -61,16 +57,10 @@ function save(suite) {
   fs.writeFileSync(goldenFile(suite), `${JSON.stringify(canonical(cache.get(suite)), null, 2)}\n`);
 }
 
-// golden(suite, key, actual, reference): in check mode assert that `actual()`
-// equals the recorded value; in update mode store `actual()`. Record mode
-// fails: the bash reference it would store is gone (switch to JS), and the
-// error points at =update. `reference` is kept in the signature for the
-// callers (record-mode history); no mode runs it.
-export function golden(suite, key, actual, reference, env = process.env) {
-  const mode = goldenMode(env);
-  if (mode === 'record') {
-    throw new Error('HERDR_AGENTS_GOLDEN=record needs the bash reference, removed in the switch to JS; use HERDR_AGENTS_GOLDEN=update and review the diff');
-  }
+// golden(suite, key, actual): in check mode assert that `actual()` equals
+// the stored value; in update mode store `actual()`.
+export function golden(suite, key, actual) {
+  const mode = goldenMode();
   const data = load(suite);
   const value = actual();
   if (mode === 'update') {
@@ -79,7 +69,7 @@ export function golden(suite, key, actual, reference, env = process.env) {
     return;
   }
   assert.ok(Object.hasOwn(data, key),
-    `${suite} › ${key}: no golden entry (record it from the reference, or run with HERDR_AGENTS_GOLDEN=update and review the diff)`);
+    `${suite} › ${key}: no golden entry (run with HERDR_AGENTS_GOLDEN=update and review the diff)`);
   assert.deepEqual(value, data[key], `${suite} › ${key}: differs from test/golden/${suite}.json (JS value first)`);
 }
 

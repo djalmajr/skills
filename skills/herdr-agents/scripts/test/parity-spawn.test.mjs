@@ -1,20 +1,17 @@
-// Golden (slice 9a-A): the `herdr-agents spawn` scenarios now run only the
-// JS (`node scripts/herdr-agents.mjs`) and compare against the reference
-// recorded once from the bash script in test/golden/parity-spawn.json
-// (test/golden.mjs: HERDR_AGENTS_GOLDEN=record records, unset checks,
-// =update overwrites the JS value for review).
+// Golden (slice 9a-A): the `herdr-agents spawn` scenarios run only the
+// JS (`node scripts/herdr-agents.mjs`) and compare against the value
+// stored once in test/golden/parity-spawn.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN unset checks the JS value against the stored value, =update
+// overwrites the stored value with the JS value for review).
 //
 // Mirrors test-lanes.sh:165-420 (spawn scenarios, incl. the config-layer
 // cases) plus the extra criteria (agent_pane_busy x2, agent_not_ready,
 // --pane, overflow to a herd tab on a full caller tab). Each scenario runs
-// in a fresh fixture (fake `herdr` CLI + fake agent CLIs) and the recorded
+// in a fresh fixture (fake `herdr` CLI + fake agent CLIs) and the stored
 // value holds, per step: exit code, stdout, normalized stderr and the
-// recorded herdr CLI calls (omitted for the busy2 scenario, as before);
+// stored herdr CLI calls (omitted for the busy2 scenario, as before);
 // plus the final roster (created_at normalized to T) and `herd-tab` file.
-// The fixture root becomes <ROOT> in every string of the recorded value.
-//
-// The bash script runs only as the `reference` (record mode); the JS runs
-// only as the `actual` (check/update mode).
+// The fixture root becomes <ROOT> in every string of the stored value.
 //
 // node --test test/parity-spawn.test.mjs
 
@@ -24,19 +21,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { BASH_ENTRY, JS_ENTRY, fixtureEnv, nodeBin, normalizeErr } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
-import { findExecutable } from '../lib/platform.mjs';
+import { JS_ENTRY, fixtureEnv, nodeBin, normalizeErr } from './parity.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq. Check mode
-// runs the JS against the record and needs the sh fake CLIs, so it is
-// skipped solely on Windows.
+// The fixture contract is POSIX (the sh fake CLIs), so the scenarios are
+// skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the sh fake CLIs (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the sh fake CLIs need a POSIX host'
+    : false;
 
 const SUITE = 'parity-spawn';
 
@@ -89,7 +82,7 @@ case "$1 $2" in
 esac
 `;
 
-// bash add_worker() (test-lanes.sh:33-35) — model always grok-4.7.
+// Roster row (test-lanes.sh:33-35, add_worker) — model always grok-4.7.
 const ROW = (fix, name, role, lane, kind = 'grok') =>
   `${name}\tp-${name}\t${kind}\t${role}\txai\t1\t${fix.repo}\tgrok-4.7\tfull\t${role}\t${lane}\n`;
 
@@ -163,7 +156,7 @@ function makeParityFixture(name) {
 }
 
 // The roster's `started` column differs per run; normalize it to T before
-// it is recorded.
+// it is stored.
 function normRosterCols(s) {
   if (s == null) return null;
   return s.split('\n').map((l) => {
@@ -174,12 +167,11 @@ function normRosterCols(s) {
   }).join('\n');
 }
 
-// Run the step script against one implementation in a fresh fixture and
-// return the golden value: rc, stdout, normalized stderr and the herdr
+// Run the step script against the JS entry in a fresh fixture and return
+// the golden value: rc, stdout, normalized stderr and the herdr
 // call log per step (omitted when opts.skipLog), plus the final roster and
-// `herd-tab` file. `entry` is [bin, ...binArgs]: the JS entry for the
-// actual, the bash script for the reference. The fixture root becomes
-// <ROOT> in every string of the value.
+// `herd-tab` file. `entry` is [bin, ...binArgs] (the JS entry). The fixture
+// root becomes <ROOT> in every string of the value.
 function spawnValue(entry, name, script, opts = {}) {
   const fix = makeParityFixture(name);
   try {
@@ -254,9 +246,9 @@ test('parity spawn: planner is 12, a sub-orchestrator outside a lane is 3', { ti
     { fs: resetRoster },
     { args: ['spawn', 'sub-orchestrator'] },
   ];
-  golden(SUITE, 'errors',
-    () => spawnValue([nodeBin(), JS_ENTRY], 'errors', script), // actual (check/update)
-    () => spawnValue(['bash', BASH_ENTRY], 'errors', script)); // reference (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = spawnValue([nodeBin(), JS_ENTRY], 'errors', script))); // check/update
+  golden(SUITE, 'errors', actual);
 });
 
 test('parity spawn: fresh worker, lane reuse, kind mismatch, lane-kind reuse', { timeout: 120000, skip: SKIP }, () => {
@@ -280,9 +272,9 @@ test('parity spawn: fresh worker, lane reuse, kind mismatch, lane-kind reuse', {
     { args: ['spawn', 'implementer'] },
     { fs: (f) => { conf(f, null); } },
   ];
-  golden(SUITE, 'kind',
-    () => spawnValue([nodeBin(), JS_ENTRY], 'kind', script), // actual (check/update)
-    () => spawnValue(['bash', BASH_ENTRY], 'kind', script)); // reference (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = spawnValue([nodeBin(), JS_ENTRY], 'kind', script))); // check/update
+  golden(SUITE, 'kind', actual);
 });
 
 test('parity spawn: busy 10, gone recreated, worker cap 8, locked 5, lane kind, lanes=off reuse', { timeout: 120000, skip: SKIP }, () => {
@@ -320,9 +312,9 @@ test('parity spawn: busy 10, gone recreated, worker cap 8, locked 5, lane kind, 
     } },
     { args: ['spawn', 'implementer'], env: { HERDR_AGENTS_LANES: 'off' } },
   ];
-  golden(SUITE, 'lane-states',
-    () => spawnValue([nodeBin(), JS_ENTRY], 'lane-states', script), // actual (check/update)
-    () => spawnValue(['bash', BASH_ENTRY], 'lane-states', script)); // reference (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = spawnValue([nodeBin(), JS_ENTRY], 'lane-states', script))); // check/update
+  golden(SUITE, 'lane-states', actual);
 });
 
 // The config-layer cases of test-lanes.sh:324-399 (case 5 needs the unported
@@ -379,22 +371,22 @@ test('parity spawn: config layers (user vs project vs env, kind/model/effort pre
     { args: ['spawn', 'implementer'] },
     { fs: (f) => { conf(f, null); } },
   ];
-  golden(SUITE, 'layers',
-    () => spawnValue([nodeBin(), JS_ENTRY], 'layers', script), // actual (check/update)
-    () => spawnValue(['bash', BASH_ENTRY], 'layers', script)); // reference (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = spawnValue([nodeBin(), JS_ENTRY], 'layers', script))); // check/update
+  golden(SUITE, 'layers', actual);
 });
 
 test('parity spawn: agent_pane_busy twice, then success (15x1s retry budget)', { timeout: 120000, skip: SKIP }, () => {
-  // The retry budget makes the call log timing-dependent: recorded without
+  // The retry budget makes the call log timing-dependent: stored without
   // the log, as the parity comparison skipped it before.
   const script = [
     { fs: (f) => { resetRoster(f); mode(f, 'busy2'); } },
     { args: ['spawn', 'implementer'] },
     { fs: (f) => { mode(f, 'idle'); } },
   ];
-  golden(SUITE, 'busy2',
-    () => spawnValue([nodeBin(), JS_ENTRY], 'busy2', script, { skipLog: true }), // actual (check/update)
-    () => spawnValue(['bash', BASH_ENTRY], 'busy2', script, { skipLog: true })); // reference (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = spawnValue([nodeBin(), JS_ENTRY], 'busy2', script, { skipLog: true }))); // check/update
+  golden(SUITE, 'busy2', actual);
 });
 
 test('parity spawn: agent_not_ready registers, prints JSON + screen, exits 7', { timeout: 120000, skip: SKIP }, () => {
@@ -402,9 +394,9 @@ test('parity spawn: agent_not_ready registers, prints JSON + screen, exits 7', {
     { fs: (f) => { resetRoster(f); mode(f, 'notready'); } },
     { args: ['spawn', 'implementer'] },
   ];
-  golden(SUITE, 'notready',
-    () => spawnValue([nodeBin(), JS_ENTRY], 'notready', script), // actual (check/update)
-    () => spawnValue(['bash', BASH_ENTRY], 'notready', script)); // reference (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = spawnValue([nodeBin(), JS_ENTRY], 'notready', script))); // check/update
+  golden(SUITE, 'notready', actual);
 });
 
 test('parity spawn: --pane places the worker in a given pane', { timeout: 120000, skip: SKIP }, () => {
@@ -413,9 +405,9 @@ test('parity spawn: --pane places the worker in a given pane', { timeout: 120000
     { args: ['spawn', 'implementer', '--pane', 'p-x', '--name', 'solo'] },
     { args: ['spawn', 'scouter', '--pane', 'p-y', '--tab-label', 'extra', '--name', 'side'] },
   ];
-  golden(SUITE, 'given-pane',
-    () => spawnValue([nodeBin(), JS_ENTRY], 'given-pane', script), // actual (check/update)
-    () => spawnValue(['bash', BASH_ENTRY], 'given-pane', script)); // reference (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = spawnValue([nodeBin(), JS_ENTRY], 'given-pane', script))); // check/update
+  golden(SUITE, 'given-pane', actual);
 });
 
 // The caller's split tab is full → the worker overflows into a herd tab.
@@ -467,7 +459,7 @@ test('parity spawn: a full caller tab overflows the worker into a herd tab', { t
       },
     },
   ];
-  golden(SUITE, 'overflow',
-    () => spawnValue([nodeBin(), JS_ENTRY], 'overflow', script), // actual (check/update)
-    () => spawnValue(['bash', BASH_ENTRY], 'overflow', script)); // reference (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = spawnValue([nodeBin(), JS_ENTRY], 'overflow', script))); // check/update
+  golden(SUITE, 'overflow', actual);
 });

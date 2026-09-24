@@ -5,63 +5,49 @@
 // without the block (warning), --target relative, --no-hooks, --dry-run,
 // --panes 3, --panes 4 --lane, --panes 5 (rc 2), unknown option (rc 2),
 // settings.json with other hooks, settings.json with invalid JSON (rc 4) —
-// now run only the JS (`node scripts/herdr-agents.mjs`) and compare against
-// the reference recorded once from the bash script in
-// test/golden/parity-setup.json (test/golden.mjs:
-// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
-// JS value for review). 19 scenarios.
+// run only the JS (`node scripts/herdr-agents.mjs`) and compare against the
+// value stored once in test/golden/parity-setup.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN unset checks the JS value against the stored value,
+// =update overwrites the stored value with the JS value for review). 19 scenarios.
 //
-// Two known bash defects are NOT ported (brief decision 6); the recorded
-// value pins the exact shape of each divergence instead of byte-comparing
-// the affected bytes:
-//   1. Append path: the `tail -c1 | od -An -c | tr -d ' '` last-newline check
-//      is dead code — it compares od's 2-char display of a newline against
-//      the 3-char literal `\\n` — so bash appends an extra `\n` (a second
-//      blank line) after any non-empty file. JS writes the intended
-//      "missing newline + one blank line" (brief decision 3).
-//   2. Invalid settings.json: bash's stderr also carries jq's parse-error
-//      line (stripped from the reference — jq is not a requirement, spec
-//      decision 5); JS prints only its own `could not merge hooks into
-//      <file>` die line. Both exit 4 and leave the file untouched.
+// The stored value pins the exact shape of two edges instead of
+// byte-comparing the affected bytes:
+//   1. Append path: for a file without a trailing newline the JS writes the
+//      intended "missing newline + one blank line" (brief decision 3).
+//   2. Invalid settings.json: the JS prints only its own
+//      `could not merge hooks into <file>` die line, exits 4 and leaves the
+//      file untouched (jq is not a requirement, spec decision 5).
 //
-// The bash script runs only as the `reference` (record mode); the JS runs
-// only as the `actual` (check/update mode). Each side builds its own
-// fixture from the same seed and returns the same value shape: per step the
-// exit code, the stdout and the prefix-normalized stderr, plus the final
-// content of the scenario files (the comparison's full field set). The
-// bash-only normalization (the jq line) is applied inside the reference,
-// so the recorded value comes out already normalized. The fixture root
-// becomes <ROOT> and the skill root <SKILL> in every string of the value.
+// The stored value holds, per step, the exit code, the stdout and the
+// prefix-normalized stderr, plus the final content of the scenario files
+// (the comparison's full field set). The fixture root becomes <ROOT> and
+// the skill root <SKILL> in every string of the value.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeFixture, runImpl, normalizeErr, nodeBin } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 import { setupBlock } from '../lib/setuptext.mjs';
-import { findExecutable } from '../lib/platform.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq (the script's
-// living path dies without them). Check mode runs the JS against the
-// record and is skipped solely on Windows (POSIX fixture contract).
+// The fixture contract is POSIX (temporary git repo, symlinks, POSIX path
+// layout), so the scenarios are skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the POSIX fixture contract (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the POSIX fixture contract needs a POSIX host'
+    : false;
 
 const SUITE = 'parity-setup';
 
 // The skill root: the no-abs-path scenario symlinks it into the fixture,
-// and the installer path must not leak into the recorded value.
+// and the installer path must not leak into the stored value.
 const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // The instruction file after a first run in the intended transform: the
 // seed, one blank line, the block. Replacing from this seed is a fixed
-// point for both implementations (the bash append defect never fires on a
-// file that already carries the block).
+// point (the append path never fires on a file that already carries the
+// block).
 const SEED_AGENTS = '# Agent instructions\n';
 const BLOCK_SEEDED = `${SEED_AGENTS}\n${setupBlock()}`;
 
@@ -69,20 +55,14 @@ function readRel(root, rel) {
   try { return fs.readFileSync(path.join(root, rel), 'utf8'); } catch { return null; }
 }
 
-// The jq parse-error line(s) are the bash jq dependency (spec decision 5
-// drops it); the die line and the exit code are the contract.
-function stripJq(err) {
-  return err.split('\n').filter((l) => !l.startsWith('jq:')).join('\n');
-}
-
-// Run every step against one implementation in a fresh fixture (the
-// setup-owned files AGENTS.md/CLAUDE.md/.claude are reset before the seed)
-// and return the golden value: per step the exit code, the stdout and the
+// Run every step against the JS entry in a fresh fixture (the setup-owned
+// files AGENTS.md/CLAUDE.md/.claude are reset before the seed) and return
+// the golden value: per step the exit code, the stdout and the
 // prefix-normalized stderr, plus the final content of opts.files (paths
 // relative to the fixture root; `null` means "must not exist"). The fixture
 // root becomes <ROOT> (and the skill root <SKILL>) in every string of the
 // value.
-function setupValue(impl, opts) {
+function setupValue(opts) {
   const fix = makeFixture();
   try {
     fix.reset();
@@ -93,12 +73,8 @@ function setupValue(impl, opts) {
     const steps = [];
     for (const step of opts.steps) {
       const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
-      const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
-      let err = normalizeErr(r.err);
-      // Bash-only normalization, applied to the reference only, so the
-      // recorded value comes out already normalized.
-      if (impl === 'bash' && step.stderr === 'strip-jq') err = stripJq(err);
-      steps.push({ args: step.args, rc: r.rc, out: r.out, err });
+      const r = runImpl(step.args, { env: stepEnv, cwd: fix.repo });
+      steps.push({ args: step.args, rc: r.rc, out: r.out, err: normalizeErr(r.err) });
     }
     const files = (opts.files ?? []).map((rel) => ({ rel, content: readRel(fix.root, rel) }));
     return normalizeRoots({ steps, files }, { '<ROOT>': fix.root, '<SKILL>': SKILL_DIR });
@@ -107,15 +83,13 @@ function setupValue(impl, opts) {
   }
 }
 
-// Golden wrapper: record runs the bash reference, check/update run the JS;
-// the value is returned for the per-scenario assertions.
+// Golden wrapper: check/update run the JS; the value is returned for the
+// per-scenario assertions.
 function setupScenario(name, opts) {
-  let refValue;
-  let actValue;
-  const reference = () => (refValue !== undefined ? refValue : (refValue = setupValue('bash', opts))); // record only
-  const actual = () => (actValue !== undefined ? actValue : (actValue = setupValue('node', opts))); // check/update
-  golden(SUITE, name, actual, reference);
-  return goldenMode() === 'record' ? reference() : actual();
+  let value;
+  const actual = () => (value !== undefined ? value : (value = setupValue(opts))); // check/update
+  golden(SUITE, name, actual);
+  return actual();
 }
 
 // Seed helpers (relative to the fixture repo).
@@ -263,7 +237,7 @@ test('parity: false where jq expects a list is read as an empty list (`// []`)',
 test('parity: invalid settings.json refuses with rc 4, file untouched (jq error line not reproduced)', { timeout: 120000, skip: SKIP }, () => {
   setupScenario('setup-settings-invalid', {
     seed: seedSettings('{invalid\n'),
-    steps: [{ args: ['setup'], stderr: 'strip-jq' }],
+    steps: [{ args: ['setup'] }],
     files: ['repo/.claude/settings.json', 'repo/AGENTS.md'],
   });
 });
@@ -295,14 +269,13 @@ test('parity: test-setup.sh scenario — the block embeds no absolute installer 
   assert.ok(!content['repo/.claude/settings.json'].includes('<SKILL>'), 'settings.json embeds the installer path');
 });
 
-// Node-only: --probe --plan is refused with the bash exclusivity message
-// (the shared check in cmdSetup runs before either branch). It never ran
-// the bash reference; the parity against the record is the golden value's
-// job, this guards the JS shape.
+// Node-only: --probe --plan is refused with the exclusivity message (the
+// shared check in cmdSetup runs before either branch). The parity against
+// the stored value is the golden's job; this guards the JS shape.
 function runNode(args) {
   const fix = makeFixture();
   try {
-    const r = runImpl('node', args, { env: fix.env, cwd: fix.repo });
+    const r = runImpl(args, { env: fix.env, cwd: fix.repo });
     return { rc: r.rc, out: r.out, err: r.err };
   } finally {
     fix.cleanup();
@@ -315,6 +288,6 @@ test('node: setup --probe --plan is exclusive (rc 2, the bash message)', { timeo
   assert.equal(normalizeErr(r.err).trimEnd(), 'PROG: setup: --probe and --plan are exclusive');
 });
 
-// The `node` used for the node-side runs, referenced so a missing node is a
-// loud failure here rather than in every scenario.
+// Touch `nodeBin()` so a missing node is a loud failure here rather than
+// in every scenario.
 void nodeBin();

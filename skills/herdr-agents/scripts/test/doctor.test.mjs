@@ -18,8 +18,8 @@ import { spawnSync } from 'node:child_process';
 import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
 import { writeFakeCli } from './fakes.mjs';
 import {
-  cmdDoctor, doctorFix, doctorLaneWarnings, doctorRoleKind, doctorUsedKinds,
-  projectIsFirstRun,
+  cmdDoctor, doctorCheck, doctorFix, doctorLaneWarnings, doctorRoleKind,
+  doctorUsedKinds, projectIsFirstRun,
 } from '../lib/commands/doctor.mjs';
 import { explainActivity, explainIdleParagraph, explainPrintRunning, explainRecommendation, explainStateDir } from '../lib/commands/explain.mjs';
 import { loadConfig } from '../lib/config.mjs';
@@ -532,4 +532,248 @@ test('explainStateDir: an unreadable state root lists nothing (bash find 2>/dev/
     fs.chmodSync(state, 0o755);
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+// ---------- own-provider traps (backlog item 8) ----------
+
+const PI_MODELS_FILE = path.join(HOME, '.pi', 'agent', 'models.json');
+const PI_SETTINGS_FILE = path.join(HOME, '.pi', 'agent', 'settings.json');
+const OC_PROJECT_FILE = path.join(REPO, 'opencode.json');
+const rmOwnFiles = () => {
+  for (const f of [PI_MODELS_FILE, PI_SETTINGS_FILE, OC_PROJECT_FILE]) fs.rmSync(f, { force: true });
+};
+
+// doctorCheck in-process with captured stdout, on a controlled PATH (a
+// fake herdr, no agent CLI) so no host binary can leak into the output.
+function doctorOut() {
+  writeFakeCli(FAKES, 'herdr', 'process.exit(0);\n'); // no host herdr may be called
+  const env = { ...ENV, PATH: FAKES };
+  const keep = process.stdout.write.bind(process.stdout);
+  let out = '';
+  process.stdout.write = (s) => { out += s; return true; };
+  try {
+    doctorCheck(loadConfig(env, REPO), env, REPO);
+  } finally {
+    process.stdout.write = keep;
+  }
+  return out;
+}
+
+const PI_KEY_LINE = (file) => `warn   own provider 'my-provider' (pi) has a literal apiKey in ${file}; use an environment reference (pi: "$MY_API_KEY", opencode: "{env:MY_API_KEY}")`;
+const OC_KEY_LINE = (file) => `warn   own provider 'my-provider' (opencode) has a literal apiKey in ${file}; use an environment reference (pi: "$MY_API_KEY", opencode: "{env:MY_API_KEY}")`;
+
+// Mutation captured: accepting a literal apiKey as a reference (pi not
+// starting with $, opencode not exactly {env:NAME}) drops the warn lines
+// these examples assert.
+test('doctor: own provider with a literal apiKey warns; the env reference does not', () => {
+  cleanLayers();
+  rmOwnFiles();
+  fs.mkdirSync(path.dirname(PI_MODELS_FILE), { recursive: true });
+  // Example (pi): a literal key in the file.
+  fs.writeFileSync(PI_MODELS_FILE, JSON.stringify({
+    providers: { 'my-provider': { apiKey: 'sk-test-secret', models: [{ id: 'my-model', maxTokens: 32768 }] } },
+  }));
+  let out = doctorOut();
+  assert.ok(out.split('\n').includes(PI_KEY_LINE(PI_MODELS_FILE)), out);
+  assert.ok(!out.split('\n').some((l) => l.startsWith('warn   pi model')), 'enough maxTokens: no headroom line: ' + out);
+  rmOwnFiles();
+  // Counter-example (pi): "$MY_API_KEY" is a reference, not a trap.
+  fs.writeFileSync(PI_MODELS_FILE, JSON.stringify({
+    providers: { 'my-provider': { apiKey: '$MY_API_KEY', models: [{ id: 'my-model', maxTokens: 32768 }] } },
+  }));
+  out = doctorOut();
+  assert.ok(!out.includes('literal apiKey'), out);
+  rmOwnFiles();
+  // Example (opencode): a literal key in the project opencode.json.
+  fs.writeFileSync(OC_PROJECT_FILE, JSON.stringify({
+    provider: { 'my-provider': { options: { apiKey: 'sk-test-secret' }, models: { 'my-model': { options: { thinking_token_budget: 16000 } } } } },
+  }));
+  out = doctorOut();
+  assert.ok(out.split('\n').includes(OC_KEY_LINE(OC_PROJECT_FILE)), out);
+  assert.ok(!out.split('\n').some((l) => l.startsWith('warn   opencode model')), 'budget present: no budget line: ' + out);
+  rmOwnFiles();
+  // Counter-example (opencode): "{env:MY_API_KEY}" is a reference.
+  fs.writeFileSync(OC_PROJECT_FILE, JSON.stringify({
+    provider: { 'my-provider': { options: { apiKey: '{env:MY_API_KEY}' }, models: { 'my-model': { options: { thinking_token_budget: 16000 } } } } },
+  }));
+  out = doctorOut();
+  assert.ok(!out.includes('literal apiKey'), out);
+  rmOwnFiles();
+  cleanLayers();
+});
+
+// Mutation captured: `<=` instead of `<` at the headroom boundary (or a
+// default level other than high) changes which fixtures warn below.
+test('doctor: pi maxTokens without the 8192 headroom over the effort budget warns', () => {
+  cleanLayers();
+  rmOwnFiles();
+  const writePi = (models, settings) => {
+    fs.rmSync(PI_SETTINGS_FILE, { force: true });
+    fs.mkdirSync(path.dirname(PI_MODELS_FILE), { recursive: true });
+    fs.writeFileSync(PI_MODELS_FILE, JSON.stringify({ providers: { 'my-provider': { apiKey: '$MY_API_KEY', models } } }));
+    if (settings !== undefined) fs.writeFileSync(PI_SETTINGS_FILE, JSON.stringify(settings));
+  };
+  // Example: the default level (effort.pi empty -> high, budget 16384).
+  writePi([{ id: 'my-model', maxTokens: 20000 }]);
+  let out = doctorOut();
+  assert.ok(out.split('\n').includes('warn   pi model my-provider/my-model: maxTokens 20000 leaves less than 8192 tokens over the high reasoning budget (16384); answers and tool calls get truncated. Set maxTokens to at least 24576'), out);
+  // Counter-example: 32768 leaves more than 8192 over 16384.
+  writePi([{ id: 'my-model', maxTokens: 32768 }]);
+  out = doctorOut();
+  assert.ok(!out.includes('leaves less than 8192'), out);
+  // The boundary: exactly budget + 8192 is fine (strict <).
+  writePi([{ id: 'my-model', maxTokens: 24576 }]);
+  out = doctorOut();
+  assert.ok(!out.includes('leaves less than 8192'), 'maxTokens == budget + 8192 needs no warn: ' + out);
+  // The level is the effective effort.pi: low (budget 2048), not the
+  // default high.
+  writeProj('effort.pi=low\n');
+  writePi([{ id: 'my-model', maxTokens: 10000 }]);
+  out = doctorOut();
+  assert.ok(out.split('\n').includes('warn   pi model my-provider/my-model: maxTokens 10000 leaves less than 8192 tokens over the low reasoning budget (2048); answers and tool calls get truncated. Set maxTokens to at least 10240'), out);
+  // Counter-example: low with maxTokens 10240 (== 2048 + 8192).
+  writePi([{ id: 'my-model', maxTokens: 10240 }]);
+  out = doctorOut();
+  assert.ok(!out.includes('leaves less than 8192'), out);
+  // The budget comes from settings.json thinkingBudgets (kinds.md example:
+  // 31744; 40960 leaves the room, 39000 does not). effort.pi back to
+  // empty: the default level high reads the entry.
+  fs.rmSync(PROJ_CONF, { force: true });
+  writePi([{ id: 'my-model', maxTokens: 39000 }], { thinkingBudgets: { high: 31744 } });
+  out = doctorOut();
+  assert.ok(out.split('\n').includes('warn   pi model my-provider/my-model: maxTokens 39000 leaves less than 8192 tokens over the high reasoning budget (31744); answers and tool calls get truncated. Set maxTokens to at least 39936'), out);
+  writePi([{ id: 'my-model', maxTokens: 40960 }], { thinkingBudgets: { high: 31744 } });
+  out = doctorOut();
+  assert.ok(!out.includes('leaves less than 8192'), out);
+  // xhigh without a defined value: no check, whatever maxTokens.
+  writeProj('effort.pi=xhigh\n');
+  writePi([{ id: 'my-model', maxTokens: 100 }]);
+  out = doctorOut();
+  assert.ok(!out.includes('leaves less than 8192'), 'xhigh without a budget is not checked: ' + out);
+  // No maxTokens: no check.
+  writeProj('effort.pi=low\n');
+  writePi([{ id: 'my-model' }]);
+  out = doctorOut();
+  assert.ok(!out.includes('leaves less than 8192'), out);
+  rmOwnFiles();
+  cleanLayers();
+});
+
+// Mutation captured: treating a missing thinking_token_budget as present
+// (or reading the knob from the provider options) drops the warn line.
+test('doctor: opencode model without thinking_token_budget warns; the ok line; nothing without a provider', () => {
+  cleanLayers();
+  rmOwnFiles();
+  // Example: a model whose options lack the budget knob (the provider key
+  // is a reference, so only the budget warn appears).
+  fs.writeFileSync(OC_PROJECT_FILE, JSON.stringify({
+    provider: { 'my-provider': { options: { apiKey: '{env:MY_API_KEY}' }, models: { 'my-model': {} } } },
+  }));
+  let out = doctorOut();
+  assert.ok(out.split('\n').includes("warn   opencode model my-provider/my-model has no thinking_token_budget in its options; the skill's effort is dropped and the server default applies"), out);
+  // Counter-example: with the knob (any number) the only declared own
+  // provider is trap-free: the ok line, no warn.
+  fs.writeFileSync(OC_PROJECT_FILE, JSON.stringify({
+    provider: { 'my-provider': { options: { apiKey: '{env:MY_API_KEY}' }, models: { 'my-model': { options: { thinking_token_budget: 16000 } } } } },
+  }));
+  out = doctorOut();
+  assert.ok(!out.includes('no thinking_token_budget'), out);
+  assert.ok(!out.includes('literal apiKey'), out);
+  assert.ok(out.split('\n').includes('ok     own providers: no known trap'), out);
+  rmOwnFiles();
+  // No own provider declared at all: no own-provider line at all.
+  out = doctorOut();
+  assert.ok(!out.includes('own provider'), out);
+  cleanLayers();
+});
+
+// Mutation captured: interpolating the key value into the warn text (or
+// printing it anywhere) leaks sk-test-secret into stdout or stderr.
+test('doctor: the literal key value never appears on stdout/stderr', () => {
+  cleanLayers();
+  rmOwnFiles();
+  fs.mkdirSync(path.dirname(PI_MODELS_FILE), { recursive: true });
+  fs.writeFileSync(PI_MODELS_FILE, JSON.stringify({
+    providers: { 'my-provider': { apiKey: 'sk-test-secret', models: [{ id: 'my-model', maxTokens: 20000 }] } },
+  }));
+  writeFakeCli(FAKES, 'herdr', 'process.exit(0);\n'); // no host herdr may be called
+  const r = spawnSync(nodeBin(), [JS_ENTRY, 'doctor'], { cwd: REPO, env: { ...ENV, PATH: FAKES }, encoding: 'utf8', timeout: 30000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(r.stdout.includes(`own provider 'my-provider' (pi) has a literal apiKey in ${PI_MODELS_FILE}`), r.stdout);
+  assert.ok(!r.stdout.includes('sk-test-secret'), 'stdout leaks the key:\n' + r.stdout);
+  assert.ok(!r.stderr.includes('sk-test-secret'), 'stderr leaks the key:\n' + r.stderr);
+  rmOwnFiles();
+  cleanLayers();
+});
+
+// Mutation captured: back to one key line per model (instead of one per
+// provider) makes the counts below come out doubled.
+test('doctor: the literal-key warn appears once per provider, not per model', () => {
+  cleanLayers();
+  rmOwnFiles();
+  fs.mkdirSync(path.dirname(PI_MODELS_FILE), { recursive: true });
+  // A pi provider with a literal key and two models (enough maxTokens:
+  // only the key trap fires).
+  fs.writeFileSync(PI_MODELS_FILE, JSON.stringify({
+    providers: { 'my-provider': { apiKey: 'sk-test-secret', models: [
+      { id: 'my-model', maxTokens: 32768 },
+      { id: 'second-model', maxTokens: 32768 },
+    ] } },
+  }));
+  let out = doctorOut();
+  const keyLines = out.split('\n').filter((l) => l.startsWith('warn   own provider '));
+  assert.equal(keyLines.length, 1, 'one key line for the provider:\n' + out);
+  assert.ok(keyLines[0].includes(`own provider 'my-provider' (pi) has a literal apiKey in ${PI_MODELS_FILE}`), out);
+  assert.ok(!out.split('\n').some((l) => l.startsWith('warn   pi model')), out);
+  rmOwnFiles();
+  // Same for opencode: one key line for the provider; the per-model budget
+  // warns stay one per model.
+  fs.writeFileSync(OC_PROJECT_FILE, JSON.stringify({
+    provider: { 'my-provider': { options: { apiKey: 'sk-test-secret' }, models: { 'my-model': {}, 'second-model': {} } } },
+  }));
+  out = doctorOut();
+  assert.equal(out.split('\n').filter((l) => l.startsWith('warn   own provider ')).length, 1, out);
+  assert.equal(out.split('\n').filter((l) => l.startsWith('warn   opencode model ')).length, 2, 'the budget trap stays per-model:\n' + out);
+  // Mutation captured: deduping on the full text (which names the file)
+  // prints the same provider once per opencode file.
+  const ocUser = path.join(CONF, 'opencode', 'opencode.json');
+  fs.mkdirSync(path.dirname(ocUser), { recursive: true });
+  fs.writeFileSync(ocUser, JSON.stringify({
+    provider: { 'my-provider': { options: { apiKey: 'sk-test-secret' }, models: { 'user-model': {} } } },
+  }));
+  out = doctorOut();
+  assert.equal(out.split('\n').filter((l) => l.startsWith('warn   own provider ')).length, 1, 'one key line across project and user files:\n' + out);
+  fs.rmSync(ocUser, { force: true });
+  // Mutation captured: cutting the provider id from the model id at the
+  // first `/` merges `org/alpha` and `org/beta` into one provider.
+  fs.writeFileSync(OC_PROJECT_FILE, JSON.stringify({
+    provider: {
+      'org/alpha': { options: { apiKey: 'sk-test-secret' }, models: { m1: {} } },
+      'org/beta': { options: { apiKey: 'sk-test-secret' }, models: { m2: {} } },
+    },
+  }));
+  out = doctorOut();
+  assert.equal(out.split('\n').filter((l) => l.startsWith('warn   own provider ')).length, 2, 'two providers that share a prefix:\n' + out);
+  rmOwnFiles();
+  cleanLayers();
+});
+
+// Mutation captured: counting any thinking_token_budget value as a budget
+// hides the trap for null or a numeric string.
+test('doctor: a non-numeric thinking_token_budget is no budget', () => {
+  cleanLayers();
+  rmOwnFiles();
+  for (const v of [null, '16000']) {
+    fs.writeFileSync(OC_PROJECT_FILE, JSON.stringify({
+      provider: { 'my-provider': { options: { apiKey: '{env:MY_API_KEY}' }, models: { 'my-model': { options: { thinking_token_budget: v } } } } },
+    }));
+    const out = doctorOut();
+    assert.ok(out.includes('opencode model my-provider/my-model has no thinking_token_budget in its options'), `${JSON.stringify(v)}:\n${out}`);
+  }
+  fs.writeFileSync(OC_PROJECT_FILE, JSON.stringify({
+    provider: { 'my-provider': { options: { apiKey: '{env:MY_API_KEY}' }, models: { 'my-model': { options: { thinking_token_budget: 16000 } } } } },
+  }));
+  assert.ok(!doctorOut().includes('has no thinking_token_budget'), 'a number is a budget');
+  rmOwnFiles();
+  cleanLayers();
 });

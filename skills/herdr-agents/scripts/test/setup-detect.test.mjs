@@ -20,6 +20,7 @@ import {
   recommendReviewerJson, detectTopModels, detectKindJson,
   detectRoleKindsJson, detectWorkerModelsJson, setupDetectJson,
 } from '../lib/commands/setup-detect.mjs';
+import { piOwnModels, opencodeOwnModels } from '../lib/ownproviders.mjs';
 
 function tmp(prefix) {
   return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
@@ -344,6 +345,31 @@ test('detectTopModels: three newest of a fake listing, short timeout, no cache w
   } finally { r.cleanup(); }
 });
 
+// Mutation captured: ignoring HERDR_AGENTS_MODELS_TIMEOUT (always the 5 s
+// default) times out the slow fake and the 30 s listing comes back empty.
+test('detectTopModels: HERDR_AGENTS_MODELS_TIMEOUT is honored when set, else the 5 s default', { timeout: 60000 }, () => {
+  const r = isoRoot('ha-detect-timeout-');
+  try {
+    const fakes = path.join(r.root, 'fakes');
+    fs.mkdirSync(fakes, { recursive: true });
+    // A listing that arrives in ~6 s (the fake advances its argument,
+    // process.argv[2] = "models"): after the 5 s default it is a timeout
+    // (empty list), inside a 30 s window it is complete.
+    writeFakeCli(fakes, 'grok', [
+      "if (process.argv[2] === 'models') {",
+      '  setTimeout(() => {',
+      "    process.stdout.write('Available models:\\ngrok-4.7 - xAI Grok 4.7\\ngrok-4.6 - older release\\n');",
+      '  }, 6000);',
+      '}',
+    ].join('\n'));
+    // Without the variable: the 5 s default times out the 6 s listing.
+    assert.deepEqual(detectTopModels('grok', { ...r.env, PATH: fakes }), []);
+    // With it: the full listing comes back (no cache written in between,
+    // so the second call re-runs the CLI with the longer window).
+    assert.deepEqual(detectTopModels('grok', { ...r.env, PATH: fakes, HERDR_AGENTS_MODELS_TIMEOUT: '30' }), ['grok-4.7', 'grok-4.6']);
+  } finally { r.cleanup(); }
+});
+
 test('detectKindJson: installed/executable/family/ceiling/custom_models per kind', () => {
   const r = isoRoot('ha-detect-kind-');
   try {
@@ -351,8 +377,15 @@ test('detectKindJson: installed/executable/family/ceiling/custom_models per kind
     fs.mkdirSync(fakes, { recursive: true });
     writeFakeCli(fakes, 'pi', 'process.exit(0);\n');
     const env = { ...r.env, PATH: fakes };
+    const ctx = loadConfig(env, r.repo);
     write(piModelsFile(r), PI_JSON);
-    const pi = detectKindJson('pi', env, r.repo);
+    // Both providers of the fixture carry a literal key by the pi rule
+    // (`{env:…}` is the opencode reference form, not the pi `$…` one), so
+    // every custom model gets the key warning; no maxTokens is declared,
+    // so no headroom warning.
+    const file = piModelsFile(r);
+    const keyWarn = (p) => `own provider '${p}' (pi) has a literal apiKey in ${file}; use an environment reference (pi: "$MY_API_KEY", opencode: "{env:MY_API_KEY}")`;
+    const pi = detectKindJson(ctx, 'pi', env, r.repo);
     assert.deepEqual(pi, {
       kind: 'pi',
       executable: 'pi',
@@ -362,23 +395,24 @@ test('detectKindJson: installed/executable/family/ceiling/custom_models per kind
       models: [],
       summary: pi.summary,
       custom_models: [
-        { id: 'my-provider/my-model', max_effort: 'max' },
-        { id: 'my-provider/plain', max_effort: '' },
-        { id: 'second/cheap-fast', max_effort: '' },
+        { id: 'my-provider/my-model', max_effort: 'max', warnings: [keyWarn('my-provider')] },
+        { id: 'my-provider/plain', max_effort: '', warnings: [keyWarn('my-provider')] },
+        { id: 'second/cheap-fast', max_effort: '', warnings: [keyWarn('second')] },
       ],
     });
-    const cursor = detectKindJson('cursor', env, r.repo);
+    assert.deepEqual(Object.keys(pi.custom_models[0]), ['id', 'max_effort', 'warnings'], 'warnings is the last key');
+    const cursor = detectKindJson(ctx, 'cursor', env, r.repo);
     assert.equal(cursor.executable, 'cursor-agent');
     assert.equal(cursor.installed, false);
     assert.equal(cursor.effort_ceiling, 'xhigh');
-    const opencode = detectKindJson('opencode', env, r.repo);
+    const opencode = detectKindJson(ctx, 'opencode', env, r.repo);
     assert.equal(opencode.effort_ceiling, '');
     assert.deepEqual(opencode.custom_models, []);
     // A stable kind always has an empty custom_models array.
-    assert.deepEqual(detectKindJson('grok', env, r.repo).custom_models, []);
-    assert.deepEqual(detectKindJson('claude', env, r.repo).custom_models, []);
+    assert.deepEqual(detectKindJson(ctx, 'grok', env, r.repo).custom_models, []);
+    assert.deepEqual(detectKindJson(ctx, 'claude', env, r.repo).custom_models, []);
     // No PATH at all: nothing installed.
-    assert.equal(detectKindJson('pi', r.env, r.repo).installed, false);
+    assert.equal(detectKindJson(ctx, 'pi', r.env, r.repo).installed, false);
   } finally { r.cleanup(); }
 });
 
@@ -479,6 +513,106 @@ test('setupDetectJson: the bash key order and the preset/effective lanes default
     // The JSON round-trips and keeps the key order.
     const keys = Object.keys(JSON.parse(JSON.stringify(doc)));
     assert.deepEqual(keys, ['kinds', 'recommended_reviewer', 'config']);
+  } finally { r.cleanup(); }
+});
+
+// ---------- own-provider trap warnings (backlog item 8) ----------
+
+// Mutation captured: `<=` instead of `<` at the headroom boundary (edge
+// would warn), a default level other than high (the texts and the 24576
+// boundary shift), or accepting a literal apiKey as a reference (the key
+// warnings vanish).
+test('piOwnModels: the trap warnings per model (literal key, headroom, defaults, effort.pi)', () => {
+  const r = isoRoot('ha-detect-own-pi-');
+  try {
+    const env = r.env;
+    const f = piModelsFile(r);
+    write(f, JSON.stringify({ providers: {
+      'my-provider': {
+        apiKey: 'sk-test-secret',
+        models: [
+          { id: 'my-model', maxTokens: 20000 }, // < 16384 + 8192 -> headroom
+          { id: 'edge', maxTokens: 24576 },     // == 16384 + 8192 -> fine
+          { id: 'roomy', maxTokens: 32768 },    // enough room
+          { id: 'notokens' },                   // no maxTokens -> no check
+        ],
+      },
+      second: { apiKey: '$MY_API_KEY', models: [{ id: 'cheap-fast', maxTokens: 100 }] }, // reference, no headroom
+    } }));
+    const out = piOwnModels(loadConfig(env, r.repo), env);
+    const keyWarn = `own provider 'my-provider' (pi) has a literal apiKey in ${f}; use an environment reference (pi: "$MY_API_KEY", opencode: "{env:MY_API_KEY}")`;
+    const headWarn = (m, n) => `pi model my-provider/${m}: maxTokens ${n} leaves less than 8192 tokens over the high reasoning budget (16384); answers and tool calls get truncated. Set maxTokens to at least 24576`;
+    assert.deepEqual(Object.keys(out[0]), ['id', 'max_effort', 'warnings'], 'warnings is the last key');
+    assert.deepEqual(out, [
+      { id: 'my-provider/my-model', max_effort: '', warnings: [keyWarn, headWarn('my-model', 20000)] },
+      { id: 'my-provider/edge', max_effort: '', warnings: [keyWarn] },
+      { id: 'my-provider/roomy', max_effort: '', warnings: [keyWarn] },
+      { id: 'my-provider/notokens', max_effort: '', warnings: [keyWarn] },
+      { id: 'second/cheap-fast', max_effort: '', warnings: [`pi model second/cheap-fast: maxTokens 100 leaves less than 8192 tokens over the high reasoning budget (16384); answers and tool calls get truncated. Set maxTokens to at least 24576`] },
+    ]);
+    assert.ok(!JSON.stringify(out).includes('sk-test-secret'), 'the key value never leaves the files');
+    // effort.pi overrides the default high (level low, budget 2048).
+    write(r.projectConf, 'effort.pi=low\n');
+    write(f, JSON.stringify({ providers: { 'my-provider': { apiKey: '$MY_API_KEY', models: [{ id: 'my-model', maxTokens: 5000 }] } } }));
+    assert.deepEqual(piOwnModels(loadConfig(env, r.repo), env)[0].warnings,
+      ['pi model my-provider/my-model: maxTokens 5000 leaves less than 8192 tokens over the low reasoning budget (2048); answers and tool calls get truncated. Set maxTokens to at least 10240']);
+    // The budget comes from settings.json thinkingBudgets (kinds.md example:
+    // 31744; 40960 leaves the room).
+    write(path.join(r.home, '.pi', 'agent', 'settings.json'), JSON.stringify({ thinkingBudgets: { high: 31744 } }));
+    write(f, JSON.stringify({ providers: { 'my-provider': { apiKey: '$MY_API_KEY', models: [{ id: 'my-model', maxTokens: 40960 }] } } }));
+    assert.deepEqual(piOwnModels(loadConfig(env, r.repo), env)[0].warnings, [], '31744 + 8192 <= 40960');
+    // xhigh without a defined value: no check, whatever maxTokens.
+    write(r.projectConf, 'effort.pi=xhigh\n');
+    write(f, JSON.stringify({ providers: { 'my-provider': { apiKey: '$MY_API_KEY', models: [{ id: 'my-model', maxTokens: 1 }] } } }));
+    assert.deepEqual(piOwnModels(loadConfig(env, r.repo), env)[0].warnings, []);
+    // No trap at all (reference key, enough room): warnings stays empty.
+    fs.rmSync(path.join(r.home, '.pi', 'agent', 'settings.json'), { force: true });
+    write(r.projectConf, '');
+    write(f, JSON.stringify({ providers: { 'my-provider': { apiKey: '$MY_API_KEY', models: [{ id: 'my-model', maxTokens: 32768 }] } } }));
+    assert.deepEqual(piOwnModels(loadConfig(env, r.repo), env)[0].warnings, []);
+  } finally { r.cleanup(); }
+});
+
+// Mutation captured: judging the key shape / the budget on a non-first
+// declaration of the same model id (or on the provider of another file)
+// changes which warnings the first declarations keep.
+test('opencodeOwnModels: the trap warnings per model (literal key, missing budget, first declaration wins)', () => {
+  const r = isoRoot('ha-detect-own-oc-');
+  try {
+    const env = r.env;
+    const proj = ocProjectFile(r);
+    write(proj, JSON.stringify({ provider: {
+      'my-provider': {
+        options: { apiKey: 'sk-test-secret' },
+        models: { 'my-model': {}, 'budgeted': { options: { thinking_token_budget: 16000 } } },
+      },
+      second: {
+        options: { apiKey: '{env:MY_API_KEY}' },
+        models: { 'cheap-fast': { options: { thinking_token_budget: 0 } } },
+      },
+    } }));
+    write(ocXdgFile(r), JSON.stringify({ provider: {
+      'my-provider': {
+        options: { apiKey: '{env:OTHER_KEY}' },
+        models: { 'my-model': { options: { thinking_token_budget: 1 } }, xtra: {} },
+      },
+    } }));
+    const out = opencodeOwnModels(env, r.repo);
+    const keyWarn = `own provider 'my-provider' (opencode) has a literal apiKey in ${proj}; use an environment reference (pi: "$MY_API_KEY", opencode: "{env:MY_API_KEY}")`;
+    const budgetWarn = (id) => `opencode model ${id} has no thinking_token_budget in its options; the skill's effort is dropped and the server default applies`;
+    assert.deepEqual(Object.keys(out[0]), ['id', 'max_effort', 'warnings'], 'warnings is the last key');
+    assert.deepEqual(out, [
+      // The duplicate id keeps the project declaration (literal key, no
+      // budget), not the user-file one (reference, budgeted).
+      { id: 'my-provider/my-model', max_effort: '', warnings: [keyWarn, budgetWarn('my-provider/my-model')] },
+      { id: 'my-provider/budgeted', max_effort: '', warnings: [keyWarn] },
+      // The knob present (any number) and the key a reference: no trap.
+      { id: 'second/cheap-fast', max_effort: '', warnings: [] },
+      // Declared only in the user file: the user-file provider is a
+      // reference, so only the budget warn.
+      { id: 'my-provider/xtra', max_effort: '', warnings: [budgetWarn('my-provider/xtra')] },
+    ]);
+    assert.ok(!JSON.stringify(out).includes('sk-test-secret'), 'the key value never leaves the files');
   } finally { r.cleanup(); }
 });
 

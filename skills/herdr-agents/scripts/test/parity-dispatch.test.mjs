@@ -4,43 +4,35 @@
 // $TMPDIR routing) and test-multi-role.sh (column 4 role, the contract
 // lines of the composed prompt, the strict lint, the reviewer family check
 // 5 / --allow-same-family), plus `run` with --no-wait and with the wait
-// (the fake herdr writes the report on `agent prompt`, like a worker) — now
-// run only the JS and compare against the reference recorded once from the
-// bash script in test/golden/parity-dispatch.json (test/golden.mjs:
-// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
-// JS value for review). The recorded value holds, per step: the exit code,
-// the normalized stdout, the prefix-normalized stderr and the whole
-// on-disk state after the step (herdr log, <state>/ws, the
+// (the fake herdr writes the report on `agent prompt`, like a worker) —
+// run only the JS and compare against the value stored once in
+// test/golden/parity-dispatch.json (test/golden.mjs: HERDR_AGENTS_GOLDEN
+// unset checks the JS value against the stored value, =update overwrites the
+// stored value with the JS value for review). The stored value holds, per step:
+// the exit code, the normalized stdout, the prefix-normalized stderr and
+// the whole on-disk state after the step (herdr log, <state>/ws, the
 // $TMPDIR/herdr-agents tree); the intermediate states matter (a refused
 // family check leaves no task file, a done wait leaves the report and the
 // ✓ title). Wall-clock values (the brief/report timestamps, the friction
-// and approvals-log timestamps) are normalized before recording; the
+// and approvals-log timestamps) are normalized before storing; the
 // fixture root becomes <ROOT> in every string.
-//
-// The bash script runs only as the `reference` (record mode); the JS runs
-// only as the `actual` (check/update mode). Each side builds its own
-// fixture from the same seed and returns the same value shape.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { makeFixture, runImpl, normalizeErr } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
-import { findExecutable } from '../lib/platform.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq. Check mode
-// runs the JS against the record and needs the sh fake `herdr`, so it is
-// skipped solely on Windows.
+// The fixture contract is POSIX (the sh fake herdr), so the scenarios are
+// skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the sh fake herdr (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the sh fake herdr needs a POSIX host'
+    : false;
 
 const SUITE = 'parity-dispatch';
 
-// ---------- the fake herdr (bash, the only herdr both sides see) ----------
+// ---------- the fake herdr (the only herdr the runs see) ----------
 
 // Every call is logged as one "$*" line (herdr.log). `agent get` is answered
 // by the per-target mode-<target> file (or the global mode file): denied →
@@ -123,7 +115,7 @@ const R8 = '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\n';
 const WORKER8 = 'worker\tp1\tgrok\timplementer\txai\t1\t/work\tnow\n';
 
 // The test-quota brief (contract sections, no expected result → the default
-// warn lint fires, as in the bash scenario).
+// warn lint fires, as in the test-quota.sh scenario).
 const BRIEF = `# Goal
 
 Touch nothing.
@@ -179,7 +171,7 @@ function seedRoster(fix, header, rows, files = {}) {
 
 // ---------- the scenario runner ----------
 
-// The dispatch brief timestamps (nowStamp) differ between the two sides by
+// The dispatch brief timestamps (nowStamp) differ between runs by
 // construction; normalize them everywhere (stdout, stderr, logs, state
 // files, file names).
 const normTs = (s) => (s === null ? null : String(s).split(/\d{8}T\d{6}/).join('<TS>'));
@@ -229,12 +221,12 @@ function collectState(fix) {
   return out;
 }
 
-// Run every step against one implementation in a fresh fixture and return
+// Run every step against the JS entry in a fresh fixture and return
 // the golden value: rc, normalized stdout, prefix-normalized stderr per
 // step, the state files after every step (the intermediate states matter)
 // and the final state file set. The fixture root becomes <ROOT> in every
 // string of the value.
-function dispatchValue(impl, opts) {
+function dispatchValue(opts) {
   const fix = makeFixture();
   try {
     fix.reset();
@@ -249,7 +241,7 @@ function dispatchValue(impl, opts) {
         PATH: `${path.join(fix.root, 'bin')}${path.delimiter}${process.env.PATH}`,
         ...(step.env ?? {}),
       };
-      const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
+      const r = runImpl(step.args, { env: stepEnv, cwd: fix.repo });
       results.push({ args: step.args, rc: r.rc, out: normTs(r.out), err: normalizeErr(normTs(r.err)) });
       stepFiles.push(collectState(fix));
     }
@@ -259,20 +251,18 @@ function dispatchValue(impl, opts) {
   }
 }
 
-// Golden wrapper: record runs the bash reference, check/update run the JS;
-// the value is returned for the per-scenario assertions.
+// Golden wrapper: check/update run the JS; the value is returned for the
+// per-scenario assertions.
 function dispatchScenario(name, opts) {
-  let refValue;
-  let actValue;
-  const reference = () => (refValue !== undefined ? refValue : (refValue = dispatchValue('bash', opts))); // record only
-  const actual = () => (actValue !== undefined ? actValue : (actValue = dispatchValue('node', opts))); // check/update
-  golden(SUITE, name, actual, reference);
-  return goldenMode() === 'record' ? reference() : actual();
+  let value;
+  const actual = () => (value !== undefined ? value : (value = dispatchValue(opts))); // check/update
+  golden(SUITE, name, actual);
+  return actual();
 }
 
 // ---------- scenarios ----------
 // The briefs are written into the repo by the seed (relative path args), so
-// both sides see the same file from the same cwd.
+// the runs see the same file from the same cwd.
 
 const BUILD12 = (fix) => `build\tp1\tgrok\timplementer\txai\t1\t${fix.repo}\tnow\tgrok-4.7\tfull\timplementer\tbuild`;
 

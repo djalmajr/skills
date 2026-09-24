@@ -1,29 +1,22 @@
-// Golden (slice 9a-A; slice 4 scenario coverage): the former bash × JS
-// parity scenarios now run only the JS and compare against the reference
-// recorded once from the bash script in test/golden/parity-lanes.json
-// (test/golden.mjs: HERDR_AGENTS_GOLDEN=record records, unset checks,
-// =update overwrites the JS value for review):
+// Golden (slice 9a-A; slice 4 scenario coverage): the former parity
+// scenarios now run only the JS and compare against the value stored once
+// in test/golden/parity-lanes.json (test/golden.mjs: HERDR_AGENTS_GOLDEN
+// unset checks the JS value against the stored value, =update overwrites the
+// stored value with the JS value for review):
 //   - lane_names / lane_of_role / max_workers over a config matrix
 //     (presets 3/4, custom, env, hyphen in the lane name, lanes off,
-//     explicit max_workers, empty lane roles, C-locale case order):
-//     the bash script sourced with HERDR_AGENTS_LIB=1 (exactly like
-//     test-lanes.sh / test-quota.sh) versus the lib/*.mjs modules;
+//     explicit max_workers, empty lane roles, C-locale case order): the
+//     lib/*.mjs modules run through a probe script;
 //   - quota_detect / renewal_value on every screen of the unit matrix
 //     plus Bearer, api_key=, sk-proj- and JSON "message" lines;
 //   - apply_lane_file on ten seed files: the final file byte for byte,
-//     the printed lines, the warnings, and no temporary files left in
-//     the destination or TMPDIR. The final file mode is expected per
-//     implementation (Bash's mktemp + mv ends at 0600; the JS atomic
-//     writer preserves the source mode) and is checked on its own side,
-//     not against the record;
+//     the printed lines, the warnings, and no temporary files left in the
+//     destination or TMPDIR. The final file mode is checked on the JS side
+//     only (the atomic writer preserves the source mode), not against the
+//     stored value;
 //   - setup_lane_spec over valid and rejected specs.
-// The probes pin LC_ALL=C so the bash `sort -u` / grep collation runs in
-// the C locale the brief defines for laneNames (code-unit order).
-//
-// The bash script runs only as the `reference` (record mode); the JS runs
-// only as the `actual` (check/update mode). Each side builds its own
-// fixture from the same seed and returns the same value shape; the fixture
-// root becomes <ROOT> in every string of the recorded value.
+// The probes pin LC_ALL=C so sorting and matching run in the C locale the
+// spec defines for laneNames (code-unit order).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -31,18 +24,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { BASH_ENTRY, fixtureEnv, nodeBin, normalizeErr } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
-import { findExecutable } from '../lib/platform.mjs';
+import { fixtureEnv, nodeBin, normalizeErr } from './parity.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq. Check mode
-// runs the JS against the record and is skipped solely on Windows.
+// The fixture contract is POSIX (probe scripts, POSIX path layout), so the
+// scenarios are skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the POSIX fixture contract (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the POSIX fixture contract needs a POSIX host'
+    : false;
 
 const SUITE = 'parity-lanes';
 
@@ -105,22 +95,6 @@ function probeValue({ bin, probeName, probeText, name, setup, envOver, cwd }) {
 
 // ---------- lane_names / lane_of_role / max_workers ----------
 
-const LANES_BASH_PROBE = (bash) => `
-set -u
-export HERDR_AGENTS_LIB=1
-. ${JSON.stringify(bash)}
-load_config
-# Every consumer skips blank lines; an empty lane name (lane..roles) prints one.
-lane_names | grep . || true
-for r in ${ROLES.join(' ')}; do
-  l=$(lane_of_role "$r") || true
-  [ -n "$l" ] || l=NONE
-  printf 'ROLE %s %s\\n' "$r" "$l"
-done
-printf 'COUNT %s\\n' "$(lane_count)"
-printf 'MAXWORKERS %s\\n' "$(max_workers)"
-`;
-
 const LANES_JS_PROBE = `
 import { loadConfig } from ${JSON.stringify(pathToFileURL(JSCONFIG).href)};
 import { laneNames, laneOfRole, laneCount, maxWorkers } from ${JSON.stringify(pathToFileURL(JSLANES).href)};
@@ -134,9 +108,9 @@ console.log(\`MAXWORKERS \${maxWorkers(ctx, env)}\`);
 
 function lanesScenario(name, sc) {
   const setup = (fix) => seed(fix, sc);
-  golden(SUITE, name,
-    () => probeValue({ bin: nodeBin(), probeName: 'probe.mjs', probeText: LANES_JS_PROBE, name, setup, envOver: sc.env ?? {} }), // actual (check/update)
-    () => probeValue({ bin: 'bash', probeName: 'probe.sh', probeText: LANES_BASH_PROBE(BASH_ENTRY), name, setup, envOver: sc.env ?? {} })); // reference (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = probeValue({ bin: nodeBin(), probeName: 'probe.mjs', probeText: LANES_JS_PROBE, name, setup, envOver: sc.env ?? {} }))); // check/update
+  golden(SUITE, name, actual);
 }
 
 test('parity: lane_names / lane_of_role / max_workers matrix', { timeout: 120000, skip: SKIP }, () => {
@@ -156,7 +130,8 @@ test('parity: lane_names / lane_of_role / max_workers matrix', { timeout: 120000
   lanesScenario('case-order', { project: 'lane.A.roles=reviewer\nlane.b.roles=scouter\n' });
   lanesScenario('user-layer', { user: 'panes=3\nlane.u.roles=implementer\n' });
   lanesScenario('user-and-project', { user: 'lane.u.roles=implementer\n', project: 'lane.p.roles=tasker\n' });
-  // Bash word-splits a lane's roles: a space separates them like a comma.
+  // Word-splitting of a lane's roles: a space separates them like a comma
+  // (the stored value pins it).
   lanesScenario('space-separated-roles', { project: 'lane.x.roles=reviewer inspector\n' });
   lanesScenario('space-separated-env', { env: { HERDR_AGENTS_LANE_X_ROLES: 'scouter  researcher,reviewer' } });
   // `lane..roles`: an empty lane name is not counted.
@@ -222,21 +197,6 @@ const RENEWAL_LINES = [
   '',
 ];
 
-const QUOTA_BASH_PROBE = (bash) => `
-set -u
-export HERDR_AGENTS_LIB=1
-. ${JSON.stringify(bash)}
-while IFS=$'\\t' read -r i st rl; do
-  screen=$(cat "s-$i")
-  if out=$(quota_detect "$st" "$screen"); then
-    printf 'CASE %s\\nDETECT\\n%s\\n' "$i" "$out"
-  else
-    printf 'CASE %s\\nNOMATCH\\n' "$i"
-  fi
-  printf 'RENEWAL [%s]\\n' "$(renewal_value "$rl")"
-done < manifest.tsv
-`;
-
 const QUOTA_JS_PROBE = `
 import fs from 'node:fs';
 import { quotaDetect, renewalValue } from ${JSON.stringify(pathToFileURL(JSQUOTA).href)};
@@ -245,7 +205,8 @@ for (const line of fs.readFileSync('manifest.tsv', 'utf8').split('\\n').filter(B
   const screen = fs.readFileSync(\`s-\${i}\`, 'utf8');
   const out = quotaDetect(st, screen);
   console.log(\`CASE \${i}\`);
-  // Bash command substitution strips trailing newlines; print one line back.
+  // The stored value holds the detection text without trailing newlines; print it
+  // as one line.
   const text = out ? out.join('\\n').replace(/\\n+$/, '') : '';
   if (out) { console.log('DETECT'); console.log(text); } else console.log('NOMATCH');
   console.log(\`RENEWAL [\${renewalValue(rl)}]\`);
@@ -269,9 +230,9 @@ function seedQuota(fix) {
 }
 
 test('parity: quota_detect / renewal_value (all unit screens + Bearer/api_key/sk-proj/JSON/CRLF)', { timeout: 120000, skip: SKIP }, () => {
-  golden(SUITE, 'quota',
-    () => probeValue({ bin: nodeBin(), probeName: 'probe.mjs', probeText: QUOTA_JS_PROBE, name: 'quota', setup: seedQuota, cwd: 'root' }), // actual (check/update)
-    () => probeValue({ bin: 'bash', probeName: 'probe.sh', probeText: QUOTA_BASH_PROBE(BASH_ENTRY), name: 'quota', setup: seedQuota, cwd: 'root' })); // reference (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = probeValue({ bin: nodeBin(), probeName: 'probe.mjs', probeText: QUOTA_JS_PROBE, name: 'quota', setup: seedQuota, cwd: 'root' }))); // check/update
+  golden(SUITE, 'quota', actual);
 });
 
 // ---------- apply_lane_file ----------
@@ -289,15 +250,6 @@ const APPLY_CASES = [
   { name: 'custom-space-roles', panes: '4', file: 'lane.x.roles=implementer designer\nrole.implementer.kind=grok\nrole.designer.kind=grok\n' },
 ];
 
-const APPLY_BASH_PROBE = (bash) => `
-set -u
-export HERDR_AGENTS_LIB=1
-. ${JSON.stringify(bash)}
-load_config
-out=$(apply_lane_file "$HA_DEST" "$HA_PANES")
-printf '%s\\n' "$out"
-`;
-
 const APPLY_JS_PROBE = `
 import { applyLaneFile } from ${JSON.stringify(pathToFileURL(JSLANES).href)};
 const lines = applyLaneFile(process.env.HA_DEST, process.env.HA_PANES, process.env, process.cwd());
@@ -307,8 +259,8 @@ console.log(lines.join('\\n'));
 // Run the apply probe under one interpreter in a fresh fixture and return
 // the golden value: rc, printed lines, normalized warnings, the final file
 // (byte for byte) and the leftover temporary files (dest dir + TMPDIR).
-// `mode` (the final file mode) and `inputMode` are for the per-side mode
-// assertions only — they are not part of the record.
+// `mode` (the final file mode) and `inputMode` are for the mode assertion
+// only — they are not part of the stored value.
 function applyValue({ bin, probeName, probeText }, name, sc) {
   const fix = mkFix(`ha-par-apply-${name}-`);
   try {
@@ -344,18 +296,7 @@ function applyValue({ bin, probeName, probeText }, name, sc) {
 }
 
 function applyScenario(name, sc) {
-  let refValue;
-  let actValue;
-  const reference = () => {
-    const v = applyValue({ bin: 'bash', probeName: 'probe.sh', probeText: APPLY_BASH_PROBE(BASH_ENTRY) }, name, sc); // bash probe (record only)
-    if (process.platform !== 'win32') {
-      // Bash's mktemp + mv ends at 0600.
-      assert.equal(v.mode, 0o600, `${name}: Bash final mode`);
-    }
-    assert.deepEqual(v.temps, [], `${name}: Bash left a temporary file`);
-    refValue = normalizeRoots({ rc: v.rc, out: v.out, err: v.err, file: v.file, temps: v.temps }, { '<ROOT>': v.root });
-    return refValue;
-  };
+  let value;
   const actual = () => {
     const v = applyValue({ bin: nodeBin(), probeName: 'probe.mjs', probeText: APPLY_JS_PROBE }, name, sc); // JS probe (check/update)
     if (process.platform !== 'win32') {
@@ -364,10 +305,10 @@ function applyScenario(name, sc) {
       assert.equal(v.mode, v.inputMode, `${name}: JS final mode`);
     }
     assert.deepEqual(v.temps, [], `${name}: Node left a temporary file`);
-    actValue = normalizeRoots({ rc: v.rc, out: v.out, err: v.err, file: v.file, temps: v.temps }, { '<ROOT>': v.root });
-    return actValue;
+    value = normalizeRoots({ rc: v.rc, out: v.out, err: v.err, file: v.file, temps: v.temps }, { '<ROOT>': v.root });
+    return value;
   };
-  golden(SUITE, name, actual, reference);
+  golden(SUITE, name, actual);
 }
 
 test('parity: apply_lane_file (nine seeds: bytes, modes, printed lines, warnings, no temps)', { timeout: 180000, skip: SKIP }, () => {
@@ -391,14 +332,14 @@ function specValue(bin, binArgs, spec) {
 
 test('parity: setup_lane_spec over valid and rejected specs', { timeout: 120000, skip: SKIP }, () => {
   for (const spec of SPECS) {
-    golden(SUITE, spec,
-      () => specValue(nodeBin(), ['--input-type=module', '-e', `
+    let value;
+    const actual = () => (value !== undefined ? value : (value = specValue(nodeBin(), ['--input-type=module', '-e', `
 import { setupLaneSpec } from ${JSON.stringify(pathToFileURL(JSLANES).href)};
 try {
   const r = setupLaneSpec(process.argv[1]);
   process.stdout.write([r.name, r.kind, r.model, r.effort].join('\\t') + '\\n');
 } catch (e) { process.stderr.write('herdr-agents: ' + e.message + '\\n'); process.exit(e.code); }
-`], spec), // actual (check/update)
-      () => specValue('bash', ['-c', `export HERDR_AGENTS_LIB=1; . ${JSON.stringify(BASH_ENTRY)}; load_config; setup_lane_spec "$1"`, 'probe'], spec)); // reference (record only)
+`], spec))); // check/update
+    golden(SUITE, spec, actual);
   }
 });

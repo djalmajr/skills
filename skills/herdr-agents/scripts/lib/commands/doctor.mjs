@@ -32,6 +32,7 @@ import { splitCap, splitMin } from '../layout.mjs';
 import { herdLabelMax } from '../herdtabs.mjs';
 import { setupHookDoctor } from '../setuptext.mjs';
 import { kindExe } from '../kinds.mjs';
+import { ownProviderDoctorLines } from '../ownproviders.mjs';
 import { setupTargetExisting, projectNeedsConfigPrompt } from './setup.mjs';
 import { unifiedDiff } from './setup-plan.mjs';
 
@@ -377,6 +378,14 @@ export function doctorCheck(ctx, env = process.env, cwd = process.cwd()) {
   if (used.length === 0) s.ok('kinds: none configured (spawn passes --kind)');
   else if (missing.length === 0) s.ok(`kinds installed: ${used.join(' ')}`);
   else s.warn(`kinds in use but not in PATH: ${missing.join(' ')} (roles or lanes using them will fail to start)`);
+  // Own-provider traps (backlog item 8, references/kinds.md "Reasoning
+  // models on your own server"): each warning as its own warn line (into
+  // the friction count like the others), after the kinds lines; one ok
+  // line when an own provider is declared and nothing was found; nothing
+  // at all when no own provider is declared. Never prints key values.
+  const own = ownProviderDoctorLines(ctx, env, cwd);
+  for (const w of own.warnings) s.warn(w);
+  if (own.declared && own.warnings.length === 0) s.ok('own providers: no known trap');
   const d = stateRoot(ctx, env, cwd);
   try {
     fs.mkdirSync(d, { recursive: true });

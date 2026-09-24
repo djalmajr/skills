@@ -1,37 +1,33 @@
 // Golden (slice 9a-A; slice 3 scenario coverage): the `status`, `roster`
 // and `friction` scenarios of test-status.sh (plus the roster/table cases
 // and the env error paths) now run only the JS and compare against the
-// reference recorded once from the bash script in
-// test/golden/parity-status.json (test/golden.mjs:
-// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
-// JS value for review). A fake `herdr` on PATH (mode-file driven, exactly
-// like test-status.sh) is the only `herdr` the implementations see. The
-// node-semantics test is unchanged: it never ran the bash reference.
+// value stored once in test/golden/parity-status.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN unset checks the JS value against the stored value, =update
+// overwrites the stored value with the JS value for review). A fake `herdr` on
+// PATH (mode-file driven, exactly like test-status.sh) is the only `herdr`
+// the runs see. The node-semantics test is unchanged: it guards the JS
+// shape directly.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { makeFixture, runImpl, goldenScenario } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
-import { findExecutable } from '../lib/platform.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq. Check mode
-// runs the JS against the record and needs the sh fake `herdr`, so it is
-// skipped solely on Windows.
+// The fixture contract is POSIX (the sh fake herdr), so the scenarios are
+// skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the sh fake herdr (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the sh fake herdr needs a POSIX host'
+    : false;
 
 const SUITE = 'parity-status';
 
-const NL = '\\n'; // a literal \n in the generated bash (printf interprets it)
-const ESC = '\\033'; // a literal \033 (bash printf octal escape)
+const NL = '\\n'; // a literal \n in the generated fake (printf interprets it)
+const ESC = '\\033'; // a literal \033 (printf octal escape)
 
 // The seed stores the fakes dir; the step env's PATH getter resolves it at
-// run time (per implementation), like parity-kinds.test.mjs.
+// run time, like parity-kinds.test.mjs.
 const envState = { fakes: '' };
 const withFakes = (extra = {}) => ({
   ...extra,
@@ -142,8 +138,8 @@ const S = (args) => ({ args, env: withFakes({ HERDR_ENV: '1' }) });
 
 // Direct runner for the node-only/shape checks: merges the fixture env
 // (HERDR_WORKSPACE_ID, HERDR_AGENTS_DIR, HOME, …) with the fake PATH.
-function run(fix, impl, args) {
-  return runImpl(impl, args, { env: { ...fix.env, ...withFakes({ HERDR_ENV: '1' }) }, cwd: fix.repo });
+function run(fix, args) {
+  return runImpl(args, { env: { ...fix.env, ...withFakes({ HERDR_ENV: '1' }) }, cwd: fix.repo });
 }
 
 test('parity: status agent get classification (test-status.sh scenarios)', { timeout: 120000, skip: SKIP }, () => {
@@ -255,14 +251,13 @@ test('parity: status env error paths (usage, outside Herdr, herdr missing)', { t
   });
 });
 
-// The friction line carries a timestamp, so it is recorded by shape: run
-// the implementation (the bash reference to record, the JS to check) and
-// normalize the timestamp to TS.
-function frictionValue(impl) {
+// The friction line carries a wall-clock timestamp, so it is stored by
+// shape: run the JS and normalize the timestamp to TS.
+function frictionValue() {
   const fix = makeFixture();
   try {
     seed(fix, { mode: 'denied', roster: R8 + WORKER8 });
-    const r = runImpl(impl, ['status', 'worker'], { env: { ...fix.env, ...withFakes({ HERDR_ENV: '1' }) }, cwd: fix.repo });
+    const r = runImpl(['status', 'worker'], { env: { ...fix.env, ...withFakes({ HERDR_ENV: '1' }) }, cwd: fix.repo });
     const raw = fs.readFileSync(path.join(fix.state, 'ws', 'friction.log'), 'utf8').trim();
     const friction = raw.split('\n').map((l) => l.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, 'TS')).join('\n');
     return normalizeRoots({ rc: r.rc, friction }, { '<ROOT>': fix.root });
@@ -272,25 +267,23 @@ function frictionValue(impl) {
 }
 
 test('parity: status denied also logs a friction entry (both implementations)', { timeout: 120000, skip: SKIP }, () => {
-  let refValue;
-  let actValue;
-  const reference = () => (refValue !== undefined ? refValue : (refValue = frictionValue('bash'))); // record only
-  const actual = () => (actValue !== undefined ? actValue : (actValue = frictionValue('node'))); // check/update
-  golden(SUITE, 'status-denied-friction', actual, reference);
-  const v = goldenMode() === 'record' ? reference() : actual();
+  let value;
+  const actual = () => (value !== undefined ? value : (value = frictionValue())); // check/update
+  golden(SUITE, 'status-denied-friction', actual);
+  const v = actual();
   assert.equal(v.rc, 4, 'rc');
   assert.match(v.friction, /^TS\twarning\tstatus\tagent 'worker': herdr agent get failed: Error: Os \{ code: 13, kind: PermissionDenied, message: "Permission denied" \}$/);
 });
 
-// Node-only semantics (parity against the record is the golden value's
-// job; these guard the shape the bash suite asserts: column counts,
+// Node-only semantics (parity against the stored value is the golden's
+// job; these guard the shape the scenarios assert: column counts,
 // sanitized cause, no `agent get` when it must not run, the quota JSON).
 test('node semantics: status columns, cause, no stray herdr queries, quota JSON', { timeout: 120000, skip: SKIP }, () => {
   const fix = makeFixture();
   try {
     const ws = path.join(fix.state, 'ws');
     seed(fix, { mode: 'denied', roster: R8 + WORKER8 });
-    let r = run(fix, 'node', ['status', 'worker']);
+    let r = run(fix, ['status', 'worker']);
     assert.equal(r.rc, 4);
     const f = r.out.trim().split('\t');
     assert.equal(f.length, 4, 'four columns with a cause');
@@ -305,7 +298,7 @@ test('node semantics: status columns, cause, no stray herdr queries, quota JSON'
     fs.writeFileSync(path.join(ws, 'last-report-worker'), path.join(ws, 'reports', 'worker.md') + '\n');
     fs.mkdirSync(path.join(ws, 'reports'), { recursive: true });
     fs.writeFileSync(path.join(ws, 'reports', 'worker.md'), 'report body\n');
-    r = run(fix, 'node', ['status', 'worker']);
+    r = run(fix, ['status', 'worker']);
     assert.equal(r.rc, 0);
     assert.equal(r.out.trim(), `worker\tdone\t${path.join(ws, 'reports', 'worker.md')}`);
     assert.equal(fs.existsSync(path.join(fix.root, 'herdr.log')), false, 'no herdr call with a ready report');
@@ -317,7 +310,7 @@ test('node semantics: status columns, cause, no stray herdr queries, quota JSON'
       roster: R12 + 'build\tp1\tgrok\timplementer\txai\t1\t/work\t20260101T000000\tgrok-4.7\tfull\timplementer\tbuild\n',
       screen: 'hit your usage limit\ntry again in 2 hours\n',
     });
-    r = run(fix, 'node', ['status', 'build']);
+    r = run(fix, ['status', 'build']);
     assert.equal(r.rc, 11);
     const q = JSON.parse(r.out.trim());
     assert.equal(q.status, 'quota');

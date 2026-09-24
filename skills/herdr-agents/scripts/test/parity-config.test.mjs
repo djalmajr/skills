@@ -1,38 +1,33 @@
-// Golden (slice 9a-A): the former bash × JS parity scenarios now run only
-// the JS (`node scripts/herdr-agents.mjs`) and compare against the
-// reference recorded once from the bash script in
-// test/golden/parity-config.json (test/golden.mjs:
-// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
-// JS value for review). Covers `config`, `config set` (valid/invalid,
-// --user, verbatim values, lane.roles), `session set/show/clear`, `roles`,
-// `role` — 17 scenarios.
+// Golden (slice 9a-A): the `config` scenarios run only the JS
+// (`node scripts/herdr-agents.mjs`) and compare against the value stored
+// once in test/golden/parity-config.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN unset checks the JS value against the stored value, =update
+// overwrites the stored value with the JS value for review). Covers `config`,
+// `config set` (valid/invalid, --user, verbatim values, lane.roles),
+// `session set/show/clear`, `roles`, `role` — 17 scenarios.
 import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeFixture, normalizeErr, goldenScenario, runImpl } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
-import { findExecutable } from '../lib/platform.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq (the script's
-// living path dies without them). Check mode runs the JS against the
-// record and is skipped solely on Windows (POSIX fixture contract).
+// The fixture contract is POSIX (temporary git repo, POSIX path layout),
+// so the scenarios are skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the POSIX fixture contract (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the POSIX fixture contract needs a POSIX host'
+    : false;
 
 const SUITE = 'parity-config';
 
 // The bundled skill root: the `roles`/`role` output points at the bundled
-// role files, whose absolute path must not leak into the recorded value.
+// role files, whose absolute path must not leak into the stored value.
 const SKILL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // Same value shape as goldenScenario (steps + files), but normalizes the
-// skill root as well: only the roles scenarios reference it.
-function configValue(impl, opts) {
+// skill root as well: only the roles scenarios point at it.
+function configValue(opts) {
   const fix = makeFixture();
   try {
     fix.reset();
@@ -40,7 +35,7 @@ function configValue(impl, opts) {
     const steps = [];
     for (const step of opts.steps) {
       const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
-      const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
+      const r = runImpl(step.args, { env: stepEnv, cwd: fix.repo });
       steps.push({ args: step.args, rc: r.rc, out: r.out, err: normalizeErr(r.err) });
     }
     const readRel = (root, rel) => { try { return fs.readFileSync(path.join(root, rel), 'utf8'); } catch { return null; } };
@@ -52,9 +47,10 @@ function configValue(impl, opts) {
 }
 
 function configScenario(name, opts) {
-  golden(SUITE, name,
-    () => configValue('node', opts), // actual: the JS entry (check/update)
-    () => configValue('bash', opts)); // reference: the bash script (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = configValue(opts))); // check/update
+  golden(SUITE, name, actual);
+  return actual();
 }
 
 function seedProj(text) {

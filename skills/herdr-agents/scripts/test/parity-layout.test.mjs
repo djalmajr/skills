@@ -1,9 +1,9 @@
-// Golden (slice 9a-A; slice 5a scenario coverage): the former bash × JS
-// parity scenarios now run only the JS and compare against the reference
-// recorded once from the bash script in test/golden/parity-layout.json
-// (test/golden.mjs: HERDR_AGENTS_GOLDEN=record records, unset checks,
-// =update overwrites the JS value for review). Same fixtures as before
-// (fake `herdr` via an sh launcher, temporary HOME / XDG_CONFIG_HOME /
+// Golden (slice 9a-A; slice 5a scenario coverage): the former parity
+// scenarios now run only the JS and compare against the value stored once
+// in test/golden/parity-layout.json (test/golden.mjs: HERDR_AGENTS_GOLDEN
+// unset checks the JS value against the stored value, =update overwrites the
+// stored value with the JS value for review). Same fixtures as before (fake
+// `herdr` via an sh launcher, temporary HOME / XDG_CONFIG_HOME /
 // HERDR_AGENTS_DIR / TMPDIR, HERDR_WORKSPACE_ID=ws):
 //   - `layout-plan --layout` over six fixtures (vazio, só o chamador,
 //     cheio, mínimo, empate, 3×2), byte-for-byte stdout;
@@ -11,28 +11,19 @@
 //     track, error with no herd tab at all): stdout, normalized stderr,
 //     exit code and the final `herd-tab` file (and the fake's tab-label
 //     files) after the run.
-//
-// The bash script runs only as the `reference` (record mode); the JS runs
-// only as the `actual` (check/update mode). Each side builds its own
-// fixture from the same seed and returns the same value shape; the fixture
-// root becomes <ROOT> in every string of the recorded value.
 import test from 'node:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fixtureEnv, normalizeErr, goldenScenario, runImpl } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
-import { findExecutable } from '../lib/platform.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq. Check mode
-// runs the JS against the record and needs the sh fake `herdr`, so it is
-// skipped solely on Windows.
+// The fixture contract is POSIX (the sh fake herdr), so the scenarios are
+// skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the sh fake herdr (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the sh fake herdr needs a POSIX host'
+    : false;
 
 const SUITE = 'parity-layout';
 
@@ -61,7 +52,7 @@ function seedLayoutFixtures(fix) {
   ]));
 }
 
-// Six steps; the golden value records rc/stdout/normalized stderr per step.
+// Six steps; the golden value holds rc/stdout/normalized stderr per step.
 test('parity: layout-plan --layout (six fixtures, byte for byte)', { timeout: 120000, skip: SKIP }, () => {
   goldenScenario(SUITE, 'layout-plan', {
     seed: seedLayoutFixtures,
@@ -85,8 +76,7 @@ test('parity: layout-plan --layout (six fixtures, byte for byte)', { timeout: 12
 
 // ---------- tab-label ----------
 
-// sh fake herdr (record mode runs the bash script too, so the fake stays a
-// sh launcher): tab labels live in files under $HA_TABS; `pane list` reads
+// sh fake herdr: tab labels live in files under $HA_TABS; `pane list` reads
 // $HA_PANES; every call is logged to $HA_LOG.
 const TAB_FAKE = `#!/bin/sh
 printf '%s\\n' "$*" >> "$HA_LOG"
@@ -107,8 +97,8 @@ case "$1 $2" in
 esac
 `;
 
-// One fixture per scenario; `seed()` resets it so each implementation
-// starts from the same state.
+// One fixture per scenario; `seed()` resets it so each run starts from the
+// same state.
 function makeTabFixture(prefix, name) {
   let root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   root = fs.realpathSync(root);
@@ -170,17 +160,17 @@ function makeTabFixture(prefix, name) {
   };
 }
 
-// Run the steps against one implementation in a fresh fixture and return
-// the golden value: rc, stdout and normalized stderr per step plus the
-// final content of `files` (relative to the fixture root). The fixture
-// root becomes <ROOT> in every string.
-function tabValue(impl, name, steps, files) {
+// Run the steps against the JS entry in a fresh fixture and return the
+// golden value: rc, stdout and normalized stderr per step plus the final
+// content of `files` (relative to the fixture root). The fixture root
+// becomes <ROOT> in every string.
+function tabValue(name, steps, files) {
   const fix = makeTabFixture(`ha-par-tabs-${name}-`, name);
   try {
     fix.seed();
     const rs = [];
     for (const step of steps) {
-      const r = runImpl(impl, step.args, { env: fix.stepEnv, cwd: fix.repo });
+      const r = runImpl(step.args, { env: fix.stepEnv, cwd: fix.repo });
       rs.push({ args: step.args, rc: r.rc, out: r.out, err: normalizeErr(r.err) });
     }
     return normalizeRoots({ steps: rs, files: files.map((rel) => ({ rel, content: fix.read(rel) })) },
@@ -198,9 +188,9 @@ test('parity: tab-label (list, rename, --auto, unknown tab)', { timeout: 180000,
     { args: ['tab-label', '--tab', 'nope', 'x'] },
   ];
   const files = ['state/ws/herd-tab', 'tabs/t1', 'tabs/t2', 'tabs/t3'];
-  golden(SUITE, 'tab-label',
-    () => tabValue('node', 'full', steps, files), // actual: the JS entry (check/update)
-    () => tabValue('bash', 'full', steps, files)); // reference: the bash script (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = tabValue('full', steps, files))); // check/update
+  golden(SUITE, 'tab-label', actual);
 });
 
 test('parity: tab-label with no herd tab at all', { timeout: 120000, skip: SKIP }, () => {
@@ -209,7 +199,7 @@ test('parity: tab-label with no herd tab at all', { timeout: 120000, skip: SKIP 
     { args: ['tab-label', 'x'] },
   ];
   const files = ['state/ws/herd-tab'];
-  golden(SUITE, 'tab-label-no-tab',
-    () => tabValue('node', 'no-tab', steps, files), // actual: the JS entry (check/update)
-    () => tabValue('bash', 'no-tab', steps, files)); // reference: the bash script (record only)
+  let value;
+  const actual = () => (value !== undefined ? value : (value = tabValue('no-tab', steps, files))); // check/update
+  golden(SUITE, 'tab-label-no-tab', actual);
 });

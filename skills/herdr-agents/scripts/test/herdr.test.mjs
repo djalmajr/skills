@@ -225,9 +225,11 @@ catch (e) { if (e instanceof DieError) { process.stderr.write('die ' + e.code + 
     assert.ok(!r.stdout.includes('returned'));
     // A failing herdr: output passed through, empty-message DieError with
     // herdr's code (the entry then exits with that code and no message).
+    // The fake answers at once, so the cap is generous (30 s) to stay
+    // stable under load; it is never reached here.
     const code2 = `import { liveAgents } from '${HERDR_URL}';
 import { DieError } from '${CONFIG_URL}';
-try { liveAgents(process.env, 5000); console.log('returned'); }
+try { liveAgents(process.env, 30000); console.log('returned'); }
 catch (e) { if (e instanceof DieError) { process.stderr.write('die ' + e.code + '|' + e.message); process.exit(e.code); } throw e; }`;
     const r2 = spawnSync(nodeBin(), ['--input-type=module', '-e', code2], { env: failListEnv(root), encoding: 'utf8', timeout: 30_000 });
     assert.equal(r2.status, 3, `rc=${r2.status} stderr=${r2.stderr}`);

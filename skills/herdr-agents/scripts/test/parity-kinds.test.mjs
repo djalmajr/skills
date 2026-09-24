@@ -1,34 +1,28 @@
-// Golden (slice 9a-A): the former bash × JS parity scenarios now run only
-// the JS (`node scripts/herdr-agents.mjs`) and compare against the
-// reference recorded once from the bash script in
-// test/golden/parity-kinds.json (test/golden.mjs:
-// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
-// JS value for review). Covers `kinds`, `models <kind>` (three kinds with
-// fake CLIs, codex from the models cache, and kinds without a list) and
-// `model <kind> <spec> [effort]` (exact/regex resolution, effort ceilings
-// including codex's per-model ceiling, a|b alternates, cursor strict
-// failure, usage errors) — 24 CLI invocations over 8 scenarios.
+// Golden (slice 9a-A): the `kinds` scenarios run only the JS
+// (`node scripts/herdr-agents.mjs`) and compare against the value stored
+// once in test/golden/parity-kinds.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN unset checks the JS value against the stored value, =update
+// overwrites the stored value with the JS value for review). Covers `kinds`,
+// `models <kind>` (three kinds with fake CLIs, codex from the models cache,
+// and kinds without a list) and `model <kind> <spec> [effort]` (exact/regex
+// resolution, effort ceilings including codex's per-model ceiling, a|b
+// alternates, cursor strict failure, usage errors) — 24 CLI invocations
+// over 8 scenarios.
 //
 // The fake CLIs live in <ROOT>/fakes; each scenario's steps prepend that
 // dir to PATH through a lazy getter (the fakes path only exists once the
-// scenario's seed ran, per implementation).
+// scenario's seed ran).
 import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { goldenScenario } from './parity.mjs';
-import { goldenMode } from './golden.mjs';
-import { findExecutable } from '../lib/platform.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq (the script's
-// living path dies without them). Check mode runs the JS against the
-// record and only needs the sh fake CLIs, so it is skipped solely on
-// Windows (the sh fakes and the POSIX fixture contract).
+// The fixture contract is POSIX (the sh fake CLIs), so the scenarios are
+// skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the sh fake CLIs (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the sh fake CLIs need a POSIX host'
+    : false;
 
 const SUITE = 'parity-kinds';
 
@@ -41,7 +35,7 @@ const CODEX_JSON = JSON.stringify({
 }, null, 2);
 
 // The seed stores the fakes dir; the step env's PATH getter resolves it at
-// run time (after the seed ran for the current implementation).
+// run time (after the seed ran).
 const envState = { fakes: '' };
 const fakePathEnv = () => ({
   get PATH() { return `${envState.fakes}${path.delimiter}${process.env.PATH}`; },
@@ -73,10 +67,6 @@ function seed(fix) {
     '  printf "%s\\n" "grok-4.7-max - xAI Grok 4.7 (max)" "grok-4.7-high - xAI Grok 4.7 (high)" "grok-4.6 - xAI Grok 4.6" "claude-opus-4-8-max - Anthropic Claude Opus 4.8 (max)"',
     'fi',
   ]);
-  // `timeout` shim for the bash `timeout <s> <cli>` pipelines: the fake CLIs
-  // never hang, so the shim just execs the command. The JS runCli has its
-  // own timeout and never calls this file.
-  fake('timeout', ['#!/bin/sh', 'shift', 'exec "$@"']);
   const codexDir = path.join(fix.home, '.codex');
   fs.mkdirSync(codexDir, { recursive: true });
   fs.writeFileSync(path.join(codexDir, 'models_cache.json'), CODEX_JSON);
@@ -101,7 +91,7 @@ test('parity: models <kind> (grok, cursor, agy with fakes; codex, pi; errors)', 
       ['models', 'codex'],
       ['models', 'pi'],
       ['models', 'unknownkind'],
-      ['models'], // no kind: bash parameter error, rc 1
+      ['models'], // no kind: usage error, rc 1
     ]),
   });
 });

@@ -1,9 +1,8 @@
 // Golden (slice 9a-B; slice 7d scenario coverage): `doctor`,
-// `doctor --fix` and `explain` now run only the JS and compare against the
-// reference recorded once from the bash script in
-// test/golden/parity-doctor.json (test/golden.mjs:
-// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
-// JS value for review). Scenarios: the doctor/doctor --fix parts of
+// `doctor --fix` and `explain` run only the JS and compare against the
+// record in test/golden/parity-doctor.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN unset checks, =update overwrites the JS value for
+// review). Scenarios: the doctor/doctor --fix parts of
 // test-doctor-fix.sh (the legacy preset writes, the divergent review lane,
 // the controlled-PATH kinds checks, the setup --panes / --detect /
 // setup --no-hooks steps) and the doctor/explain parts of
@@ -13,39 +12,29 @@
 // step: the exit code, the normalized stdout, the prefix-normalized stderr,
 // and the final config file.
 //
-// Steps may mutate the fixture between runs (`before(fix)`, like the bash
-// suites write the roster/config between run_cmd calls); the whole sequence
-// is replayed per side. Accepted differences, normalized here (decisions of
-// the slice brief): the bash still has the jq line (decision 5) — dropped,
-// and the final ok count lowered by one; the entry path where the bash
-// prints `$0` (decision 2b) — both entries normalize to PROG; the
-// doctor --fix diff header — the bash shows its process substitution path
-// (/dev/fd/N) and a timestamp, the JS shows the unifiedDiff a/<file> /
-// b/<file> labels; both normalize to FIXDIFF. The bash-side normalization
-// is applied inside the reference, so the recorded value is already
-// normalized. The PATH is fully controlled (fakes dir + system dirs) so no
-// host CLI can leak in.
-//
-// The bash script runs only as the `reference` (record mode); the JS runs
-// only as the `actual` (check/update mode). Each side builds its own
-// fixture from the same seed and returns the same value shape; the fixture
-// root becomes <ROOT> in every string of the recorded value.
+// Steps may mutate the fixture between runs (`before(fix)` writes the
+// roster/config between runs); the whole sequence is replayed per run.
+// normOut applies the normalization the record was made with: the
+// entry/launcher path (the JS prints the launcher the user runs; the
+// record has PROG) and the doctor --fix diff header (the unifiedDiff
+// a/<file> / b/<file> labels normalize to FIXDIFF). The PATH is fully
+// controlled (fakes dir + system dirs) so no host CLI can leak in. The
+// fixture root becomes <ROOT> in every string of the recorded value.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BASH_ENTRY, JS_ENTRY, LAUNCHER_ENTRIES, makeFixture, runImpl, normalizeErr } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { JS_ENTRY, LAUNCHER_ENTRIES, makeFixture, runImpl, normalizeErr } from './parity.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 import { findExecutable } from '../lib/platform.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq. Check mode
-// runs the JS against the record and is skipped solely on Windows.
+// Check mode runs the JS against the record and is skipped solely on
+// Windows: the fixture contract (the symlinks, the POSIX PATH) needs a
+// POSIX host.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the POSIX fixture contract (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the POSIX fixture contract needs a POSIX host'
+    : false;
 
 const SUITE = 'parity-doctor';
 
@@ -91,9 +80,10 @@ const GROK_FAKE = `#!/bin/sh
 if [ "$1" = models ]; then printf '%s\n' grok-4.7 grok-4 grok-3; fi
 `;
 
-// seedFakes: the jq/git symlinks, the timeout shim and the requested fakes
-// into <fixture>/fakes. The seed runs once per golden side (the fixture is
-// fresh per side): start from a clean dir.
+// seedFakes: the host jq/git symlinks, a `timeout` shim (inert fixture
+// leftovers of the old two-sided layout; the JS run times out on its own)
+// and the requested fakes into <fixture>/fakes. The seed runs once per run
+// (the fixture is fresh): start from a clean dir.
 function seedFakes(fix, { herdr = null, grok = false } = {}) {
   const fakes = path.join(fix.root, 'fakes');
   fs.rmSync(fakes, { recursive: true, force: true });
@@ -109,7 +99,10 @@ function seedFakes(fix, { herdr = null, grok = false } = {}) {
 }
 
 // The fully controlled PATH (the getter resolves after the seed ran).
-const ctrlPath = (st) => ({ get PATH() { return `${st.fakes}:/usr/bin:/bin`; } });
+// HERDR_AGENTS_MODELS_TIMEOUT is raised to 30 s so a fake CLI that answers
+// slowly is not cut off by the 5 s detect default (the --detect step of
+// the setup-tail scenario).
+const ctrlPath = (st) => ({ get PATH() { return `${st.fakes}:/usr/bin:/bin`; }, HERDR_AGENTS_MODELS_TIMEOUT: '30' });
 
 // The legacy config of test-doctor-fix.sh (every laned role on grok).
 const LEGACY = `# keep this comment
@@ -145,43 +138,25 @@ const writeTsv = (fix, text) => {
   fs.writeFileSync(TSV(fix), text);
 };
 
-// normOut: the accepted doctor-output differences (jq line + count, the
-// $0/entry path, the doctor --fix diff header). Applied to both sides —
-// it is the normalization the parity comparison used — so the recorded
-// (bash) value is already normalized and the JS value normalizes the same
-// way.
+// normOut: the normalization the record was made with, applied to the JS
+// output: the entry/launcher path (the JS prints the launcher the user
+// runs — decision 2b / switch-to-JS decision 4 — and the record has PROG)
+// and the doctor --fix diff header (the unifiedDiff a/<file> / b/<file>
+// labels normalize to FIXDIFF).
 function normOut(out) {
-  const lines = out.split('\n');
-  let dropOk = 0;
-  const kept = lines.filter((l) => {
-    if (/^(ok|warn)\s+jq /.test(l)) {
-      if (l.startsWith('ok')) dropOk += 1;
-      return false;
-    }
-    return true;
-  });
-  for (let i = kept.length - 1; i >= 0 && i >= kept.length - 3; i--) {
-    const m = kept[i].match(/^(\d+) ok, (\d+) warning\(s\)$/);
-    if (m) {
-      if (dropOk > 0) kept[i] = `${Number(m[1]) - dropOk} ok, ${m[2]} warning(s)`;
-      break;
-    }
-  }
-  return kept.join('\n')
-    .replaceAll(BASH_ENTRY, 'PROG')
+  return out
     .replaceAll(JS_ENTRY, 'PROG')
     .replaceAll(LAUNCHER_ENTRIES[0], 'PROG')
     .replaceAll(LAUNCHER_ENTRIES[1], 'PROG')
-    .replace(/^--- \/dev\/fd\/\d+\s.*$/m, '--- FIXDIFF')
     .replace(/^--- a\/.+$/m, '--- FIXDIFF')
     .replace(/^\+\+\+ \S+.*$/m, '+++ FIXDIFF');
 }
 
-// Run every step against one implementation in a fresh fixture (with the
-// before-hooks), and return the golden value: rc, normalized stdout,
-// prefix-normalized stderr per step and the final config file. The fixture
-// root becomes <ROOT> in every string of the value.
-function doctorValue(impl, opts) {
+// Run every step against the JS in a fresh fixture (with the before-hooks)
+// and return the golden value: rc, normalized stdout, prefix-normalized
+// stderr per step and the final config file. The fixture root becomes
+// <ROOT> in every string of the value.
+function doctorValue(opts) {
   const fix = makeFixture();
   try {
     fix.reset();
@@ -194,7 +169,7 @@ function doctorValue(impl, opts) {
     for (const step of opts.steps) {
       if (step.before) step.before(fix);
       const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
-      const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
+      const r = runImpl(step.args, { env: stepEnv, cwd: fix.repo });
       results.push({ args: step.args, rc: r.rc, out: normOut(r.out), err: normalizeErr(r.err) });
     }
     const conf = fs.existsSync(PROJ_CONF(fix)) ? fs.readFileSync(PROJ_CONF(fix), 'utf8') : null;
@@ -204,15 +179,12 @@ function doctorValue(impl, opts) {
   }
 }
 
-// Golden wrapper: record runs the bash reference, check/update run the JS;
-// the value is returned for the per-scenario assertions.
+// Golden wrapper: the value is returned for the per-scenario assertions.
 function doctorScenario(name, opts) {
-  let refValue;
   let actValue;
-  const reference = () => (refValue !== undefined ? refValue : (refValue = doctorValue('bash', opts))); // record only
-  const actual = () => (actValue !== undefined ? actValue : (actValue = doctorValue('node', opts))); // check/update
-  golden(SUITE, name, actual, reference);
-  return goldenMode() === 'record' ? reference() : actual();
+  const actual = () => (actValue !== undefined ? actValue : (actValue = doctorValue(opts)));
+  golden(SUITE, name, actual);
+  return actual();
 }
 
 const stPath = (st) => ctrlPath(st);
@@ -380,7 +352,7 @@ test('parity: setup --panes / --detect / the config-prompt steps (test-doctor-fi
       { args: ['setup', '--panes', '4', '--lane', 'build=grok:grok-4.7:high', '--no-hooks'], env: stPath(st) },
       {
         before: (fix) => {
-          // the bash suite greps the conf right after the setup step
+          // the suite re-reads the conf right after the setup step
           assert.ok(fs.readFileSync(PROJ_CONF(fix), 'utf8').includes('lane.build.effort=high'), 'setup --panes must persist the lane effort');
         },
         args: ['setup', '--detect'],
@@ -479,7 +451,7 @@ test('parity: explain idle, roster, waiting-for-report and quota (test-friendly.
         args: ['explain'],
         env: stPath(st),
       },
-      // A recorded report whose file is missing: the worker waits on it.
+      // A report pointer whose file is missing: the worker waits on it.
       {
         before: (fix) => {
           writeTsv(fix, 'queued\tp1\tgrok\timplementer\txai\t1\t/work\tt1\tgrok-4.7\tfull\timplementer\tbuild\n');

@@ -1,37 +1,32 @@
-// Golden (slice 9a-B; slice 7b scenario coverage): `setup --detect` now
-// runs only the JS and compares against the reference recorded once from
-// the bash script in test/golden/parity-setup-detect.json (test/golden.mjs:
-// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
-// JS value for review). Scenarios: the test-detect-custom.sh cases (pi +
-// opencode provider files with secrets that never leave the output, a
-// malformed models.json, and no provider files at all), no agent CLI on
-// the PATH, custom lanes, role.<r>.kind and model.<kind>.worker in
-// different layers, and the $OPENCODE_CONFIG file. The recorded value
-// holds, per step: the exit code, stdout and the prefix-normalized stderr.
+// Golden (slice 9a-B; slice 7b scenario coverage): `setup --detect` runs
+// only the JS and compares against the record in
+// test/golden/parity-setup-detect.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN unset checks, =update overwrites the JS value for
+// review). Scenarios: the test-detect-custom.sh cases (pi + opencode
+// provider files with secrets that never leave the output, a malformed
+// models.json, and no provider files at all), no agent CLI on the PATH,
+// custom lanes, role.<r>.kind and model.<kind>.worker in different
+// layers, and the $OPENCODE_CONFIG file. The recorded value holds, per
+// step: the exit code, stdout and the prefix-normalized stderr.
 // The PATH is fully controlled (as in test-detect-custom.sh): fake agent
 // CLIs, symlinks to the host jq/git and a `timeout` shim — no host CLI can
-// leak in.
-//
-// The bash script runs only as the `reference` (record mode); the JS runs
-// only as the `actual` (check/update mode). Each side builds its own
-// fixture from the same seed and returns the same value shape; the fixture
-// root becomes <ROOT> in every string of the recorded value.
+// leak in. The fixture root becomes <ROOT> in every string of the recorded
+// value; each scenario builds its own fixture from the same seed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { makeFixture, runImpl, normalizeErr } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 import { findExecutable } from '../lib/platform.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq. Check mode
-// runs the JS against the record and is skipped solely on Windows.
+// Check mode runs the JS against the record and is skipped solely on
+// Windows: the fixture contract (the symlinks, the POSIX PATH) needs a
+// POSIX host.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the POSIX fixture contract (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the POSIX fixture contract needs a POSIX host'
+    : false;
 
 const SUITE = 'parity-setup-detect';
 
@@ -99,13 +94,14 @@ const CODEX_JSON = JSON.stringify({
 
 const SECRETS = ['PISECRET987654321', 'OPENSECRET42', 'USERSECRET111', 'header-secret-value'];
 
-// Write the host jq/git symlinks, the `timeout` shim (bash pipelines
-// `timeout <s> <cli>`; JS runCli times out on its own) and the requested
-// fake agent CLIs into <fixture>/fakes. Returns the fakes dir.
+// Write the host jq/git symlinks, a `timeout` shim (inert fixture
+// leftovers of the old two-sided layout; the JS run times out on its own)
+// and the requested fake agent CLIs into <fixture>/fakes. Returns the
+// fakes dir.
 function seedFakes(fix, agents = []) {
   const fakes = path.join(fix.root, 'fakes');
-  // The seed runs once per golden side (the fixture is fresh per side):
-  // start from a clean directory.
+  // The seed runs once per run (the fixture is fresh): start from a clean
+  // directory.
   fs.rmSync(fakes, { recursive: true, force: true });
   fs.mkdirSync(fakes, { recursive: true });
   for (const name of ['jq', 'git']) {
@@ -141,14 +137,16 @@ function seedFakes(fix, agents = []) {
 // The fully controlled PATH (test-detect-custom.sh pattern): the fakes dir
 // (jq/git symlinks + timeout shim + the agent fakes) then the system dirs —
 // no host agent CLI can leak in. The getter resolves after the seed ran.
-// OPENCODE_CONFIG is pinned to "" (unset in both sides) so a host value can
-// never point the runs at the operator's real config file.
-const ctrlPath = (st) => ({ get PATH() { return `${st.fakes}:/usr/bin:/bin`; }, OPENCODE_CONFIG: '' });
+// OPENCODE_CONFIG is pinned to "" (unset) so a host value can never point
+// the runs at the operator's real config file. HERDR_AGENTS_MODELS_TIMEOUT
+// is raised to 30 s so a fake CLI that answers slowly is not cut off by
+// the 5 s detect default.
+const ctrlPath = (st) => ({ get PATH() { return `${st.fakes}:/usr/bin:/bin`; }, OPENCODE_CONFIG: '', HERDR_AGENTS_MODELS_TIMEOUT: '30' });
 
-// Run every step against one implementation in a fresh fixture and return
-// the golden value: rc, stdout and prefix-normalized stderr per step. The
-// fixture root becomes <ROOT> in every string of the value.
-function detectValue(impl, opts) {
+// Run every step against the JS in a fresh fixture and return the golden
+// value: rc, stdout and prefix-normalized stderr per step. The fixture
+// root becomes <ROOT> in every string of the value.
+function detectValue(opts) {
   const fix = makeFixture();
   try {
     fix.reset();
@@ -156,7 +154,7 @@ function detectValue(impl, opts) {
     const results = [];
     for (const step of opts.steps) {
       const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
-      const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
+      const r = runImpl(step.args, { env: stepEnv, cwd: fix.repo });
       results.push({ args: step.args, rc: r.rc, out: r.out, err: normalizeErr(r.err) });
     }
     return normalizeRoots({ steps: results }, { '<ROOT>': fix.root });
@@ -165,15 +163,12 @@ function detectValue(impl, opts) {
   }
 }
 
-// Golden wrapper: record runs the bash reference, check/update run the JS;
-// the value is returned for the per-scenario assertions.
+// Golden wrapper: the value is returned for the per-scenario assertions.
 function detectScenario(name, opts) {
-  let refValue;
   let actValue;
-  const reference = () => (refValue !== undefined ? refValue : (refValue = detectValue('bash', opts))); // record only
-  const actual = () => (actValue !== undefined ? actValue : (actValue = detectValue('node', opts))); // check/update
-  golden(SUITE, name, actual, reference);
-  return goldenMode() === 'record' ? reference() : actual();
+  const actual = () => (actValue !== undefined ? actValue : (actValue = detectValue(opts)));
+  golden(SUITE, name, actual);
+  return actual();
 }
 
 test('parity: setup --detect with the custom provider files (test-detect-custom.sh)', { timeout: 120000, skip: SKIP }, () => {
@@ -199,17 +194,22 @@ test('parity: setup --detect with the custom provider files (test-detect-custom.
   const doc = JSON.parse(s.out);
   const kind = (k) => doc.kinds.find((x) => x.kind === k);
   assert.equal(kind('pi').installed, true);
+  // Both providers carry a literal key by the pi rule (`{env:…}` is the
+  // opencode reference form, not the pi `$…` one), so every custom model
+  // gets the key warning; no maxTokens is declared, so no headroom
+  // warning. The path is normalized to <ROOT> in the value.
+  const piKeyWarn = (p) => `own provider '${p}' (pi) has a literal apiKey in <ROOT>/home/.pi/agent/models.json; use an environment reference (pi: "$MY_API_KEY", opencode: "{env:MY_API_KEY}")`;
   assert.deepEqual(kind('pi').custom_models, [
-    { id: 'my-provider/my-model', max_effort: 'max' },
-    { id: 'my-provider/plain', max_effort: '' },
-    { id: 'second/cheap-fast', max_effort: '' },
+    { id: 'my-provider/my-model', max_effort: 'max', warnings: [piKeyWarn('my-provider')] },
+    { id: 'my-provider/plain', max_effort: '', warnings: [piKeyWarn('my-provider')] },
+    { id: 'second/cheap-fast', max_effort: '', warnings: [piKeyWarn('second')] },
   ]);
   assert.deepEqual(kind('opencode').custom_models.map((e) => e.id), [
     'proj-provider/proj-model', 'shared/shared-model', 'user-provider/user-model',
   ]);
   assert.deepEqual(kind('grok').custom_models, []);
-  // Three newest models per CLI-backed kind (the bash version_sort_desc |
-  // head -3, the short timeout, no cache).
+  // Three newest models per CLI-backed kind (versionSortDesc, head 3,
+  // the short timeout, no cache).
   assert.deepEqual(kind('grok').models, ['grok-4.7', 'grok-4.7-build-fast', 'grok-4.6']);
   assert.deepEqual(kind('cursor').models, ['claude-opus-4-8-max', 'grok-4.7-high', 'grok-4.7-max']);
   assert.deepEqual(kind('agy').models, ['gpt-oss-120b', 'claude-opus-4-6', 'gemini-3.8-flash']);
@@ -311,6 +311,7 @@ test('parity: setup --detect with role.<r>.kind and model.<kind>.worker in diffe
         get PATH() { return `${st.fakes}:/usr/bin:/bin`; },
         OPENCODE_CONFIG: '',
         HERDR_AGENTS_MODEL_GROK_WORKER: 'grok-4.7',
+        HERDR_AGENTS_MODELS_TIMEOUT: '30',
       },
     }],
   });
@@ -358,6 +359,7 @@ test('parity: setup --detect with the $OPENCODE_CONFIG file between project and 
       env: {
         get PATH() { return `${st.fakes}:/usr/bin:/bin`; },
         get OPENCODE_CONFIG() { return st.ocFile; },
+        HERDR_AGENTS_MODELS_TIMEOUT: '30',
       },
     }],
   });

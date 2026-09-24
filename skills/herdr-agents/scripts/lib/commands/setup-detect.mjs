@@ -10,33 +10,22 @@
 // detect_kind_json / detect_role_kinds_json / detect_worker_models_json)
 // and :2119-2185 (cmd_setup_detect). The JSON is the jq -n pretty output
 // (2-space indent, trailing newline) with the same keys in the same order.
+// The custom-provider file readers live in lib/ownproviders.mjs (the
+// single implementation, shared with the own-provider trap warnings);
+// piCustomModelsJson / opencodeCustomModelsJson below keep the ported
+// shapes from them. Each custom_models entry carries `warnings` (the
+// traps found for that model, as the last key; [] when none) — the
+// provider/model/file ids only, never the key values.
 import fs from 'node:fs';
 import path from 'node:path';
 import { KNOWN_KINDS, cfg, cfgSource } from '../config.mjs';
 import { agentFamily, kindExe, kindFamilyDisplay, kindEffortCeiling, kindSummary } from '../kinds.mjs';
 import { modelIds, versionSortDesc } from '../models.mjs';
-import { findExecutable, homeDir, projectRoot, readTextFile } from '../platform.mjs';
+import { findExecutable } from '../platform.mjs';
 import { laneAttr, laneNames, laneRolesCsv, presetLaneNamesFor, presetLaneRoles, splitRoles } from '../lanes.mjs';
 import { fmGet, roleDirs } from '../roles.mjs';
 import { resolvedRoleKind } from '../spawn.mjs';
-
-// `[ -f ]` port: regular file, symlinks followed; false when unreadable.
-function isFile(p) {
-  try { return fs.statSync(p).isFile(); } catch { return false; }
-}
-
-// jq `a // ""` on the id: null, undefined and false all count as empty;
-// any other value (numbers included) is passed through — where jq then
-// fails the whole file (string + number is not a string concatenation).
-function orEmpty(v) {
-  return v === null || v === undefined || v === false ? '' : v;
-}
-
-// The reasoning ladder of the pi thinkingLevelMap (jq $ladder in
-// pi_custom_models_json): the declared levels mapped to a rank.
-// No prototype: a thinkingLevelMap key such as `constructor` or `toString`
-// must rank 0 like any other unknown level (jq `$ladder[.key] // 0`).
-const THINKING_LADDER = Object.assign(Object.create(null), { low: 1, medium: 2, high: 3, xhigh: 4, max: 5 });
+import { opencodeOwnModels, piOwnModels, piProvidersParsed, opencodeFilesParsed } from '../ownproviders.mjs';
 
 // pi_custom_models_json :1978 — [{id:"provider/model",max_effort}] from
 // ~/.pi/agent/models.json. max_effort is the key with the highest ladder
@@ -47,39 +36,9 @@ const THINKING_LADDER = Object.assign(Object.create(null), { low: 1, medium: 2, 
 // non-object model entries, non-string ids, non-object thinkingLevelMap) —
 // degrades to [], like the bash `|| printf '[]'`.
 export function piCustomModelsJson(env = process.env) {
-  const f = path.join(homeDir(process.platform, env), '.pi', 'agent', 'models.json');
-  let root;
-  try { root = JSON.parse(readTextFile(f)); } catch { return []; }
-  if (root === null || root === false) return [];
-  if (typeof root !== 'object' || Array.isArray(root)) return [];
-  const providers = orEmpty(root.providers);
-  if (typeof providers !== 'object' || Array.isArray(providers)) return [];
   const out = [];
-  for (const [p, pv] of Object.entries(providers)) {
-    const provider = orEmpty(pv);
-    if (typeof provider !== 'object' || Array.isArray(provider)) return [];
-    const models = orEmpty(provider.models);
-    if (!Array.isArray(models)) return [];
-    for (const m of models) {
-      const model = orEmpty(m);
-      if (typeof model !== 'object' || Array.isArray(model)) return [];
-      const id = orEmpty(model.id);
-      if (typeof id !== 'string') return []; // jq: string + number → file fails
-      if (id === '') continue;
-      let tlm = orEmpty(model.thinkingLevelMap);
-      if (tlm === '') tlm = {};
-      if (typeof tlm !== 'object' || Array.isArray(tlm)) return [];
-      // jq: to_entries | map(select(.value != null)) | map({key, r}) as $lv
-      // | if length == 0 then "" else (max_by(.r) | if .r > 0 then .key else "")
-      // — max_by keeps the LAST of the maximum ranks (jq `>=` reduce).
-      let best = null;
-      for (const [k, v] of Object.entries(tlm)) {
-        if (v === null) continue;
-        const r = THINKING_LADDER[k] ?? 0;
-        if (best === null || r >= best.r) best = { key: k, r };
-      }
-      out.push({ id: `${p}/${id}`, max_effort: best === null || best.r === 0 ? '' : best.key });
-    }
+  for (const p of piProvidersParsed(env)) {
+    for (const m of p.models) out.push({ id: `${p.id}/${m.id}`, max_effort: m.maxEffort });
   }
   return out;
 }
@@ -92,43 +51,19 @@ export function piCustomModelsJson(env = process.env) {
 // failure (bash `|| true` per file); provider options (apiKey, headers,
 // {env:…}) never leave the files.
 export function opencodeCustomModelsJson(env = process.env, cwd = process.cwd()) {
-  const files = [];
-  const proj = path.join(projectRoot(env, cwd), 'opencode.json');
-  if (isFile(proj)) files.push(proj);
-  const oc = env.OPENCODE_CONFIG;
-  if (oc && isFile(oc)) files.push(oc);
-  const xdg = path.join(env.XDG_CONFIG_HOME || path.join(homeDir(process.platform, env), '.config'), 'opencode', 'opencode.json');
-  if (isFile(xdg)) files.push(xdg);
-  const homeF = path.join(homeDir(process.platform, env), '.opencode', 'opencode.json');
-  if (isFile(homeF)) files.push(homeF);
-  const perFile = files.map((f) => {
-    let root;
-    try { root = JSON.parse(readTextFile(f)); } catch { return []; }
-    if (root === null || root === false) return [];
-    if (typeof root !== 'object' || Array.isArray(root)) return [];
-    const provider = orEmpty(root.provider);
-    if (typeof provider !== 'object' || Array.isArray(provider)) return [];
-    const out = [];
-    for (const [p, pv] of Object.entries(provider)) {
-      const entry = orEmpty(pv);
-      if (typeof entry !== 'object' || Array.isArray(entry)) return [];
-      const models = orEmpty(entry.models);
-      if (models === '') continue;
-      if (typeof models !== 'object' || Array.isArray(models)) return [];
-      for (const id of Object.keys(models)) out.push({ id: `${p}/${id}`, max_effort: '' });
-    }
-    return out;
-  });
   // The jq reduce builds the id-keyed object in first-occurrence order;
   // `.[$x.id] = (.[$x.id] // $x)` keeps the first declaration (the project
   // file, read first).
   const seen = new Set();
   const out = [];
-  for (const arr of perFile) {
-    for (const e of arr) {
-      if (seen.has(e.id)) continue;
-      seen.add(e.id);
-      out.push(e);
+  for (const f of opencodeFilesParsed(env, cwd)) {
+    for (const p of f.providers) {
+      for (const m of p.models) {
+        const id = `${p.id}/${m.id}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push({ id, max_effort: '' });
+      }
     }
   }
   return out;
@@ -169,15 +104,19 @@ export function recommendReviewerJson(buildFamily, eligible) {
 }
 
 // detect_top_models :2074 — the up-to-3 newest ids of the kind. A missing
-// or silent CLI yields []. The short timeout (5 s) never writes the model
-// cache (model_ids only caches at the full default timeout).
+// or silent CLI yields []. The short timeout never writes the model cache
+// (model_ids only caches at the full default timeout). The caller's
+// HERDR_AGENTS_MODELS_TIMEOUT is honored when set (non-empty); otherwise
+// the 5 s default.
 export function detectTopModels(kind, env = process.env) {
-  const ids = versionSortDesc(modelIds(kind, { ...env, HERDR_AGENTS_MODELS_TIMEOUT: '5' }));
+  const ids = versionSortDesc(modelIds(kind, { ...env, HERDR_AGENTS_MODELS_TIMEOUT: env.HERDR_AGENTS_MODELS_TIMEOUT || '5' }));
   return ids.slice(0, 3);
 }
 
-// detect_kind_json :2084 — one entry of the kinds array.
-export function detectKindJson(kind, env = process.env, cwd = process.cwd()) {
+// detect_kind_json :2084 — one entry of the kinds array. For the generic
+// kinds the custom_models entries carry the own-provider trap warnings
+// (as the last key, [] when none); the stable kinds keep an empty list.
+export function detectKindJson(ctx, kind, env = process.env, cwd = process.cwd()) {
   const exe = kindExe(kind);
   const installed = findExecutable(exe, env) !== null;
   const family = kindFamilyDisplay(kind);
@@ -185,8 +124,8 @@ export function detectKindJson(kind, env = process.env, cwd = process.cwd()) {
   const models = detectTopModels(kind, env);
   const summary = kindSummary(kind);
   let custom = [];
-  if (kind === 'pi') custom = piCustomModelsJson(env);
-  else if (kind === 'opencode') custom = opencodeCustomModelsJson(env, cwd);
+  if (kind === 'pi') custom = piOwnModels(ctx, env);
+  else if (kind === 'opencode') custom = opencodeOwnModels(env, cwd);
   return { kind, executable: exe, installed, family, effort_ceiling: effortCeiling, models, summary, custom_models: custom };
 }
 
@@ -243,7 +182,7 @@ export function detectWorkerModelsJson(ctx, env = process.env) {
 // 4-pane lists. The reviewer suggestion uses the installed kinds only
 // (setup --probe refines it to the kinds that answer a real prompt).
 export function setupDetectJson(ctx, env = process.env, cwd = process.cwd()) {
-  const kinds = KNOWN_KINDS.map((k) => detectKindJson(k, env, cwd));
+  const kinds = KNOWN_KINDS.map((k) => detectKindJson(ctx, k, env, cwd));
   const roleKinds = detectRoleKindsJson(ctx, env, cwd);
   const workerModels = detectWorkerModelsJson(ctx, env);
   const effectiveLanes = laneNames(ctx, env).map((lane) => ({

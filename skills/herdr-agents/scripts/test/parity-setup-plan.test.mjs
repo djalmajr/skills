@@ -1,39 +1,31 @@
 // Golden (slice 9a-B; slice 7c scenario coverage): the `setup --plan`
 // scenarios — every scenario in scripts/test-setup-plan.sh plus the brief's
 // extras (the combined --set/--user-set/--session-set, --target to a file
-// already carrying the block, --no-hooks, and the --panes range die) — now
-// run only the JS and compare against the reference recorded once from the
-// bash script in test/golden/parity-setup-plan.json (test/golden.mjs:
-// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
-// JS value for review). The recorded value holds, per scenario: the exit
-// code, stdout (byte-identical) and the prefix-normalized stderr of every
-// step, the whole repo / user-conf / state file trees before and after the
-// scenario, and the leftover temp dir names. The defining property of
-// --plan is kept as an invariant asserted on each side: nothing is written
-// (the before and after trees are identical) and no temp dir is left
-// behind.
-//
-// The bash script runs only as the `reference` (record mode); the JS runs
-// only as the `actual` (check/update mode). Each side builds its own
-// fixture from the same seed and returns the same value shape; the fixture
-// root becomes <ROOT> in every string of the recorded value.
+// already carrying the block, --no-hooks, and the --panes range die) —
+// run only the JS and compare against the value stored once in
+// test/golden/parity-setup-plan.json (test/golden.mjs: HERDR_AGENTS_GOLDEN
+// unset checks the JS value against the stored value, =update overwrites the
+// stored value with the JS value for review). The stored value holds, per
+// scenario: the exit code, stdout (byte-identical) and the
+// prefix-normalized stderr of every step, the whole repo / user-conf / state
+// file trees before and after the scenario, and the leftover temp dir
+// names. The defining property of --plan is kept as an invariant asserted
+// on each run: nothing is written (the before and after trees are
+// identical) and no temp dir is left behind.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { BASH_ENTRY, JS_ENTRY, makeFixture, nodeBin, normalizeErr } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
-import { findExecutable } from '../lib/platform.mjs';
+import { JS_ENTRY, makeFixture, nodeBin, normalizeErr } from './parity.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq. Check mode
-// runs the JS against the record and is skipped solely on Windows.
+// The fixture contract is POSIX (temporary git repo, POSIX path layout), so
+// the scenarios are skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the POSIX fixture contract (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the POSIX fixture contract needs a POSIX host'
+    : false;
 
 const SUITE = 'parity-setup-plan';
 
@@ -58,13 +50,13 @@ function tree(d) {
   return out.sort((a, b) => (a[0] < b[0] ? -1 : 1));
 }
 
-// Run `steps` (each { args, env? }) in order with one implementation, from
-// a freshly seeded fixture, and return the golden value: the per-step rc /
+// Run `steps` (each { args, env? }) in order with the JS entry, from a
+// freshly seeded fixture, and return the golden value: the per-step rc /
 // stdout / prefix-normalized stderr, the repo / user-conf / state trees
 // before and after the scenario, and the leftover temp dir names. Asserts
 // the nothing-is-written contract for the whole scenario. The fixture root
 // becomes <ROOT> in every string of the value.
-function planValue(impl, seed, steps) {
+function planValue(seed, steps) {
   const fix = makeFixture();
   try {
     fix.reset();
@@ -80,30 +72,26 @@ function planValue(impl, seed, steps) {
     const results = [];
     for (const step of steps) {
       const env = { ...fix.env, ...(step.env ?? {}) };
-      const r = impl === 'bash'
-        ? spawnSync('bash', [BASH_ENTRY, ...step.args], { cwd: fix.repo, env, encoding: 'utf8', timeout: 60000 })
-        : spawnSync(nodeBin(), [JS_ENTRY, ...step.args], { cwd: fix.repo, env, encoding: 'utf8', timeout: 60000 });
+      const r = spawnSync(nodeBin(), [JS_ENTRY, ...step.args], { cwd: fix.repo, env, encoding: 'utf8', timeout: 60000 });
       results.push({ args: step.args, rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: normalizeErr(r.stderr ?? '') });
     }
     const after = { repo: tree(fix.repo), conf: tree(fix.conf), state: tree(fix.state) };
     const leftovers = fs.readdirSync(fix.tmp).filter((n) => n.startsWith('herdr-agents-plan.'));
-    assert.deepEqual(after, before, `nothing is written (${impl})`);
-    assert.deepEqual(leftovers, [], `no temp dir leftovers (${impl})`);
+    assert.deepEqual(after, before, 'nothing is written');
+    assert.deepEqual(leftovers, [], 'no temp dir leftovers');
     return normalizeRoots({ steps: results, before, after, leftovers }, { '<ROOT>': fix.root });
   } finally {
     fix.cleanup();
   }
 }
 
-// Golden wrapper: record runs the bash reference, check/update run the JS;
-// the value is returned for the per-scenario assertions.
+// Golden wrapper: check/update run the JS; the value is returned for the
+// per-scenario assertions.
 function planScenario(name, seed, steps) {
-  let refValue;
-  let actValue;
-  const reference = () => (refValue !== undefined ? refValue : (refValue = planValue('bash', seed, steps))); // record only
-  const actual = () => (actValue !== undefined ? actValue : (actValue = planValue('node', seed, steps))); // check/update
-  golden(SUITE, name, actual, reference);
-  return goldenMode() === 'record' ? reference() : actual();
+  let value;
+  const actual = () => (value !== undefined ? value : (value = planValue(seed, steps))); // check/update
+  golden(SUITE, name, actual);
+  return actual();
 }
 
 const BASE = { 'AGENTS.md': AGENTS_SEED, '.claude/settings.json': SETTINGS_SEED };

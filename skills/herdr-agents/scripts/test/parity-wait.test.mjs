@@ -4,42 +4,35 @@
 // and the `release` title clear) and the `wait`/`collect`/`release`
 // scenarios of test-status.sh (denied/gone, the collect fallbacks, the
 // release refusal paths), plus a `clean` with a dead worker and old files,
-// now run only the JS and compare against the reference recorded once from
-// the bash script in test/golden/parity-wait.json (test/golden.mjs:
-// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
-// JS value for record review). Same fixture as before (fake `herdr`
-// logging every call). The recorded value holds, per step: stdout, the
+// now run only the JS and compare against the value stored once in
+// test/golden/parity-wait.json (test/golden.mjs: HERDR_AGENTS_GOLDEN unset
+// checks the JS value against the stored value, =update overwrites the stored value
+// with the JS value for review). Same fixture as before (fake `herdr`
+// logging every call). The stored value holds, per step: stdout, the
 // exit code, the prefix-normalized stderr and every file under <state>/ws
 // (the intermediate states matter: a refused release leaves the roster
 // row, a done wait leaves the task file with ✓), plus the task-* /
 // last-report-* files and the fake herdr log. Wall-clock values (the
 // .since epoch, the friction and approvals-log timestamps) are normalized
-// before recording; the fixture root becomes <ROOT> in every string.
-//
-// The bash script runs only as the `reference` (record mode); the JS runs
-// only as the `actual` (check/update mode).
+// before storing; the fixture root becomes <ROOT> in every string.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { makeFixture, nodeBin, normalizeErr, BASH_ENTRY, JS_ENTRY } from './parity.mjs';
-import { golden, goldenMode, normalizeRoots } from './golden.mjs';
-import { findExecutable } from '../lib/platform.mjs';
+import { makeFixture, nodeBin, normalizeErr, JS_ENTRY } from './parity.mjs';
+import { golden, normalizeRoots } from './golden.mjs';
 
-// Record mode runs the bash reference: it needs bash and jq. Check mode
-// runs the JS against the record and needs the sh fake `herdr`, so it is
-// skipped solely on Windows.
+// The fixture contract is POSIX (the sh fake herdr), so the scenarios are
+// skipped on Windows.
 const SKIP =
   process.platform === 'win32'
-    ? 'Windows: the bash reference (record) and the sh fake herdr (check) need a POSIX host'
-    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq'))
-      ? 'record mode needs bash and jq on PATH'
-      : false);
+    ? 'Windows: the sh fake herdr needs a POSIX host'
+    : false;
 
 const SUITE = 'parity-wait';
 
-// ---------- the fake herdr (bash, the only herdr both implementations see) ----------
+// ---------- the fake herdr (the only herdr the runs see) ----------
 
 // Every call is logged as one "$*" line (herdr.log). `agent get` is
 // answered by the per-target mode-<target> file (or the global mode file):
@@ -182,12 +175,11 @@ function collectState(fix) {
   return out;
 }
 
-// Run every step against one implementation in a fresh fixture and return
-// the golden value: rc, stdout, normalized stderr per step, the state
+// Run every step against the JS entry in a fresh fixture and return the
+// golden value: rc, stdout, normalized stderr per step, the state
 // files after every step (the intermediate states matter) and the final
-// state file set. `entry` is [bin, ...binArgs]: the JS entry for the
-// actual, the bash script for the reference. The fixture root becomes
-// <ROOT> in every string of the value.
+// state file set. `entry` is [bin, ...binArgs] (the JS entry). The fixture
+// root becomes <ROOT> in every string of the value.
 function waitValue(entry, name, opts) {
   const fix = makeFixture();
   try {
@@ -221,15 +213,13 @@ function waitValue(entry, name, opts) {
   }
 }
 
-// Golden wrapper: record runs the bash reference, check/update run the JS;
-// the value is returned for the per-scenario assertions.
+// Golden wrapper: check/update run the JS; the value is returned for the
+// per-scenario assertions.
 function waitScenario(name, opts) {
-  let refValue;
-  let actValue;
-  const reference = () => (refValue !== undefined ? refValue : (refValue = waitValue(['bash', BASH_ENTRY], name, opts))); // record only
-  const actual = () => (actValue !== undefined ? actValue : (actValue = waitValue([nodeBin(), JS_ENTRY], name, opts))); // check/update
-  golden(SUITE, name, actual, reference);
-  return goldenMode() === 'record' ? reference() : actual();
+  let value;
+  const actual = () => (value !== undefined ? value : (value = waitValue([nodeBin(), JS_ENTRY], name, opts))); // check/update
+  golden(SUITE, name, actual);
+  return actual();
 }
 
 const lines = (out) => out.trim().split('\n').filter((l) => l !== '').map((l) => JSON.parse(l));
@@ -315,7 +305,7 @@ test('parity wait: the report marks the pane title ✓ (test-quota.sh)', { timeo
     { agent: 'build', status: 'done', report: '<ROOT>/state/ws/reports/build.md' },
   ]);
   assert.equal(r.files['state/ws/task-build'], 'implementer: porte da config ✓\n', 'the task file gains the check mark once');
-  assert.equal(r.files['state/ws/wait/build.size'], '       5\n', 'the wc -c padded size is recorded');
+  assert.equal(r.files['state/ws/wait/build.size'], '       5\n', 'the wc -c padded size is in the value');
   assert.ok(r.files['herdr.log'].includes('pane report-metadata p1 --source herdr-agents --title implementer: porte da config ✓'),
     `the report marks the title: ${r.files['herdr.log']}`);
 });
