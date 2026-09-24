@@ -7,9 +7,10 @@
 // setup_write_block / setup_hook_* / settings_hooks_result /
 // setup_write_hooks), :2181-2214 (project_needs_config_prompt) and
 // :2614-2719 (cmd_setup). The pure texts and merge live in lib/setuptext.mjs;
-// this module owns the disk and the die messages. `--detect` and `--plan`
-// are slice 7b and `--probe` is slice 8: they exit 2 with the entry's
-// "not ported yet" message, citing the option.
+// this module owns the disk and the die messages. `--detect` is slice 7b
+// (lib/commands/setup-detect.mjs) and writes nothing; `--plan` is slice 7c
+// and `--probe` is slice 8: they exit 2 with the entry's "not ported yet"
+// message, citing the option.
 import fs from 'node:fs';
 import path from 'node:path';
 import { DieError, cfg, configWritePair, configFileFor, stateRoot } from '../config.mjs';
@@ -17,6 +18,7 @@ import { homeDir, projectRoot, readTextFile, atomicWrite } from '../platform.mjs
 import { warn } from '../state.mjs';
 import { applyLaneFile, setupLaneSpec } from '../lanes.mjs';
 import { SETUP_START, setupBlock, setupBlockResult, settingsHooksResult } from '../setuptext.mjs';
+import { cmdSetupDetect } from './setup-detect.mjs';
 
 // `[ -f ]` port: regular file, symlinks followed; false when unreadable.
 function isFile(p) {
@@ -86,8 +88,9 @@ function notPorted(what) {
   process.exit(2);
 }
 
-// cmd_setup (bash :2614-2719). `--probe`/`--plan`/`--detect` are not ported
-// yet (7b/8): --probe is refused with the bash exclusivity message when
+// cmd_setup (bash :2614-2719). --detect runs the pure detect JSON (7b) and
+// returns without writing, like the bash. `--probe`/`--plan` are not ported
+// yet (7c/8): --probe is refused with the bash exclusivity message when
 // combined with --plan, and each unported option exits 2 with the entry's
 // message. DieError carries the bash die 2/4 messages; the entry turns it
 // into the `herdr-agents: <msg>` stderr line and the exit code.
@@ -123,7 +126,12 @@ export function cmdSetup(args, ctx, env, cwd = process.cwd()) {
     else if (a === '--detect') detect = 1;
     else throw new DieError(`setup: unknown option '${a}'`, 2);
   }
-  if (detect === 1) notPorted('setup --detect');
+  if (detect === 1) {
+    // bash: cmd_setup_detect; return 0 — the detect JSON only, no writes,
+    // regardless of the other flags already parsed.
+    cmdSetupDetect(ctx, env, cwd);
+    return;
+  }
 
   if (target === '') {
     target = setupTargetExisting(root) ?? '';

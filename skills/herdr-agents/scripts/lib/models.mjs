@@ -141,11 +141,12 @@ export function versionSortDesc(ids) {
 // — no grep accepts them, so the spec passes through unresolved — POSIX
 // bracket classes (`[[:digit:]]`) are translated, and \d \w \s \b \xHH work.
 const UNSUPPORTED_RE = /\(\?/;
-const POSIX_CLASS = {
+// No prototype: `[[:constructor:]]` is not a class (left as written).
+const POSIX_CLASS = Object.assign(Object.create(null), {
   alpha: 'A-Za-z', digit: '0-9', alnum: 'A-Za-z0-9', upper: 'A-Z', lower: 'a-z',
   xdigit: '0-9A-Fa-f', space: ' \\t\\n\\r\\f\\v', blank: ' \\t',
   punct: '!-\\/:-@\\[-`{-~',
-};
+});
 export function ereRegExp(pattern, flags = 'i') {
   if (UNSUPPORTED_RE.test(pattern)) return null;
   const src = pattern.replace(/\[:([a-z]+):\]/g, (m, name) => POSIX_CLASS[name] ?? m);
