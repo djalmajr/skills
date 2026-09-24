@@ -25,11 +25,13 @@ export function nodeBin() {
 }
 
 // Child-process base env: drops the caller's Herdr/session state so the
-// fixture is hermetic (mirrors run-tests.sh unsetting HERDR_AGENTS_*).
+// fixture is hermetic (mirrors run-tests.sh unsetting HERDR_AGENTS_*): every
+// HERDR_* variable goes (pane, tab, workspace, env flag), so nothing of the
+// session that runs the tests reaches an output or a golden record.
 export function fixtureEnv(over = {}) {
   const env = { ...process.env };
   for (const k of Object.keys(env)) {
-    if (k.startsWith('HERDR_AGENTS_') || k === 'HERDR_ENV' || k === 'HERDR_PANE_ID' || k === 'HERDR_WORKSPACE_ID') delete env[k];
+    if (k.startsWith('HERDR_')) delete env[k];
   }
   return { ...env, ...over };
 }

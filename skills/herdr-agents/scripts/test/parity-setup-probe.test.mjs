@@ -1,35 +1,57 @@
-// Parity (slice 8b): `setup --probe` and `init` run against
-// `bash scripts/herdr-agents.sh` and `node scripts/herdr-agents.mjs` in an
-// identical fixture must produce identical stdout, exit code and
-// (prefix-normalized) stderr. Scenarios: the whole of test-probe.sh
+// Golden (slice 9a-C; slice 8b scenario coverage): `setup --probe` and
+// `init` now run only the JS (`node scripts/herdr-agents.mjs`) and compare
+// against the reference recorded once from the bash script in
+// test/golden/parity-setup-probe.json (test/golden.mjs:
+// HERDR_AGENTS_GOLDEN=record records, unset checks, =update overwrites the
+// JS value for review). Scenarios: the whole of test-probe.sh
 // (the aggregate JSON shape and per-kind statuses, the flag pass-through,
 // the single kind + explicit model, no-auth with and without a key that
 // never leaks, the error code, quota with and without a renewal time, the
 // timeout with a hung CLI, the recommended reviewer per build family, the
 // usage errors 2 before any CLI runs, and the own-models cap 5 +
 // skipped_custom) and the `init` part of test-friendly.sh (doctor on
-// stderr, the JSON context, first_run true and false). The PATH is fully
+// stderr, the JSON context, first_run true and false). 16 scenarios.
+//
+// The recorded value holds, per step: the exit code, the normalized stdout
+// and the prefix-normalized stderr, plus the final files and the fixture
+// state dir (the init JSON's state_dir is compared against it). The
+// accepted doctor-output differences (parity-doctor normalization: the
+// bash still has the jq line — decision 5 drops it from the JS — with its
+// ok-count shift, and the $0/entry path) are normalized inside the value,
+// applied to both sides, so the recorded (bash) value comes out already
+// normalized.
+//
+// The bash script runs only as the `reference` (record mode); the JS runs
+// only as the `actual` (check/update mode). Each side builds its own
+// fixture from the same seed and returns the same value shape; the fixture
+// root becomes <ROOT> in every string of the value. The PATH is fully
 // controlled (as in test-probe.sh): sh fakes per CLI (the parity runs the
 // bash script, so the fakes stay sh), symlinks to the host jq/git/timeout
-// and no herdr for the probe (it must not need one).
+// and no herdr for the probe (it must not need one), so no host CLI can
+// leak in.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { makeFixture, normalizeErr, nodeBin, BASH_ENTRY, JS_ENTRY } from './parity.mjs';
+import { makeFixture, runImpl, normalizeErr, nodeBin, BASH_ENTRY, JS_ENTRY } from './parity.mjs';
+import { golden, goldenMode, normalizeRoots } from './golden.mjs';
 import { findExecutable } from '../lib/platform.mjs';
 
-const HAS_JQ = Boolean(findExecutable('jq'));
-const HAS_TIMEOUT = Boolean(findExecutable('timeout'));
-const SKIP = HAS_JQ ? (HAS_TIMEOUT ? false : 'timeout is required for the bash parity run')
-  : 'jq is required for the bash parity run';
+// Record mode runs the bash reference: it needs bash, jq and timeout (the
+// bash probe runs every CLI under timeout). Check mode
+// runs the JS against the record and needs the sh fakes, so it is skipped
+// solely on Windows.
+const SKIP =
+  process.platform === 'win32'
+    ? 'Windows: the bash reference (record) and the sh fakes (check) need a POSIX host'
+    : (goldenMode() === 'record' && (!findExecutable('bash') || !findExecutable('jq') || !findExecutable('timeout'))
+      ? 'record mode needs bash, jq and timeout on PATH'
+      : false);
 
-// runImpl with a timeout (every spawnSync of this file must be bounded).
-function runImplT(impl, args, { env, cwd, timeout = 20000 }) {
-  const [bin, ...binArgs] = impl === 'bash' ? ['bash', BASH_ENTRY] : [nodeBin(), JS_ENTRY];
-  const r = spawnSync(bin, [...binArgs, ...args], { cwd, env, encoding: 'utf8', timeout });
-  return { rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: r.stderr ?? '' };
+const SUITE = 'parity-setup-probe';
+
+function readRel(root, rel) {
+  try { return fs.readFileSync(path.join(root, rel), 'utf8'); } catch { return null; }
 }
 
 // The sh fakes of test-probe.sh's make_fake (log args, behave per the mode
@@ -100,6 +122,9 @@ function seedSymlinks(dir) {
 // The accepted doctor-output differences (parity-doctor normalization):
 // the bash still has the jq line (decision 5 drops it from the JS) with
 // its ok-count shift, and the $0/entry path (both normalize to PROG).
+// Applied to both sides — it is the normalization the parity comparison
+// used — so the recorded (bash) value is already normalized and the JS
+// value normalizes the same way.
 function normOut(out) {
   const lines = out.split('\n');
   let dropOk = 0;
@@ -122,41 +147,39 @@ function normOut(out) {
     .replaceAll(JS_ENTRY, 'PROG');
 }
 
-// Like parityDetect: run every step against bash, reset, run the same
-// steps against node, compare rc/stdout/stderr per step and the final
-// content of opts.files (relative to the fixture root; missing = null).
-function parityProbe(name, opts) {
+// Run every step against one implementation in a fresh fixture and return
+// the golden value: per step the exit code, the normalized stdout and the
+// prefix-normalized stderr, the final content of opts.files (paths
+// relative to the fixture root; missing = null) and the fixture state dir
+// (the init JSON's state_dir is compared against it). The fixture root
+// becomes <ROOT> in every string of the value.
+function probeValue(impl, opts) {
   const fix = makeFixture();
-  let bashRes, nodeRes, bashFiles, nodeFiles;
   try {
-    for (const impl of ['bash', 'node']) {
-      fix.reset();
-      if (opts.seed) opts.seed(fix);
-      const results = [];
-      for (const step of opts.steps) {
-        const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
-        results.push(runImplT(impl, step.args, { env: stepEnv, cwd: fix.repo }));
-      }
-      const files = (opts.files ?? []).map((rel) => {
-        try { return { rel, content: fs.readFileSync(path.join(fix.root, rel), 'utf8') }; } catch { return { rel, content: null }; }
-      });
-      if (impl === 'bash') { bashRes = results; bashFiles = files; }
-      else { nodeRes = results; nodeFiles = files; }
+    fix.reset();
+    if (opts.seed) opts.seed(fix);
+    const steps = [];
+    for (const step of opts.steps) {
+      const stepEnv = step.env ? { ...fix.env, ...step.env } : fix.env;
+      const r = runImpl(impl, step.args, { env: stepEnv, cwd: fix.repo });
+      steps.push({ args: step.args, rc: r.rc, out: normOut(r.out), err: normOut(normalizeErr(r.err)) });
     }
+    const files = (opts.files ?? []).map((rel) => ({ rel, content: readRel(fix.root, rel) }));
+    return normalizeRoots({ steps, files, stateWs: path.join(fix.state, 'ws') }, { '<ROOT>': fix.root });
   } finally {
     fix.cleanup();
   }
-  assert.equal(nodeRes.length, bashRes.length, `${name}: step count`);
-  for (let i = 0; i < bashRes.length; i++) {
-    const where = `${name}: step ${i + 1} (${opts.steps[i].args.join(' ')})`;
-    assert.equal(nodeRes[i].rc, bashRes[i].rc, `${where}: exit code (bash=${bashRes[i].rc} node=${nodeRes[i].rc})`);
-    assert.equal(normOut(nodeRes[i].out), normOut(bashRes[i].out), `${where}: stdout (node output first)`);
-    assert.equal(normOut(normalizeErr(nodeRes[i].err)), normOut(normalizeErr(bashRes[i].err)), `${where}: stderr normalized`);
-  }
-  for (let i = 0; i < (opts.files ?? []).length; i++) {
-    assert.equal(nodeFiles[i].content, bashFiles[i].content, `${name}: file ${opts.files[i]} after the run (node content first)`);
-  }
-  return { bash: bashRes, node: nodeRes, stateWs: path.join(fix.state, 'ws') };
+}
+
+// Golden wrapper: record runs the bash reference, check/update run the JS;
+// the value is returned for the per-scenario assertions.
+function probeScenario(name, opts) {
+  let refValue;
+  let actValue;
+  const reference = () => (refValue !== undefined ? refValue : (refValue = probeValue('bash', opts))); // record only
+  const actual = () => (actValue !== undefined ? actValue : (actValue = probeValue('node', opts))); // check/update
+  golden(SUITE, name, actual, reference);
+  return goldenMode() === 'record' ? reference() : actual();
 }
 
 // The fully controlled PATH of the probe/init runs: the fakes dir then
@@ -166,15 +189,14 @@ function parityProbe(name, opts) {
 // objects are defined.
 const probePath = (st) => ({ get PATH() { return `${st.fakes}:/usr/bin:/bin`; } });
 
-test('parity: setup --probe aggregate — shape, statuses, reviewer, model spec', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --probe aggregate — shape, statuses, reviewer, model spec', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityProbe('probe-aggregate', {
+  const v = probeScenario('probe-aggregate', {
     seed: (fix) => { st.fakes = seedFakes(fix); },
     steps: [{ args: ['setup', '--probe'], env: probePath(st) }],
     files: ['state/ws/agents.tsv'], // the probe opens no state
   });
-  const r = res.node[0];
+  const r = v.steps[0];
   assert.equal(r.rc, 0, 'the probe exits 0');
   const doc = JSON.parse(r.out);
   assert.equal(doc.probes.length, 8);
@@ -193,30 +215,28 @@ test('parity: setup --probe aggregate — shape, statuses, reviewer, model spec'
   assert.equal(doc.recommended_reviewer.family, 'openai');
 });
 
-test('parity: setup --probe single kind with an explicit model', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --probe single kind with an explicit model', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityProbe('probe-one', {
+  const v = probeScenario('probe-one', {
     seed: (fix) => { st.fakes = seedFakes(fix); },
     steps: [{ args: ['setup', '--probe', '--kind', 'pi', '--model', 'my-provider/my-model'], env: probePath(st) }],
   });
-  const doc = JSON.parse(res.node[0].out);
-  assert.equal(res.node[0].rc, 0);
+  const doc = JSON.parse(v.steps[0].out);
+  assert.equal(v.steps[0].rc, 0);
   assert.equal(doc.probes.length, 1);
   assert.equal(doc.probes[0].kind, 'pi');
   assert.equal(doc.probes[0].model, 'my-provider/my-model');
   assert.equal(doc.probes[0].status, 'ready');
 });
 
-test('parity: setup --probe no-auth — the fixed cause, never the CLI line or its key', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --probe no-auth — the fixed cause, never the CLI line or its key', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
   for (const [mode, key] of [['noauth', ''], ['noauthkey', 'SENTINELA123456']]) {
-    const res = parityProbe(`probe-${mode}`, {
+    const v = probeScenario(`probe-${mode}`, {
       seed: (fix) => { st.fakes = seedFakes(fix); fs.writeFileSync(path.join(fix.root, 'mode-claude'), `${mode}\n`); },
       steps: [{ args: ['setup', '--probe', '--kind', 'claude'], env: probePath(st) }],
     });
-    const r = res.node[0];
+    const r = v.steps[0];
     assert.equal(r.rc, 0, `${mode}: rc ${r.rc}`);
     const doc = JSON.parse(r.out);
     assert.equal(doc.probes[0].status, 'no-auth');
@@ -225,15 +245,14 @@ test('parity: setup --probe no-auth — the fixed cause, never the CLI line or i
   }
 });
 
-test('parity: setup --probe error — exit <code>, the printed key never reaches the JSON', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --probe error — exit <code>, the printed key never reaches the JSON', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
   for (const [mode, want] of [['errkey', 'exit 4'], ['error', 'exit 3']]) {
-    const res = parityProbe(`probe-${mode}`, {
+    const v = probeScenario(`probe-${mode}`, {
       seed: (fix) => { st.fakes = seedFakes(fix); fs.writeFileSync(path.join(fix.root, 'mode-codex'), `${mode}\n`); },
       steps: [{ args: ['setup', '--probe', '--kind', 'codex'], env: probePath(st) }],
     });
-    const r = res.node[0];
+    const r = v.steps[0];
     assert.equal(r.rc, 0, `${mode}: rc ${r.rc}`);
     const doc = JSON.parse(r.out);
     assert.equal(doc.probes[0].status, 'error');
@@ -243,15 +262,14 @@ test('parity: setup --probe error — exit <code>, the printed key never reaches
   }
 });
 
-test('parity: setup --probe quota — with and without a renewal time', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --probe quota — with and without a renewal time', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
   for (const [mode, want] of [['quota', 'quota exhausted; renews 5 minutes'], ['quotatime', 'quota exhausted; renews 14:30']]) {
-    const res = parityProbe(`probe-${mode}`, {
+    const v = probeScenario(`probe-${mode}`, {
       seed: (fix) => { st.fakes = seedFakes(fix); fs.writeFileSync(path.join(fix.root, 'mode-grok'), `${mode}\n`); },
       steps: [{ args: ['setup', '--probe', '--kind', 'grok'], env: probePath(st) }],
     });
-    const r = res.node[0];
+    const r = v.steps[0];
     assert.equal(r.rc, 0, `${mode}: rc ${r.rc}`);
     const doc = JSON.parse(r.out);
     assert.equal(doc.probes[0].status, 'quota');
@@ -259,29 +277,27 @@ test('parity: setup --probe quota — with and without a renewal time', { timeou
   }
 });
 
-test('parity: setup --probe a hung CLI is a timeout after the limit', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --probe a hung CLI is a timeout after the limit', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityProbe('probe-timeout', {
+  const v = probeScenario('probe-timeout', {
     seed: (fix) => { st.fakes = seedFakes(fix); fs.writeFileSync(path.join(fix.root, 'mode-pi'), 'hang\n'); },
     steps: [{ args: ['setup', '--probe', '--kind', 'pi', '--timeout', '1'], env: probePath(st) }],
   });
-  const r = res.node[0];
+  const r = v.steps[0];
   assert.equal(r.rc, 0, `timeout: rc ${r.rc}: ${r.err}`);
   const doc = JSON.parse(r.out);
   assert.equal(doc.probes[0].status, 'error');
   assert.equal(doc.probes[0].cause, 'timeout after 1s');
 });
 
-test('parity: the recommended reviewer follows the build family (claude, codex, null)', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: the recommended reviewer follows the build family (claude, codex, null)', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
   const cases = [
     { conf: 'lane.build.kind=claude\n', want: 'codex' },
     { conf: 'lane.build.kind=codex\n', want: 'claude' },
   ];
   for (const c of cases) {
-    const res = parityProbe(`probe-rec-${c.want}`, {
+    const v = probeScenario(`probe-rec-${c.want}`, {
       seed: (fix) => {
         st.fakes = seedFakes(fix);
         fs.mkdirSync(path.join(fix.repo, '.agents'), { recursive: true });
@@ -289,21 +305,20 @@ test('parity: the recommended reviewer follows the build family (claude, codex, 
       },
       steps: [{ args: ['setup', '--probe'], env: probePath(st) }],
     });
-    assert.equal(JSON.parse(res.node[0].out).recommended_reviewer.kind, c.want);
+    assert.equal(JSON.parse(v.steps[0].out).recommended_reviewer.kind, c.want);
   }
   // Nothing else ready or in another family: pi + grok only, build grok
   // (xai; pi without a recognizable model is unknown) → null.
-  const res = parityProbe('probe-rec-null', {
+  const v = probeScenario('probe-rec-null', {
     seed: (fix) => { st.fakes = seedFakes(fix, ['pi', 'grok']); },
     steps: [{ args: ['setup', '--probe'], env: probePath(st) }],
   });
-  assert.equal(JSON.parse(res.node[0].out).recommended_reviewer, null);
+  assert.equal(JSON.parse(v.steps[0].out).recommended_reviewer, null);
 });
 
-test('parity: setup --probe usage errors (bad timeout, unknown kind, flag without a value) exit 2', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --probe usage errors (bad timeout, unknown kind, flag without a value) exit 2', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityProbe('probe-usage', {
+  const v = probeScenario('probe-usage', {
     seed: (fix) => { st.fakes = seedFakes(fix); },
     steps: [
       { args: ['setup', '--probe', '--kind', 'pi', '--timeout', '0'], env: probePath(st) },
@@ -317,21 +332,20 @@ test('parity: setup --probe usage errors (bad timeout, unknown kind, flag withou
     ],
     files: ['state/ws/agents.tsv'], // no CLI ran, no state opened
   });
-  const rcs = res.node.map((r) => r.rc);
+  const rcs = v.steps.map((r) => r.rc);
   assert.deepEqual(rcs, [2, 2, 2, 0, 2, 2, 2, 2], `rcs: ${JSON.stringify(rcs)}`);
-  const bad = res.node[0];
+  const bad = v.steps[0];
   assert.ok(bad.err.includes('setup --probe: timeout must be a whole number of seconds ≥ 1'), bad.err);
   assert.equal(bad.out, '', 'nothing on stdout on the usage errors');
-  assert.ok(res.node[4].err.includes("unknown kind 'notepad'"), res.node[4].err);
-  assert.ok(res.node[5].err.includes('setup --probe: --kind expects a value'), res.node[5].err);
-  assert.ok(res.node[6].err.includes('setup --probe: --model needs --kind'), res.node[6].err);
-  assert.ok(res.node[7].err.includes('setup --probe: --kind expects a value'), res.node[7].err);
+  assert.ok(v.steps[4].err.includes("unknown kind 'notepad'"), v.steps[4].err);
+  assert.ok(v.steps[5].err.includes('setup --probe: --kind expects a value'), v.steps[5].err);
+  assert.ok(v.steps[6].err.includes('setup --probe: --model needs --kind'), v.steps[6].err);
+  assert.ok(v.steps[7].err.includes('setup --probe: --kind expects a value'), v.steps[7].err);
 });
 
-test('parity: setup --probe aggregate covers the own models (5 probed, 2 skipped_custom, no key leak)', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: setup --probe aggregate covers the own models (5 probed, 2 skipped_custom, no key leak)', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '' };
-  const res = parityProbe('probe-custom', {
+  const v = probeScenario('probe-custom', {
     seed: (fix) => {
       st.fakes = seedFakes(fix);
       fs.mkdirSync(path.join(fix.home, '.pi', 'agent'), { recursive: true });
@@ -341,7 +355,7 @@ test('parity: setup --probe aggregate covers the own models (5 probed, 2 skipped
     },
     steps: [{ args: ['setup', '--probe'], env: probePath(st) }],
   });
-  const r = res.node[0];
+  const r = v.steps[0];
   assert.equal(r.rc, 0, `custom: rc ${r.rc}`);
   assert.ok(!r.out.includes('CUSTOMSECRET99'), 'the apiKey must not leak');
   const doc = JSON.parse(r.out);
@@ -354,10 +368,9 @@ test('parity: setup --probe aggregate covers the own models (5 probed, 2 skipped
 
 // ---------- init (the init part of test-friendly.sh) ----------
 
-test('parity: init — doctor on stderr, the JSON context, first_run true', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: init — doctor on stderr, the JSON context, first_run true', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '', plain: '' };
-  const res = parityProbe('init-first', {
+  const v = probeScenario('init-first', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, []);
       seedHerdrFake(st.fakes);
@@ -370,25 +383,24 @@ test('parity: init — doctor on stderr, the JSON context, first_run true', { ti
     ],
     files: ['state/ws/agents.tsv'],
   });
-  const doc = JSON.parse(res.node[1].out);
-  assert.equal(res.node[0].rc, 0, `doctor: rc ${res.node[0].rc}`);
-  assert.ok(res.node[0].out.includes('first_run: true'), 'doctor marks the first run');
-  assert.equal(res.node[1].rc, 0, `init: rc ${res.node[1].rc}: ${res.node[1].err}`);
+  const doc = JSON.parse(v.steps[1].out);
+  assert.equal(v.steps[0].rc, 0, `doctor: rc ${v.steps[0].rc}`);
+  assert.ok(v.steps[0].out.includes('first_run: true'), 'doctor marks the first run');
+  assert.equal(v.steps[1].rc, 0, `init: rc ${v.steps[1].rc}: ${v.steps[1].err}`);
   assert.equal(doc.first_run, true);
   assert.equal(doc.orchestrator, ''); // no HERDR_PANE_ID: no caller agent to rename
   assert.equal(doc.pane_id, '');
   assert.equal(doc.workspace_id, 'ws');
   assert.equal(doc.layout, 'split');
-  assert.equal(doc.state_dir, res.stateWs);
+  assert.equal(doc.state_dir, v.stateWs);
   // The doctor report is on stderr, not on stdout.
-  assert.ok(res.node[1].err.includes('first_run: true'), 'init doctor stderr');
-  assert.ok(!res.node[1].out.includes('warning(s)'), 'no doctor text on stdout');
+  assert.ok(v.steps[1].err.includes('first_run: true'), 'init doctor stderr');
+  assert.ok(!v.steps[1].out.includes('warning(s)'), 'no doctor text on stdout');
 });
 
-test('parity: init with a project config that makes the team choice — first_run false', { timeout: 120000, skip: SKIP }, (t) => {
-  void t;
+test('parity: init with a project config that makes the team choice — first_run false', { timeout: 120000, skip: SKIP }, () => {
   const st = { fakes: '', plain: '' };
-  const res = parityProbe('init-config', {
+  const v = probeScenario('init-config', {
     seed: (fix) => {
       st.fakes = seedFakes(fix, []);
       seedHerdrFake(st.fakes);
@@ -403,6 +415,10 @@ test('parity: init with a project config that makes the team choice — first_ru
     ],
     files: ['state/ws/agents.tsv'],
   });
-  assert.ok(res.node[0].out.includes('first_run: false'), 'doctor with the config');
-  assert.equal(JSON.parse(res.node[1].out).first_run, false);
+  assert.ok(v.steps[0].out.includes('first_run: false'), 'doctor with the config');
+  assert.equal(JSON.parse(v.steps[1].out).first_run, false);
 });
+
+// The `node` used for the node-side runs, referenced so a missing node is a
+// loud failure here rather than in every scenario.
+void nodeBin();

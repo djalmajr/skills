@@ -1,0 +1,379 @@
+{
+  "init-config": {
+    "files": [
+      {
+        "content": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n",
+        "rel": "state/ws/agents.tsv"
+      }
+    ],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "doctor"
+        ],
+        "err": "",
+        "out": "ok     inside Herdr (HERDR_ENV=1)\nwarn   herdr CLI not in PATH\nwarn   official herdr skill not installed: bunx skills add herdrdev/herdr --skill herdr -g -y\nwarn   kinds in use but not in PATH: agy claude codex grok (roles or lanes using them will fail to start)\nok     state dir writable: <ROOT>/state\nok     config: layout=split approvals=ask auto_approve=off reuse_workers=on multi_role=on worker_context=full\nok     config: split_max_panes=4 split_min_pane=0.18\nok     config: max_workers=3 (orchestrator + 3 workers)\nwarn   config: panes is not set in the project or user file (default 4). Ask the user for 3 or 4 panes, then run 'PROG doctor --fix --panes 3' or '--panes 4'.\nwarn   lanes: lane 'review' has no lane.review.kind and its roles disagree (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Orchestrator: ask the user, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\nok     lanes: every role is known\nok     lanes: no role is in two lanes\nok     lanes: edit and review roles are separated\nok     config: max_workers=3 matches 3 lanes\nok     config: herd_label='{roles}' herd_label_max=16\nwarn   no herdr-agents block in AGENTS.md/CLAUDE.md: run 'PROG setup' (writes the delegation rules between <!-- herdr-agents:start/end --> markers)\nwarn   no herdr-agents hooks in .claude/settings.json: run 'PROG setup' (UserPromptSubmit reminder + SessionStart doctor)\nfirst_run: false\n10 ok, 7 warning(s)\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "init"
+        ],
+        "err": "ok     inside Herdr (HERDR_ENV=1)\nok     herdr 9.9.9\nwarn   official herdr skill not installed: bunx skills add herdrdev/herdr --skill herdr -g -y\nwarn   kinds in use but not in PATH: agy claude codex grok (roles or lanes using them will fail to start)\nok     state dir writable: <ROOT>/state\nok     config: layout=split approvals=ask auto_approve=off reuse_workers=on multi_role=on worker_context=full\nok     config: split_max_panes=4 split_min_pane=0.18\nok     config: max_workers=3 (orchestrator + 3 workers)\nwarn   config: panes is not set in the project or user file (default 4). Ask the user for 3 or 4 panes, then run 'PROG doctor --fix --panes 3' or '--panes 4'.\nwarn   lanes: lane 'review' has no lane.review.kind and its roles disagree (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Orchestrator: ask the user, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\nok     lanes: every role is known\nok     lanes: no role is in two lanes\nok     lanes: edit and review roles are separated\nok     config: max_workers=3 matches 3 lanes\nok     config: herd_label='{roles}' herd_label_max=16\nwarn   no herdr-agents block in AGENTS.md/CLAUDE.md: run 'PROG setup' (writes the delegation rules between <!-- herdr-agents:start/end --> markers)\nwarn   no herdr-agents hooks in .claude/settings.json: run 'PROG setup' (UserPromptSubmit reminder + SessionStart doctor)\nfirst_run: false\n11 ok, 6 warning(s)\n",
+        "out": "{\n  \"orchestrator\": \"\",\n  \"pane_id\": \"\",\n  \"tab_id\": \"\",\n  \"workspace_id\": \"ws\",\n  \"layout\": \"split\",\n  \"state_dir\": \"<ROOT>/state/ws\",\n  \"first_run\": false\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "init-first": {
+    "files": [
+      {
+        "content": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n",
+        "rel": "state/ws/agents.tsv"
+      }
+    ],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "doctor"
+        ],
+        "err": "",
+        "out": "ok     inside Herdr (HERDR_ENV=1)\nwarn   herdr CLI not in PATH\nwarn   official herdr skill not installed: bunx skills add herdrdev/herdr --skill herdr -g -y\nwarn   kinds in use but not in PATH: agy claude codex grok (roles or lanes using them will fail to start)\nok     state dir writable: <ROOT>/state\nok     config: layout=split approvals=ask auto_approve=off reuse_workers=on multi_role=on worker_context=full\nok     config: split_max_panes=4 split_min_pane=0.18\nok     config: max_workers=3 (orchestrator + 3 workers)\nwarn   config: panes is not set in the project or user file (default 4). Ask the user for 3 or 4 panes, then run 'PROG doctor --fix --panes 3' or '--panes 4'.\nwarn   lanes: lane 'build' has no lane.build.kind and its roles disagree (implementer=grok designer=agy tasker=grok). Orchestrator: ask the user, then run 'setup --lane build=<kind>[:<model>[:<effort>]]'.\nwarn   lanes: lane 'review' has no lane.review.kind and its roles disagree (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Orchestrator: ask the user, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\nok     lanes: every role is known\nok     lanes: no role is in two lanes\nok     lanes: edit and review roles are separated\nok     config: max_workers=3 matches 3 lanes\nok     config: herd_label='{roles}' herd_label_max=16\nwarn   no herdr-agents block in AGENTS.md/CLAUDE.md: run 'PROG setup' (writes the delegation rules between <!-- herdr-agents:start/end --> markers)\nwarn   no herdr-agents hooks in .claude/settings.json: run 'PROG setup' (UserPromptSubmit reminder + SessionStart doctor)\nfirst_run: true\n10 ok, 8 warning(s)\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "init"
+        ],
+        "err": "ok     inside Herdr (HERDR_ENV=1)\nok     herdr 9.9.9\nwarn   official herdr skill not installed: bunx skills add herdrdev/herdr --skill herdr -g -y\nwarn   kinds in use but not in PATH: agy claude codex grok (roles or lanes using them will fail to start)\nok     state dir writable: <ROOT>/state\nok     config: layout=split approvals=ask auto_approve=off reuse_workers=on multi_role=on worker_context=full\nok     config: split_max_panes=4 split_min_pane=0.18\nok     config: max_workers=3 (orchestrator + 3 workers)\nwarn   config: panes is not set in the project or user file (default 4). Ask the user for 3 or 4 panes, then run 'PROG doctor --fix --panes 3' or '--panes 4'.\nwarn   lanes: lane 'build' has no lane.build.kind and its roles disagree (implementer=grok designer=agy tasker=grok). Orchestrator: ask the user, then run 'setup --lane build=<kind>[:<model>[:<effort>]]'.\nwarn   lanes: lane 'review' has no lane.review.kind and its roles disagree (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Orchestrator: ask the user, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\nok     lanes: every role is known\nok     lanes: no role is in two lanes\nok     lanes: edit and review roles are separated\nok     config: max_workers=3 matches 3 lanes\nok     config: herd_label='{roles}' herd_label_max=16\nwarn   no herdr-agents block in AGENTS.md/CLAUDE.md: run 'PROG setup' (writes the delegation rules between <!-- herdr-agents:start/end --> markers)\nwarn   no herdr-agents hooks in .claude/settings.json: run 'PROG setup' (UserPromptSubmit reminder + SessionStart doctor)\nfirst_run: true\n11 ok, 7 warning(s)\n",
+        "out": "{\n  \"orchestrator\": \"\",\n  \"pane_id\": \"\",\n  \"tab_id\": \"\",\n  \"workspace_id\": \"ws\",\n  \"layout\": \"split\",\n  \"state_dir\": \"<ROOT>/state/ws\",\n  \"first_run\": true\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-aggregate": {
+    "files": [
+      {
+        "content": null,
+        "rel": "state/ws/agents.tsv"
+      }
+    ],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"claude\",\n      \"model\": \"opus\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"codex\",\n      \"model\": \"sol|gpt-5\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"grok\",\n      \"model\": \"grok\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"agy\",\n      \"model\": \"gemini|opus\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"gemini\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"cursor\",\n      \"model\": \"grok|muse\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"model\": \"\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"opencode\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": {\n    \"kind\": \"codex\",\n    \"family\": \"openai\",\n    \"model\": \"sol|gpt-5\"\n  },\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-custom": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"claude\",\n      \"model\": \"opus\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"codex\",\n      \"model\": \"sol|gpt-5\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"grok\",\n      \"model\": \"grok\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"agy\",\n      \"model\": \"gemini|opus\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"gemini\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"cursor\",\n      \"model\": \"grok|muse\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"model\": \"\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"opencode\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"model\": \"own/m1\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"custom\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"model\": \"own/m2\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"custom\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"model\": \"own/m3\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"custom\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"model\": \"own/m4\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"custom\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"model\": \"own/m5\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"custom\"\n    }\n  ],\n  \"recommended_reviewer\": {\n    \"kind\": \"codex\",\n    \"family\": \"openai\",\n    \"model\": \"sol|gpt-5\"\n  },\n  \"skipped_custom\": [\n    {\n      \"kind\": \"pi\",\n      \"id\": \"own/m6\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"id\": \"own/m7\"\n    }\n  ]\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-errkey": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "codex"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"codex\",\n      \"model\": \"sol|gpt-5\",\n      \"status\": \"error\",\n      \"cause\": \"exit 4\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": null,\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-error": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "codex"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"codex\",\n      \"model\": \"sol|gpt-5\",\n      \"status\": \"error\",\n      \"cause\": \"exit 3\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": null,\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-noauth": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "claude"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"claude\",\n      \"model\": \"opus\",\n      \"status\": \"no-auth\",\n      \"cause\": \"not authenticated\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": null,\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-noauthkey": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "claude"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"claude\",\n      \"model\": \"opus\",\n      \"status\": \"no-auth\",\n      \"cause\": \"not authenticated\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": null,\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-one": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "pi",
+          "--model",
+          "my-provider/my-model"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"pi\",\n      \"model\": \"my-provider/my-model\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": null,\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-quota": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "grok"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"grok\",\n      \"model\": \"grok\",\n      \"status\": \"quota\",\n      \"cause\": \"quota exhausted; renews 5 minutes\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": null,\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-quotatime": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "grok"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"grok\",\n      \"model\": \"grok\",\n      \"status\": \"quota\",\n      \"cause\": \"quota exhausted; renews 14:30\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": null,\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-rec-claude": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"claude\",\n      \"model\": \"opus\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"codex\",\n      \"model\": \"sol|gpt-5\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"grok\",\n      \"model\": \"grok\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"agy\",\n      \"model\": \"gemini|opus\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"gemini\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"cursor\",\n      \"model\": \"grok|muse\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"model\": \"\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"opencode\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": {\n    \"kind\": \"claude\",\n    \"family\": \"anthropic\",\n    \"model\": \"opus\"\n  },\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-rec-codex": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"claude\",\n      \"model\": \"opus\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"codex\",\n      \"model\": \"sol|gpt-5\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"grok\",\n      \"model\": \"grok\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"agy\",\n      \"model\": \"gemini|opus\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"gemini\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"cursor\",\n      \"model\": \"grok|muse\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"model\": \"\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"opencode\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": {\n    \"kind\": \"codex\",\n    \"family\": \"openai\",\n    \"model\": \"sol|gpt-5\"\n  },\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-rec-null": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"claude\",\n      \"model\": \"opus\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"codex\",\n      \"model\": \"sol|gpt-5\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"grok\",\n      \"model\": \"grok\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"agy\",\n      \"model\": \"gemini|opus\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"gemini\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"cursor\",\n      \"model\": \"grok|muse\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"pi\",\n      \"model\": \"\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    },\n    {\n      \"kind\": \"opencode\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"not installed\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": null,\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-timeout": {
+    "files": [],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "pi",
+          "--timeout",
+          "1"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"pi\",\n      \"model\": \"\",\n      \"status\": \"error\",\n      \"cause\": \"timeout after 1s\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": null,\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      }
+    ]
+  },
+  "probe-usage": {
+    "files": [
+      {
+        "content": null,
+        "rel": "state/ws/agents.tsv"
+      }
+    ],
+    "stateWs": "<ROOT>/state/ws",
+    "steps": [
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "pi",
+          "--timeout",
+          "0"
+        ],
+        "err": "PROG: setup --probe: timeout must be a whole number of seconds ≥ 1\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "pi",
+          "--timeout",
+          "abc"
+        ],
+        "err": "PROG: setup --probe: timeout must be a whole number of seconds ≥ 1\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "pi"
+        ],
+        "err": "PROG: setup --probe: timeout must be a whole number of seconds ≥ 1\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "pi"
+        ],
+        "err": "",
+        "out": "{\n  \"probes\": [\n    {\n      \"kind\": \"pi\",\n      \"model\": \"\",\n      \"status\": \"ready\",\n      \"cause\": \"\",\n      \"source\": \"configured\"\n    }\n  ],\n  \"recommended_reviewer\": null,\n  \"skipped_custom\": []\n}\n",
+        "rc": 0
+      },
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "notepad"
+        ],
+        "err": "PROG: setup --probe: unknown kind 'notepad' (see: kinds)\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind",
+          "--model",
+          "pi"
+        ],
+        "err": "PROG: setup --probe: --kind expects a value\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--model",
+          "requested/only"
+        ],
+        "err": "PROG: setup --probe: --model needs --kind (probe one kind/model: --kind K --model M)\n",
+        "out": "",
+        "rc": 2
+      },
+      {
+        "args": [
+          "setup",
+          "--probe",
+          "--kind"
+        ],
+        "err": "PROG: setup --probe: --kind expects a value\n",
+        "out": "",
+        "rc": 2
+      }
+    ]
+  }
+}
