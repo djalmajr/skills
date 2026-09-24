@@ -157,6 +157,14 @@ esac
 ln -sf "$JQ_BIN" "$TEST_ROOT/bin/jq"
 ln -sf "$GIT_BIN" "$TEST_ROOT/bin/git"
 [ -n "$TIMEOUT_BIN" ] && ln -sf "$TIMEOUT_BIN" "$TEST_ROOT/bin/timeout"
+# The entry is the JavaScript one (switch to JS): node (20+) or bun must be
+# on the controlled PATHs (both KINDS_PATH and DETECT_PATH start in this
+# bin dir), linked like jq/git.
+NODE_BIN="$(command -v node || true)"
+BUN_BIN="$(command -v bun || true)"
+if [ -z "$NODE_BIN" ] && [ -z "$BUN_BIN" ]; then fail "node or bun is required (the JS entry)"; fi
+[ -n "$NODE_BIN" ] && ln -sf "$NODE_BIN" "$TEST_ROOT/bin/node"
+[ -n "$BUN_BIN" ] && ln -sf "$BUN_BIN" "$TEST_ROOT/bin/bun"
 KINDS_PATH="$TEST_ROOT/bin:/usr/bin:/bin"
 
 legacy   # every laned role on grok; the grok fake on PATH → only grok is in use

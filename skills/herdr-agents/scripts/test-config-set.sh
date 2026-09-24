@@ -25,6 +25,14 @@ fi
 EOF
 chmod +x "$FAKE/grok"
 
+# The entry is the JavaScript one (switch to JS): the shim needs node (20+)
+# or bun on the controlled PATH, linked like the jq/git/timeout binaries.
+NODE_BIN="$(command -v node || true)"
+BUN_BIN="$(command -v bun || true)"
+if [ -z "$NODE_BIN" ] && [ -z "$BUN_BIN" ]; then fail "node or bun is required (the JS entry)"; fi
+[ -n "$NODE_BIN" ] && ln -sf "$NODE_BIN" "$FAKE/node"
+[ -n "$BUN_BIN" ] && ln -sf "$BUN_BIN" "$FAKE/bun"
+
 JQ_BIN="$(command -v jq)"
 TIMEOUT_BIN="$(command -v timeout || true)"
 GIT_BIN="$(command -v git)"

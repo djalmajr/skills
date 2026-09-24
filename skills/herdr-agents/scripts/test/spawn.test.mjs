@@ -307,6 +307,22 @@ test('findReusable: an unqueryable same-role match blocks (unavailable)', () => 
   } finally { fix.cleanup(); }
 });
 
+// scripts/test-status.sh: the unqueryable same-role worker does not block
+// while a queryable idle one of the same role exists (the idle one wins),
+// and a dead worker is real absence — no match at all (rc 1, no name).
+test('findReusable: idle same-role sibling wins over unqueryable; dead is absence (test-status.sh)', () => {
+  const fix = makeFix('ha-spawn-reuse-status-');
+  try {
+    fix.writeRoster(
+      'stuck\tp-stuck\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer',
+      'idle1\tp-idle1\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer',
+    );
+    assert.deepEqual(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full'), { name: 'idle1' });
+    fix.writeRoster('dead\tp-dead\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer');
+    assert.equal(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full'), null, 'dead agent: no match');
+  } finally { fix.cleanup(); }
+});
+
 test('findReusable: done is reusable; an empty last report is not', () => {
   const fix = makeFix('ha-spawn-reuse-11-');
   try {
@@ -632,6 +648,25 @@ test('spawn: --pane places the worker in a given pane (placement given)', () => 
     assert.equal(r2.status, 0, r2.stderr);
     assert.match(r2.stderr, /--tab-label ignored: --pane places the worker in a given pane/);
     assert.equal(JSON.parse(r2.stdout).placement, 'given');
+  } finally { fix.cleanup(); }
+});
+
+// scripts/test-tab-labels.sh: spawn parses --tab-label (without --pane) and
+// forces the herd placement — the labelled tab is created and pinned manual.
+test('spawn: --tab-label forces the herd tab and pins the label (test-tab-labels.sh)', () => {
+  const fix = makeFix('ha-spawn-tablabel-');
+  try {
+    fix.clearLog();
+    const r = runSpawn(fix, ['implementer', '--tab-label', 'paridade']);
+    assert.equal(r.status, 0, r.stderr);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.pane_id, 'p-new');
+    assert.equal(j.layout, 'tab');
+    assert.equal(j.placement, 'herd');
+    assert.equal(j.created_pane, true);
+    assert.ok(fix.logLines().some((l) => l.startsWith('tab create ') && l.includes('--label paridade')),
+      `tab create with the label: ${fix.logLines().join('\n')}`);
+    assert.equal(fix.row('build').split('\t')[3], 'implementer');
   } finally { fix.cleanup(); }
 });
 

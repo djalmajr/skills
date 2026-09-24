@@ -8,8 +8,9 @@
 // Same lines, same order, same text as the bash (the 6-column
 // `ok`/`warn` printf, `first_run: true|false`, the final `N ok, M
 // warning(s)`), with the two decided differences: no `jq` line (orchestrator
-// decision 5 — the ok count drops by one) and the entry script's own path
-// where the bash prints `$0`. `--fix` writes with the ported applyLaneFile
+// decision 5 — the ok count drops by one) and the launcher path where the
+// bash prints `$0` (decision 2b; switch-to-JS decision 4 — the user runs
+// the launcher, not the .mjs). `--fix` writes with the ported applyLaneFile
 // and shows the diff with slice 7c's unifiedDiff (labels `a/<file>` /
 // `b/<file>` instead of bash's process-substitution header, which is
 // non-deterministic — /dev/fd/N and a timestamp); after a successful fix it
@@ -33,9 +34,13 @@ import { kindExe } from '../kinds.mjs';
 import { setupTargetExisting, projectNeedsConfigPrompt } from './setup.mjs';
 import { unifiedDiff } from './setup-plan.mjs';
 
-// The entry script's own path — where the bash prints `$0` (decision 2b).
+// Where the user runs the program from — the launcher (switch-to-JS
+// decision 4), where the bash prints `$0` (decision 2b): scripts/herdr-agents
+// on POSIX, scripts\herdr-agents.cmd on Windows. The goldens normalize it to
+// PROG.
 export const ENTRY_SCRIPT = path.join(
-  path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'herdr-agents.mjs',
+  path.dirname(fileURLToPath(import.meta.url)), '..', '..',
+  process.platform === 'win32' ? 'herdr-agents.cmd' : 'herdr-agents',
 );
 
 // `isFile` / `isDir` ports (regular file / directory, symlinks followed).
@@ -330,7 +335,8 @@ function settingsHasHerdrHooks(file) {
 
 // The advisory checks (bash cmd_doctor, :1768-1824). Never blocks; always
 // returns 0. Decision 5: the jq line is gone (the ok count drops by one);
-// decision 2b: the entry script's path where the bash prints `$0`.
+// decision 2b: the entry's path where the bash prints `$0` (switch-to-JS
+// decision 4: the launcher).
 export function doctorCheck(ctx, env = process.env, cwd = process.cwd()) {
   const s = new DoctorSay();
   if (env.HERDR_ENV === '1') s.ok('inside Herdr (HERDR_ENV=1)');

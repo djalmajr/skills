@@ -5,8 +5,9 @@
 // Decisions honored here:
 //   - agentFamily is the NEW rule (deliberate divergence from the bash
 //     `agent_family`, which pattern-matches the whole id including provider
-//     segments): (1) any id segment that starts with a known family name
-//     (anthropic, openai, xai, google) wins; (2) otherwise only the LAST
+//     segments): (1) any id segment that IS a known family name
+//     (anthropic, openai, xai, google) wins, whole segment only
+//     (`xai-proxy/x` is unknown); (2) otherwise only the LAST
 //     segment is pattern-matched (claude-* -> anthropic, gpt-*/ *codex* ->
 //     openai, grok-* -> xai, gemini-* -> google); (3) otherwise unknown.
 //     Kinds with a fixed family (claude, codex, grok, agy, gemini) keep the

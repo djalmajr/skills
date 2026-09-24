@@ -2,7 +2,7 @@
 #   ~/.config/herdr-agents/config          (user-wide)
 #   <repo>/.agents/herdr-agents.conf       (per project, wins over user)
 # A fourth, session-only layer lives in the git-ignored state dir:
-#   <state>/session.conf — written by `herdr-agents.sh session set`
+#   <state>/session.conf — written by `herdr-agents session set`
 # (above user/project, below flags and HERDR_AGENTS_*; never versioned).
 # Environment variables HERDR_AGENTS_<KEY> win over both; command flags win over all.
 # Format: key=value, one per line, `#` comments. Dots in keys are allowed (args.codex=…).
@@ -177,7 +177,7 @@ feedback_repo=djalmajr/skills
 # the ids the CLI lists; `a|b` tries alternatives in order. Regexes resolve to
 # the NEWEST matching model at spawn time, so these defaults track new
 # releases without edits. Per role: role.<role>.model / role.<role>.effort /
-# role.<role>.kind. Check with: herdr-agents.sh model <kind> <spec> [effort].
+# role.<role>.kind. Check with: herdr-agents model <kind> <spec> [effort].
 model.claude.orchestrator=fable
 model.claude.worker=opus
 # The planner is the orchestrator: `spawn planner` exits 12 and opens no pane.

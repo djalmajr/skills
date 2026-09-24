@@ -52,6 +52,13 @@ TIMEOUT_BIN="$(command -v timeout || true)"
 ln -sf "$JQ_BIN" "$FAKE/jq"
 ln -sf "$GIT_BIN" "$FAKE/git"
 ln -sf "$TIMEOUT_BIN" "$FAKE/timeout"
+# The entry is the JS shim (herdr-agents.sh): node (preferred) and bun must
+# be reachable under this restricted PATH, like jq and git.
+NODE_BIN="$(command -v node || true)"
+[ -n "$NODE_BIN" ] || fail "node is required for the probe (the entry is a JS shim)"
+ln -sf "$NODE_BIN" "$FAKE/node"
+BUN_BIN="$(command -v bun || true)"
+[ -n "$BUN_BIN" ] && ln -sf "$BUN_BIN" "$FAKE/bun"
 # No herdr on this PATH: the probe must not need it (no panes, no agent get).
 TEST_PATH="$FAKE:/usr/bin:/bin"
 
@@ -261,23 +268,6 @@ run_rc setup --probe --kind
 [ "$RUN_RC" -eq 2 ] || fail "probe --kind without value rc $RUN_RC"
 printf '%s' "$RUN_ERR" | grep -q 'setup --probe: --kind expects a value' || fail "probe --kind msg: $RUN_ERR"
 
-# --- A: redact_secrets covers hyphen keys (unit) ------------------------------
-(
-  set -euo pipefail
-  export HERDR_AGENTS_LIB=1
-  export HOME="$HOME_DIR" XDG_CONFIG_HOME="$CONF_DIR" TMPDIR="$TEST_ROOT/tmp"
-  unset HERDR_ENV HERDR_PANE_ID HERDR_WORKSPACE_ID 2>/dev/null || true
-  # shellcheck source=herdr-agents.sh
-  . "$SKILL_SCRIPT"
-  v="$(redact_secrets 'sk-proj-abcDEF123456')"
-  [ "$v" = "[redacted]" ] || { printf 'FAIL: redact sk-proj: %s\n' "$v" >&2; exit 1; }
-  v="$(redact_secrets 'sk-ant-api01-XYZ12345')"
-  [ "$v" = "[redacted]" ] || { printf 'FAIL: redact sk-ant: %s\n' "$v" >&2; exit 1; }
-  v="$(redact_secrets 'pk-live12345678')"
-  [ "$v" = "[redacted]" ] || { printf 'FAIL: redact pk-: %s\n' "$v" >&2; exit 1; }
-  v="$(redact_secrets 'key sk_live_987654321')"
-  [ "$v" = "key [redacted]" ] || { printf 'FAIL: redact sk_ still works: %s\n' "$v" >&2; exit 1; }
-)
 
 # --- C: the aggregate probe covers the user's own models (pi) ------------------
 mkdir -p "$HOME_DIR/.pi/agent"

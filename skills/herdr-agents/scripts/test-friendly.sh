@@ -55,9 +55,19 @@ chmod +x "$FAKE/grok"
 JQ_BIN="$(command -v jq)"
 GIT_BIN="$(command -v git)"
 TIMEOUT_BIN="$(command -v timeout || true)"
+NODE_BIN="$(command -v node || true)"
+BUN_BIN="$(command -v bun || true)"
 [ -n "$JQ_BIN" ] || fail "jq is required"
 [ -n "$GIT_BIN" ] || fail "git is required"
-BASE_PATH="$(dirname "$JQ_BIN"):$(dirname "$GIT_BIN"):${TIMEOUT_BIN:+$(dirname "$TIMEOUT_BIN"):}/usr/bin:/bin"
+if [ -z "$NODE_BIN" ] && [ -z "$BUN_BIN" ]; then fail "node or bun is required (the JS entry)"; fi
+# The entry is the JavaScript one (switch to JS): every controlled PATH needs
+# node (20+) or bun. BASE_PATH must stay fake-free (the doctor/explain runs
+# there see no herdr), so the links get their own dir instead of $FAKE.
+NODES="$TEST_ROOT/nodebin"
+mkdir -p "$NODES"
+[ -n "$NODE_BIN" ] && ln -sf "$NODE_BIN" "$NODES/node"
+[ -n "$BUN_BIN" ] && ln -sf "$BUN_BIN" "$NODES/bun"
+BASE_PATH="$NODES:$(dirname "$JQ_BIN"):$(dirname "$GIT_BIN"):${TIMEOUT_BIN:+$(dirname "$TIMEOUT_BIN"):}/usr/bin:/bin"
 DETECT_PATH="$FAKE:$BASE_PATH"
 HERDR_PATH="$FAKE:$BASE_PATH"
 

@@ -17,6 +17,10 @@ SCREEN="$TEST_ROOT/screen"
 mkdir -p "$REPO" "$FAKE" "$STATE/ws/briefs" "$STATE/ws/reports" "$STATE/ws/wait" \
   "$TEST_ROOT/home" "$TEST_ROOT/config" "$TEST_ROOT/tmp"
 git -C "$REPO" init -q
+# The JS entry compares process.cwd() (physically resolved: /var is a
+# symlink on macOS) against the roster's cwd column, so the manually
+# written rows must carry the resolved path (the lanes=off reuse check).
+REPO="$(cd "$REPO" && pwd -P)"
 printf '# Agent instructions\n' > "$REPO/AGENTS.md"
 printf '%s\n' idle > "$MODE"
 printf '%s\n' 'plain screen' > "$SCREEN"
@@ -105,46 +109,6 @@ add_worker() {
     "$name" "$name" "$kind" "$role" "$REPO" "$role" "$lane" >> "$STATE/ws/agents.tsv"
 }
 
-# --- presets and custom lanes (sourced, temp repo so config is isolated) ---
-(
-  set -euo pipefail
-  cd "$REPO"
-  export HERDR_AGENTS_LIB=1
-  export HOME="$TEST_ROOT/home" XDG_CONFIG_HOME="$TEST_ROOT/config" TMPDIR="$TEST_ROOT/tmp"
-  export HERDR_AGENTS_DIR="$TEST_ROOT/state" HERDR_WORKSPACE_ID=ws-test
-  unset HERDR_AGENTS_PANES HERDR_AGENTS_LANES HERDR_AGENTS_MAX_WORKERS || true
-  # shellcheck source=herdr-agents.sh
-  . "$SKILL_SCRIPT"
-  load_config
-  [ "$(lane_of_role implementer)" = build ] || { echo "preset4 implementer"; exit 1; }
-  [ "$(lane_of_role designer)" = build ] || { echo "preset4 designer"; exit 1; }
-  [ "$(lane_of_role scouter)" = explore ] || { echo "preset4 scouter"; exit 1; }
-  [ "$(lane_of_role researcher)" = explore ] || { echo "preset4 researcher"; exit 1; }
-  [ "$(lane_of_role reviewer)" = review ] || { echo "preset4 reviewer"; exit 1; }
-  [ "$(lane_of_role ui-reviewer)" = review ] || { echo "preset4 ui"; exit 1; }
-  [ "$(lane_of_role inspector)" = review ] || { echo "preset4 inspector"; exit 1; }
-  [ "$(lane_count)" = 3 ] || { echo "preset4 count $(lane_count)"; exit 1; }
-  [ "$(max_workers)" = 3 ] || { echo "preset4 workers $(max_workers)"; exit 1; }
-  [ "$(split_cap)" = 4 ] || { echo "preset4 cap $(split_cap)"; exit 1; }
-  lane_of_role sub-orchestrator >/dev/null 2>&1 && { echo "sub-orchestrator should have no lane"; exit 1; }
-
-  mkdir -p "$REPO/.agents"
-  printf '%s\n' 'panes=3' > "$REPO/.agents/herdr-agents.conf"
-  load_config
-  [ "$(lane_of_role scouter)" = read ] || { echo "preset3 scouter $(lane_of_role scouter || true)"; exit 1; }
-  [ "$(lane_of_role reviewer)" = read ] || { echo "preset3 reviewer"; exit 1; }
-  [ "$(lane_of_role implementer)" = build ] || { echo "preset3 build"; exit 1; }
-  [ "$(lane_count)" = 2 ] || { echo "preset3 count $(lane_count)"; exit 1; }
-  [ "$(max_workers)" = 2 ] || { echo "preset3 workers $(max_workers)"; exit 1; }
-  [ "$(split_cap)" = 3 ] || { echo "preset3 cap $(split_cap)"; exit 1; }
-
-  printf '%s\n' 'panes=4' 'lane.ops.roles=implementer,tasker' > "$REPO/.agents/herdr-agents.conf"
-  load_config
-  [ "$(lane_of_role implementer)" = ops ] || { echo "custom implementer"; exit 1; }
-  [ "$(lane_count)" = 1 ] || { echo "custom count $(lane_count)"; exit 1; }
-  lane_of_role scouter >/dev/null 2>&1 && { echo "custom should drop the preset"; exit 1; }
-  rm -f "$REPO/.agents/herdr-agents.conf"
-) || fail "presets"
 
 # --- config set validation ---
 run_cmd config set panes 5

@@ -7,7 +7,7 @@ labels: herdr-agents
 
 - **Goal of the run:** <what the orchestrator was trying to do>
 - **Roles / kinds involved:** <e.g. implementer=codex, reviewer=claude>
-- **Command:** `herdr-agents.sh <command> <args>`
+- **Command:** `herdr-agents <command> <args>`
 
 ## What happened
 
@@ -20,8 +20,9 @@ labels: herdr-agents
 ## Environment
 
 ```
-<paste `herdr-agents.sh env` output>
-<paste `herdr-agents.sh config` output>
+<paste `herdr-agents env` output (includes the `runtime: node <version>` or
+`runtime: bun <version>` line)>
+<paste `herdr-agents config` output>
 ```
 
 ## Evidence

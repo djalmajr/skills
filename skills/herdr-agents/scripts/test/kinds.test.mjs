@@ -268,6 +268,22 @@ test('agentFamily: the NEW rule (decision cases) + fixed-family kinds', (t) => {
   assert.equal(agentFamily('pi', ''), 'unknown');
 });
 
+// The remaining exact inputs of scripts/test-kinds.sh (the bash suite is
+// retired in slice 9b): same kind/model pairs, same expected families.
+test('agentFamily: the exact test-kinds.sh inputs (ported)', () => {
+  assert.equal(agentFamily('pi', 'anthropic/claude-opus-4-6'), 'anthropic', 'pi with claude id');
+  assert.equal(agentFamily('opencode', 'openai/gpt-5.2'), 'openai', 'opencode with gpt id');
+  assert.equal(agentFamily('opencode', 'my-provider/my-model'), 'unknown', 'opencode unknown id');
+  assert.equal(agentFamily('cursor', 'cursor-grok-4.6-high'), 'unknown', 'provider part never matches');
+  assert.equal(agentFamily('cursor', 'gpt-5.6-sol-xhigh'), 'openai', 'cursor running sol');
+  assert.equal(agentFamily('opencode', 'custom-grok-gateway/my-model'), 'unknown', 'grok-named gateway');
+  assert.equal(agentFamily('opencode', 'my-claude-proxy/my-model'), 'unknown', 'claude-named proxy');
+  assert.equal(agentFamily('opencode', 'xai/grok-4.7'), 'xai', 'family segment xai wins');
+  assert.equal(agentFamily('pi', 'my-router/google/gemini-x'), 'google', 'family segment google wins');
+  assert.equal(agentFamily('pi', 'my-provider/gemini-flash'), 'google', 'last segment gemini-*');
+  assert.equal(agentFamily('pi', 'my-provider/claude-opus'), 'anthropic', 'last segment claude-*');
+});
+
 test('resolveModel cursor: exact id and early failure (fake cursor-agent)', { timeout: 120000 }, (t) => {
   const s = setup();
   try {

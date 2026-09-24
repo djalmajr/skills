@@ -41,58 +41,6 @@ esac
 EOF
 chmod +x "$FAKE/herdr"
 
-(
-  set -euo pipefail
-  export HERDR_AGENTS_LIB=1
-  export HOME="$TEST_ROOT/home" XDG_CONFIG_HOME="$TEST_ROOT/config" TMPDIR="$TEST_ROOT/tmp"
-  export HERDR_AGENTS_DIR="$TEST_ROOT/state" HERDR_WORKSPACE_ID=ws-test
-  unset HERDR_ENV || true
-  # shellcheck source=herdr-agents.sh
-  . "$SKILL_SCRIPT"
-  load_config
-  hit() {
-    local st="$1" text="$2" label="$3"
-    local out rc=0
-    out="$(quota_detect "$st" "$text")" && rc=0 || rc=$?
-    [ "$rc" = 0 ] || { printf 'FAIL: %s did not match (rc %s)\n' "$label" "$rc" >&2; exit 1; }
-    printf '%s\n' "$out" | head -n1 | grep -q . || { printf 'FAIL: %s empty match\n' "$label" >&2; exit 1; }
-  }
-  miss() {
-    local st="$1" text="$2" label="$3"
-    local rc=0
-    quota_detect "$st" "$text" >/dev/null && rc=0 || rc=$?
-    [ "$rc" = 1 ] || { printf 'FAIL: %s matched\n' "$label" >&2; exit 1; }
-  }
-  hit idle 'You have hit your usage limit for grok' 'usage limit'
-  hit idle 'Individual quota reached' 'individual'
-  hit idle 'Error: quota exceeded' 'quota exceeded'
-  hit idle 'RESOURCE_EXHAUSTED: project' 'resource'
-  hit idle '429 Too Many Requests' '429'
-  hit idle 'rate limit exceeded, retry later' 'rate limit exceeded'
-  hit idle "You've hit your limit for today" 'you have hit'
-  hit idle 'You exceeded your current quota, please check your plan and billing details.' 'openai quota'
-  hit idle 'You have reached your API usage limits: monthly threshold' 'anthropic reached'
-  hit idle "You've reached your API usage limits" 'anthropic contraction'
-  hit "done" 'INDIVIDUAL QUOTA REACHED' 'case'
-  miss idle 'implement a rate limit for the API client' 'prose rate limit'
-  miss idle 'return "rate limit"' 'code rate limit'
-  miss idle 'return "rate limit exceeded"' 'return phrase'
-  miss idle '// 429 Too Many Requests' 'slash comment'
-  miss idle '# quota exceeded' 'hash comment'
-  miss idle '/* RESOURCE_EXHAUSTED */' 'block comment'
-  miss idle 'func Limit() { quota exceeded }' 'func keyword'
-  miss idle 'function check() { quota exceeded }' 'function keyword'
-  miss idle 'msg = "quota exceeded"' 'assignment'
-  miss idle '"rate limit exceeded"' 'quoted phrase'
-  miss idle "You've hit your stride" 'stride'
-  miss working '429 Too Many Requests' 'working 429'
-  miss working 'hit your usage limit' 'working usage'
-  miss idle '' 'empty'
-  out="$(quota_detect idle $'Individual quota reached token=sk_live_abcdefghij\nResets at 5:00pm')"
-  case "$out" in *'Individual quota reached'*) ;; *) echo "renewal match: $out"; exit 1 ;; esac
-  case "$out" in *'Resets at 5:00pm'*) ;; *) echo "renewal line: $out"; exit 1 ;; esac
-  case "$out" in *sk_live_*) echo "secret leaked: $out"; exit 1 ;; esac
-) || fail "quota_detect"
 
 printf '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n' > "$STATE/ws/agents.tsv"
 printf 'build\tp1\tgrok\timplementer\txai\t1\t%s\tnow\tgrok-4.7\tfull\timplementer\tbuild\n' "$REPO" >> "$STATE/ws/agents.tsv"

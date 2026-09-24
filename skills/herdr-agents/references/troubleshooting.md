@@ -258,9 +258,9 @@ you should do. Read this before changing the script or adding a kind.
 ## Validating a new or updated kind
 
 1. `herdr agent` must list the kind; the executable must be in `PATH`
-   (`herdr-agents.sh kinds`).
-2. Add `kind_exe`, `kind_family`, `kind_effort_ceiling`, `kind_effort_args`,
-   `kind_model_args`, `kind_approval_args` entries in the script and a row in
+   (`herdr-agents kinds`).
+2. Add `kindExe`, `kindFamily`, `kindEffortCeiling`, `kindEffortArgs`,
+   `kindModelArgs`, `kindApprovalArgs` entries in `scripts/lib/kinds.mjs` and a row in
    `kinds.md`.
 3. Smoke: a 15-line read-only brief (`scouter`) asking for one constant and its
    reader in the current repo. `spawn --approvals full --effort <ceiling+1>`
@@ -330,11 +330,19 @@ without checking that generation succeeded and produced what you expect.
 
 ## Running the test matrix
 
-- Use `scripts/run-tests.sh`: every `scripts/test-*.sh` suite × inside/outside in parallel
-  (one `PASS|FAIL` line per run, last 30 log lines of each failed run on
-  failure). Flags: `--env inside|outside|both`, `--bash <path>` (repeatable,
-  adds an interpreter to the matrix), `--jobs N`, suite names or paths as
-  extra arguments. `HERDR_AGENTS_KEEP_TEST_LOGS=1` keeps the logs.
+- The JS unit tests run under either runtime: `node --test scripts/test/`
+  or `bun test scripts/test/`.
+- Use `scripts/run-tests.sh`: every `scripts/test-*.sh` suite (bash suites
+  that exercise the JS through the `scripts/herdr-agents.sh` shim) ×
+  inside/outside in parallel (one `PASS|FAIL` line per run, last 30 log
+  lines of each failed run on failure). Flags: `--env inside|outside|both`,
+  `--bash <path>` (repeatable, adds an interpreter to the matrix),
+  `--jobs N`, suite names or paths as extra arguments.
+  `HERDR_AGENTS_KEEP_TEST_LOGS=1` keeps the logs.
+- The old bash↔JS parity tests are golden files under
+  `scripts/test/golden/` (recorded from the bash behavior before the
+  port). An intentional behavior change re-records them with
+  `HERDR_AGENTS_GOLDEN=update`, then review the diff.
 - Every run is isolated: its own `HOME`, `XDG_CONFIG_HOME` and `TMPDIR`
   inside a temp dir, and all `HERDR_AGENTS_*` variables from the parent
   environment unset. No suite reads `~/.config/herdr-agents`, `~/.pi` or

@@ -53,11 +53,11 @@ to a file.
 ## Preconditions
 
 ```bash
-test "${HERDR_ENV:-}" = 1 && command -v herdr jq >/dev/null && $S init
+test "${HERDR_ENV:-}" = 1 && command -v herdr >/dev/null && { command -v node >/dev/null && [ "$(node -p 'process.versions.node' | cut -d. -f1)" -ge 20 ] || command -v bun >/dev/null; } && $S init
 ```
 
-If the check fails, say you are not inside Herdr (or `jq` is missing) and
-stop. Never control a Herdr session from outside Herdr. The `herdr` skill
+If the check fails, say you are not inside Herdr (or Node.js 20+/Bun is
+missing) and stop. Never control a Herdr session from outside Herdr. The `herdr` skill
 (`herdr --skill`) is the authority for CLI syntax; this skill adds the role
 layer on top of it and never replaces it.
 
@@ -124,7 +124,7 @@ says what the team is and how to start.
 
 ## Names: who is who in the roster
 
-Run `$S init` first. It runs `doctor` (advisory: inside Herdr, `jq`,
+Run `$S init` first. It runs `doctor` (advisory: inside Herdr,
 Herdr client vs server version, the **official `herdr` skill present and
 identical to `herdr --skill`**, kinds in `PATH`, state dir writable,
 config sane), then renames the caller's own agent to `orchestrator`
@@ -364,10 +364,11 @@ default 4), `lanes` (`on|off`), and `lane.<name>.roles|kind|model|effort|approva
 
 ## Commands
 
-All mechanics go through `scripts/herdr-agents.sh` (needs `bash`, `jq`):
+All mechanics go through `scripts/herdr-agents` (needs `herdr` and Node.js
+20+ or Bun — no `bash`, no `jq`):
 
 ```bash
-S=<path-to-this-skill>/scripts/herdr-agents.sh
+S=<path-to-this-skill>/scripts/herdr-agents      # POSIX; Windows: <path-to-this-skill>\scripts\herdr-agents.cmd
 $S init                                    # doctor + name yourself `orchestrator`, print context (`first_run`)
 $S doctor                                  # advisory environment check (`first_run: true|false`)
 $S explain                                 # plain text: what is running, or how to start
@@ -401,6 +402,15 @@ $S spawn implementer --effort xhigh --approvals full      # normalized effort + 
 $S spawn scouter --kind cursor --model gpt-5.3-codex --effort high --approvals full
 $S spawn implementer -- -s workspace-write -a never      # native agent args after --
 ```
+
+`scripts/herdr-agents` is a POSIX `sh` launcher: it runs
+`scripts/herdr-agents.mjs` with `node` (20+) — or `bun` when Node.js 20+
+is not available (missing or older) — with the same arguments. If neither
+runtime is usable it prints `herdr-agents: needs Node.js 20+ or Bun` and
+exits 2.
+`scripts/herdr-agents.cmd` is the same launcher for Windows. `scripts/herdr-agents.sh`
+stays as a compatibility shim (the same launcher) for the hooks and
+instruction blocks that `setup` has already written into projects.
 
 **Naming.** With lanes on, the agent is named after the lane (`build`,
 `explore`, `review`, `read`). `lanes=off` names it after the role
@@ -711,7 +721,9 @@ between `<!-- herdr-agents:start -->` / `<!-- herdr-agents:end -->`
 markers in the project's canonical instruction file and merges two hooks
 into `.claude/settings.json`: `UserPromptSubmit` (a one-line reminder on
 every prompt while `HERDR_ENV=1`) and `SessionStart` (doctor warnings).
-Re-running replaces the block and the hooks; the file is never touched
+The hook commands are `sh` invocations, so they run only where a POSIX
+shell exists (on Windows, via Git Bash or WSL). Re-running replaces the
+block and the hooks; the file is never touched
 when the rewrite fails. Generated project files never embed the installer's
 absolute path: the `SessionStart` hook prefers the project's `.agents/skills/`
 or `.claude/skills/` copy, then checks the same roots under the user's home.
@@ -860,7 +872,9 @@ role frontmatter). When they agree it writes `lane.<name>.kind` / `.model`
 and only then removes those `role.<role>.*` keys. When they disagree it
 leaves the keys, lists `role=kind`, and tells you to ask and run
 `setup --lane <name>=<kind>[:<model>[:<effort>]]`. `role.planner.*` is
-removed either way. Comments stay. Without `--panes` and without `panes`
+removed either way. Comments stay. It prints the file it updated as a
+`diff -u` with `a/<file>` and `b/<file>` labels (`no changes in <file>`
+when nothing moved), like `setup --plan`. Without `--panes` and without `panes`
 in the file, `--fix` exits 2 and tells you to ask 3 or 4 — it does not
 choose. In that case, run steps 2–5 above (the 3-or-4 question, then the
 plan and confirmation) and finish with `doctor --fix`.
@@ -943,7 +957,7 @@ issue on the skill's repo so the maintainer can improve it incrementally.
   change), then:
 
   ```bash
-  gh issue create --repo "$(bash $S config | awk '$1=="feedback_repo"{print $2}')" \
+  gh issue create --repo "$("$S" config | awk '$1=="feedback_repo"{print $2}')" \
     --title "herdr-agents: <one line>" --label herdr-agents --body-file /tmp/herdr-agents-issue.md
   ```
 
@@ -952,9 +966,17 @@ issue on the skill's repo so the maintainer can improve it incrementally.
 
 ## Testing the skill
 
-The regression matrix is every suite in `scripts/test-*.sh`, each run both
-inside Herdr (`HERDR_ENV=1` with a test pane/workspace) and outside. Run it
-through the parallel hermetic executor, never a hand-rolled loop:
+The ported commands have JS tests that run under either runtime:
+
+```bash
+node --test scripts/test/    # JS tests (Node 20+)
+bun test scripts/test/       # the same tests under Bun
+```
+
+The regression matrix is every suite in `scripts/test-*.sh` — bash suites
+that exercise the JS through the `scripts/herdr-agents.sh` shim — each run
+both inside Herdr (`HERDR_ENV=1` with a test pane/workspace) and outside.
+Run it through the parallel hermetic executor, never a hand-rolled loop:
 
 ```bash
 scripts/run-tests.sh                              # every suite × inside+outside, parallel
@@ -962,6 +984,11 @@ scripts/run-tests.sh --env outside test-kinds.sh  # one suite while iterating
 scripts/run-tests.sh --bash /bin/bash             # also run the matrix on that interpreter
 scripts/run-tests.sh --jobs 4                     # cap the parallel jobs
 ```
+
+The old bash↔JS parity tests are golden files under `scripts/test/golden/`
+(recorded from the bash behavior before the port): an intentional behavior
+change re-records them with `HERDR_AGENTS_GOLDEN=update`, then review the
+diff.
 
 Every run gets its own `HOME`, `XDG_CONFIG_HOME` and `TMPDIR` inside a temp
 dir and loses every `HERDR_AGENTS_*` variable from the parent environment,

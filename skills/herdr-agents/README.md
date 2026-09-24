@@ -39,7 +39,9 @@ stop the team, say so; panels this team opened are closed, and yours stays.
 
 ## Commands for humans
 
-The script is `skills/herdr-agents/scripts/herdr-agents.sh`.
+The script is `skills/herdr-agents/scripts/herdr-agents`
+(`scripts/herdr-agents.cmd` on Windows). It needs Herdr and Node.js 20+ or
+Bun — no `bash`, no `jq`.
 
 - `explain` — what is happening, in plain text. When nothing is running,
   what the team is and how to start.

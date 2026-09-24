@@ -27,6 +27,13 @@ TIMEOUT_BIN="$(command -v timeout || true)"
 ln -sf "$JQ_BIN" "$FAKE/jq"
 ln -sf "$GIT_BIN" "$FAKE/git"
 [ -n "$TIMEOUT_BIN" ] && ln -sf "$TIMEOUT_BIN" "$FAKE/timeout"
+# The entry is the JavaScript one (switch to JS): node (20+) or bun must be
+# on the controlled PATH, linked like jq/git.
+NODE_BIN="$(command -v node || true)"
+BUN_BIN="$(command -v bun || true)"
+if [ -z "$NODE_BIN" ] && [ -z "$BUN_BIN" ]; then fail "node or bun is required (the JS entry)"; fi
+[ -n "$NODE_BIN" ] && ln -sf "$NODE_BIN" "$FAKE/node"
+[ -n "$BUN_BIN" ] && ln -sf "$BUN_BIN" "$FAKE/bun"
 # Controlled PATH: no herdr, no agent CLI — the session layer must not need them.
 TEST_PATH="$FAKE:/usr/bin:/bin"
 

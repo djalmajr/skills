@@ -33,7 +33,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeFixture, runImpl, normalizeErr, nodeBin, BASH_ENTRY, JS_ENTRY } from './parity.mjs';
+import { makeFixture, runImpl, normalizeErr, nodeBin, BASH_ENTRY, JS_ENTRY, LAUNCHER_ENTRIES } from './parity.mjs';
 import { golden, goldenMode, normalizeRoots } from './golden.mjs';
 import { findExecutable } from '../lib/platform.mjs';
 
@@ -144,7 +144,9 @@ function normOut(out) {
   }
   return kept.join('\n')
     .replaceAll(BASH_ENTRY, 'PROG')
-    .replaceAll(JS_ENTRY, 'PROG');
+    .replaceAll(JS_ENTRY, 'PROG')
+    .replaceAll(LAUNCHER_ENTRIES[0], 'PROG')
+    .replaceAll(LAUNCHER_ENTRIES[1], 'PROG');
 }
 
 // Run every step against one implementation in a fresh fixture and return

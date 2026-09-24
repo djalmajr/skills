@@ -19,7 +19,7 @@ import { nodeBin } from './parity.mjs';
 import { loadConfig } from '../lib/config.mjs';
 import {
   roleAbbrev, herdLabelMax, composeHerdLabel, herdAutoLabel, herdTabEntries,
-  herdTabsRelabel, herdTabPane, cmdTabLabel,
+  herdTabsRelabel, herdTabPane, cmdTabLabel, rosterPanesInTab,
 } from '../lib/herdtabs.mjs';
 
 const SCRIPTS = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -74,6 +74,31 @@ function tmp(prefix) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   return fs.realpathSync(root);
 }
+
+// scripts/test-status.sh: only `agent_not_found` is `gone`. A dead pane
+// drops out of the regrid list; a stuck (unqueryable) one stays.
+test('rosterPanesInTab: a gone pane drops, a stuck one stays (test-status.sh)', () => {
+  const fix = makeFix('ha-tabs-panes-gone-');
+  try {
+    writeFakeCli(path.join(fix.root, 'bin'), 'herdr', [
+      "const argv = process.argv.slice(2);",
+      "const t = argv[2] ?? '';",
+      'if (t === \'stuck\') {',
+      '  process.stderr.write(\'Error: Os { code: 13, kind: PermissionDenied, message: \\\"Permission denied\\\" }\\n\');',
+      '  process.exit(1);',
+      '}',
+      "if (t === 'dead') {",
+      "  process.stderr.write(JSON.stringify({ error: { code: 'agent_not_found', message: 'dead' } }) + '\\n');",
+      '  process.exit(1);',
+      '}',
+      "process.stdout.write(JSON.stringify({ result: { agent: { name: t, agent_status: 'idle' } } }) + '\\n');",
+    ].join('\n'));
+    fix.setPanes('p2 t1', 'p3 t1');
+    fix.setRoster('stuck p2 implementer', 'dead p3 implementer');
+    const live = [{ pane_id: 'p2', tab_id: 't1' }, { pane_id: 'p3', tab_id: 't1' }];
+    assert.deepEqual(rosterPanesInTab(live, 't1', fix.ctx, fix.env, fix.cwd), ['p2']);
+  } finally { fix.cleanup(); }
+});
 
 function isoEnv(root) {
   for (const d of ['home', 'conf', 'tmp', 'state/ws', 'repo']) fs.mkdirSync(path.join(root, d), { recursive: true });
@@ -336,7 +361,7 @@ test('herdTabPane: label with room splits it; label full → "<label> ·2"; new 
 
 // --- the tab-label command -------------------------------------------------------
 
-test('tab-label command: list, pin, pin on a given tab, --auto, dedupe, errors', () => {
+test('tab-label command: list, pin, pin on a given tab, --auto, dedupe, errors', { timeout: 30000 }, () => {
   const fix = makeFix('ha-tabs-cmd-');
   try {
     const env = { ...fix.env, HERDR_ENV: '1' };

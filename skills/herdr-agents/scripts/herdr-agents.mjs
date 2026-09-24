@@ -1,20 +1,23 @@
 #!/usr/bin/env node
-// herdr-agents — JavaScript entry (slices 1-8b of the bash port).
+// herdr-agents — JavaScript entry (the bash port; scripts/herdr-agents.sh
+// stays as the reference until slice 9 finishes).
 //
-// Dispatches the ported commands (`config`, `config set`, `session`,
-// `roles`, `role`, `kinds`, `models <kind>`, `model <kind> <spec>
+// Dispatches every command of the bash script: `config [set <key> <value>
+// [--project|--user]]`, `session [set <key> <value> | clear [key] | show]`,
+// `roles`, `role <name>`, `kinds`, `models <kind>`, `model <kind> <spec>
 // [effort]`, `spawn <role> …`, `dispatch <agent> <brief.md> …`,
 // `run <role> <brief.md> …`, `status <agent>…`, `roster`, `friction`,
-// `tab-label`, `layout-plan`, `regrid`, `wait <agent>…`, `collect <agent>`,
+// `tab-label`, `layout-plan`, `wait <agent>…`, `collect <agent>`,
 // `release <agent>`, `clean`, `doctor [--fix] [--panes 3|4] [--user]`,
-// `explain`, `init`, `setup [--target FILE] [--no-hooks] [--dry-run]
-// [--panes 3|4] [--lane name=kind[:model[:effort]]] [--detect] [--plan …]
-// [--probe [--kind K --model M --timeout S]]`).
-// Any other command is reported as not
-// ported yet (exit 2) so the bash script remains the source of truth for
-// the rest until the later slices land. Load the config layers before
-// dispatching, like bash `main`. The living commands need the Herdr
-// environment (`require_env`) and log their warnings/errors to
+// `explain`, `init`, `setup [--target FILE] [--no-hooks]
+// [--dry-run] [--panes 3|4] [--lane name=kind[:model[:effort]]]` — its
+// `--probe [--kind K --model M --timeout S]` form runs the per-kind
+// probes, exclusive with `--plan` — plus `env` (the environment block for
+// a feedback issue) and the help (`help`, `-h`, `--help`, or no command:
+// the constant usage text of lib/usage.mjs, exit 0, no Herdr needed).
+// An unknown command dies 2 like bash `main`'s `*` arm. Load the config
+// layers before dispatching, like bash `main`. The living commands need
+// the Herdr environment (`require_env`) and log their warnings/errors to
 // <state>/friction.log, like bash `main` (layout-plan is not living, and
 // requires the Herdr environment only in live mode). Decision 6:
 // DieError with a message → die (friction for living commands); empty
@@ -31,34 +34,30 @@ import { dieFriction, setFrictionLog, stateDir } from './lib/state.mjs';
 import { cmdStatus } from './lib/commands/status.mjs';
 import { cmdRoster } from './lib/commands/roster.mjs';
 import { cmdFriction } from './lib/commands/friction.mjs';
+import { cmdEnv } from './lib/commands/env.mjs';
+import { printUsage } from './lib/usage.mjs';
 import { cmdLayoutPlan } from './lib/layout.mjs';
 import { cmdRegrid } from './lib/regrid.mjs';
 import { cmdTabLabel } from './lib/herdtabs.mjs';
 import { cmdSpawn } from './lib/spawn.mjs';
 import { cmdWait } from './lib/wait.mjs';
+import { cmdDispatch } from './lib/dispatch.mjs';
+import { cmdRun } from './lib/commands/run.mjs';
 import { cmdCollect } from './lib/commands/collect.mjs';
 import { cmdRelease } from './lib/commands/release.mjs';
 import { cmdClean } from './lib/commands/clean.mjs';
-import { cmdDispatch } from './lib/dispatch.mjs';
-import { cmdRun } from './lib/commands/run.mjs';
 import { cmdSetup } from './lib/commands/setup.mjs';
 import { cmdDoctor } from './lib/commands/doctor.mjs';
 import { cmdExplain } from './lib/commands/explain.mjs';
 import { cmdInit } from './lib/commands/init.mjs';
-import { findExecutable } from './lib/platform.mjs';
+import { die, findExecutable } from './lib/platform.mjs';
 
-const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'regrid', 'wait', 'collect', 'release', 'clean', 'setup', 'doctor', 'explain', 'init'];
 // The commands that log to friction when running inside Herdr (bash main's
-// living-command list, restricted to what this entry has ported).
+// living-command list).
 const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'regrid', 'wait', 'collect', 'release', 'clean', 'init']);
 
 const argv = process.argv.slice(2);
 const cmd = argv[0] ?? '';
-
-if (!PORTED.includes(cmd)) {
-  process.stderr.write(`herdr-agents.mjs: '${cmd}' is not ported yet; use scripts/herdr-agents.sh\n`);
-  process.exit(2);
-}
 
 const env = process.env;
 const ctx = loadConfig();
@@ -157,6 +156,20 @@ try {
       break;
     case 'layout-plan':
       cmdLayoutPlan(argv.slice(1), ctx, env);
+      break;
+    case 'env':
+      cmdEnv(ctx, env);
+      break;
+    // bash main: `-h|--help|help|""` → usage, exit 0, no Herdr needed.
+    case 'help':
+    case '-h':
+    case '--help':
+    case '':
+      printUsage();
+      break;
+    default:
+      // bash main: `*) die "unknown command '$cmd'" 2`.
+      die(`unknown command '${cmd}'`, 2);
       break;
   }
 } catch (e) {

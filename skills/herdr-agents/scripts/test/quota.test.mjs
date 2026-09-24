@@ -56,6 +56,18 @@ test('quotaDetect: renewal line kept, secrets redacted (test-quota.sh case)', ()
   assert.match(out[1], /\[redacted\]/);
 });
 
+// The exact screen of the scripts/test-quota.sh renewal case (the bash
+// suite is retired in slice 9b): the match line and the renewal line are
+// kept, the secret never reaches the output.
+test('quotaDetect: the exact test-quota.sh renewal input (ported)', () => {
+  const out = quotaDetect('idle', 'Individual quota reached token=sk_live_abcdefghij\nResets at 5:00pm');
+  assert.ok(out, 'matched');
+  assert.match(out[0], /Individual quota reached/);
+  assert.match(out[1], /Resets at 5:00pm/);
+  assert.ok(!out.join('\n').includes('sk_live_'), 'no secret leak');
+  assert.match(out[0], /\[redacted\]/);
+});
+
 test('quotaDetect: Bearer, api_key=, sk-proj- and JSON "message" lines', () => {
   const b = quotaDetect('idle', 'Bearer abc123.~+/ and hit your usage limit');
   assert.ok(b, 'bearer line matches');
@@ -117,6 +129,16 @@ test('redactSecrets: the four sed passes in order', () => {
   assert.equal(redactSecrets('secret: sk_test_a1b2c3 rest'), 'secret: [redacted] rest');
   // Short key-shaped tokens are NOT redacted (the hyphen form needs 8+).
   assert.equal(redactSecrets('sk-ant-123'), 'sk-ant-123');
+});
+
+// The four exact inputs of the redact_secrets block in scripts/test-probe.sh
+// (retired in slice 9b): hyphen keys with a hyphen inside, and the classic
+// sk_ form inside a longer string.
+test('redactSecrets: the test-probe.sh hyphen-key inputs (ported)', () => {
+  assert.equal(redactSecrets('sk-proj-abcDEF123456'), '[redacted]');
+  assert.equal(redactSecrets('sk-ant-api01-XYZ12345'), '[redacted]');
+  assert.equal(redactSecrets('pk-live12345678'), '[redacted]');
+  assert.equal(redactSecrets('key sk_live_987654321'), 'key [redacted]');
 });
 
 test('quotaLineIsCode / quotaPhraseQuoted: the unit rules', () => {

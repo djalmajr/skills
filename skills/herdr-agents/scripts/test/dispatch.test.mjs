@@ -23,6 +23,7 @@ import { loadConfig } from '../lib/config.mjs';
 import {
   briefMissingSections, lintBrief, composePrompt, familyConflicts,
 } from '../lib/dispatch.mjs';
+import { splitRunArgs } from '../lib/commands/run.mjs';
 import { roleBody } from '../lib/roles.mjs';
 
 const SCRIPTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -334,6 +335,8 @@ test('family: unknown and empty families never conflict', { timeout: 30000 }, ()
       ROW11('ex', 'p1', 'grok', 'scouter', 'xai', '/tmp/work', 'grok-4.7', 'implementer,scouter'));
     assert.deepEqual(familyConflicts(fix.ws, 'unknown', fix.env, fix.repo), []);
     assert.deepEqual(familyConflicts(fix.ws, '', fix.env, fix.repo), []);
+    // test-multi-role.sh: only xai edit agents in the roster → openai is free.
+    assert.deepEqual(familyConflicts(fix.ws, 'openai', fix.env, fix.repo), []);
   } finally { fix.cleanup(); }
 });
 
@@ -358,6 +361,8 @@ test('family: an old 8-column line is counted by its role', { timeout: 30000 }, 
     fix.writeRoster(undefined,
       ROW8('impl', 'p1', 'grok', 'implementer', 'xai'));
     assert.deepEqual(familyConflicts(fix.ws, 'xai', fix.env, fix.repo), ['impl (grok)']);
+    // test-kinds.sh: the same roster leaves the openai reviewer free.
+    assert.deepEqual(familyConflicts(fix.ws, 'openai', fix.env, fix.repo), []);
   } finally { fix.cleanup(); }
 });
 
@@ -666,4 +671,23 @@ test('run: a value flag without its value exits 2 before any spawn', { timeout: 
     const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '';
     assert.ok(!calls.includes('agent start'), 'no agent started');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+// scripts/test-tab-labels.sh: the cmd_run flag split — --no-wait goes to
+// dispatch and skips the collect (run returns after dispatch), without it
+// the collect runs; --tab-label is a spawn flag and is forwarded to spawn.
+test('run: --no-wait routes to dispatch and skips collect; --tab-label goes to spawn (test-tab-labels.sh)', () => {
+  // With --no-wait: dispatch receives the agent name + --no-wait, no collect.
+  let s = splitRunArgs(['--no-wait']);
+  assert.deepEqual(s.dispatchArgs, ['--no-wait'], '--no-wait goes to dispatch');
+  assert.equal(s.noWait, 1, 'the collect is skipped');
+  assert.deepEqual(s.spawnArgs, []);
+  // Without it: the collect runs after the dispatch.
+  s = splitRunArgs([]);
+  assert.equal(s.noWait, 0, 'a waiting run collects');
+  assert.deepEqual(s.dispatchArgs, []);
+  // --tab-label is parsed as a spawn value flag and forwarded unchanged.
+  s = splitRunArgs(['--tab-label', 'paridade']);
+  assert.deepEqual(s.spawnArgs, ['--tab-label', 'paridade'], '--tab-label is forwarded to spawn');
+  assert.equal(s.noWait, 0);
 });

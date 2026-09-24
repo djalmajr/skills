@@ -234,6 +234,28 @@ test('codexModelCeiling comes from the cached model', (t) => {
   } finally { s.cleanup(); }
 });
 
+// The exact slugs and cache of scripts/test-kinds.sh (retired in slice
+// 9b): the ceiling that applies is the model's own; xhigh when the model
+// is outside the cache, there is no model, or the file is missing.
+test('codexEffortCeiling: the test-kinds.sh slugs (ported)', () => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.join(s.home, '.codex'), { recursive: true });
+    fs.writeFileSync(path.join(s.home, '.codex', 'models_cache.json'), JSON.stringify({
+      models: [
+        { slug: 'big', supported_reasoning_levels: [{ effort: 'high' }, { effort: 'max' }] },
+        { slug: 'small', supported_reasoning_levels: [{ effort: 'xhigh' }] },
+      ],
+    }));
+    assert.equal(codexEffortCeiling('big', s.env), 'max', 'model that advertises max');
+    assert.equal(codexEffortCeiling('small', s.env), 'xhigh', 'model that stops at xhigh');
+    assert.equal(codexEffortCeiling('not-listed', s.env), 'xhigh', 'model outside the cache');
+    assert.equal(codexEffortCeiling('', s.env), 'xhigh', 'no model (CLI default)');
+    fs.rmSync(path.join(s.home, '.codex', 'models_cache.json'));
+    assert.equal(codexEffortCeiling('big', s.env), 'xhigh', 'no cache file');
+  } finally { s.cleanup(); }
+});
+
 test('findExecutable: simulated win32 honors PATHEXT (.CMD); darwin does not', (t) => {
   const s = setup();
   try {
@@ -266,7 +288,7 @@ test('runCli: a win32 .cmd/.bat target runs through cmd.exe with every argument 
   assert.equal(cmdInvocation('C:\\tools\\x.cmd', [], {}).command, 'cmd.exe');
 
   const missing = runCli('definitely-not-a-real-cli-xyz', ['a']);
-  assert.deepEqual(missing, { notFound: true, resolved: null, status: null, signal: null, stdout: '', stderr: '', timedOut: false });
+  assert.deepEqual(missing, { notFound: true, resolved: null, status: null, signal: null, stdout: '', stderr: '', timedOut: false, error: null });
 
   const s = setup();
   try {

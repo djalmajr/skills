@@ -37,8 +37,8 @@ Kinds `herdr agent start` also accepts that this skill does not map yet
 model/effort/approvals flag translation — the same-family check is skipped
 for them.
 
-The script's family table is in `scripts/herdr-agents.sh` (`kind_family`;
-`agent_family` adds the model-id inference for multi-model harnesses such
+The script's family table is in `scripts/lib/kinds.mjs` (`kindFamily`;
+`agentFamily` adds the model-id inference for multi-model harnesses such
 as cursor, pi and opencode). For those kinds the family comes from the model
 id, in order: (1) a segment that is a family name (`anthropic`, `openai`,
 `xai`, `google`) sets the family (`openrouter/anthropic/claude-x-1` →

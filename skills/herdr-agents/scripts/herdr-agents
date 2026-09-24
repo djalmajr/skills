@@ -1,12 +1,10 @@
 #!/bin/sh
-# herdr-agents — same launcher as scripts/herdr-agents. This copy exists
-# for the hooks and instruction blocks already written into projects,
-# which call `bash …/scripts/herdr-agents.sh …`; the implementation is the
-# JavaScript entry (herdr-agents.mjs, next to this file). Runs the entry
-# with node when it is on PATH and is version 20 or newer, else with bun;
-# passes every argument through and exits with the runtime's code. The
-# directory is resolved physically (pwd -P), so the launcher also works
-# when it is invoked through a symlinked directory (the hooks do).
+# herdr-agents — launcher for the JavaScript entry (herdr-agents.mjs, next
+# to this file). Runs the entry with node when it is on PATH and is version
+# 20 or newer, else with bun; passes every argument through and exits with
+# the runtime's code. The directory is resolved physically (pwd -P), so the
+# launcher also works when it is invoked through a symlinked directory
+# (the setup hooks call it that way).
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P) || exit 2
 

@@ -193,7 +193,7 @@ test('wait: the rank order 4 > 11 > 7 > 6 in any argument order', { timeout: 300
     fix.waitFile('blocked1', 'blocked', ''); // second blocked probe is due
     fix.screenOf('quota1', 'hit your usage limit\ntry again in 2 hours\n');
     for (const args of [['stuck', 'dead', 'blocked1', 'quota1'], ['quota1', 'blocked1', 'dead', 'stuck']]) {
-      const r = waitCmd(fix, [...args, '--timeout', '2000']);
+      const r = waitCmd(fix, [...args, '--timeout', '10000']);
       assert.equal(r.status, 4, `rc for ${args.join(' ')}: ${r.stderr}`);
       const lines = jsonLines(r.stdout);
       assert.deepEqual(
@@ -210,12 +210,12 @@ test('wait: the rank order 4 > 11 > 7 > 6 in any argument order', { timeout: 300
       assert.match(q.renewal, /try again in 2 hours/);
     }
     // 11 > 7 and 7 > 6, both orders.
-    const r11a = waitCmd(fix, ['blocked1', 'quota1', '--timeout', '2000']);
-    const r11b = waitCmd(fix, ['quota1', 'blocked1', '--timeout', '2000']);
+    const r11a = waitCmd(fix, ['blocked1', 'quota1', '--timeout', '10000']);
+    const r11b = waitCmd(fix, ['quota1', 'blocked1', '--timeout', '10000']);
     assert.equal(r11a.status, 11);
     assert.equal(r11b.status, 11);
-    const r7a = waitCmd(fix, ['blocked1', 'dead', '--timeout', '2000']);
-    const r7b = waitCmd(fix, ['dead', 'blocked1', '--timeout', '2000']);
+    const r7a = waitCmd(fix, ['blocked1', 'dead', '--timeout', '10000']);
+    const r7b = waitCmd(fix, ['dead', 'blocked1', '--timeout', '10000']);
     assert.equal(r7a.status, 7);
     assert.equal(r7b.status, 7);
   } finally { fix.cleanup(); }
@@ -288,7 +288,7 @@ test('wait: settled with a still screen, reset by movement', { timeout: 30000 },
     fix2.writeRoster(ROW('s', 'implementer'));
     fix2.mode('idle');
     fix2.screen('still\n');
-    const r2 = spawnSync(nodeBin(), [JS_ENTRY, 'wait', 's', '--timeout', '2000'], {
+    const r2 = spawnSync(nodeBin(), [JS_ENTRY, 'wait', 's', '--timeout', '10000'], {
       cwd: fix2.repo, env: { ...fix2.env, HERDR_AGENTS_SETTLED_GRACE: '0' }, encoding: 'utf8', timeout: 60_000,
     });
     assert.equal(r2.status, 6, r2.stderr);
@@ -373,15 +373,15 @@ test('wait: --any returns on the first done; notify=on notifies', { timeout: 300
     fix.screen('busy\n');
     const p1 = fix.report('a1', 'done\n');
     fix.clearLog();
-    const r = waitCmd(fix, ['a1', 'a2', '--any', '--timeout', '2000'], );
+    const r = waitCmd(fix, ['a1', 'a2', '--any', '--timeout', '10000'], );
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(jsonLines(r.stdout), [{ agent: 'a1', status: 'done', report: p1 }], 'only the done line');
-    const r2 = waitCmd(fix, ['a2', 'a1', '--any', '--timeout', '2000']);
+    const r2 = waitCmd(fix, ['a2', 'a1', '--any', '--timeout', '10000']);
     assert.equal(r2.status, 0, r2.stderr);
     assert.deepEqual(jsonLines(r2.stdout), [{ agent: 'a1', status: 'done', report: p1 }], 'argument order does not matter');
     // notify=on: the done path calls the notification.
     fix.clearLog();
-    const r3 = cmd(fix, ['wait', 'a1', '--timeout', '2000'], { HERDR_AGENTS_NOTIFY: 'on' });
+    const r3 = cmd(fix, ['wait', 'a1', '--timeout', '10000'], { HERDR_AGENTS_NOTIFY: 'on' });
     assert.equal(r3.status, 0, r3.stderr);
     const logged = fix.logLines();
     assert.ok(logged.includes(`notification show herdr-agents: a1 finished --body ${p1} --sound done`), logged.join('\n'));

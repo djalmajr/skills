@@ -412,8 +412,10 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
         dieFriction(`spawn: unexpected lane decision '${d.decision}'`, 4);
     }
   }
-  // Reuse without a lane (reuse_workers=on or --reuse, no --pane).
-  if (reuse === 'on' && pane === '') {
+  // Reuse without a lane (reuse_workers=on or --reuse, no --pane): the bash
+  // `elif` after the lane block, so a role in a lane never reaches it (with
+  // an empty lane it spawns, under the max_workers cap).
+  if (lane === '' && reuse === 'on' && pane === '') {
     const found = findReusable(role, kind, cwdArg, name, model, approvals, ctx, env, cwd);
     if (found && found.name !== undefined) {
       const prevRole = rosterLine(sd, found.name).split('\t')[3] ?? '';

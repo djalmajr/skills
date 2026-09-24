@@ -34,7 +34,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BASH_ENTRY, JS_ENTRY, makeFixture, runImpl, normalizeErr } from './parity.mjs';
+import { BASH_ENTRY, JS_ENTRY, LAUNCHER_ENTRIES, makeFixture, runImpl, normalizeErr } from './parity.mjs';
 import { golden, goldenMode, normalizeRoots } from './golden.mjs';
 import { findExecutable } from '../lib/platform.mjs';
 
@@ -170,6 +170,8 @@ function normOut(out) {
   return kept.join('\n')
     .replaceAll(BASH_ENTRY, 'PROG')
     .replaceAll(JS_ENTRY, 'PROG')
+    .replaceAll(LAUNCHER_ENTRIES[0], 'PROG')
+    .replaceAll(LAUNCHER_ENTRIES[1], 'PROG')
     .replace(/^--- \/dev\/fd\/\d+\s.*$/m, '--- FIXDIFF')
     .replace(/^--- a\/.+$/m, '--- FIXDIFF')
     .replace(/^\+\+\+ \S+.*$/m, '+++ FIXDIFF');

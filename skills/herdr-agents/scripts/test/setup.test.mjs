@@ -30,11 +30,23 @@ fs.mkdirSync(HOME, { recursive: true });
 fs.mkdirSync(CONF, { recursive: true });
 fs.mkdirSync(STATE, { recursive: true });
 spawnSync('git', ['init', '-q'], { cwd: REPO, stdio: 'ignore' });
+fs.mkdirSync(path.join(ROOT, 'tmp'), { recursive: true });
+// The module points the process at the fixture; the originals come back
+// after the file's tests, because Bun runs every test file in one process
+// and a TMPDIR left pointing at the deleted fixture breaks the next files.
+const ENV_KEYS = ['HOME', 'XDG_CONFIG_HOME', 'TMPDIR', 'HERDR_AGENTS_DIR'];
+const SAVED_ENV = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
 process.env.HOME = HOME;
 process.env.XDG_CONFIG_HOME = CONF;
 process.env.TMPDIR = path.join(ROOT, 'tmp');
 process.env.HERDR_AGENTS_DIR = STATE;
-test.after(() => fs.rmSync(ROOT, { recursive: true, force: true }));
+test.after(() => {
+  for (const k of ENV_KEYS) {
+    if (SAVED_ENV[k] === undefined) delete process.env[k];
+    else process.env[k] = SAVED_ENV[k];
+  }
+  fs.rmSync(ROOT, { recursive: true, force: true });
+});
 
 const BLOCK = setupBlock();
 const OLD_BLOCK = `${SETUP_START}\nold block line\n${SETUP_END}\n`;

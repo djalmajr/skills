@@ -5,9 +5,9 @@
 //
 //   HERDR_AGENTS_GOLDEN unset   compare the JS value with the record; a
 //                               missing entry fails.
-//   HERDR_AGENTS_GOLDEN=record  run the reference (the bash script, while it
-//                               exists) and write its value; nothing is
-//                               compared.
+//   HERDR_AGENTS_GOLDEN=record  no longer possible: the bash reference was
+//                               removed in the switch to JS; fails with a
+//                               message pointing at =update.
 //   HERDR_AGENTS_GOLDEN=update  write the JS value: an intentional change,
 //                               reviewed through the diff of the golden file.
 //
@@ -62,18 +62,16 @@ function save(suite) {
 }
 
 // golden(suite, key, actual, reference): in check mode assert that `actual()`
-// equals the recorded value; in record mode store `reference()`; in update
-// mode store `actual()`. Both are functions so a mode never runs what it
-// does not need (record never runs the JS; check never runs the bash).
+// equals the recorded value; in update mode store `actual()`. Record mode
+// fails: the bash reference it would store is gone (switch to JS), and the
+// error points at =update. `reference` is kept in the signature for the
+// callers (record-mode history); no mode runs it.
 export function golden(suite, key, actual, reference, env = process.env) {
   const mode = goldenMode(env);
-  const data = load(suite);
   if (mode === 'record') {
-    if (typeof reference !== 'function') throw new Error(`${suite} › ${key}: no reference to record`);
-    data[key] = reference();
-    save(suite);
-    return;
+    throw new Error('HERDR_AGENTS_GOLDEN=record needs the bash reference, removed in the switch to JS; use HERDR_AGENTS_GOLDEN=update and review the diff');
   }
+  const data = load(suite);
   const value = actual();
   if (mode === 'update') {
     data[key] = value;

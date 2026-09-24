@@ -19,6 +19,12 @@ import { golden, goldenMode, normalizeRoots } from './golden.mjs';
 const SCRIPTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BASH_ENTRY = path.join(SCRIPTS_DIR, 'herdr-agents.sh');
 export const JS_ENTRY = path.join(SCRIPTS_DIR, 'herdr-agents.mjs');
+// The launchers the JS prints where the bash printed $0 (switch-to-JS
+// decision 4); they normalize to PROG like the entries.
+export const LAUNCHER_ENTRIES = [
+  path.join(SCRIPTS_DIR, 'herdr-agents'),
+  path.join(SCRIPTS_DIR, 'herdr-agents.cmd'),
+];
 
 export function nodeBin() {
   return findExecutable('node') || process.execPath;
