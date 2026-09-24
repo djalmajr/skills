@@ -33,6 +33,7 @@ import {
 } from './state.mjs';
 import { pickSplitAnchor, restoreFocusIfStolen, uiFocusedPane } from './layout.mjs';
 import { herdTabPane, herdTabsRelabel, jqPretty } from './herdtabs.mjs';
+import { autoRegrid as runAutoRegrid } from './regrid.mjs';
 
 // ---------- names ----------
 
@@ -516,11 +517,12 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
     agent_args: agentArgs.join(' '),
     status: blocked === 1 ? 'blocked_at_startup' : 'ready',
   }));
-  // slice 8: bash runs `(cmd_regrid) >/dev/null 2>&1 || warn "regrid after
-  // spawn failed; panes left as inserted (see friction)" here when
-  // autoRegrid && cfg regrid on. Until then the JS port does not regrid
-  // (parity tests run with HERDR_AGENTS_REGRID=off).
-  // if (autoRegrid === 1 && cfg(ctx, 'regrid', 'on', env) === 'on') { /* cmd_regrid */ }
+  // `(cmd_regrid) >/dev/null 2>&1 || warn …` (:3604): after the JSON and
+  // before the blocked check, like bash; the regrid output is suppressed
+  // and a failure becomes the warning (the friction log holds the detail).
+  if (autoRegrid === 1 && cfg(ctx, 'regrid', 'on', env) === 'on') {
+    runAutoRegrid(ctx, env, cwd, 'regrid after spawn failed; panes left as inserted (see friction)');
+  }
   if (blocked === 1) {
     warn(`agent '${name}' is blocked during startup (update prompt, login, trust dialog…). Screen follows; ask the user before answering it, then: herdr agent send-keys ${name} <keys>; herdr agent wait ${name} --timeout 60000`);
     process.stdout.write(agentRead(env, name, { source: 'visible', lines: 40 }));

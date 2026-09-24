@@ -61,6 +61,14 @@ export function dieFriction(message, code = 1) {
   die(message, code);
 }
 
+// The friction entry of a `die` without the exit: bash `die` inside the
+// suppressed `(cmd_regrid) >/dev/null 2>&1` of the automatic regrid calls
+// still appends the `error(exit N)` line (the "see friction" of the outer
+// warning points at it).
+export function logFrictionError(message, code = 1) {
+  logFriction(`error(exit ${code})`, message);
+}
+
 // ---------- workspace / state dir ----------
 
 // workspace_id() port: $HERDR_WORKSPACE_ID, else `herdr pane current

@@ -18,6 +18,7 @@ import {
 import { agentState, paneClose } from '../herdr.mjs';
 import { herdTabsRelabel } from '../herdtabs.mjs';
 import { paneTaskTitle } from '../tasks.mjs';
+import { autoRegrid as runAutoRegrid } from '../regrid.mjs';
 
 // `--close` only when the report file exists and is non-empty
 // (bash `[ -z "$r" ] || [ ! -s "$r" ]`).
@@ -76,8 +77,10 @@ export function cmdRelease(argv, ctx, env = process.env, cwd = process.cwd()) {
     if (w.startsWith(`${agent}.`)) fs.rmSync(path.join(waitDir, w), { force: true });
   }
   if (close === 1 && cfg(ctx, 'regrid', 'on', env) === 'on') {
-    // slice 8: bash runs `(cmd_regrid) >/dev/null 2>&1 || warn "regrid
-    // after release failed; panes left as they are (see friction)" here.
+    // `(cmd_regrid) >/dev/null 2>&1 || warn …` (:4076): the regrid output is
+    // suppressed and a failure becomes the warning (the friction log holds
+    // the detail); the release keeps its own exit code.
+    runAutoRegrid(ctx, env, cwd, 'regrid after release failed; panes left as they are (see friction)');
   } else {
     // `herd_tabs_relabel >/dev/null 2>&1 || warn …` — any failure (a
     // library DieError included) becomes the warning, as in bash.

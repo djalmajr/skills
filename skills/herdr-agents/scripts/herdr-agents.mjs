@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// herdr-agents — JavaScript entry (slices 1-7c of the bash port).
+// herdr-agents — JavaScript entry (slices 1-8a of the bash port).
 //
 // Dispatches the ported commands (`config`, `config set`, `session`,
 // `roles`, `role`, `kinds`, `models <kind>`, `model <kind> <spec>
 // [effort]`, `spawn <role> …`, `dispatch <agent> <brief.md> …`,
 // `run <role> <brief.md> …`, `status <agent>…`, `roster`, `friction`,
-// `tab-label`, `layout-plan`, `wait <agent>…`, `collect <agent>`,
+// `tab-label`, `layout-plan`, `regrid`, `wait <agent>…`, `collect <agent>`,
 // `release <agent>`, `clean`, `setup [--target FILE] [--no-hooks]
 // [--dry-run] [--panes 3|4] [--lane name=kind[:model[:effort]]] [--detect]
 // [--plan …]` — its `--probe` form is not ported yet and exits 2).
@@ -31,6 +31,7 @@ import { cmdStatus } from './lib/commands/status.mjs';
 import { cmdRoster } from './lib/commands/roster.mjs';
 import { cmdFriction } from './lib/commands/friction.mjs';
 import { cmdLayoutPlan } from './lib/layout.mjs';
+import { cmdRegrid } from './lib/regrid.mjs';
 import { cmdTabLabel } from './lib/herdtabs.mjs';
 import { cmdSpawn } from './lib/spawn.mjs';
 import { cmdWait } from './lib/wait.mjs';
@@ -42,10 +43,10 @@ import { cmdRun } from './lib/commands/run.mjs';
 import { cmdSetup } from './lib/commands/setup.mjs';
 import { findExecutable } from './lib/platform.mjs';
 
-const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'wait', 'collect', 'release', 'clean', 'setup'];
+const PORTED = ['config', 'session', 'roles', 'role', 'kinds', 'models', 'model', 'spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'layout-plan', 'regrid', 'wait', 'collect', 'release', 'clean', 'setup'];
 // The commands that log to friction when running inside Herdr (bash main's
 // living-command list, restricted to what this entry has ported).
-const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'wait', 'collect', 'release', 'clean']);
+const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'regrid', 'wait', 'collect', 'release', 'clean']);
 
 const argv = process.argv.slice(2);
 const cmd = argv[0] ?? '';
@@ -127,6 +128,9 @@ try {
       break;
     case 'setup':
       cmdSetup(argv.slice(1), ctx, env);
+      break;
+    case 'regrid':
+      cmdRegrid(argv.slice(1), ctx, env);
       break;
     case 'roster':
       cmdRoster(ctx, env);
