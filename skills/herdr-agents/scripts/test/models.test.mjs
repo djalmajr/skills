@@ -78,6 +78,12 @@ function seedCodex(s) {
 
 test('list parsers mirror the bash awk/grep pipelines', (t) => {
   assert.deepEqual(parseCursorModels('grok-4.7-max - xAI Grok 4.7 (max)\n  indented - x\nfoo bar\nplain\n'), ['grok-4.7-max']);
+  // cursor-agent colors its listing even when piped (verified 2026-09-24).
+  const colored = '\x1b[2mAvailable models\x1b[22m\n\n\x1b[36mauto\x1b[39m \x1b[2m- Auto\x1b[22m\x1b[2m (default)\x1b[22m\n'
+    + '\x1b[36mgrok-4.7-xhigh\x1b[39m \x1b[2m- Grok 4.7  Extra High\x1b[22m\n';
+  assert.deepEqual(parseCursorModels(colored), ['auto', 'grok-4.7-xhigh']);
+  assert.deepEqual(parseAgyModels('\x1b[36mmuse-9\x1b[39m  Muse 9\n'), ['muse-9']);
+  assert.deepEqual(parseGrokModels('\x1b[1mgrok-4.7\x1b[0m (default)\n'), ['grok-4.7']);
   assert.deepEqual(parseAgyModels('gemini-3.8-flash  Google Gemini\none-word\nclaude-opus-4-6  Anthropic\n'), ['gemini-3.8-flash', 'claude-opus-4-6']);
   // grep -oE | sort -u: every grok-N token, deduped, sorted.
   assert.deepEqual(parseGrokModels('Available:\ngrok-4.7 - default\nxgrok-4.7-extended - extra\ngrok-4.6\ngrok-4.7\n'), ['grok-4.6', 'grok-4.7', 'grok-4.7-extended']);

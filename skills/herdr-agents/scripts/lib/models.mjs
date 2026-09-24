@@ -20,11 +20,15 @@ export const EFFORT_SUFFIX_RE = /-(minimal|low|medium|high|xhigh|max)(-fast)?$/;
 
 // Parsers per kind (bash :571-590). Output is always a list of ids, one per
 // line; a failing CLI yields an empty list (pass-through spec downstream).
+// CLIs may color their listing even when stdout is not a terminal
+// (cursor-agent does): the SGR escapes are dropped before parsing.
+const ANSI_SGR_RE = /\x1b\[[0-9;]*m/g;
+const plain = (stdout) => String(stdout).replace(ANSI_SGR_RE, '');
 
 // cursor: `cursor-agent --list-models`, lines like `grok-4.7 - xAI Grok 4.7`.
 export function parseCursorModels(stdout) {
   const ids = [];
-  for (const line of String(stdout).split('\n')) {
+  for (const line of plain(stdout).split('\n')) {
     const m = line.match(/^([a-z0-9.-]+) - /);
     if (m) ids.push(m[1]);
   }
@@ -34,7 +38,7 @@ export function parseCursorModels(stdout) {
 // agy: `agy models`, NF>=2 with a bare id in field 1.
 export function parseAgyModels(stdout) {
   const ids = [];
-  for (const line of String(stdout).split('\n')) {
+  for (const line of plain(stdout).split('\n')) {
     const parts = line.trim().split(/\s+/).filter((p) => p !== '');
     if (parts.length >= 2 && /^[a-z0-9.-]+$/.test(parts[0])) ids.push(parts[0]);
   }
@@ -45,7 +49,7 @@ export function parseAgyModels(stdout) {
 // sort -u).
 export function parseGrokModels(stdout) {
   const out = new Set();
-  for (const line of String(stdout).split('\n')) {
+  for (const line of plain(stdout).split('\n')) {
     const m = line.match(/grok-[0-9][0-9a-z.-]*/g);
     if (m) for (const id of m) out.add(id);
   }
