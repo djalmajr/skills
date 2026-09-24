@@ -12,8 +12,13 @@ import { sanitizeCause } from './text.mjs';
 // CLI). A timed-out call is a herdr failure: liveAgents dies 4 with a
 // message, agentState is `unavailable` with a timeout cause, the best-effort
 // reads fall back as on any other failure. The parameter exists for tests.
-const HERDR_TIMEOUT_MS = 30_000;
+export const HERDR_TIMEOUT_MS = 30_000;
 const timedOutMsg = (what, ms) => `herdr ${what} timed out after ${ms / 1000}s`;
+
+// jq `// empty` for a string field: null/false/absent → '', else String.
+function strOrEmpty(v) {
+  return v === undefined || v === null || v === false ? '' : String(v);
+}
 
 // require_env() port. Decision 5 (orchestrator): `jq` is no longer a
 // requirement, so the `jq is required` check is gone; HERDR_ENV and the
@@ -136,4 +141,85 @@ export function paneTitle(pane, title, env = process.env) {
   if (title === null) args.push('--clear-title');
   else args.push('--title', title);
   runCli('herdr', args, { env, timeoutMs: HERDR_TIMEOUT_MS });
+}
+
+// ---------- slice 5a: pane layout, tabs, split and focus (spec 4.1) ----------
+
+// herdr pane layout (--current or --pane <id>) → the raw runCli result.
+// Best-effort callers read `r.stdout ?? ''` (the bash call sites discard
+// stderr and ignore the exit code); cmd_layout_plan checks the status and
+// dies 4 `pane layout failed`.
+export function paneLayout(env = process.env, paneId = '') {
+  const args = paneId ? ['pane', 'layout', '--pane', paneId] : ['pane', 'layout', '--current'];
+  return runCli('herdr', args, { env, timeoutMs: HERDR_TIMEOUT_MS });
+}
+
+// herdr tab get <tab> → { ok, label, root }: ok = rc 0 (the callers prune
+// the dead tabs); label = .result.tab.label ('' when null/absent, like jq
+// `.result.tab.label // empty`); root = .result.root_pane.pane_id — the
+// split anchor stand-in when the tab shows no pane in the list.
+export function tabGet(tab, env = process.env) {
+  const r = runCli('herdr', ['tab', 'get', tab], { env, timeoutMs: HERDR_TIMEOUT_MS });
+  const ok = !r.notFound && r.status === 0;
+  let out = null;
+  try { out = JSON.parse(r.stdout ?? ''); } catch { out = null; }
+  const res = out && typeof out === 'object' ? out.result : undefined;
+  return {
+    ok,
+    label: strOrEmpty(res?.tab?.label),
+    root: strOrEmpty(res?.root_pane?.pane_id),
+  };
+}
+
+// herdr tab rename <tab> <label> → true on rc 0 (the caller decides warn
+// vs die, exactly as the bash call sites do).
+export function tabRename(tab, label, env = process.env) {
+  const r = runCli('herdr', ['tab', 'rename', tab, label], { env, timeoutMs: HERDR_TIMEOUT_MS });
+  return !r.notFound && r.status === 0;
+}
+
+// herdr tab create --workspace <ws> --cwd <cwd> --label <label> --no-focus
+// → { ok, tab, root } (tab = .result.tab.tab_id, root =
+// .result.root_pane.pane_id, '' when absent from the JSON).
+export function tabCreate(env, ws, cwd, label) {
+  const r = runCli('herdr', ['tab', 'create', '--workspace', ws, '--cwd', cwd, '--label', label, '--no-focus'], { env, timeoutMs: HERDR_TIMEOUT_MS });
+  let out = null;
+  try { out = JSON.parse(r.stdout ?? ''); } catch { out = null; }
+  const res = out && typeof out === 'object' ? out.result : {};
+  return { ok: !r.notFound && r.status === 0, tab: strOrEmpty(res?.tab?.tab_id), root: strOrEmpty(res?.root_pane?.pane_id) };
+}
+
+// herdr pane split <anchor> --direction <d> --cwd <cwd> --no-focus
+// [--ratio <f>] → { ok, pane } (the new pane id, '' when absent from the
+// JSON). The ratio is only passed when given (spawn's `--ratio`).
+export function paneSplit(anchor, direction, cwd, env = process.env, ratio) {
+  const args = ['pane', 'split', anchor, '--direction', direction, '--cwd', cwd, '--no-focus'];
+  if (ratio !== undefined && ratio !== null && ratio !== '') args.push('--ratio', String(ratio));
+  const r = runCli('herdr', args, { env, timeoutMs: HERDR_TIMEOUT_MS });
+  let out = null;
+  try { out = JSON.parse(r.stdout ?? ''); } catch { out = null; }
+  const pane = out && typeof out === 'object' ? out?.result?.pane : undefined;
+  return { ok: !r.notFound && r.status === 0, pane: strOrEmpty(pane?.pane_id) };
+}
+
+// herdr agent get <caller pane> → the agent name of the pane (the bash
+// caller_agent_name, :1507): '' on any failure or a missing field.
+export function callerAgentName(env = process.env) {
+  const r = runCli('herdr', ['agent', 'get', env.HERDR_PANE_ID ?? ''], { env, timeoutMs: HERDR_TIMEOUT_MS });
+  if (r.notFound || r.status !== 0) return '';
+  let out = null;
+  try { out = JSON.parse(r.stdout ?? ''); } catch { out = null; }
+  return strOrEmpty(out && typeof out === 'object' ? out?.result?.agent?.name : undefined);
+}
+
+// herdr agent focus <agent> / herdr pane focus --direction <d> --pane <p>
+// — the best-effort focus returns of restore_focus_if_stolen.
+export function agentFocus(agent, env = process.env) {
+  const r = runCli('herdr', ['agent', 'focus', agent], { env, timeoutMs: HERDR_TIMEOUT_MS });
+  return !r.notFound && r.status === 0;
+}
+
+export function paneFocusBack(direction, pane, env = process.env) {
+  const r = runCli('herdr', ['pane', 'focus', '--direction', direction, '--pane', pane], { env, timeoutMs: HERDR_TIMEOUT_MS });
+  return !r.notFound && r.status === 0;
 }
