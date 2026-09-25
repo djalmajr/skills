@@ -1,7 +1,8 @@
 // herdr client (slice 3): the agentState classification of spec 4.1
 // (agent_not_found → gone; every other failure → unavailable with a
 // sanitized cause; success without agent_status → unavailable; normal
-// status), paneTitle (pane id before the options; never throws) and the
+// status; the result's state_change_seq as `seq` when it is an integer,
+// else `''`), paneTitle (pane id before the options; never throws) and the
 // small read helpers. A fake `herdr` on PATH answers per target; the real
 // CLI is never used.
 import test from 'node:test';
@@ -62,6 +63,12 @@ function makeFake(root) {
     '      ok)',
     `        printf '%s${NL}' '{"result":{"agent":{"name":"ok","agent_status":"working"}}}'`,
     '        exit 0 ;;',
+    `      okseq)`,
+    `        printf '%s${NL}' '{"result":{"agent":{"name":"okseq","agent_status":"idle","state_change_seq":3}}}'`,
+    '        exit 0 ;;',
+    `      okseqstr)`,
+    `        printf '%s${NL}' '{"result":{"agent":{"name":"okseqstr","agent_status":"idle","state_change_seq":"7"}}}'`,
+    '        exit 0 ;;',
     '      failmeta)',
     "        printf 'meta boom' >&2",
     '        exit 1 ;;',
@@ -99,7 +106,7 @@ test('agentState: agent_not_found is the only gone', () => {
   const root = tmp('ha-herdr-gone-');
   try {
     const fake = makeFake(root);
-    assert.deepEqual(agentState('notfound', fake.env), { state: 'gone', cause: '' });
+    assert.deepEqual(agentState('notfound', fake.env), { state: 'gone', cause: '', seq: '' });
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -107,7 +114,7 @@ test('agentState: another error code is unavailable with "<code>: <message>"', (
   const root = tmp('ha-herdr-code-');
   try {
     const fake = makeFake(root);
-    assert.deepEqual(agentState('serverdown', fake.env), { state: 'unavailable', cause: 'server_not_running: no herdr server is running' });
+    assert.deepEqual(agentState('serverdown', fake.env), { state: 'unavailable', cause: 'server_not_running: no herdr server is running', seq: '' });
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -115,7 +122,7 @@ test('agentState: success without agent_status is unavailable', () => {
   const root = tmp('ha-herdr-nostatus-');
   try {
     const fake = makeFake(root);
-    assert.deepEqual(agentState('nostatus', fake.env), { state: 'unavailable', cause: 'agent get returned no agent_status' });
+    assert.deepEqual(agentState('nostatus', fake.env), { state: 'unavailable', cause: 'agent get returned no agent_status', seq: '' });
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -133,13 +140,25 @@ test('agentState: normal success returns the agent_status', () => {
   const root = tmp('ha-herdr-ok-');
   try {
     const fake = makeFake(root);
-    assert.deepEqual(agentState('ok', fake.env), { state: 'working', cause: '' });
+    assert.deepEqual(agentState('ok', fake.env), { state: 'working', cause: '', seq: '' });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('agentState: state_change_seq is returned when it is an integer, else seq is empty', () => {
+  const root = tmp('ha-herdr-seq-');
+  try {
+    const fake = makeFake(root);
+    // Mutation captured: not parsing state_change_seq (or accepting a
+    // non-integer one) fails the seq asserts below.
+    assert.deepEqual(agentState('okseq', fake.env), { state: 'idle', cause: '', seq: 3 }, 'integer seq is returned');
+    assert.deepEqual(agentState('okseqstr', fake.env), { state: 'idle', cause: '', seq: '' }, 'a string seq is not an integer');
+    assert.deepEqual(agentState('ok', fake.env), { state: 'working', cause: '', seq: '' }, 'no field: empty seq');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
 test('agentState: never throws when herdr is missing (unavailable, exit 127)', () => {
   const env = { ...process.env, PATH: '/nonexistent' };
-  assert.deepEqual(agentState('any', env), { state: 'unavailable', cause: 'herdr agent get failed (exit 127)' });
+  assert.deepEqual(agentState('any', env), { state: 'unavailable', cause: 'herdr agent get failed (exit 127)', seq: '' });
 });
 
 test('paneTitle: pane id before the options, title and clear recorded verbatim', () => {
@@ -214,7 +233,7 @@ test('herdr timeout: agentState is unavailable and liveAgents throws DieError 4'
     fs.mkdirSync(bin);
     writeFakeCli(bin, 'herdr', sleepingFake(10000));
     const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
-    assert.deepEqual(agentState('any', env, 300), { state: 'unavailable', cause: 'herdr agent get timed out after 0.3s' });
+    assert.deepEqual(agentState('any', env, 300), { state: 'unavailable', cause: 'herdr agent get timed out after 0.3s', seq: '' });
     const code = `import { liveAgents } from '${HERDR_URL}';
 import { DieError } from '${CONFIG_URL}';
 try { liveAgents(process.env, 300); console.log('returned'); }
@@ -254,17 +273,17 @@ test('agentState: a kill by a signal (exit 137) is retried before unavailable', 
     const fake = makeFake(root);
     const gets = () => fs.readFileSync(fake.log, 'utf8').split('\n').filter((l) => l.startsWith('agent get')).length;
     // Two kills, then the answer: the third try reports the real state.
-    assert.deepEqual(agentState('flaky', fake.env, undefined, [10, 10]), { state: 'working', cause: '' });
+    assert.deepEqual(agentState('flaky', fake.env, undefined, [10, 10]), { state: 'working', cause: '', seq: '' });
     assert.equal(gets(), 3, 'three agent get calls');
     // Killed every time: unavailable after the retries, with the exit code.
     fs.writeFileSync(fake.log, '');
     assert.deepEqual(agentState('killed', fake.env, undefined, [10, 10]),
-      { state: 'unavailable', cause: 'herdr agent get failed (exit 137)' });
+      { state: 'unavailable', cause: 'herdr agent get failed (exit 137)', seq: '' });
     assert.equal(gets(), 3, 'three agent get calls');
     // An external SIGTERM is retried too, and reported like bash (exit 143).
     fs.writeFileSync(fake.log, '');
     assert.deepEqual(agentState('termed', fake.env, undefined, [10, 10]),
-      { state: 'unavailable', cause: 'herdr agent get failed (exit 143)' });
+      { state: 'unavailable', cause: 'herdr agent get failed (exit 143)', seq: '' });
     assert.equal(gets(), 3, 'three agent get calls');
     // Our own timeout is not retried.
     fs.writeFileSync(fake.log, '');

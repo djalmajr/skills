@@ -300,7 +300,11 @@ reports `question` (exit 7) with the screen text in the JSON `question`.
 Herdr reports lifecycle *state*, not turns; every integration flickers
 `idle`/`done` mid-task. The skill therefore treats **the report file** as
 the completion signal and gives you three ways to observe it. Never write
-your own polling loop over `herdr agent get`.
+your own polling loop over `herdr agent get`. The report contract in every
+composed prompt (brief and amendment) says the worker alone writes that
+report, once the whole brief is done — a subagent or background task never
+writes it, because the orchestrator reads the report's existence as
+completion.
 
 ```bash
 $S dispatch impl brief.md            # blocks until impl's report exists (default)
@@ -308,7 +312,7 @@ $S dispatch a brief-a.md --no-wait   # fan out…
 $S dispatch b brief-b.md --no-wait
 $S wait a b                          # …then block until every report exists
 $S wait a b --any                    # or until the first one lands
-$S status a b                        # non-blocking: done | working | blocked | question | no-report-yet | gone | unavailable | quota | provider-error | capacity
+$S status a b                        # non-blocking: done | working | blocked | question | no-report-yet | gone | unavailable | quota | provider-error | capacity | not-received
 ```
 
 **Amending a brief in flight.** To change a worker's brief — while it is
@@ -320,11 +324,12 @@ delivers it (most queue it).
 
 `wait` prints one JSON line per agent (`done`, `blocked`, `question`,
 `settled-no-report`, `gone`, `unavailable`, `quota`, `provider-error`,
-`capacity`, `timeout`) and exits 0 only when all reports exist (7
-blocked/`question`, 6 settled/`gone`, 4
-`unavailable`, 9 timeout, 11 quota, 14 `provider-error`/`capacity`). When
+`capacity`, `not-received`, `timeout`) and exits 0 only when all reports
+exist (7 blocked/`question`, 6 settled/`gone`, 4 `unavailable`, 9 timeout,
+11 quota, 14 `provider-error`/`capacity`, 15 `not-received`). When
 several agents finish in one `wait`, the exit is the most severe of those:
-4, then 11, then 14, then 7, then 6. Argument order does not change it.
+4, then 11, then 14, then 15, then 7, then 6. Argument order does not
+change it.
 `provider-error` is an idle worker whose last error line shows its model
 provider down (for example `Request timed out`, `Connection error`, `Retry
 failed after N attempts`, `503: {…}`); the JSON `cause` is that line.
@@ -344,7 +349,18 @@ friction line ("may be stuck in one tool call"); the wait goes on.
 report must appear. If the prompt text sits in the agent's input box, it
 sends one Enter (JSON `enter_sent`); if the screen never moved, it resends
 the prompt once (`resent`); if nothing works, it returns `not-received`
-(exit 15) — read the pane before sending anything else. `gone` is only
+(exit 15) — read the pane before sending anything else. A
+`not-received` `dispatch` records the moment and the agent's
+`state_change_seq`, and a `wait` afterwards
+retries one Enter per `prompt_check_seconds` window while the prompt is
+still visible in the agent's input box, up to 3 retries: the agent
+starting to work, or its state having changed since the marker (a
+different `state_change_seq`), clears the markers and the wait goes on
+as usual, and
+after the 3 retries — or when the prompt is no longer in the input box
+with the agent not working — the wait ends `not-received` (exit 15).
+`status` reports `not-received` the same way but read-only (exit 15, no
+key sent), and a moved seq clears the report there too. `gone` is only
 `agent_not_found`. `unavailable` is a permission or transport failure of
 `herdr agent get` (cause on stderr and in JSON `error`): retry or restore
 access; do not spawn a replacement, and do not `release` or `release --close`
@@ -534,9 +550,10 @@ report, 7 agent blocked (startup or approval), 8 `max_workers` reached,
 9 wait timeout, 10 lane busy, 11 quota exhausted, 12 `spawn planner` (the
 orchestrator plans), 13 lane `kind-mismatch` (the live session runs another
 CLI: `release` the lane, and set `lane.<name>.kind` so it cannot recur),
-14 provider error or capacity, 15 prompt not received (`dispatch`). 7 also
+14 provider error or capacity, 15 prompt not received (`dispatch` and
+`wait`). 7 also
 covers a worker that asked a `question`. A multi-agent `wait` keeps the most severe
-of 4, 11, 14, 7 and 6. Every error
+of 4, 11, 14, 15, 7 and 6. Every error
 and warning is also appended to `<state>/friction.log` (`$S friction`).
 
 ## What is implicit (read once)

@@ -11,7 +11,11 @@
 // the only herdr the code sees. S5 items 2 and 11a: a confirmed blocked
 // question screen (no key even with auto_approve=on, `question` with the
 // text, rc 7, friction entry) and the one-shot stuck-in-one-tool-call
-// warning for a still screen (counters aside).
+// warning for a still screen (counters aside). A dispatch that ended
+// not-received is continued by the wait: the marker is dropped when the
+// prompt arrived late, one Enter is retried per window while the prompt
+// still sits in the input box (bounded), and the wait ends not-received
+// (the rank between 14 and 7).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -33,9 +37,12 @@ const JS_ENTRY = path.join(SCRIPTS, 'herdr-agents.mjs');
 
 // `agent get` per target (mode-<t> file) else the global mode file
 // (denied → an unqueryable error, missing → agent_not_found, else the mode
-// as agent_status); `agent read` prints screen-<t> (or the global screen
+// as agent_status; the state_change_seq is read from the FAKE_SEQ file
+// when it exists); `agent read` prints screen-<t> (or the global screen
 // file); `agent list` from FAKE_LIVE; `agent send-keys` fails when
-// FAKE_SENDKEYS_FAIL. Every call is logged as one "$*" line (FAKE_LOG).
+// FAKE_SENDKEYS_FAIL and turns the worker to working when the
+// FAKE_SENDKEYS_WORK file exists (writing the report too when
+// FAKE_REPORT_PATH is set). Every call is logged as one "$*" line (FAKE_LOG).
 const HERDR_FAKE = `
 import fs from 'node:fs';
 const argv = process.argv.slice(2);
@@ -49,6 +56,10 @@ const modeOf = (t) => {
   }
   if (per) return per;
   try { return fs.readFileSync(process.env.FAKE_MODE, 'utf8').trim(); } catch { return 'working'; }
+};
+const modeFileOf = (t) => {
+  const per = process.env.FAKE_MODE_DIR + '/mode-' + t;
+  try { fs.accessSync(per); return per; } catch { return process.env.FAKE_MODE; }
 };
 const screenOf = (t) => {
   try { return fs.readFileSync(process.env.FAKE_SCREEN_DIR + '/screen-' + t, 'utf8'); }
@@ -64,7 +75,10 @@ if (cmd === 'agent get') {
     process.stderr.write('{"error":{"code":"agent_not_found","message":"agent target ' + t + ' not found"}}\\n');
     process.exit(1);
   }
-  process.stdout.write('{"result":{"agent":{"name":"' + t + '","agent_status":"' + m + '"}}}\\n');
+  let seqVal = '';
+  try { seqVal = fs.readFileSync(process.env.FAKE_SEQ, 'utf8').trim(); } catch {}
+  const seqJson = seqVal !== '' ? ', "state_change_seq": ' + seqVal + '' : '';
+  process.stdout.write('{"result":{"agent":{"name":"' + t + '","agent_status":"' + m + '"' + seqJson + '}}}\\n');
 } else if (cmd === 'agent read') {
   process.stdout.write(screenOf(t));
 } else if (cmd === 'agent prompt') {
@@ -84,6 +98,12 @@ if (cmd === 'agent get') {
   process.stdout.write(JSON.stringify({ result: { agents } }) + '\\n');
 } else if (cmd === 'agent send-keys') {
   if (process.env.FAKE_SENDKEYS_FAIL) { process.stderr.write('send-keys failed\\n'); process.exit(1); }
+  if (process.env.FAKE_SENDKEYS_WORK && fs.existsSync(process.env.FAKE_SENDKEYS_WORK)) {
+    // The Enter finally starts the worker (a CLI that was still opening)
+    // and writes the report in answer, like a real worker would.
+    try { fs.writeFileSync(modeFileOf(t), 'working\\n'); } catch {}
+    if (process.env.FAKE_REPORT_PATH) fs.writeFileSync(process.env.FAKE_REPORT_PATH, 'done\\n');
+  }
   process.stdout.write('{"result":{}}\\n');
 } else if (cmd === 'notification show') {
   process.stdout.write('{"result":{}}\\n');
@@ -124,6 +144,7 @@ function makeFix(prefix) {
     FAKE_SCREEN_DIR: screenDir,
     FAKE_LIVE: path.join(root, 'live.json'),
     FAKE_LOG: path.join(root, 'herdr.log'),
+    FAKE_SEQ: path.join(root, 'seq'),
     PATH: `${bin}${path.delimiter}${process.env.PATH}`,
   };
   fs.writeFileSync(env.FAKE_MODE, 'working\n');
@@ -176,12 +197,14 @@ function jsonLines(out) {
 
 // ---------- waitRank / wait_raise ----------
 
-test('waitRank: 4 > 11 > 14 > 7 > 6, everything else 0', () => {
-  // Mutation captured: dropping the '14' case makes 14 rank 0 and the
-  // 14 > 7 / 11 > 14 order tests below fail.
-  assert.equal(waitRank(4), 5);
-  assert.equal(waitRank(11), 4);
-  assert.equal(waitRank(14), 3);
+test('waitRank: 4 > 11 > 14 > 15 > 7 > 6, everything else 0', () => {
+  // Mutation captured: dropping the '15' case (or ranking it at or above
+  // 14, or at or below 7) lets a not-received wait lose to a provider stop
+  // or beat a blocked one.
+  assert.equal(waitRank(4), 6);
+  assert.equal(waitRank(11), 5);
+  assert.equal(waitRank(14), 4);
+  assert.equal(waitRank(15), 3);
   assert.equal(waitRank(7), 2);
   assert.equal(waitRank(6), 1);
   assert.equal(waitRank(0), 0);
@@ -335,6 +358,217 @@ test('wait: gone and unavailable with a cause', { timeout: 30000 }, () => {
     assert.equal(lines[0].status, 'unavailable');
     assert.match(lines[0].error, /PermissionDenied/);
     assert.ok(!r2.stdout.includes('"status":"gone"'), 'never degraded to gone');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- a not-received dispatch is continued by the wait ----------
+
+// A dispatch that ended not-received recorded the moment in .not-received;
+// the worker that starts working afterwards makes the marker stale: the
+// probe drops it (and the retry counter) and goes on as usual.
+test('wait: a late arrival clears the not-received marker and the retry counter', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-latearrival-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    const sd = fix.ws;
+    const now = Math.floor(Date.now() / 1000);
+    fix.waitFile('w', 'not-received', `${now - 120}\n`);
+    fix.waitFile('w', 'enter-retry', `2 ${now - 60}\n`);
+    fix.modeOf('w', 'working');
+    fix.screenOf('w', 'thinking…\n');
+    // Mutation captured: the marker (or the retry counter) surviving a
+    // working agent would make the next wait retry a stale Enter.
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'the normal probe goes on');
+    assert.equal(fix.waitRead('w', 'not-received'), null, 'the marker is dropped');
+    assert.equal(fix.waitRead('w', 'enter-retry'), null, 'the retry counter is dropped');
+  } finally { fix.cleanup(); }
+});
+
+// The same clear on a blocked worker: the prompt arrived while the agent
+// was in a dialog; the normal blocked logic takes over.
+test('wait: a blocked worker clears the not-received marker and keeps the blocked logic', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-lateblocked-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    const sd = fix.ws;
+    fix.waitFile('w', 'not-received', `${Math.floor(Date.now() / 1000) - 120}\n`);
+    fix.modeOf('w', 'blocked');
+    fix.screenOf('w', 'Allow command? git push\n\nPress enter to confirm or esc to cancel\n');
+    // Mutation captured: the marker not cleared on a blocked worker (or
+    // the blocked double-probe bypassed) changes the state and the files
+    // below.
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'the first blocked probe only records');
+    assert.equal(fix.waitRead('w', 'not-received'), null, 'the marker is dropped');
+    assert.equal(fix.waitRead('w', 'blocked'), '', 'the blocked flag is recorded as usual');
+  } finally { fix.cleanup(); }
+});
+
+// The wait continues a not-received dispatch: with the window elapsed and
+// the prompt still in the input box it sends one Enter and records the
+// attempt count and the moment; a second probe inside the window sends
+// nothing; a counter that is not two integers fails closed.
+test('wait: an Enter retry while the prompt sits in the input box', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-retryenter-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    const sd = fix.ws;
+    // A window far longer than any probe under load, so "inside the
+    // window" below never depends on how fast the fake herdr runs.
+    const env = { ...fix.env, HERDR_AGENTS_PROMPT_CHECK_SECONDS: '600' };
+    const now = Math.floor(Date.now() / 1000);
+    fix.waitFile('w', 'not-received', `${now - 1200}\n`); // older than the window
+    fix.modeOf('w', 'idle');
+    fix.screenOf('w', 'Welcome to the worker\n> Read the file /x/brief.md in full and execute it.\n');
+    // Mutation captured: not sending the Enter (or not recording the
+    // attempt) leaves the worker stuck in its input box and the wait
+    // unable to tell the retries apart.
+    const before = Math.floor(Date.now() / 1000);
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, env), 'working', 'the retry keeps the wait going');
+    const after = Math.floor(Date.now() / 1000);
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')), ['agent send-keys w enter']);
+    const retry = fix.waitRead('w', 'enter-retry').trim().split(/\s+/);
+    assert.equal(retry[0], '1', 'one attempt recorded');
+    assert.ok(Number(retry[1]) >= before && Number(retry[1]) <= after, 'the attempt moment is recorded');
+    assert.equal(fix.waitRead('w', 'not-received'), `${now - 1200}\n`, 'the marker itself is kept for the next probe');
+    // A second probe inside the window sends nothing.
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, env), 'working', 'inside the window: no key');
+    assert.equal(fix.logLines().filter((l) => l.startsWith('agent send-keys')).length, 1, 'still one Enter');
+    // A counter that is not two integers fails closed: not-received, no
+    // further key.
+    fix.waitFile('w', 'enter-retry', 'x y\n');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, env), 'not-received', 'malformed counter fails closed');
+    assert.equal(fix.logLines().filter((l) => l.startsWith('agent send-keys')).length, 1, 'no key after the malformed counter');
+  } finally { fix.cleanup(); }
+});
+
+// A fresh marker is the last attempt itself: inside the window the probe
+// returns working and sends no key, and no counter is created.
+test('wait: a fresh not-received marker waits one window before the first retry', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-freshnr-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    const sd = fix.ws;
+    fix.waitFile('w', 'not-received', `${Math.floor(Date.now() / 1000)}\n`);
+    fix.modeOf('w', 'idle');
+    fix.screenOf('w', 'Welcome to the worker\n> Read the file /x/brief.md in full and execute it.\n');
+    // Mutation captured: retrying immediately on the fresh marker (no
+    // window) would send the Enter on this probe.
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'inside the window: no key yet');
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')), [], 'no key inside the window');
+    assert.equal(fix.waitRead('w', 'enter-retry'), null, 'no counter before the first retry');
+  } finally { fix.cleanup(); }
+});
+
+// The three retries are spent: the wait ends not-received even with the
+// prompt still in the input box, and sends no further key.
+test('wait: three retries spent end the wait not-received', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-retryexhausted-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    const sd = fix.ws;
+    const now = Math.floor(Date.now() / 1000);
+    fix.waitFile('w', 'not-received', `${now - 300}\n`);
+    fix.waitFile('w', 'enter-retry', `3 ${now - 30}\n`);
+    fix.modeOf('w', 'idle');
+    fix.screenOf('w', 'Welcome to the worker\n> Read the file /x/brief.md in full and execute it.\n');
+    // Mutation captured: a missing retry cap (or a cap of more than three)
+    // sends a fourth Enter here instead of ending the wait.
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'not-received', 'the budget is spent even with the prompt in the input box');
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')), [], 'no further Enter');
+  } finally { fix.cleanup(); }
+});
+
+// A state change since the marker (the state_change_seq moved) makes the
+// marker stale even with the agent not working: the probe drops the marker
+// and the retry counter, sends no key, and goes on with the normal logic.
+test('wait: a state change since the marker drops the marker and sends no Enter', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-seqchanged-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    const sd = fix.ws;
+    const now = Math.floor(Date.now() / 1000);
+    // The marker holds seq 5; the agent's current state_change_seq is 7:
+    // it changed state since the dispatch gave up, so a prompt echo in the
+    // last lines is no proof the input box is stuck.
+    fix.waitFile('w', 'not-received', `${now - 120} 5\n`);
+    // Mutation captured: ignoring the seq (or not comparing it) retries
+    // the Enter and keeps the marker.
+    fs.writeFileSync(fix.env.FAKE_SEQ, '7\n');
+    fix.modeOf('w', 'idle');
+    fix.screenOf('w', 'Welcome to the worker\n> Read the file /x/brief.md in full and execute it.\n');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'the normal probe goes on');
+    assert.equal(fix.waitRead('w', 'not-received'), null, 'the marker is dropped');
+    assert.equal(fix.waitRead('w', 'enter-retry'), null, 'no retry counter is left');
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')), [], 'no Enter is sent');
+  } finally { fix.cleanup(); }
+});
+
+// The same seq as the marker means the agent did nothing in the meantime:
+// the retry goes on as before and the marker stays. An epoch-only marker
+// (the older format) has no seq to compare and keeps the retry too.
+test('wait: the same seq and an epoch-only marker keep the retry', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-seqsame-');
+  try {
+    fix.writeRoster(ROW('w1', 'implementer'), ROW('w2', 'implementer'));
+    const sd = fix.ws;
+    const now = Math.floor(Date.now() / 1000);
+    fix.waitFile('w1', 'not-received', `${now - 120} 7\n`);
+    // Mutation captured: treating "a seq is present" as "it changed" (or
+    // skipping the retry on a matching seq) drops the marker here.
+    fs.writeFileSync(fix.env.FAKE_SEQ, '7\n');
+    fix.modeOf('w1', 'idle');
+    fix.screenOf('w1', 'Welcome to the worker\n> Read the file /x/brief.md in full and execute it.\n');
+    assert.equal(probeAgent(sd, 'w1', '', fix.ctx, fix.env), 'working', 'the retry keeps the wait going');
+    assert.equal(fix.waitRead('w1', 'not-received'), `${now - 120} 7\n`, 'the marker stays');
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')), ['agent send-keys w1 enter']);
+    // An epoch-only marker (an older one) keeps the retry too.
+    fix.waitFile('w2', 'not-received', `${now - 120}\n`);
+    fix.modeOf('w2', 'idle');
+    fix.screenOf('w2', 'Welcome to the worker\n> Read the file /x/brief.md in full and execute it.\n');
+    assert.equal(probeAgent(sd, 'w2', '', fix.ctx, fix.env), 'working', 'an older marker keeps the retry');
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')),
+      ['agent send-keys w1 enter', 'agent send-keys w2 enter']);
+  } finally { fix.cleanup(); }
+});
+
+// The whole path: with the seq moved, the wait ends settled-no-report
+// (rc 6), the marker is dropped, and no key is sent.
+test('wait: a state change since the marker ends settled-no-report, no Enter', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-seqchanged-e2e-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    const sd = fix.ws;
+    const now = Math.floor(Date.now() / 1000);
+    fix.waitFile('w', 'not-received', `${now - 120} 5\n`);
+    // Mutation captured: not dropping the marker when the seq moved keeps
+    // the wait in the not-received path (retrying the Enter or exiting 15)
+    // instead of the normal settled path.
+    fs.writeFileSync(fix.env.FAKE_SEQ, '7\n');
+    fix.modeOf('w', 'idle');
+    fix.screenOf('w', 'Welcome to the worker\n> Read the file /x/brief.md in full and execute it.\n');
+    const r = cmd(fix, ['wait', 'w', '--timeout', '10000'], { HERDR_AGENTS_SETTLED_GRACE: '0' });
+    assert.equal(r.status, 6, r.stdout + '\n' + r.stderr);
+    assert.deepEqual(jsonLines(r.stdout), [{ agent: 'w', status: 'settled-no-report', report: '' }]);
+    assert.equal(fix.waitRead('w', 'not-received'), null, 'the marker is dropped');
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')), [], 'no Enter is sent');
+  } finally { fix.cleanup(); }
+});
+
+// The window is over and the prompt is no longer in the input box with the
+// agent not working: the wait ends not-received, no key.
+test('wait: a not-received agent whose screen no longer holds the prompt ends not-received', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-noprompt-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    const sd = fix.ws;
+    fix.waitFile('w', 'not-received', `${Math.floor(Date.now() / 1000) - 120}\n`);
+    fix.modeOf('w', 'idle');
+    fix.screenOf('w', 'Welcome to the worker\n');
+    // Mutation captured: sending the Enter for a screen without the prompt
+    // (or settling the agent as working) fails the state and the zero-key
+    // log below.
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'not-received');
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')), [], 'no key for a screen without the prompt');
   } finally { fix.cleanup(); }
 });
 
@@ -564,6 +798,101 @@ test('wait: the rank order 11 > 14 > 7 with quota, provider-error and blocked', 
       const p = jsonLines(r.stdout).find((l) => l.agent === 'prov');
       assert.equal(p.cause, 'Error: Connection error.');
     }
+  } finally { fix.cleanup(); }
+});
+
+// A stale not-received marker (window over, no prompt in the input box)
+// ends the wait at 15 on the first probe: the exact JSON line, the
+// read-the-pane warning and the friction entry.
+test('wait: a stale not-received marker exits 15 with the line and the read-the-pane warning', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-notreceived-rc-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.modeOf('w', 'idle');
+    fix.screenOf('w', 'Welcome to the worker\n');
+    fix.waitFile('w', 'not-received', `${Math.floor(Date.now() / 1000) - 120}\n`);
+    // Mutation captured: a not-received wait settling on settled-no-report
+    // (rc 6) or running to the timeout (rc 9) changes the rc and the JSON
+    // line below.
+    const r = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r.status, 15, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report']);
+    assert.equal(line.agent, 'w');
+    assert.equal(line.status, 'not-received');
+    assert.match(r.stderr, /prompt to 'w' never reached it: read the pane \(herdr agent read w --source visible\), then dispatch again/);
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.match(friction, /warning\twait\tprompt to 'w' never reached it/);
+  } finally { fix.cleanup(); }
+});
+
+// The rank order with a not-received agent: 4 (unavailable) >
+// 11 (quota) > 14 (provider-error) > 15 (not-received) > 7 (blocked), in
+// any argument order.
+test('wait: the rank order 4 > 11 > 14 > 15 > 7 with a not-received agent', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-rank-15-');
+  try {
+    fix.writeRoster(
+      ROW('stuck', 'implementer', 'grok', 'grok-4.7', 'build'),
+      ROW('quota1', 'researcher', 'grok', 'grok-4.7', 'build'),
+      ROW('prov', 'implementer', 'grok', 'grok-4.7', 'build'),
+      ROW('lost', 'tasker', 'grok', '', 'build'),
+      ROW('blocked1', 'tasker', 'grok', '', 'build'),
+    );
+    fix.modeOf('stuck', 'denied');
+    fix.modeOf('quota1', 'idle');
+    fix.screenOf('quota1', 'hit your usage limit\n');
+    fix.modeOf('prov', 'idle');
+    fix.screenOf('prov', 'Error: Connection error.\n');
+    fix.modeOf('lost', 'idle');
+    fix.screenOf('lost', 'Welcome to the worker\n');
+    fix.waitFile('lost', 'not-received', `${Math.floor(Date.now() / 1000) - 120}\n`);
+    fix.modeOf('blocked1', 'blocked');
+    fix.waitFile('blocked1', 'blocked', ''); // the second blocked probe is due
+    // Mutation captured: a 15 ranked at or above 14 (or at or below 7)
+    // changes the combined rc in either argument order below.
+    for (const args of [['lost', 'blocked1'], ['blocked1', 'lost']]) {
+      const r = waitCmd(fix, [...args, '--timeout', '10000']);
+      assert.equal(r.status, 15, `rc for ${args.join(' ')}: ${r.stderr}`);
+    }
+    for (const args of [['prov', 'lost'], ['lost', 'prov']]) {
+      const r = waitCmd(fix, [...args, '--timeout', '10000']);
+      assert.equal(r.status, 14, `rc for ${args.join(' ')}: ${r.stderr}`);
+    }
+    for (const args of [['quota1', 'lost'], ['lost', 'quota1']]) {
+      const r = waitCmd(fix, [...args, '--timeout', '10000']);
+      assert.equal(r.status, 11, `rc for ${args.join(' ')}: ${r.stderr}`);
+    }
+    for (const args of [['stuck', 'lost'], ['lost', 'stuck']]) {
+      const r = waitCmd(fix, [...args, '--timeout', '10000']);
+      assert.equal(r.status, 4, `rc for ${args.join(' ')}: ${r.stderr}`);
+    }
+  } finally { fix.cleanup(); }
+});
+
+// The happy path: the retry Enter starts the worker (the CLI that was
+// still opening finally accepts it) and the wait settles done like any
+// other wait — one Enter, no resend, in a few probes, not a timeout.
+test('wait: the retry Enter unblocks the worker and the wait settles done', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-retrydone-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.modeOf('w', 'idle');
+    fix.screenOf('w', 'Welcome to the worker\n> Read the file /x/brief.md in full and execute it.\n');
+    const reportPath = path.join(fix.ws, 'reports', 'w-report.md');
+    fs.writeFileSync(path.join(fix.ws, 'last-report-w'), reportPath + '\n');
+    fix.waitFile('w', 'not-received', `${Math.floor(Date.now() / 1000) - 120}\n`);
+    // Mutation captured: never retrying the Enter (or retrying after the
+    // worker started) leaves the wait running to the timeout (rc 9) or
+    // sends more than one key.
+    const env = { ...fix.env, FAKE_SENDKEYS_WORK: path.join(fix.root, 'sendkeys-work'), FAKE_REPORT_PATH: reportPath };
+    fs.writeFileSync(env.FAKE_SENDKEYS_WORK, '1\n');
+    const r = spawnSync(nodeBin(), [JS_ENTRY, 'wait', 'w', '--timeout', '10000'], { cwd: fix.repo, env, encoding: 'utf8', timeout: 60_000 });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(jsonLines(r.stdout), [{ agent: 'w', status: 'done', report: reportPath }]);
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')),
+      ['agent send-keys w enter'], 'exactly one retry Enter');
+    assert.match(r.stderr, /prompt to 'w' was still in its input box; sent Enter again \(1 of 3\)/);
   } finally { fix.cleanup(); }
 });
 

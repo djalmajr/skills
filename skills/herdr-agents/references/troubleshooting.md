@@ -340,7 +340,14 @@ without checking that generation succeeded and produced what you expect.
 ## `wait` of several lanes
 
 - **Symptom:** one lane is `quota` and another is `blocked` or `gone`, and the exit changes with the order of the names.
-- **Now:** the exit is the most severe status in the wait: 4 (`unavailable`), then 11 (`quota`), then 7 (`blocked`), then 6 (`gone` or settled). `wait build review` and `wait review build` return the same code.
+- **Now:** the exit is the most severe status in the wait: 4 (`unavailable`), then 11 (`quota`), then 14 (`provider-error` or `capacity`), then 15 (`not-received`), then 7 (`blocked` or `question`), then 6 (`gone` or settled). `wait build review` and `wait review build` return the same code.
+
+## Prompt stuck in the input box of a CLI that was still opening
+
+- **Symptom:** `dispatch --no-wait` exits 15 (`prompt to '<agent>' was not received after an Enter on the text left in its input box`) and a later `wait` on the same agent hangs until the agent finally starts — a manual Enter unblocks it.
+- **Cause:** a freshly opened CLI is still starting; it accepts the prompt into its input box and swallows the Enter the dispatch sent, so the prompt never reaches the model. The dispatch's arrival check ended `not-received`, and the old `wait` had no way to know about it.
+- **Now:** a `not-received` dispatch records the moment and the agent's `state_change_seq` in `<state>/wait/<agent>.not-received`. A `wait` retries one Enter per `prompt_check_seconds` window while the prompt is still visible in the input box, up to 3 retries; the agent starting to work, blocking, or its state having changed since the marker (a different `state_change_seq`) clears the markers and the wait goes on as usual; after the 3 retries — or when the prompt is no longer in the input box with the agent not working — the wait exits 15 with `not-received`. `status` reports `not-received` (exit 15) read-only, never sending a key, and a moved seq clears the report there too. A new dispatch clears the markers.
+- **Do:** on a 15, read the pane (`herdr agent read <agent> --source visible`) and dispatch again — the CLI is usually ready by then.
 
 ## Running the test matrix
 

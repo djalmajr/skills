@@ -33,7 +33,8 @@ const JS_ENTRY = path.join(SCRIPTS, 'herdr-agents.mjs');
 
 // `agent get` per target (mode-<t> file) else the global mode file
 // (denied → an unqueryable error, missing → agent_not_found, else the mode
-// as agent_status); `agent read` prints screen-<t> (or the global screen
+// as agent_status; the state_change_seq is read from the FAKE_SEQ file
+// when it exists); `agent read` prints screen-<t> (or the global screen
 // file); `agent prompt` fails when FAKE_PROMPT_FAIL exists, is a silent
 // no-op when the FAKE_PROMPT_SKIP file exists (consumed on the call),
 // leaves the prompt text in the input box (FAKE_PROMPT_INPUT), turns the
@@ -78,7 +79,10 @@ if (cmd === 'agent get') {
     process.stderr.write('{"error":{"code":"agent_not_found","message":"agent target ' + t + ' not found"}}\\n');
     process.exit(1);
   }
-  process.stdout.write('{"result":{"agent":{"name":"' + t + '","agent_status":"' + m + '"}}}\\n');
+  let seqVal = '';
+  try { seqVal = fs.readFileSync(process.env.FAKE_SEQ, 'utf8').trim(); } catch {}
+  const seqJson = seqVal !== '' ? ', "state_change_seq": ' + seqVal + '' : '';
+  process.stdout.write('{"result":{"agent":{"name":"' + t + '","agent_status":"' + m + '"' + seqJson + '}}}\\n');
 } else if (cmd === 'agent read') {
   process.stdout.write(screenOf(t));
 } else if (cmd === 'agent prompt') {
@@ -157,6 +161,7 @@ function makeFix(prefix) {
     FAKE_PROMPT_FAIL: path.join(root, 'prompt-fail'),
     FAKE_PROMPT_SKIP: path.join(root, 'prompt-skip'),
     FAKE_SENDKEYS_WORK: path.join(root, 'sendkeys-work'),
+    FAKE_SEQ: path.join(root, 'seq'),
     PATH: `${bin}${path.delimiter}${process.env.PATH}`,
   };
   fs.writeFileSync(env.FAKE_MODE, 'idle\n');
@@ -485,6 +490,7 @@ test('compose: role header, brief verbatim, the report contract in order', { tim
     const contract = [
       '- Write your report as Markdown to `' + report + '` (create parent directories if needed) following the `<report>` section of your role and the per-item states done / partial / skipped + reason.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
+      '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
       '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
       '- Do not commit, push, tag, or open pull requests.\n',
@@ -777,6 +783,7 @@ test('dispatch: a prompt ignored twice ends not-received with exit 15', { timeou
     // default "accepted into the scrollback" fake (state stays idle)
     // Mutation captured: exiting 0 instead of 15, or a JSON with the raw
     // key (or missing wait_status), fails the asserts below.
+    fs.writeFileSync(fix.env.FAKE_SEQ, '7\n'); // the marker carries the seq read at not-received
     const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
       { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '2' });
     assert.equal(r.status, 15, r.stderr);
@@ -786,6 +793,14 @@ test('dispatch: a prompt ignored twice ends not-received with exit 15', { timeou
       ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists'],
       'the error-case keys without raw');
     assert.equal(j.report_exists, false);
+    // Mutation captured: not recording the not-received moment (or writing
+    // it on a received dispatch) leaves the wait unable to retry the
+    // Enter; the marker holds the epoch and the state_change_seq read at
+    // the moment.
+    assert.match(fs.readFileSync(path.join(fix.ws, 'wait', 'build.not-received'), 'utf8'),
+      /^\d{10} 7\n$/, 'the marker holds the epoch and the seq');
+    assert.equal(fs.existsSync(path.join(fix.ws, 'wait', 'build.enter-retry')), false,
+      'no Enter was attempted, so no retry counter');
     const log = fix.log().split('\n').filter((l) => l !== '');
     assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 2, 'one prompt + one resend');
     assert.match(r.stderr, /prompt to 'build' was not received after one resend; read the pane \(herdr agent read build --source visible\) before sending anything else/);
@@ -810,6 +825,8 @@ test('dispatch: prompt_check_seconds=0 sends one prompt and probes nothing', { t
     assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'one prompt only');
     assert.equal(log.filter((l) => l.startsWith('agent get ')).length, 0, 'no arrival probes');
     assert.equal(log.filter((l) => l.startsWith('agent read ')).length, 0, 'no screen reads (not even the H0)');
+    // With the check off the dispatch never records a not-received moment.
+    assert.equal(fs.existsSync(path.join(fix.ws, 'wait', 'build.not-received')), false, 'no marker with the check off');
   } finally { fix.cleanup(); }
 });
 
@@ -864,6 +881,13 @@ test('dispatch: an input-box prompt that ignores the Enter ends not-received (ex
     assert.equal(j.wait_status, 'not-received');
     assert.deepEqual(Object.keys(j),
       ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists']);
+    // The same marker as the resend path: the wait retries the Enter from
+    // this moment. No FAKE_SEQ file here: the fake returns no seq, so the
+    // marker stays epoch-only (the older format, still valid).
+    assert.match(fs.readFileSync(path.join(fix.ws, 'wait', 'build.not-received'), 'utf8'),
+      /^\d{10}\n$/, 'epoch-only marker without a seq');
+    assert.equal(fs.existsSync(path.join(fix.ws, 'wait', 'build.enter-retry')), false,
+      'the dispatch Enter is not counted as a wait retry');
     const log = fix.log().split('\n').filter((l) => l !== '');
     assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'no second prompt after the Enter');
     assert.deepEqual(log.filter((l) => l.startsWith('agent send-keys')),
@@ -871,6 +895,50 @@ test('dispatch: an input-box prompt that ignores the Enter ends not-received (ex
     assert.match(r.stderr, /prompt to 'build' sat in the input box; sent Enter/);
     assert.match(r.stderr, /prompt to 'build' was not received after an Enter on the text left in its input box/);
     assert.ok(!r.stderr.includes('after one resend'), 'no resend happened, so the message does not claim one');
+  } finally { fix.cleanup(); }
+});
+
+// The not-received marker is the dispatch's hand-off to the wait: a new
+// dispatch clears it (as it clears every other wait marker), so a fresh
+// prompt starts with a clean retry budget.
+test('dispatch: a new dispatch clears the not-received and enter-retry markers', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-clearnr-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fs.writeFileSync(path.join(fix.ws, 'wait', 'build.not-received'), '1700000000\n');
+    fs.writeFileSync(path.join(fix.ws, 'wait', 'build.enter-retry'), '2 1700000015\n');
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'], { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0' });
+    assert.equal(r.status, 0, r.stderr);
+    // Mutation captured: the markers missing from the dispatch's clear
+    // list let the next wait retry an Enter for a stale not-received.
+    assert.equal(fs.existsSync(path.join(fix.ws, 'wait', 'build.not-received')), false, 'not-received cleared');
+    assert.equal(fs.existsSync(path.join(fix.ws, 'wait', 'build.enter-retry')), false, 'enter-retry cleared');
+  } finally { fix.cleanup(); }
+});
+
+// The report-writer line is the first standing rule of every composed
+// prompt (brief and amendment): only the worker writes the report, once
+// the whole brief is done, and a subagent never writes it.
+test('compose: the report-writer line leads the standing rules in brief and amendment', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-rulereport-');
+  try {
+    const line = '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n';
+    const roleFile = path.join(fix.repo, 'alpha.md');
+    fs.writeFileSync(roleFile, '---\nname: alpha\n---\n\nBody.\n');
+    const report = '/r.md';
+    const briefPrompt = composePrompt(roleFile, 'alpha', 'w1', '# Goal\nGo.\n', report, fix.ctx, fix.env);
+    const amendPrompt = composeAmendment('# Amend\nDo X.\n', report, fix.ctx, fix.env);
+    // Mutation captured: the line dropped from one of the two composed
+    // prompts (or duplicated) fails one of the indexOf asserts below.
+    for (const [name, text] of [['brief', briefPrompt], ['amendment', amendPrompt]]) {
+      assert.equal(text.indexOf(line), text.lastIndexOf(line), `${name}: exactly one`);
+      assert.ok(text.indexOf(line) !== -1, `${name}: the line is present`);
+      // The line leads the standing rules: it sits before the no-questions
+      // line and after the one-go rule.
+      assert.ok(text.indexOf('- Write the report in one go') < text.indexOf(line), `${name}: after the one-go rule`);
+      assert.ok(text.indexOf(line) < text.indexOf('- Nobody watches this terminal'), `${name}: before the no-questions line`);
+    }
   } finally { fix.cleanup(); }
 });
 
@@ -1126,6 +1194,7 @@ test('dispatch --amend: new report, wait markers cleared, title keeps the task w
       '- This amendment overrides your current brief where they differ; the rest of that brief still holds.\n',
       `- Write your report as Markdown to \`${j.report}\` (create parent directories if needed). If you have not written the report of your current brief yet, write one report there that covers the brief and this amendment; otherwise report only on the amendment.\n`,
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
+      '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
       '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
       '- Do not commit, push, tag, or open pull requests.\n',
@@ -1203,6 +1272,7 @@ test('composeAmendment: the report_language line, in order, only when set', { ti
       `- Write your report as Markdown to \`${report}\` (create parent directories if needed). If you have not written the report of your current brief yet, write one report there that covers the brief and this amendment; otherwise report only on the amendment.\n`,
       '- Write the report in pt-BR.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
+      '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
       '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
       '- Do not commit, push, tag, or open pull requests.\n',

@@ -45,6 +45,10 @@ import { agentPrompt, agentState, agentRead, agentSendKeys } from './herdr.mjs';
 import { briefTask, paneTaskTitle } from './tasks.mjs';
 import { jqPretty } from './herdtabs.mjs';
 import { waitFor, pollIntervalMs, cksumField } from './wait.mjs';
+import { PROMPT_MARKER, lastNonEmptyLines, promptSitsInInput, markerSeq, markerSeqChanged } from './arrival.mjs';
+// Re-exported so the names that were exported here before the move to
+// lib/arrival.mjs keep their import path.
+export { PROMPT_MARKER, lastNonEmptyLines, promptSitsInInput, markerSeq, markerSeqChanged };
 
 // ---------- family_conflicts (:3870) ----------
 
@@ -116,33 +120,12 @@ export function lintBrief(brief, ctx, env = process.env, opts = {}) {
   warn(`brief ${brief} is missing sections:${missing} — workers without owned/forbidden files collide, without a report section never finish`);
 }
 
-// ---------- prompt arrival (item 15 + amendment) ----------
-
-// The exact start of the text dispatch sends to the worker (the input-box
-// marker below must track it).
-const PROMPT_MARKER = 'Read the file ';
-
-// The last `n` non-empty lines of a screen (CRLF normalized).
-export function lastNonEmptyLines(screen, n) {
-  return String(screen ?? '')
-    .replace(/\r\n/g, '\n')
-    .split('\n')
-    .filter((l) => l.trim() !== '')
-    .slice(-n);
-}
-
-// True when one of the last 15 non-empty visible lines carries the start of
-// the dispatched text: the prompt is sitting in the CLI's input box (the
-// screen changed, the agent is idle, no Enter was ever sent).
-export function promptSitsInInput(screen) {
-  return lastNonEmptyLines(screen, 15).some((l) => l.includes(PROMPT_MARKER));
-}
-
 // ---------- the composed prompt (:3930-3958) ----------
 // The standing worker rules at the end of every composed prompt (the brief
 // and the amendment): the same lines, never duplicated.
 function standingRules() {
   return [
+    `- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n`,
     `- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n`,
     `- Never invent names, endpoints, flags, credentials, URLs or requirements.\n`,
     `- Do not commit, push, tag, or open pull requests.\n`,
@@ -154,8 +137,9 @@ function standingRules() {
 // `# Brief` with the brief verbatim (`cat` — no CRLF normalization), and
 // `# Report contract` with the report path, the report language when
 // `report_language` is set, the one-go rule, the `worker_context=lean` rule,
-// and the standing worker rules (nobody watches the terminal, never invent,
-// no git, reply with the report path). Same lines, same order, as bash.
+// and the standing worker rules (only the worker writes the report,
+// nobody watches the terminal, never invent, no git, reply with the report
+// path). Same lines, same order, as bash.
 export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env = process.env) {
   const out = [];
   out.push(`# Role: ${fmGet(roleFile, 'name')}\n\n`);
@@ -349,7 +333,8 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   fs.writeFileSync(path.join(sd, `last-report-${agent}`), `${report}\n`);
   for (const suf of ['size', 'screen', 'since', 'blocked', 'approvals', 'quota',
     'provider', 'provider-cause', 'capacity-retries', 'capacity-at',
-    'question', 'stuck-hash', 'stuck-since', 'stuck-warned']) {
+    'question', 'stuck-hash', 'stuck-since', 'stuck-warned',
+    'not-received', 'enter-retry']) {
     fs.rmSync(path.join(sd, 'wait', `${agent}.${suf}`), { force: true });
   }
 
@@ -410,10 +395,19 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
       }
       return arrived();
     };
-    // Same keys as the error case above (without raw).
+    // Same keys as the error case above (without raw). The .not-received
+    // marker (epoch seconds + the agent's state_change_seq read now) lets a
+    // later `wait` retry the Enter instead of watching the still screen
+    // until the timeout, and discard the marker when the seq shows the
+    // agent changed state in the meantime. A new dispatch clears it (as it
+    // clears every other wait marker). The check only runs with a positive
+    // prompt_check_seconds, so the marker never lands with the check off.
     const notReceived = (what) => {
       let reportNow = false;
       try { reportNow = fs.statSync(report).size > 0; } catch { reportNow = false; }
+      const seq = agentState(agent, env).seq;
+      fs.writeFileSync(path.join(sd, 'wait', `${agent}.not-received`),
+        `${Math.floor(Date.now() / 1000)}${seq !== '' ? ` ${seq}` : ''}\n`);
       process.stdout.write(jqPretty({ agent, role, kind, composed_prompt: composed, report,
         wait_status: 'not-received', report_exists: reportNow }));
       warn(`prompt to '${agent}' was not received after ${what}; read the pane (herdr agent read ${agent} --source visible) before sending anything else`);

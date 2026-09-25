@@ -1,7 +1,9 @@
 // The `status` command: the provider-error / capacity JSON
 // line with the cause, rc 14 ranked below 11 and above 0 (and below 4,
 // per the global wait rank), the quota winning over the provider on the
-// same screen, and the old TSV / rc 0 behavior untouched. One probe only:
+// same screen, the not-received marker reported read-only (rc 15, no key,
+// untouched while the agent is working or blocked), and the old TSV /
+// rc 0 behavior untouched. One probe only:
 // the command must not leave the wait double-confirm state behind. The
 // status runs through the real entry (child process) so stdout and the
 // exit code are observable; a fake `herdr` (writeFakeCli) is the only
@@ -23,7 +25,8 @@ const JS_ENTRY = path.join(SCRIPTS, 'herdr-agents.mjs');
 
 // `agent get` per target (mode-<t> file) else the global mode file
 // (denied → an unqueryable error, missing → agent_not_found, else the mode
-// as agent_status); `agent read` prints screen-<t> (or the global screen
+// as agent_status; the state_change_seq is read from the FAKE_SEQ file
+// when it exists); `agent read` prints screen-<t> (or the global screen
 // file). Every call is logged as one "$*" line (FAKE_LOG).
 const HERDR_FAKE = `
 import fs from 'node:fs';
@@ -53,7 +56,10 @@ if (cmd === 'agent get') {
     process.stderr.write('{"error":{"code":"agent_not_found","message":"agent target ' + t + ' not found"}}\\n');
     process.exit(1);
   }
-  process.stdout.write('{"result":{"agent":{"name":"' + t + '","agent_status":"' + m + '"}}}\\n');
+  let seqVal = '';
+  try { seqVal = fs.readFileSync(process.env.FAKE_SEQ, 'utf8').trim(); } catch {}
+  const seqJson = seqVal !== '' ? ', "state_change_seq": ' + seqVal + '' : '';
+  process.stdout.write('{"result":{"agent":{"name":"' + t + '","agent_status":"' + m + '"' + seqJson + '}}}\\n');
 } else if (cmd === 'agent read') {
   process.stdout.write(screenOf(t));
 } else {
@@ -91,6 +97,7 @@ function makeFix(prefix) {
     FAKE_SCREEN: path.join(root, 'screen'),
     FAKE_SCREEN_DIR: screenDir,
     FAKE_LOG: path.join(root, 'herdr.log'),
+    FAKE_SEQ: path.join(root, 'seq'),
     PATH: `${bin}${path.delimiter}${process.env.PATH}`,
   };
   fs.writeFileSync(env.FAKE_MODE, 'working\n');
@@ -247,5 +254,117 @@ test('status: a blocked worker on an approval screen keeps the old TSV line', { 
     const r = cmd(fix, ['status', 'w']);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stdout, 'w\tblocked\t\n', 'the exact old TSV line');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- a not-received marker: read-only, rc 15, no key ----------
+
+// A dispatch that ended not-received recorded the moment, and the agent is
+// not working or blocked: the status is not-received (rc 15, through the
+// wait rank) and the command sends nothing — it only reads the marker (the
+// wait is the one that retries the Enter).
+test('status: a not-received marker reports not-received, rc 15, no key sent', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-status-notreceived-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.modeOf('w', 'idle');
+    fix.screenOf('w', 'Welcome to the worker\n');
+    fs.writeFileSync(path.join(fix.ws, 'wait', 'w.not-received'), `${Math.floor(Date.now() / 1000) - 120}\n`);
+    // Mutation captured: the marker branch missing (the old no-report-yet
+    // TSV line, rc 0) or a keypress inside the status fails the stdout/rc
+    // /log asserts below (this command's fake herdr refuses send-keys).
+    const r = cmd(fix, ['status', 'w']);
+    assert.equal(r.status, 15, r.stderr);
+    assert.equal(r.stdout, 'w\tnot-received\t\n', 'the TSV line with the new state');
+    // The same seq as the marker (the agent did nothing in the meantime)
+    // keeps not-received.
+    fs.writeFileSync(path.join(fix.ws, 'wait', 'w.not-received'), `${Math.floor(Date.now() / 1000) - 120} 7\n`);
+    // Mutation captured: treating "a seq is present" as "it changed" drops
+    // the not-received report here.
+    fs.writeFileSync(fix.env.FAKE_SEQ, '7\n');
+    const r2 = cmd(fix, ['status', 'w']);
+    assert.equal(r2.status, 15, r2.stderr);
+    assert.equal(r2.stdout, 'w\tnot-received\t\n', 'the same seq keeps not-received');
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')), [], 'read-only: no key');
+  } finally { fix.cleanup(); }
+});
+
+// The marker changes nothing while the agent is working or blocked: the
+// old TSV lines and rc 0 hold, and no key is sent.
+test('status: the marker changes nothing while the agent is working or blocked', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-status-nr-working-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fs.writeFileSync(path.join(fix.ws, 'wait', 'w.not-received'), `${Math.floor(Date.now() / 1000) - 120}\n`);
+    // Mutation captured: the marker overriding a working or a blocked
+    // agent reports not-received (rc 15) on either line below.
+    fix.modeOf('w', 'working');
+    const rw = cmd(fix, ['status', 'w']);
+    assert.equal(rw.status, 0, rw.stderr);
+    assert.equal(rw.stdout, 'w\tworking\t\n', 'working is untouched');
+    fix.modeOf('w', 'blocked');
+    fix.screenOf('w', 'Allow command? git push\n\nPress enter to confirm or esc to cancel\n');
+    const rb = cmd(fix, ['status', 'w']);
+    assert.equal(rb.status, 0, rb.stderr);
+    assert.equal(rb.stdout, 'w\tblocked\t\n', 'blocked is untouched');
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')), [], 'read-only across both');
+  } finally { fix.cleanup(); }
+});
+
+// A state change since the marker (the state_change_seq moved) makes the
+// marker stale: the normal status holds (no-report-yet here) and the
+// command keeps the marker — it only reads it, the wait is the one that
+// drops it.
+test('status: a state change since the marker is the normal status, marker kept', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-status-seqchanged-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.modeOf('w', 'idle');
+    fix.screenOf('w', 'Welcome to the worker\n');
+    const now = Math.floor(Date.now() / 1000);
+    fs.writeFileSync(path.join(fix.ws, 'wait', 'w.not-received'), `${now - 120} 5\n`);
+    // Mutation captured: reporting not-received on a moved seq (or deleting
+    // the marker here) fails the TSV/rc/marker asserts below.
+    fs.writeFileSync(fix.env.FAKE_SEQ, '7\n');
+    const r = cmd(fix, ['status', 'w']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, 'w\tno-report-yet\t\n', 'the normal status holds');
+    assert.equal(fs.readFileSync(path.join(fix.ws, 'wait', 'w.not-received'), 'utf8'),
+      `${now - 120} 5\n`, 'the marker is kept');
+    assert.deepEqual(fix.logLines().filter((l) => l.startsWith('agent send-keys')), [], 'read-only: no key');
+  } finally { fix.cleanup(); }
+});
+
+// The rc rank with 15 in the order: 11 (quota) beats 15 (not-received),
+// which beats 7 (question).
+test('status: the rc rank 11 > 15 > 7 across agents', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-status-rank-15-');
+  try {
+    fix.writeRoster(
+      ROW('quota1', 'researcher', 'grok', 'grok-4.7', 'build'),
+      ROW('lost', 'tasker', 'grok', '', 'build'),
+      ROW('quest1', 'tasker', 'claude', '', 'build'),
+    );
+    fix.modeOf('quota1', 'idle');
+    fix.screenOf('quota1', 'hit your usage limit\n');
+    fix.modeOf('lost', 'idle');
+    fix.screenOf('lost', 'Welcome to the worker\n');
+    fs.writeFileSync(path.join(fix.ws, 'wait', 'lost.not-received'), `${Math.floor(Date.now() / 1000) - 120}\n`);
+    fix.modeOf('quest1', 'blocked');
+    fix.screenOf('quest1', 'What would you like to do next?\n1. keep the marker\n2. drop it\nUse arrows to navigate, enter to select\n');
+    // Mutation captured: a 15 ranked at or above 11 (or at or below 7 —
+    // the question rc) changes the combined rc below.
+    const r11 = cmd(fix, ['status', 'lost', 'quota1']);
+    assert.equal(r11.status, 11, r11.stderr);
+    const r15 = cmd(fix, ['status', 'lost', 'quest1']);
+    assert.equal(r15.status, 15, r15.stderr);
+    assert.match(r15.stdout, /lost\tnot-received\t/);
+    // The question agent is reported as `question` with the text and wins
+    // the rc when alone: 15 > 7 holds only in the combined rc above.
+    const q = r15.stdout.trim().split('\n').map((l) => (l.startsWith('{') ? JSON.parse(l) : l)).find((l) => l !== null && typeof l === 'object' && l.agent === 'quest1');
+    assert.equal(q.status, 'question');
+    assert.match(q.question, /enter to select/);
+    const r7 = cmd(fix, ['status', 'quest1']);
+    assert.equal(r7.status, 7, r7.stderr);
   } finally { fix.cleanup(); }
 });

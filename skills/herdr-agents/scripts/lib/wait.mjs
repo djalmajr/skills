@@ -2,11 +2,21 @@
 // (report-size stability, blocked double-probe, auto-approve, quota,
 // provider error / capacity double-probe with the bounded continue
 // prompts, settled screen, gone / unavailable), the error-rank order for a
-// multi-agent wait (4 > 11 > 14 > 7 > 6), the synchronous poll loop and the
-// `wait` command. Port of the original bash implementation :3616-3810
+// multi-agent wait (4 > 11 > 14 > 15 > 7 > 6), the synchronous poll loop
+// and the `wait` command. Port of the original bash implementation
+// :3616-3810
 // (kind_approve_keys :3616, try_auto_approve :3625, probe_agent :3644,
 // notify_done :3690, wait_rank :3733, wait_raise :3742, wait_for :3751,
 // cmd_wait :3802).
+//
+// A dispatch that ended `not-received` records the moment in
+// <state>/wait/<agent>.not-received (epoch seconds). The probe that finds
+// that marker with the agent not working/blocked continues what the
+// dispatch left: while the prompt is still visible in the agent's input
+// box it retries one Enter per prompt_check_seconds window, up to three
+// (the constant below); the agent starting to work clears the markers and
+// the probe goes on as usual; otherwise the wait ends `not-received`
+// (rank between 14 and 7).
 //
 // Faithful-port notes:
 //   - one compact JSON line per agent, same keys in the same order as the
@@ -25,6 +35,7 @@ import { readTextFile } from './platform.mjs';
 import { cfg, DieError } from './config.mjs';
 import { stateDir, rosterLine, lastReport, warn, dieFriction, nowStamp, sleepSync } from './state.mjs';
 import { agentState, agentRead, agentSendKeys, notificationShow, agentPrompt } from './herdr.mjs';
+import { promptSitsInInput, markerSeqChanged } from './arrival.mjs';
 import { sanitizeCause } from './text.mjs';
 import { dialogKind, questionText } from './dialog.mjs';
 import { quotaDetect } from './quota.mjs';
@@ -119,11 +130,19 @@ function readWaitFile(sd, agent, name) {
   try { return readTextFile(path.join(sd, 'wait', name)).replace(/\n+$/, ''); } catch { return null; }
 }
 
+// The wait retries the Enter at most this many times (one per
+// prompt_check_seconds window): a CLI that is still opening swallows the
+// first Enter(s), and three windows cover a slow opening. Not a config key
+// on purpose.
+const ENTER_RETRY_LIMIT = 3;
+
 // done | pending | blocked | question | working | settled | quota |
-// provider-error | capacity | gone | `unavailable\t<cause>` — per-agent
-// screen/settled bookkeeping under <state>/wait/ (the .size/.screen/
-// .since/.blocked/.question/.stuck-hash/.stuck-since/.stuck-warned/.quota/
-// .provider/.provider-cause/.capacity-retries/.capacity-at files).
+// provider-error | capacity | gone | not-received |
+// `unavailable\t<cause>` — per-agent screen/settled bookkeeping under
+// <state>/wait/ (the .size/.screen/.since/.blocked/.question/.stuck-hash/
+// .stuck-since/.stuck-warned/.quota/.provider/.provider-cause/
+// .capacity-retries/.capacity-at files; a not-received dispatch adds
+// .not-received and the wait's Enter retries .enter-retry).
 // S5 items 2 and 11a: a confirmed blocked screen that matches the kind's
 // question marker (lib/dialog.mjs) returns `question` with the text saved
 // in <agent>.question (no key sent, same rank as blocked); a working
@@ -145,6 +164,64 @@ export function probeAgent(sd, agent, report, ctx, env = process.env) {
   const st = agentState(agent, env);
   if (st.state === 'gone') return 'gone';
   if (st.state === 'unavailable') return `unavailable\t${st.cause}`;
+  // A dispatch that ended not-received recorded the moment and the
+  // agent's state_change_seq in .not-received ("<epoch> <seq>"; an
+  // epoch-only marker is an older one and stays valid). Working or blocked
+  // means the prompt arrived late, and a seq that moved means the agent
+  // changed state in the meantime: in both cases drop the markers and go on
+  // with the normal probe (no key in the seq case). Otherwise the wait
+  // continues the dispatch with a bounded Enter retry (see below).
+  const nrFile = path.join(sd, 'wait', `${agent}.not-received`);
+  const retryFile = path.join(sd, 'wait', `${agent}.enter-retry`);
+  if (fs.existsSync(nrFile)) {
+    const markText = readWaitFile(sd, agent, `${agent}.not-received`);
+    // True when the marker holds a seq, the current one is known, and the
+    // two differ: the agent did something since the dispatch gave up, so a
+    // prompt echo in the last lines is no proof the input box is stuck.
+    const seqChanged = markerSeqChanged(markText, st.seq);
+    if (st.state === 'working' || st.state === 'blocked' || seqChanged) {
+      fs.rmSync(nrFile, { force: true });
+      fs.rmSync(retryFile, { force: true });
+    } else {
+      // The same prompt_check_seconds read and validation as the dispatch
+      // arrival check: a positive integer; the marker only exists when the
+      // check ran with one, so an absent or invalid window just has no
+      // grace between retries.
+      const rawWin = String(cfg(ctx, 'prompt_check_seconds', '15', env));
+      const winS = /^[0-9]+$/.test(rawWin) && Number(rawWin) > 0 ? Number(rawWin) : 0;
+      let lastEpoch = 0;
+      const markEpoch = Number(String(markText ?? '').trim().split(/\s+/)[0]);
+      if (Number.isFinite(markEpoch)) lastEpoch = markEpoch;
+      // .enter-retry: "<attempts> <epoch of the last Enter>". While it is
+      // absent the last attempt is the dispatch's not-received moment; a
+      // file that is not two integers fails closed (no more Enters), like
+      // the .approvals counter.
+      let attempts = 0;
+      const retryRaw = readWaitFile(sd, agent, `${agent}.enter-retry`);
+      if (retryRaw !== null) {
+        const parts = retryRaw.trim().split(/\s+/);
+        const a = Number(parts[0]);
+        const e = Number(parts[1]);
+        if (!Number.isFinite(a) || !Number.isFinite(e) || parts.length !== 2) return 'not-received';
+        attempts = a;
+        lastEpoch = e;
+      }
+      const nowS = Math.floor(Date.now() / 1000);
+      // Inside the window since the last attempt: nothing to do, the agent
+      // keeps working.
+      if (nowS - lastEpoch < winS) return 'working';
+      if (attempts < ENTER_RETRY_LIMIT && promptSitsInInput(agentRead(env, agent, { source: 'visible' }))) {
+        const n = attempts + 1;
+        agentSendKeys(agent, 'enter', env);
+        fs.writeFileSync(retryFile, `${n} ${nowS}\n`);
+        warn(`prompt to '${agent}' was still in its input box; sent Enter again (${n} of ${ENTER_RETRY_LIMIT})`);
+        return 'working';
+      }
+      // The three retries are spent, or the prompt is no longer in the
+      // input box with the agent not working: the wait ends not-received.
+      return 'not-received';
+    }
+  }
   if (st.state === 'blocked') {
     // Detection can flag a transient approval UI; require two consecutive
     // blocked probes before acting. With auto_approve=on the default
@@ -303,13 +380,15 @@ export function notifyDone(agent, report, ctx, env = process.env) {
 // ---------- wait_rank / wait_raise (:3733) ----------
 
 // One order for a multi-agent wait: 4 unavailable > 11 quota >
-// 14 provider-error or capacity > 7 blocked > 6 gone or settled. The
-// argument order must not turn a quota into a blocked or a gone.
+// 14 provider-error or capacity > 15 not-received > 7 blocked >
+// 6 gone or settled. The argument order must not turn a quota into a
+// blocked or a gone.
 export function waitRank(code) {
   switch (String(code)) {
-    case '4': return 5;
-    case '11': return 4;
-    case '14': return 3;
+    case '4': return 6;
+    case '11': return 5;
+    case '14': return 4;
+    case '15': return 3;
     case '7': return 2;
     case '6': return 1;
     default: return 0;
@@ -346,7 +425,7 @@ function readQuotaFile(sd, agent) {
 }
 
 // wait_for <timeout_ms> <any> <agent>… → one JSON line per agent;
-// rc 0 when every agent settles, 4/11/14/7/6 by rank otherwise, 9 on
+// rc 0 when every agent settles, 4/11/14/15/7/6 by rank otherwise, 9 on
 // timeout (with a `timeout` line for each pending agent). Synchronous: the sleep
 // between probes is Atomics.wait, so the caller's event loop never turns.
 // `sink` receives each JSON line (default: process.stdout). The `wait`
@@ -416,6 +495,11 @@ export function waitFor(agents, opts) {
           rc = waitRaise(rc, 11);
           break;
         }
+        case 'not-received':
+          jsonLine({ agent: a, status: 'not-received', report: r }, sink);
+          warn(`prompt to '${a}' never reached it: read the pane (herdr agent read ${a} --source visible), then dispatch again`);
+          rc = waitRaise(rc, 15);
+          break;
         case 'provider-error':
         case 'capacity': {
           const cause = readWaitFile(sd, a, `${a}.provider-cause`) ?? '';
@@ -454,8 +538,8 @@ export function waitFor(agents, opts) {
 // ---------- cmd_wait (:3802) ----------
 
 // `wait <agent>… [--timeout MS] [--any]`: rc 0 all done · 4 unavailable ·
-// 11 quota · 14 provider-error|capacity · 7 blocked (or a question) ·
-// 6 settled-no-report|gone · 9 timeout.
+// 11 quota · 14 provider-error|capacity · 15 not-received ·
+// 7 blocked (or a question) · 6 settled-no-report|gone · 9 timeout.
 export function cmdWait(argv, ctx, env = process.env, cwd = process.cwd()) {
   const agents = [];
   let timeout = '';

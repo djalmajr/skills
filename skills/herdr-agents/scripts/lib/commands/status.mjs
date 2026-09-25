@@ -4,11 +4,16 @@
 // JSON for quota, for a provider stop and for a blocked worker whose
 // screen is a decision question (S5 item 2: status `question` with the
 // text, rc 7 instead of the blocked TSV line), rc 0 / 4 (unavailable) /
-// 7 (question) / 11 (quota) / 14 (provider-error or capacity). `done`
+// 7 (question) / 11 (quota) / 14 (provider-error or capacity) /
+// 15 (not-received: a dispatch ended not-received and the agent is not
+// working or blocked and its state_change_seq has not moved since the
+// marker — read-only, the wait is the one that retries the Enter).
+// `done`
 // and `unknown-agent` never consult herdr; quota is only considered when
 // the agent is not working, and always wins over the provider detection;
 // the provider gets one probe only — no double confirm, no continue.
 import fs from 'node:fs';
+import path from 'node:path';
 import { stateDir, rosterLine, lastReport, warn, dieFriction } from '../state.mjs';
 import { agentState, agentRead } from '../herdr.mjs';
 import { laneOfRole } from '../lanes.mjs';
@@ -16,12 +21,19 @@ import { quotaDetect } from '../quota.mjs';
 import { providerDetect } from '../provider.mjs';
 import { dialogKind, questionText } from '../dialog.mjs';
 import { waitRank } from '../wait.mjs';
+import { markerSeqChanged } from '../arrival.mjs';
 
 // `done` requires the recorded report file to exist and be non-empty
 // (bash `[ -s "$r" ]`), not just the path to be recorded.
 function reportNonEmpty(p) {
   if (!p) return false;
   try { return fs.statSync(p).size > 0; } catch { return false; }
+}
+
+// The not-received marker's content ('' when unreadable): read-only — this
+// command never drops a marker (the wait is the one that does).
+function readMarker(p) {
+  try { return fs.readFileSync(p, 'utf8'); } catch { return ''; }
 }
 
 export function cmdStatus(argv, ctx, env = process.env, cwd = process.cwd()) {
@@ -53,6 +65,18 @@ export function cmdStatus(argv, ctx, env = process.env, cwd = process.cwd()) {
       if (state === 'unavailable') {
         if (rc !== 11) rc = 4;
         warn(`agent '${a}': herdr agent get failed: ${cause}`);
+      } else if (fs.existsSync(path.join(sd, 'wait', `${a}.not-received`))
+        && orig !== 'working' && orig !== 'blocked'
+        && !markerSeqChanged(readMarker(path.join(sd, 'wait', `${a}.not-received`)), st.seq)) {
+        // A dispatch that ended not-received recorded the moment and the
+        // agent's state_change_seq; this command only reads the marker — it
+        // never sends a key and never drops it (the wait is the one that
+        // retries the Enter). A seq that moved means the agent changed
+        // state since, so the marker is stale and the normal status holds.
+        state = 'not-received';
+        // rc 15 sits below 4, 11 and 14 and above 7 and 6 (the global
+        // wait rank).
+        if (waitRank(15) > waitRank(rc)) rc = 15;
       } else if (orig === 'blocked') {
         // A blocked worker whose visible screen is a decision question is
         // reported as `question` (rc 7) with the text, not blocked (one

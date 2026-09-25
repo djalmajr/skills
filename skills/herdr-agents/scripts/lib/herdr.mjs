@@ -115,7 +115,11 @@ function transientKill(r) {
 //     `agent get returned no agent_status` (decision: kept, rc 4 upstream);
 //   - failure without JSON → unavailable, cause sanitized stderr (or stdout
 //     when stderr is empty), fallback `herdr agent get failed (exit <rc>)`.
-// Always returns; never throws.
+// The returned object also carries `seq`: the result's
+// `state_change_seq` when it is an integer, else `''` — the agent's
+// state-change counter, which the not-received marker (lib/wait.mjs)
+// compares to tell "the agent changed state since" from "the prompt echo
+// is still on the screen". Always returns; never throws.
 export function agentState(target, env = process.env, timeoutMs = HERDR_TIMEOUT_MS, retryPausesMs = [1000, 2000]) {
   // A kill by a signal (exit >= 128, e.g. 137 under load) with no structured
   // error is transient: one more try after each pause (1 s, then 2 s)
@@ -127,7 +131,10 @@ export function agentState(target, env = process.env, timeoutMs = HERDR_TIMEOUT_
     if (attempt >= retryPausesMs.length || !transientKill(r)) break;
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, retryPausesMs[attempt]);
   }
-  if (r.error === 'ETIMEDOUT') return { state: 'unavailable', cause: timedOutMsg('agent get', timeoutMs) };
+  // state_change_seq of the result (an integer) when present; `''` on
+  // every failure path and when the result carries no such integer field.
+  let seq = '';
+  if (r.error === 'ETIMEDOUT') return { state: 'unavailable', cause: timedOutMsg('agent get', timeoutMs), seq };
   // Bash exit code; 127 for a missing CLI; 128+N for a kill by signal N.
   const rc = r.notFound ? 127 : r.status ?? (r.signal ? 128 + (os.constants.signals[r.signal] ?? 0) : 1);
   let raw = r.stderr ?? '';
@@ -147,24 +154,27 @@ export function agentState(target, env = process.env, timeoutMs = HERDR_TIMEOUT_
       }
     } catch { /* not JSON: no error code */ }
   }
-  if (code === 'agent_not_found') return { state: 'gone', cause: '' };
+  if (code === 'agent_not_found') return { state: 'gone', cause: '', seq };
   if (rc === 0 && !code) {
     let out = null;
     try { out = JSON.parse(r.stdout || ''); } catch { out = null; }
-    const st = out && typeof out === 'object' ? out?.result?.agent?.agent_status : undefined;
+    const ag = out && typeof out === 'object' ? out?.result?.agent : undefined;
+    const st = ag?.agent_status;
+    const seqRaw = ag?.state_change_seq;
+    if (Number.isInteger(seqRaw)) seq = seqRaw;
     // jq -r '.result.agent.agent_status // empty': only null/false collapse.
     if (st !== undefined && st !== null && st !== false && st !== '') {
-      return { state: String(st), cause: '' };
+      return { state: String(st), cause: '', seq };
     }
     raw = 'agent get returned no agent_status';
   }
   if (code) {
     const cause = sanitizeCause(`${code}: ${msg}`);
-    return { state: 'unavailable', cause: cause || `herdr agent get failed (exit ${rc})` };
+    return { state: 'unavailable', cause: cause || `herdr agent get failed (exit ${rc})`, seq };
   }
   if (!raw) raw = `herdr agent get failed (exit ${rc})`;
   const cause = sanitizeCause(raw);
-  return { state: 'unavailable', cause: cause || `herdr agent get failed (exit ${rc})` };
+  return { state: 'unavailable', cause: cause || `herdr agent get failed (exit ${rc})`, seq };
 }
 
 // pane report-metadata (operator decision: every worker pane shows its

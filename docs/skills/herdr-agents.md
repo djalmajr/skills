@@ -232,7 +232,10 @@ a run.
 The report file is the completion signal. `dispatch` waits for it by
 default; `wait a b c` blocks on several; `status a b c` is the
 non-blocking check; `roster` shows a `REPORT` column. Do not poll Herdr
-agent states by hand: they flicker `idle`/`done` mid-task.
+agent states by hand: they flicker `idle`/`done` mid-task. Because the
+report's existence ends the wait, every prompt tells the worker that only
+it writes the report, after all of the brief is done, and never a
+subagent it started.
 
 `wait` prints one JSON line per agent and distinguishes why a report has
 not landed:
@@ -248,16 +251,20 @@ not landed:
   wait first sends the worker "continue" up to `provider_retries` times,
   `provider_retry_delay` seconds apart, and reports `capacity` only when
   that did not help.
-- `not-received` (exit 15, from `dispatch`): the prompt never reached the
-  worker, neither after one Enter on text left in its input box nor after
-  one resend when the screen never moved. Read the pane before sending
-  anything else.
+- `not-received` (exit 15): the prompt never reached the worker.
+  `dispatch` gives up after one Enter on text left in its input box, or
+  one resend when the screen never moved. A later `wait` on that worker
+  tries the Enter again up to 3 times, `prompt_check_seconds` apart, while
+  the prompt still sits in the input box (a CLI that was still opening
+  swallows the first Enter), and ends `not-received` in about a minute
+  instead of waiting for the screen to settle. Read the pane before
+  sending anything else.
 
 The other outcomes: `quota` (exit 11, the account's quota is out),
 `settled-no-report` or `gone` (exit 6), `unavailable` (exit 4 — restore
 access and retry; never spawn a replacement), `timeout` (exit 9 — run
 `wait` again). When several agents finish in one `wait`, the exit is the
-most severe of 4, 11, 14, 7 and 6.
+most severe of 4, 11, 14, 15, 7 and 6.
 
 ## Reusing workers
 
