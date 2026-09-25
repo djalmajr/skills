@@ -30,10 +30,11 @@
 //   - the poll sleep is synchronous (Atomics.wait) and defaults to 3 s
 //     like `sleep 3`; HERDR_AGENTS_WAIT_POLL_MS shortens it for tests.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { readTextFile } from './platform.mjs';
 import { cfg, DieError } from './config.mjs';
-import { stateDir, rosterLine, lastReport, warn, dieFriction, nowStamp, sleepSync } from './state.mjs';
+import { stateDir, rosterLine, lastReport, warn, dieFriction, nowStamp, sleepSync, workspaceId } from './state.mjs';
 import { agentState, agentRead, agentSendKeys, notificationShow, agentPrompt } from './herdr.mjs';
 import { promptSitsInInput, markerSeqChanged } from './arrival.mjs';
 import { sanitizeCause, hasWord } from './text.mjs';
@@ -43,6 +44,7 @@ import { REVIEW_ROLES_ALL } from './roles.mjs';
 import { quotaDetect } from './quota.mjs';
 import { providerDetect } from './provider.mjs';
 import { laneOfRole } from './lanes.mjs';
+import { roleTimeoutMs } from './resolve.mjs';
 import { markTaskDone } from './tasks.mjs';
 
 // ---------- kind_approve_keys (:3616) ----------
@@ -332,10 +334,15 @@ export function probeAgent(sd, agent, report, ctx, env = process.env) {
       fs.writeFileSync(path.join(sd, 'wait', `${agent}.stuck-since`), `${nowS}\n`);
       fs.rmSync(path.join(sd, 'wait', `${agent}.stuck-warned`), { force: true });
     } else if (!fs.existsSync(path.join(sd, 'wait', `${agent}.stuck-warned`))) {
-      const sinceS = Number(readWaitFile(sd, agent, `${agent}.stuck-since`));
-      // A missing or non-numeric .stuck-since keeps the agent working (never
-      // a false warning).
-      if (Number.isFinite(sinceS) && (nowS - sinceS) >= limitMin * 60) {
+      const rawSince = readWaitFile(sd, agent, `${agent}.stuck-since`);
+      // A .stuck-since that is missing, empty or non-numeric is treated as
+      // now (and rewritten) — never as epoch 0, which would age the screen
+      // to the Unix epoch (a "29839405 min" friction line).
+      const trimmed = rawSince === null ? '' : String(rawSince).trim();
+      const sinceS = /^[0-9]+$/.test(trimmed) ? Number(trimmed) : NaN;
+      if (!Number.isFinite(sinceS) || sinceS <= 0) {
+        fs.writeFileSync(path.join(sd, 'wait', `${agent}.stuck-since`), `${nowS}\n`);
+      } else if ((nowS - sinceS) >= limitMin * 60) {
         warn(`agent '${agent}' has shown the same screen (apart from counters) for ${Math.floor((nowS - sinceS) / 60)} min while working; it may be stuck in one tool call. Inspect: herdr agent read ${agent} --source recent-unwrapped --lines 60`);
         fs.writeFileSync(path.join(sd, 'wait', `${agent}.stuck-warned`), '');
       }
@@ -434,6 +441,56 @@ export function notifyDone(agent, report, ctx, env = process.env) {
   if (cfg(ctx, 'notify', 'off', env) === 'on') notificationShow(`herdr-agents: ${agent} finished`, report, env);
 }
 
+// ---------- D24: the $TMPDIR-routed report is mirrored into the state dir ----------
+
+// The tmp routing dir dispatch writes to when the worker's cwd is outside
+// the repo root: <TMPDIR>/herdr-agents/<ws>/reports (the report and its
+// composed prompt, <name>.brief.md next to it).
+function tmpReportsDir(ctx, env, cwd) {
+  return path.join(env.TMPDIR || os.tmpdir(), 'herdr-agents', workspaceId(ctx, env, cwd), 'reports');
+}
+
+// One best-effort copy: a file already at the destination with the same
+// content is not rewritten (the mtime stands); an absent or different one
+// is written over.
+function copyOnce(src, dst) {
+  const buf = fs.readFileSync(src);
+  if (fs.existsSync(dst)) {
+    let same = false;
+    try { same = fs.readFileSync(dst).equals(buf); } catch { same = false; }
+    // An existing file with other content is never overwritten: it may be
+    // the only copy of an earlier report.
+    if (!same) warn(`kept ${dst}: it differs from ${src}, which was not copied over it`);
+    return;
+  }
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  fs.writeFileSync(dst, buf);
+}
+
+// When a done report sits under the tmp routing dir, the report and its
+// composed prompt (next to it) are copied into the state dir — the report
+// to <state>/reports/<name> and the prompt to <state>/briefs/<name> minus
+// the .brief (the same layout dispatch writes when the report stays in the
+// state dir). Best effort: each failure warns and the done stands, and
+// last-report-<agent> and the JSON line keep pointing at the original.
+function mirrorReport(sd, agent, report, ctx, env, cwd) {
+  const dir = tmpReportsDir(ctx, env, cwd);
+  if (!report.startsWith(dir + path.sep)) return;
+  const base = path.basename(report);
+  const stem = base.slice(0, -path.extname(base).length);
+  const jobs = [
+    [report, path.join(sd, 'reports', base)],
+    [path.join(path.dirname(report), `${stem}.brief.md`), path.join(sd, 'briefs', `${stem}.md`)],
+  ];
+  for (const [src, dst] of jobs) {
+    try {
+      copyOnce(src, dst);
+    } catch (e) {
+      warn(`mirror: could not copy ${path.basename(src)} of '${agent}' to the state dir: ${sanitizeCause(e && e.message ? e.message : e) || 'unknown error'}`);
+    }
+  }
+}
+
 // ---------- wait_rank / wait_raise (:3733) ----------
 
 // One order for a multi-agent wait: 4 unavailable > 11 quota >
@@ -483,13 +540,15 @@ function readQuotaFile(sd, agent) {
 
 // wait_for <timeout_ms> <any> <agent>… → one JSON line per agent;
 // rc 0 when every agent settles, 4/11/14/15/7/6 by rank otherwise, 9 on
-// timeout (with a `timeout` line for each pending agent). Synchronous: the sleep
+// timeout (with a `timeout` line for each pending agent: `elapsed_ms`
+// since the start of this wait and the agent's last probe state, plus one
+// warn per agent suggesting the doubled `--timeout`). Synchronous: the sleep
 // between probes is Atomics.wait, so the caller's event loop never turns.
 // `sink` receives each JSON line (default: process.stdout). The `wait`
 // command prints them; `dispatch` captures them instead of printing (bash
 // `out="$(wait_for …)"`) — the behavior is otherwise unchanged.
 export function waitFor(agents, opts) {
-  const { sd, ctx, env, timeoutMs, any = false, sink = (l) => process.stdout.write(l) } = opts;
+  const { sd, ctx, env, timeoutMs, any = false, sink = (l) => process.stdout.write(l), cwd = process.cwd() } = opts;
   const pollMs = pollIntervalMs(env);
   const tm = Number(timeoutMs);
   // A non-numeric timeout would make the deadline check never fire (infinite
@@ -497,6 +556,9 @@ export function waitFor(agents, opts) {
   const deadline = Number.isFinite(tm)
     ? Math.floor(Date.now() / 1000) + Math.floor(tm / 1000)
     : 0;
+  const startedAt = Date.now();
+  // The last probe tag per pending agent, for the timeout line's `state`.
+  const lastState = new Map();
   for (const a of agents) fs.rmSync(path.join(sd, 'wait', `${a}.size`), { force: true });
   let rc = 0;
   let remaining = [...agents];
@@ -513,9 +575,12 @@ export function waitFor(agents, opts) {
           // the `partial` item count (after the header fields). A done
           // report that still marks `partial` items is not a pass: the
           // JSON line carries the count (key present only when it is > 0)
-          // and one warn tells the orchestrator to read the partial items
-          // before commit, push or release. An unreadable report reads ''
-          // (count 0, no header) and the line is unchanged.
+          // and one warn per agent+report tells the orchestrator to read
+          // the partial items before commit, push or release (the marker
+          // wait/<agent>.partial-warned holds the report path already
+          // warned, so a second wait on the same report stays quiet). An
+          // unreadable report reads '' (count 0, no header) and the line
+          // is unchanged.
           let reportText = '';
           try { reportText = readTextFile(r); } catch { reportText = ''; }
           const partial = partialCount(reportText);
@@ -546,10 +611,18 @@ export function waitFor(agents, opts) {
             }
           }
           if (partial > 0) {
-            warn(`report of '${a}' marks ${partial} item(s) partial: a partial item is not a pass; read them before commit, push or release`);
+            // Once per agent+report: the marker holds the report path
+            // already warned. A second wait on the same report keeps the
+            // `partial` key in the JSON but warns nothing; a new report
+            // path warns again.
+            if (readWaitFile(sd, a, `${a}.partial-warned`) !== r) {
+              warn(`report of '${a}' marks ${partial} item(s) partial: a partial item is not a pass; read them before commit, push or release`);
+              fs.writeFileSync(path.join(sd, 'wait', `${a}.partial-warned`), `${r}\n`);
+            }
           }
           notifyDone(a, r, ctx, env);
           markTaskDone(sd, a, env);
+          mirrorReport(sd, a, r, ctx, env, cwd);
           if (any) return 0;
           break;
         }
@@ -620,13 +693,25 @@ export function waitFor(agents, opts) {
           break;
         }
         default:
+          lastState.set(a, tag);
           pending.push(a);
       }
     }
     remaining = pending;
     if (remaining.length === 0) return rc;
     if (Math.floor(Date.now() / 1000) >= deadline) {
-      for (const a of remaining) jsonLine({ agent: a, status: 'timeout' }, sink);
+      for (const a of remaining) {
+        const state = lastState.get(a) ?? 'working';
+        jsonLine({ agent: a, status: 'timeout', elapsed_ms: Date.now() - startedAt, state }, sink);
+        // The suggestion doubles the timeout this wait used (an explicit
+        // --timeout or the roles' timeouts); a non-numeric timeout has no
+        // value to double and drops the suggestion.
+        if (Number.isFinite(tm)) {
+          warn(`timeout waiting for '${a}'; it may still be working (state: ${state}). Run: herdr-agents wait ${a} --timeout ${tm * 2}`);
+        } else {
+          warn(`timeout waiting for '${a}'; it may still be working (state: ${state})`);
+        }
+      }
       return 9;
     }
     sleepSync(pollMs);
@@ -664,9 +749,21 @@ export function cmdWait(argv, ctx, env = process.env, cwd = process.cwd()) {
   for (const a of agents) {
     if (rosterLine(sd, a) === '') dieFriction(`agent '${a}' is not in the roster`, 3);
   }
-  if (timeout === '') timeout = cfg(ctx, 'dispatch_timeout', '900000', env);
+  if (timeout === '') {
+    // Without --timeout the wait allows each agent its role's timeout
+    // (the frontmatter `timeout` scaled by the role's effective effort,
+    // else `dispatch_timeout`, roster column 4); with several agents the
+    // largest one wins.
+    let maxMs = 0;
+    for (const a of agents) {
+      const role = rosterLine(sd, a).split('\t')[3] ?? '';
+      const t = roleTimeoutMs(role, ctx, env, cwd);
+      if (t > maxMs) maxMs = t;
+    }
+    timeout = String(maxMs);
+  }
   try {
-    return waitFor(agents, { sd, ctx, env, timeoutMs: Number(timeout), any });
+    return waitFor(agents, { sd, ctx, env, timeoutMs: Number(timeout), any, cwd });
   } catch (e) {
     if (e instanceof DieError) dieFriction(e.message, e.code);
     throw e;

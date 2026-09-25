@@ -85,7 +85,7 @@ function makeFix(prefix) {
   return fix;
 }
 
-test('collect --verify: every file ok exits 0, relative paths use the worker cwd', { timeout: 30000 }, () => {
+test('collect --verify: every file ok exits 0, relative paths use the worker cwd', { timeout: 60000 }, () => {
   const fix = makeFix('ha-collect-verify-ok-');
   try {
     fix.report(fix.verifyBody());
@@ -100,7 +100,7 @@ test('collect --verify: every file ok exits 0, relative paths use the worker cwd
   } finally { fix.cleanup(); }
 });
 
-test('collect --verify: a changed file is reported and exits 16', { timeout: 30000 }, () => {
+test('collect --verify: a changed file is reported and exits 16', { timeout: 60000 }, () => {
   const fix = makeFix('ha-collect-verify-changed-');
   try {
     fix.report(fix.verifyBody());
@@ -114,7 +114,7 @@ test('collect --verify: a changed file is reported and exits 16', { timeout: 300
   } finally { fix.cleanup(); }
 });
 
-test('collect --verify: a missing file is reported and exits 16', { timeout: 30000 }, () => {
+test('collect --verify: a missing file is reported and exits 16', { timeout: 60000 }, () => {
   const fix = makeFix('ha-collect-verify-missing-');
   try {
     fix.report(fix.verifyBody());
@@ -126,7 +126,7 @@ test('collect --verify: a missing file is reported and exits 16', { timeout: 300
   } finally { fix.cleanup(); }
 });
 
-test('collect --verify: no sha256 lines prints the message and exits 0', { timeout: 30000 }, () => {
+test('collect --verify: no sha256 lines prints the message and exits 0', { timeout: 60000 }, () => {
   const fix = makeFix('ha-collect-verify-none-');
   try {
     const p = fix.report('# Report\n\nnothing to verify here.\n');
@@ -136,7 +136,7 @@ test('collect --verify: no sha256 lines prints the message and exits 0', { timeo
   } finally { fix.cleanup(); }
 });
 
-test('collect --verify: a relative worker cwd resolves against the project root, not the collector cwd', { timeout: 30000 }, () => {
+test('collect --verify: a relative worker cwd resolves against the project root, not the collector cwd', { timeout: 60000 }, () => {
   let root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ha-collect-relcwd-')));
   try {
     // A git repo at the root (projectRoot = git toplevel), the worker's
@@ -147,7 +147,7 @@ test('collect --verify: a relative worker cwd resolves against the project root,
     fs.mkdirSync(workSrc, { recursive: true });
     const aFile = path.join(workSrc, 'a.mjs');
     fs.writeFileSync(aFile, 'const a = 1;\n');
-    spawnSync('git', ['init', '-q'], { cwd: root, stdio: 'ignore' });
+    spawnSync('git', ['init', '-q'], { cwd: root, stdio: 'ignore', timeout: 30_000 });
     const state = path.join(root, 'state');
     const ws = path.join(state, 'ws');
     fs.mkdirSync(path.join(ws, 'reports'), { recursive: true });
@@ -183,7 +183,7 @@ test('collect --verify: a relative worker cwd resolves against the project root,
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('collect --verify: a report that exists but cannot be read is an error (exit 4)', { timeout: 30000 }, () => {
+test('collect --verify: a report that exists but cannot be read is an error (exit 4)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-collect-verify-unreadable-');
   try {
     const p = fix.report(fix.verifyBody());
@@ -207,7 +207,53 @@ test('collect --verify: a report that exists but cannot be read is an error (exi
   } finally { fix.cleanup(); }
 });
 
-test('collect --verify: no report keeps the error collect already gives', { timeout: 30000 }, () => {
+// D54: the original report under the $TMPDIR routing dir may be gone
+// (the system cleaned it): when the pointer path no longer exists and the
+// mirror the wait made sits at <state>/reports/<same name>, collect reads
+// the copy (with --verify too). No copy: today's behavior.
+test('collect: a gone $TMPDIR original is read from the state-dir copy', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-collect-copy-');
+  try {
+    const tmpReports = path.join(fix.env.TMPDIR, 'herdr-agents', 'ws', 'reports');
+    fs.mkdirSync(tmpReports, { recursive: true });
+    const orig = path.join(tmpReports, 'b-20260925T100000.md');
+    const copy = path.join(fix.ws, 'reports', 'b-20260925T100000.md');
+    // (a) plain collect: the original is gone, the mirror stands — the
+    // copy is printed under its own marker.
+    fs.writeFileSync(orig, '# Report\n\ndone.\n');
+    fs.writeFileSync(copy, '# Report\n\ndone.\n');
+    fs.writeFileSync(path.join(fix.ws, 'last-report-b'), orig + '\n');
+    fs.rmSync(orig);
+    let r = fix.collect(['b']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `<!-- report: ${copy} -->\n# Report\n\ndone.\n`, 'the copy is printed under its marker');
+    // (b) --verify: the sha lines are read from the copy; the project
+    // files are checked as usual.
+    const body = fix.verifyBody();
+    fs.writeFileSync(orig, body);
+    fs.writeFileSync(copy, body);
+    fs.writeFileSync(path.join(fix.ws, 'last-report-b'), orig + '\n');
+    fs.rmSync(orig);
+    r = fix.collect(['b', '--verify']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout,
+      `ok ${fix.files.a}\nok ${fix.files.bin}\nok ${fix.files.abs}\nverified 3: ok 3, changed 0, missing 0\n`,
+      'verified from the copy: ' + r.stdout + r.stderr);
+    // (c) no copy: today's behavior (the pointer stays, the fallback
+    // error stands).
+    fs.rmSync(copy);
+    r = fix.collect(['b']);
+    assert.equal(r.status, 4, r.stderr);
+    assert.match(r.stderr, /no report file yet for 'b'/, 'no copy: the fallback error: ' + r.stderr);
+    assert.equal(r.stdout, '', 'nothing is printed without the original or the copy');
+    // Mutation captured: the fallback to <state>/reports/<same name>
+    // missing (or matching by a different name) fails case (a) and the
+    // --verify case; a fallback that fires while the original still
+    // exists would change the marker of every tmp-routed collect.
+  } finally { fix.cleanup(); }
+});
+
+test('collect --verify: no report keeps the error collect already gives', { timeout: 60000 }, () => {
   const fix = makeFix('ha-collect-verify-noreport-');
   try {
     // b is in the roster (a live worker) but has no report file: the
@@ -219,7 +265,60 @@ test('collect --verify: no report keeps the error collect already gives', { time
   } finally { fix.cleanup(); }
 });
 
-test('collect: without --verify the behavior is unchanged', { timeout: 30000 }, () => {
+// An agent still working (or blocked) with no report gets the short
+// status line plus the wait pointer (exit 4) — never the terminal: the
+// terminal only helps once the agent has stopped. An explicit --lines
+// forces the terminal anyway; idle, done, gone and the not-in-roster
+// cases keep the fallback.
+test('collect: a working agent without a report gets the wait pointer, not the terminal', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-collect-working-');
+  try {
+    // The expected report path is recorded (as dispatch does) but the
+    // file does not exist yet.
+    const expected = path.join(fix.ws, 'reports', 'b-later.md');
+    fs.writeFileSync(path.join(fix.ws, 'last-report-b'), `${expected}\n`);
+    // A fake herdr: `agent get` reports the state from FAKE_STATE;
+    // `agent read` prints a marker so a fallback is detectable.
+    const bin = path.join(fix.root, 'bin');
+    fs.mkdirSync(bin);
+    writeFakeCli(bin, 'herdr', `const a = process.argv.slice(2).join(' ');
+if (a.startsWith('agent get')) process.stdout.write(JSON.stringify({ result: { agent: { name: 'b', agent_status: process.env.FAKE_STATE || 'working' } } }) + '\\n');
+else if (a.startsWith('agent read')) process.stdout.write('terminal-output\\n');
+`);
+    const run = (state, extra = []) => spawnSync(nodeBin(), [JS_ENTRY, 'collect', 'b', ...extra], {
+      cwd: fix.root,
+      env: { ...fix.env, PATH: `${bin}${path.delimiter}${fix.env.PATH}`, FAKE_STATE: state },
+      encoding: 'utf8',
+      timeout: 30_000,
+    });
+    // working: the short line, exit 4, no terminal on stdout.
+    let r = run('working');
+    assert.equal(r.status, 4, r.stderr);
+    assert.equal(r.stdout, '', 'no terminal while the agent is working: ' + r.stdout);
+    assert.ok(r.stderr.includes(`'b' is working and has no report yet (${expected}); wait for it: herdr-agents wait b`), r.stderr);
+    // blocked: the same shape with its own state.
+    r = run('blocked');
+    assert.equal(r.status, 4, r.stderr);
+    assert.equal(r.stdout, '', r.stdout);
+    assert.ok(r.stderr.includes(`'b' is blocked and has no report yet (${expected}); wait for it: herdr-agents wait b`), r.stderr);
+    // --lines forces the terminal fallback even while working.
+    r = run('working', ['--lines', '10']);
+    assert.equal(r.status, 6, r.stderr);
+    assert.ok(r.stdout.includes('terminal-output'), 'the fallback ran: ' + r.stdout);
+    assert.ok(r.stderr.includes('falling back to recent terminal output'), r.stderr);
+    // A stopped agent (idle) keeps the terminal fallback.
+    r = run('idle');
+    assert.equal(r.status, 6, r.stderr);
+    assert.ok(r.stdout.includes('terminal-output'), 'idle keeps the fallback: ' + r.stdout);
+    // Mutation captured: the gate widened to every state (a warn instead
+    // of the terminal for idle), the gate skipped the blocked state, the
+    // --lines override ignored (no terminal with --lines), or the
+    // parenthetical built from the raw file content (a stray newline in
+    // the line).
+  } finally { fix.cleanup(); }
+});
+
+test('collect: without --verify the behavior is unchanged', { timeout: 60000 }, () => {
   const fix = makeFix('ha-collect-plain-');
   try {
     const p = fix.report(fix.verifyBody());

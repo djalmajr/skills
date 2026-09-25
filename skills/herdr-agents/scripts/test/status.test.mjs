@@ -406,6 +406,60 @@ test('status: a line whose name is alive in another pane reports gone (and roste
   } finally { fix.cleanup(); }
 });
 
+// The TASK column (last): the content of <state>/task-<agent> — the same
+// text as the panel title, written by dispatch — without the trailing
+// newline, '-' when the file does not exist, cut to 40 characters with
+// an ellipsis. The other columns and the status output do not change.
+test('roster: a TASK column shows the task file (no newline, dash, 40-char cut)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-status-task-col-');
+  try {
+    fix.writeRoster(
+      ROW('a', 'implementer', 'grok', 'grok-4.7', 'build'),
+      ROW('b', 'implementer', 'grok', '', 'build'),
+      ROW('c', 'implementer', 'grok', '', 'build'),
+    );
+    fix.modeOf('a', 'working');
+    fix.modeOf('b', 'idle');
+    fix.modeOf('c', 'working');
+    fix.liveList([
+      { name: 'a', pane_id: 'p-a', agent_status: 'working' },
+      { name: 'b', pane_id: 'p-b', agent_status: 'idle' },
+      { name: 'c', pane_id: 'p-c', agent_status: 'working' },
+    ]);
+    // a: a task exactly as dispatch writes it (trailing newline).
+    fs.writeFileSync(path.join(fix.ws, 'task-a'), 'Refactor the billing tree\n');
+    // c: a task longer than 40 characters.
+    fs.writeFileSync(path.join(fix.ws, 'task-c'), 'x'.repeat(45) + '\n');
+    // b: no task file.
+    const r = cmd(fix, ['roster']);
+    assert.equal(r.status, 0, r.stderr);
+    const lines = r.stdout.trim().split('\n');
+    const row = (n) => lines.find((l) => l.startsWith(`${n} `));
+    // The header gains a TASK column at the end, after CWD.
+    assert.ok(lines[0].endsWith('CWD TASK'), 'header: ' + lines[0]);
+    // The task shows without the trailing newline.
+    assert.ok(row('a').trimEnd().endsWith('/tmp/work Refactor the billing tree'), 'task without the newline: ' + row('a'));
+    // No task file: a dash, the other columns untouched.
+    assert.ok(row('b').trimEnd().endsWith('/tmp/work -'), 'no task file is a dash: ' + row('b'));
+    // A long task is cut to 40 characters, the last one being the ellipsis.
+    const taskC = row('c').trimEnd().split(' ').pop();
+    assert.equal(taskC, 'x'.repeat(39) + '…', 'cut at 40 with an ellipsis: ' + taskC);
+    // A 40-character task is shown whole (no cut).
+    fs.writeFileSync(path.join(fix.ws, 'task-b'), 'y'.repeat(40) + '\n');
+    const r2 = cmd(fix, ['roster']);
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.ok(r2.stdout.split('\n').find((l) => l.startsWith('b ')).trimEnd().endsWith('y'.repeat(40)),
+      'a 40-character task is whole: ' + r2.stdout);
+    // The status is unchanged: the TSV keeps its own columns.
+    const s = cmd(fix, ['status', 'a']);
+    assert.equal(s.status, 0, s.stderr);
+    assert.equal(s.stdout, 'a\tworking\t\n', 'the status line has no task: ' + JSON.stringify(s.stdout));
+    // Mutation captured: the task shown with its newline (a stray blank
+    // line in the table), a task over 40 left whole, the dash missing
+    // when the file does not exist, or the status TSV gaining the column.
+  } finally { fix.cleanup(); }
+});
+
 test('status: a line without a pane keeps the name query (any pane)', { timeout: 30000 }, () => {
   const fix = makeFix('ha-status-nopane-');
   try {
@@ -421,5 +475,19 @@ test('status: a line without a pane keeps the name query (any pane)', { timeout:
     assert.equal(cols[1], 'no-report-yet', 'no pane on the line: the name state holds');
     // Mutation captured: forcing gone for a pane-less line (the override
     // requires a known line pane).
+  } finally { fix.cleanup(); }
+});
+
+// `status` without names: the usage now points at the roster (which
+// lists all the names), same exit 2. The check happens before any herdr
+// query, so no fake live list is needed.
+test('status: no names points at the roster (exit 2)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-status-noname-');
+  try {
+    const r = cmd(fix, ['status']);
+    assert.equal(r.status, 2, r.stderr);
+    assert.ok(r.stderr.includes('status: give at least one agent name (herdr-agents roster lists them all)'), r.stderr);
+    // Mutation captured: the roster hint removed from the message (the
+    // old text) — the exact string above no longer matches.
   } finally { fix.cleanup(); }
 });

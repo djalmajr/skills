@@ -373,6 +373,7 @@
     "files": {
       "herdr.log": "agent get build\nagent read build --source visible\n",
       "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\n",
+      "state/ws/friction.log": "TS\twarning\twait\ttimeout waiting for 'build'; it may still be working (state: working). Run: herdr-agents wait build --timeout 4000\n",
       "state/ws/wait/build.screen": "644527843\n",
       "state/ws/wait/build.since": "EPOCH",
       "state/ws/wait/build.stuck-hash": "2929481568\n",
@@ -382,6 +383,7 @@
       {
         "herdr.log": "agent get build\nagent read build --source visible\n",
         "state/ws/agents.tsv": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tnow\tgrok-4.7\tfull\timplementer\tbuild\n",
+        "state/ws/friction.log": "TS\twarning\twait\ttimeout waiting for 'build'; it may still be working (state: working). Run: herdr-agents wait build --timeout 4000\n",
         "state/ws/wait/build.screen": "644527843\n",
         "state/ws/wait/build.since": "EPOCH",
         "state/ws/wait/build.stuck-hash": "2929481568\n",
@@ -396,8 +398,8 @@
           "--timeout",
           "2000"
         ],
-        "err": "",
-        "out": "{\"agent\":\"build\",\"status\":\"timeout\"}\n",
+        "err": "PROG: warning: timeout waiting for 'build'; it may still be working (state: working). Run: herdr-agents wait build --timeout 4000\n",
+        "out": "{\"agent\":\"build\",\"status\":\"timeout\",\"elapsed_ms\":\"<ms>\",\"state\":\"working\"}\n",
         "rc": 9
       }
     ]

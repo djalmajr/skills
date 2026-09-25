@@ -199,6 +199,17 @@ resolved model id — `grok-4.7-xhigh` is xai); a reviewer must come from a
 dispatch a reviewer whose family matches a live edit agent unless
 `--allow-same-family` is passed. It cannot see code the orchestrator wrote
 itself: in that case pick a reviewer kind from another family by hand.
+The role bodies also carry worker-side rules the orchestrator does not
+repeat in every brief: the `implementer` runs a mutation check in a
+throwaway copy of the project outside the repository whenever other
+workers may share the tree (in place only when alone, and restored only
+after the file's sha256 still matches — a changed file is someone else's
+edit: not restored, and reported); the `implementer`, `tasker` and
+`designer` stop every process they started before writing the report,
+by the PIDs they kept, checked by PID only (never a listing of every
+command line, which can hold credentials; a sandboxed codex blocks `ps`); and the `designer` reports how the UI was
+verified (`ui_verification`). The `reviewer` never edits the repository
+and mutates only in a throwaway copy.
 
 ## Effort, model, approvals
 
@@ -326,7 +337,8 @@ your own polling loop over `herdr agent get`. The report contract in every
 composed prompt (brief and amendment) says the worker alone writes that
 report, once the whole brief is done — a subagent or background task never
 writes it, because the orchestrator reads the report's existence as
-completion.
+completion; and it says that every command output in the report is pasted
+from the run, never retyped or reconstructed.
 
 ```bash
 $S dispatch impl brief.md            # blocks until impl's report exists (default)
@@ -351,13 +363,21 @@ exist (7 blocked/`question`, 6 settled/`gone`, 4 `unavailable`, 9 timeout,
 11 quota, 14 `provider-error`/`capacity`, 15 `not-received`). When
 several agents finish in one `wait`, the exit is the most severe of those:
 4, then 11, then 14, then 15, then 7, then 6. Argument order does not
-change it. Every composed prompt asks for each item's state as `[done]`,
+change it. A `timeout` line carries `elapsed_ms` (this wait's own) and
+`state` (the last probe tag, `working` or `pending`), and each timed-out
+agent gets a friction line naming the state and doubling the timeout this
+wait used: `timeout waiting for '<agent>'; it may still be working
+(state: <state>). Run: herdr-agents wait <agent> --timeout <2×>` (a
+non-numeric timeout drops the suggestion). Every composed prompt asks for each item's state as `[done]`,
 `[partial]` or `[skipped]`. A `done` line gains `partial: N` (only when
 N > 0, after `report`) when N lines of the report outside code blocks
 carry `[partial]`, and the wait warns:
 `report of '<agent>' marks N item(s) partial: a partial item is not a
 pass; read them before commit, push or release` (an unreadable report
-counts 0 and the line is unchanged). The four review roles
+counts 0 and the line is unchanged). The warn fires once per agent per
+report: a marker holds the report path already warned, a second `wait` on
+the same report keeps the `partial` key but warns nothing, and a new
+report path warns again. The four review roles
 (`reviewer`, `security-reviewer`, `ui-reviewer`, `inspector`) open the
 report with the exact first line
 `findings: N (P0 a, P1 b, P2 c, P3 d) | verdict: pass|fail`, in English
@@ -377,7 +397,11 @@ confidence — reading the code is not proof that a test fails. The
 (after `amend`, when present), and the review fields (`verdict`,
 `findings`, `severity`) right after `report_exists` (after `amend`, when
 present). The JSON is one line with `wait_status` first, so
-`dispatch … | tail -1` returns the whole JSON. Before the send,
+`dispatch … | tail -1` returns the whole JSON. When the wait settled on a
+report different from the dispatch's own — an amendment sent mid-wait
+re-pointed `last-report-<agent>` — the JSON gains `settled_report: <path>`
+right after `report`, and `report_exists` qualifies that report; the key
+is absent when the wait followed the dispatch's own report. Before the send,
 `dispatch` also warns when the new brief owns files another roster agent
 is still editing (its report still pending): `brief <path> owns files that
 '<agent>' is still editing: <paths>` (up to five paths; for a read-only
@@ -393,8 +417,17 @@ report; the orchestrator runs them.`, and — unless an arg ends in
 `network_access=true`, as `-c sandbox_workspace_write.network_access=true`
 does — `Your sandbox has no network, local ports
 included: tests that start a local server fail with "Operation not
-permitted". Mark them [partial] and say so; the orchestrator runs them.`
-Args carrying `danger-full-access` get neither note.
+permitted". Mark them [partial] and say so; the orchestrator runs them.
+Still write the integration tests the brief asks for, even if you cannot
+run them here; do not replace them with unit tests of helpers, and add a
+test seam (an injectable value) when the code depends on something fixed,
+such as the build type.` Args carrying `danger-full-access` get neither
+note. When another live roster agent with an edit role works in the same
+tree (the same roster cwd), the composed prompt — brief or amendment —
+adds `Another worker edits this same tree now: run the global checks the
+brief asks for, but report failures in files you do not own as outside
+your slice (name the files), not as [partial] items of yours.` (a Herdr
+failure listing the agents skips the line: it is advisory).
 `provider-error` is an idle worker whose last error line shows its model
 provider down (for example `Request timed out`, `Connection error`, `Retry
 failed after N attempts`, `503: {…}`); the JSON `cause` is that line.
@@ -407,7 +440,9 @@ apart (each one logged in friction), and reports `capacity` only when that
 did not help. Both need two identical probes before they count, so a
 transient screen never ends a wait. A worker whose screen changes only in
 its counters for `stuck_warn_minutes` (20) while `working` gets one
-friction line ("may be stuck in one tool call"); the wait goes on.
+friction line ("may be stuck in one tool call"); the wait goes on. A
+missing, empty or non-numeric screen-age marker counts from now (rewritten
+in place), never from the Unix epoch.
 
 `dispatch` also checks that the prompt arrived: within
 `prompt_check_seconds` (15) the agent must start working or block, or the
@@ -497,7 +532,8 @@ hook-trust or workspace-trust bypasses you accept), `role.<role>.kind`
 (swap the kind of a role without copying its file), `role.<role>.args`
 (native args for a role, with `lanes=off`; with lanes on every role runs
 in a lane, a lane session is shared by every role in it, and only
-`lane.<name>.args` applies), `panes` (`2|3|4`,
+`lane.<name>.args` applies; both only for the kind configured for that
+role or lane), `panes` (`2|3|4`,
 default 4), `lanes` (`on|off`), `pane_mode` (`strict|flex`, default
 `strict`), `flex_extra` (temporary workers flex may add, default 1),
 `flex_roles` (who may use them, default `reviewer,documenter`), and
@@ -532,7 +568,7 @@ $S roles                                   # roles with the kind, model and effo
 $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
 $S dispatch impl <brief.md> [--timeout 900000] [--amend]   # role prompt + brief → agent, waits; --amend amends the agent's current brief
-$S collect impl [--lines N] [--verify]      # prints the report file (or recent output); --verify re-checks the report's sha256 lines (exit 16 on changed/missing, 4 when the report cannot be read)
+$S collect impl [--lines N] [--verify]      # prints the report file (or recent output); an agent still working or blocked with no report gets a short stderr line and exit 4 (no terminal dump) unless --lines is passed; --verify re-checks the report's sha256 lines (exit 16 on changed/missing, 4 when the report cannot be read)
 $S run scouter <brief.md>                    # spawn + dispatch + collect in one call
 $S wait a b [--any] [--timeout MS]         # block on report files
 $S stats [--since <date>] [--json]          # tasks, times and review findings per role, from the state dir; <date> is YYYY-MM-DD or ISO 8601 (other formats exit 2); the review table covers reviewer, security-reviewer, ui-reviewer and inspector
@@ -543,10 +579,10 @@ $S tab-label                               # herd tabs: id, label, auto|manual
 $S tab-label "onda 2" [--tab ID]           # pin a label (newest herd tab, or --tab); --auto goes back
 $S spawn reviewer --tab-label "onda 2"     # place the worker in the herd tab of that name (created if needed)
 $S layout-plan                             # where the next spawn lands (anchor, direction, overflow reason)
-$S status a b                              # non-blocking completion check
+$S status a b                              # non-blocking completion check; no names exits 2 and points to `roster`
 $S config                                  # effective configuration and sources (incl. the session layer)
 $S config set <key> <value> [--project|--user]   # write one key (default: the project file); also <key>=<value>
-$S roster                                  # live agents with role/kind/pane/state/report
+$S roster                                  # live agents with role/kind/pane/state/report and the current task (TASK, from the pane title; '-' when none, cut to 40 characters)
 $S release impl [--close]                  # forget the agent; --close closes a pane we created
 $S clean [--older-than 7]                  # drop gone agents, delete old briefs/reports
 $S kinds                                   # kind → executable, family, effort ceiling
@@ -702,15 +738,19 @@ and warning is also appended to `<state>/friction.log` (`$S friction`).
   default; a Claude Code with `defaultMode: auto` never blocks. To force
   manual approval pass the native flag after `--`.
 - **Timeouts.** `spawn` waits 60 s for readiness (`--timeout`). `dispatch`
-  uses the role's `timeout` frontmatter (ms), else 15 min. The report file
-  is the source of truth, whatever `wait_status` says.
+  and a `wait` without `--timeout` both allow the role's effective timeout:
+  the role file's `timeout` frontmatter (ms), else `dispatch_timeout`
+  (15 min), scaled by the role's effective effort (`xhigh` × 1.5, `max`
+  × 2, everything else × 1); a `wait` over several agents allows the
+  largest of their roles' timeouts. An explicit `--timeout` always wins.
+  The report file is the source of truth, whatever `wait_status` says.
 - **A Claude Code orchestrator's Bash caps each call at 10 minutes**,
   shorter than a long review: run `wait` (or a `dispatch` that waits) in
   the background, with the harness's own notification waking you — not
   `timeout` in front of it. `wait --any` wakes you per report: it exits 0
   as soon as one report lands (the JSON line for it is printed), so run it
-  again for the remaining agents; the wait's own timeout
-  (`dispatch_timeout`, 900000 ms) still applies.
+  again for the remaining agents; the wait's own timeout (the roles'
+  effective timeouts, above) still applies.
 - **A codex worker's sandbox is narrower than it believes.** A codex
   worker (`-s workspace-write`) cannot write under `.git` (`git mv` and
   `git checkout -- <file>` fail on `.git/index.lock`) and has no network,
@@ -718,9 +758,9 @@ and warning is also appended to `<state>/friction.log` (`$S friction`).
   "Detecting completion"): the worker describes renames and restores in
   the report and the orchestrator runs them, and network tests are marked
   `[partial]` and run by the orchestrator. A role or lane that needs
-  network: `role.<role>.args=-c
-  sandbox_workspace_write.network_access=true` (with `lanes=off`) or
-  `lane.<name>.args=-c …` (lanes on); the Herdr control socket is blocked
+  network: `args.codex=-c sandbox_workspace_write.network_access=true`
+  (every codex worker), or `role.<role>.args`/`lane.<name>.args` with the
+  same flag when that role or lane is configured with kind codex. They are flags of one CLI: they reach a worker only when the spawn runs the kind the configuration resolves for that role or lane (a `--kind` flag to another kind drops them, with a warning), because a codex `-c <key>=<value>` is `--continue` to claude, which resumes the orchestrator's conversation in the same cwd, and `--cloud` to cursor. `spawn` also refuses a resume flag for claude or cursor (`-c`, `--continue`, `-r`, `--resume`, `--cloud`) from any source, before a pane opens. The Herdr control socket is blocked
   the same way, so a nested orchestrator must not be a sandboxed codex.
 - **`release` without `--close` leaves the agent running.** `--close` ends
   it by closing the pane. Panes passed with `--pane` are never closed.
@@ -730,7 +770,17 @@ and warning is also appended to `<state>/friction.log` (`$S friction`).
   stays in the main repo; a worker whose cwd is not the repo root gets its
   brief and report routed through `$TMPDIR/herdr-agents/<ws>/reports/`,
   which every known sandbox can write. You merge its diff back yourself
-  (`git -C <worktree> diff | git apply`, or cherry-pick).
+  (`git -C <worktree> diff | git apply`, or cherry-pick). `spawn` (a new
+  worker and a reuse) warns per other live edit-role agent in the same
+  cwd: `'<a>' and '<b>' both edit <cwd>: builds and test runs see each
+  other's changes in progress; give each a git worktree (spawn --cwd
+  <worktree>) to isolate them` — the fix is one worktree per worker (or
+  per branch). A `done` report the routing kept under
+  `$TMPDIR/herdr-agents/<ws>/reports/` is mirrored back into the state dir,
+  best effort: the report to `reports/` under the same name and the
+  composed prompt next to it to `briefs/` minus the `.brief`; a copy
+  failure warns and the `done` stands, and `last-report-<agent>` and the
+  `wait` JSON line keep pointing at the original.
 - **Detection quality varies by kind.** `claude` and `codex` have Herdr
   integrations; `grok` and `agy` are screen-detected, so `idle`/`done` is
   less reliable for them and `unknown` is common.
@@ -888,8 +938,9 @@ see your own edits, so pick that reviewer's kind by hand.
    that apply, checks the worker may run, report format. **No commit, push,
    or PR in worker briefs** — the orchestrator owns git.
 5. **Spawn and dispatch.** Default topology: sibling pane in the current tab,
-   same cwd, `--no-focus`. Use a worktree only when the user asks or two edit
-   agents must touch the same files. Parallel edit agents run only
+   same cwd, `--no-focus`. Use a worktree when the user asks or two edit
+   agents share the same cwd — `spawn` warns about exactly that (give each
+   `spawn --cwd <worktree>`). Parallel edit agents run only
    file-local checks; the full suite runs once at integration.
 6. **Collect and integrate.** Read each report, then `git diff`. Worker
    "green" is not done. Fixed order after N deliveries: repo formatter →

@@ -2,6 +2,7 @@
 // the original bash implementation :3876-3902: the NAME/ROLE/KIND/PANE/TAB/STATE/
 // REPORT/CWD table, the other live agents, and the config footer.
 import fs from 'node:fs';
+import path from 'node:path';
 import { cfg } from '../config.mjs';
 import { stateDir, rosterRows, lastReport, workspaceId } from '../state.mjs';
 import { liveAgents, paneList, tabList } from '../herdr.mjs';
@@ -26,7 +27,18 @@ export function cmdRoster(ctx, env = process.env, cwd = process.cwd()) {
   };
 
   const pad = (s, n) => (s.length >= n ? s : s + ' '.repeat(n - s.length));
-  process.stdout.write(`${pad('NAME', 20)} ${pad('ROLE', 18)} ${pad('KIND', 8)} ${pad('PANE', 8)} ${pad('TAB', 16)} ${pad('STATE', 9)} ${pad('REPORT', 16)} CWD\n`);
+  process.stdout.write(`${pad('NAME', 20)} ${pad('ROLE', 18)} ${pad('KIND', 8)} ${pad('PANE', 8)} ${pad('TAB', 16)} ${pad('STATE', 9)} ${pad('REPORT', 16)} CWD TASK\n`);
+
+  // The worker's current task: <state>/task-<agent> (written by dispatch,
+  // the same text as the panel title) — shown without the trailing
+  // newline, '-' when the file does not exist, and cut to 40 characters
+  // with an ellipsis when it runs longer.
+  const taskOf = (name) => {
+    let t = '';
+    try { t = fs.readFileSync(path.join(sd, `task-${name}`), 'utf8').replace(/\n+$/, ''); } catch { t = ''; }
+    if (t === '') return '-';
+    return t.length > 40 ? `${t.slice(0, 39)}…` : t;
+  };
 
   const rows = rosterRows(sd);
   for (const l of rows) {
@@ -56,7 +68,7 @@ export function cmdRoster(ctx, env = process.env, cwd = process.cwd()) {
       const cand = `${role} (${rolesHist})`;
       if (cand.length <= 18) roleCell = cand;
     }
-    process.stdout.write(`${pad(name, 20)} ${pad(roleCell, 18)} ${pad(kind, 8)} ${pad(pane, 8)} ${pad(tabOf(pane), 16)} ${pad(state, 9)} ${pad(rep, 16)} ${cwdCol}\n`);
+    process.stdout.write(`${pad(name, 20)} ${pad(roleCell, 18)} ${pad(kind, 8)} ${pad(pane, 8)} ${pad(tabOf(pane), 16)} ${pad(state, 9)} ${pad(rep, 16)} ${cwdCol} ${taskOf(name)}\n`);
   }
 
   process.stdout.write('\n# other live agents (not spawned by this skill)\n');

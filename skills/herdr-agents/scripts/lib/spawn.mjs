@@ -12,6 +12,7 @@
 // layout, herdtabs); regrid after spawn is decision 5 (one commented
 // extension point in cmdSpawn).
 import fs from 'node:fs';
+import path from 'node:path';
 import { DieError, cfg, EFFORT_LADDER } from './config.mjs';
 import { runCli, findExecutable } from './platform.mjs';
 import { hasWord } from './text.mjs';
@@ -29,7 +30,7 @@ import {
 } from './lanes.mjs';
 import { resolveRoleSettings } from './resolve.mjs';
 import {
-  agentRead, agentState, callerAgentName, HERDR_TIMEOUT_MS, liveAgents, paneSplit,
+  agentRead, agentState, callerAgentName, HERDR_TIMEOUT_MS, liveAgents, paneClose, paneSplit,
 } from './herdr.mjs';
 import { pollIntervalMs } from './wait.mjs';
 import {
@@ -126,16 +127,45 @@ export function resolveSpawnEffort(role, lane, kind, kindLayer = '', ctx, env = 
 // single space. Recorded in roster column 14 at the spawn and compared by
 // the reuse checks: the live process keeps the args it opened with, so a
 // config/session change after the spawn cannot silently swap them.
-function configNativeArgs(kind, lane, role, ctx, env = process.env) {
-  const scoped = lane !== ''
+export function configNativeArgs(kind, lane, role, ctx, env = process.env, cwd = process.cwd(), onDrop = null) {
+  const scopedKey = lane !== '' ? `lane.${lane}.args` : `role.${role}.args`;
+  let scoped = lane !== ''
     ? cfg(ctx, laneKey(lane, 'args'), '', env)
     : cfg(ctx, `role_${String(role).replace(/-/g, '_')}_args`, '', env);
+  // Scoped args are flags of one CLI: they belong to the kind the config
+  // resolves for that role or lane. A spawn under another kind (a --kind
+  // flag, a lane kind) drops them — a codex `-c <key>=<value>` is
+  // `--continue` to claude (it resumes the most recent conversation of the
+  // cwd, the orchestrator's) and `--cloud` to cursor.
+  if (scoped !== '') {
+    const own = resolveRoleSettings(role, ctx, env, cwd).kind;
+    if (own !== kind) {
+      if (onDrop) onDrop(scopedKey, own);
+      scoped = '';
+    }
+  }
   const tokens = [];
   for (const v of [cfg(ctx, `args_${kind}`, '', env), scoped]) {
     if (v === '') continue;
     for (const a of v.split(/\s+/).filter((x) => x !== '')) tokens.push(a);
   }
   return tokens.join(' ');
+}
+
+// Native args that make a CLI resume an earlier session (or leave, for
+// cursor's deprecated --cloud) instead of starting the new one a worker
+// needs: refused before any pane opens, whatever their source.
+const RESUME_ARGS = {
+  claude: ['-c', '--continue', '-r', '--resume'],
+  cursor: ['-c', '--cloud', '--resume'],
+};
+export function resumeArg(kind, args) {
+  const bad = RESUME_ARGS[kind] ?? [];
+  for (const a of args) {
+    if (bad.includes(a)) return a;
+    if (bad.some((b) => b.startsWith('--') && a.startsWith(`${b}=`))) return a;
+  }
+  return '';
 }
 
 // find_reusable :3206: an idle/done worker of the same role (always) or,
@@ -198,7 +228,7 @@ export function findReusable(role, kind, workerCwd, name = '', wantModel = '', w
     // with them, so a config or session change after the spawn must not
     // silently swap the worker's args — reuse only when they match the
     // args this spawn would build now.
-    if ((f.length >= 14 ? (f[13] ?? '') : '') !== configNativeArgs(kind, '', role, ctx, env)) continue;
+    if ((f.length >= 14 ? (f[13] ?? '') : '') !== configNativeArgs(kind, '', role, ctx, env, cwd)) continue;
     // A recorded report path pointing at an empty (or missing) file is a
     // pending report — the worker is not ready to be reused.
     const rep = lastReport(sd, nm);
@@ -269,6 +299,41 @@ export function emitReuse(name, role, kind, ctx, env = process.env, cwd = proces
 // roster lock; works on Node and Bun without an event loop).
 function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+// Same-tree editors: another LIVE roster worker of an edit role working
+// in the same cwd — builds and test runs see each other's changes in
+// progress. One warn per other editor; read-only roles never enter. The
+// live list comes from herdr (agent list, one call, only when a
+// candidate row exists), and a line is alive by the roster's own rule
+// (the same name in the same pane, or any pane when the line has no
+// pane). Called after the spawn opened or reused its worker, with the
+// worker's cwd (the row's cwd on a reuse, the --cwd of a new worker).
+function sameTreeEditors(thisName, role, workerCwd, sd, env, cwd) {
+  if (workerCwd === '' || !roleIsEdit(role, env, cwd)) return;
+  // Candidates first (no herdr call yet): edit-role rows in the same cwd.
+  const cands = [];
+  for (const l of rosterRows(sd)) {
+    const f = l.split('\t');
+    const name = f[0] ?? '';
+    if (name === '' || name === thisName) continue;
+    if (!roleIsEdit(f[3] ?? '', env, cwd)) continue;
+    if ((f[6] ?? '') !== workerCwd) continue;
+    cands.push([name, f[1] ?? '']);
+  }
+  if (cands.length === 0) return;
+  // Advisory: the worker already started and sits in the roster, so a
+  // failing agent list must not fail the spawn (a caller would open it
+  // again). No list, no warning.
+  let live;
+  try { live = liveAgents(env); } catch { return; }
+  for (const [name, pane] of cands) {
+    const la = pane === ''
+      ? live.find((x) => x && (x.name ?? '') === name)
+      : live.find((x) => x && (x.name ?? '') === name && x.pane_id === pane);
+    if (!la) continue;
+    warn(`'${thisName}' and '${name}' both edit ${workerCwd}: builds and test runs see each other's changes in progress; give each a git worktree (spawn --cwd <worktree>) to isolate them`);
+  }
 }
 
 // ---------- the command ----------
@@ -446,12 +511,18 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
       }
       else if (a === '--direction') direction = v;
       else if (a === '--ratio') ratio = v;
-      else if (a === '--cwd') cwdArg = v;
+      // A relative --cwd resolves against the caller's directory: passed
+      // as written, the pane opens in the home directory (and a codex
+      // sandbox then covers the whole home).
+      else if (a === '--cwd') cwdArg = path.resolve(cwd, v);
       else if (a === '--pane') pane = v;
       else timeout = v;
       i += 1;
     }
   }
+  let cwdIsDir = false;
+  try { cwdIsDir = fs.statSync(cwdArg).isDirectory(); } catch { cwdIsDir = false; }
+  if (!cwdIsDir) dieFriction(`spawn: --cwd ${cwdArg} is not a directory`, 2);
   ensureOrchestratorName(ctx, env);
   resolveRole(role, env, cwd);
   if (role === 'planner') {
@@ -575,7 +646,7 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
         // shared by its roles, so a change after the spawn cannot silently
         // swap them.
         const sessionArgs = lf.length >= 14 ? (lf[13] ?? '') : '';
-        const wantedArgs = configNativeArgs(kind, lane, role, ctx, env);
+        const wantedArgs = configNativeArgs(kind, lane, role, ctx, env, cwd);
         if (sessionArgs !== wantedArgs) {
           process.stdout.write(`${JSON.stringify({
             status: 'kind-mismatch', lane, name: d.name,
@@ -585,6 +656,7 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
           process.exit(13);
         }
         emitReuse(d.name, role, actualKind, ctx, env, cwd);
+        sameTreeEditors(d.name, role, lf[6] ?? '', sd, env, cwd);
         warn(`reusing idle lane '${lane}' worker '${d.name}' as ${role}; its session already holds earlier briefs`);
         return;
       }
@@ -638,6 +710,7 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
     if (found && found.name !== undefined) {
       const prevRole = rosterLine(sd, found.name).split('\t')[3] ?? '';
       emitReuse(found.name, role, kind, ctx, env, cwd);
+      sameTreeEditors(found.name, role, cwdArg, sd, env, cwd);
       if (prevRole === role) {
         warn(`reusing idle worker '${found.name}' (${kind}, ${role}); its session already holds earlier briefs`);
       } else {
@@ -675,9 +748,15 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
   // The configured native args (args.<kind> then lane.<lane>.args or
   // role.<role>.args) come after the skill args and before the args after
   // --; the joined string is what roster column 14 records.
-  const native = configNativeArgs(kind, lane, role, ctx, env);
+  const native = configNativeArgs(kind, lane, role, ctx, env, cwd, (key, own) => {
+    warn(`${key} not passed: those args belong to kind ${own !== '' ? own : '?'} and this spawn runs ${kind}`);
+  });
   if (native !== '') for (const a of native.split(/\s+/)) built.push(a);
   const agentArgs = [...built, ...nativeArgs];
+  const resume = resumeArg(kind, agentArgs);
+  if (resume !== '') {
+    dieFriction(`spawn: '${resume}' would make ${kind} resume an earlier session instead of starting a new one (for claude, -c is --continue: it resumes the orchestrator's conversation in this cwd). Remove it from the native args; codex-only flags belong in args.codex`, 2);
+  }
   let created = 0;
   let placement = 'given';
   let autoRegrid = 0;
@@ -729,7 +808,17 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
       if (r.out.includes('agent_not_ready')) return { blocked: 1 };
       if (r.out.includes('agent_pane_busy') && startTries < 15) { startTries += 1; sleepSync(1000); continue; }
       process.stderr.write(`${r.out.replace(/\n+$/, '')}\n`);
-      dieFriction(`agent start failed for ${name} (${kind}) in pane ${pane}; pane left open for inspection`, 4);
+      if (created === 1) {
+        // A pane this spawn opened is closed: a CLI that did start there
+        // (after the start timed out) must not keep running unattended,
+        // with the worker's approvals, and without its brief.
+        const tail = agentRead(env, pane, { source: 'visible', lines: 40 }).split('\n').map((l) => l.trim()).filter((l) => l !== '').slice(-5).join(' / ');
+        const closed = paneClose(pane, env);
+        dieFriction(closed
+          ? `agent start failed for ${name} (${kind}) in pane ${pane}; closed the pane this spawn opened (last screen lines: ${tail})`
+          : `agent start failed for ${name} (${kind}) in pane ${pane}; pane close failed and the pane is still open, check it for a running agent (last screen lines: ${tail})`, 4);
+      }
+      dieFriction(`agent start failed for ${name} (${kind}) in pane ${pane}; the pane was given (--pane) and stays open: check it for a running agent`, 4);
     }
   };
   let blocked = startAgent().blocked;
@@ -754,6 +843,7 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
   // '' when none; a line without it reads as '').
   const rosterFields = [name, pane, kind, role, family, String(created), cwdArg, nowStamp(), model, approvals !== '' ? approvals : 'ask', role, lane, burst === 1 ? 'burst' : '', native];
   rosterAppend(sd, rosterFields);
+  sameTreeEditors(name, role, cwdArg, sd, env, cwd);
   if (placement === 'herd') {
     try { herdTabsRelabel(ctx, env, cwd); }
     catch { warn('relabel of the herd tabs failed (see friction)'); }

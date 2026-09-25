@@ -146,3 +146,23 @@ export function resolveRoleSettings(role, ctx, env = process.env, cwd = process.
 
   return { lane, kind, kindFrom, modelSpec, modelFrom, effort, effortFrom, approvals, approvalsFrom, kindLayer };
 }
+
+// roleTimeoutMs <role> — the timeout in ms that `wait` (and, once it uses
+// this helper, `dispatch`) allows for one role: the role file's frontmatter
+// `timeout` (the budget for effort `high` or lower), else `dispatch_timeout`
+// (its 900000 ms default when that is set to nothing or to a non-number),
+// scaled by the role's effective effort — the same value
+// resolveRoleSettings resolves: `xhigh` × 1.5, `max` × 2, everything else
+// × 1. The factor applies to whichever base resolved. A negative base is
+// invalid at either layer and falls back to the next; 0 passes through (the
+// waitFor deadline semantics: timeout right after the first probe round).
+export function roleTimeoutMs(role, ctx, env = process.env, cwd = process.cwd()) {
+  const f = roleFile(role, env, cwd);
+  const raw = f ? fmGet(f, 'timeout') : '';
+  const valid = (n) => Number.isFinite(n) && n >= 0;
+  let base = Number(raw);
+  if (raw === '' || !valid(base)) base = Number(cfg(ctx, 'dispatch_timeout', '900000', env));
+  if (!valid(base)) base = 900000;
+  const effort = resolveRoleSettings(role, ctx, env, cwd).effort;
+  return Math.round(base * (effort === 'max' ? 2 : effort === 'xhigh' ? 1.5 : 1));
+}

@@ -222,6 +222,31 @@ test('stats: the $TMPDIR routing is counted alongside the state dir', { timeout:
   } finally { fix.cleanup(); }
 });
 
+test('stats: a mirrored $TMPDIR pair is counted once (the state-dir copy wins)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-mirror-');
+  try {
+    fix.roster(fix.row('t'));
+    // The wait mirrored the tmp pair into the state dir (prompt under
+    // <state>/briefs, report under <state>/reports); the originals still
+    // sit in the $TMPDIR routing.
+    fix.tmpPrompt('t', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.tmpReport('t', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + 3 * MIN });
+    fix.prompt('t', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('t', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + 3 * MIN });
+    const r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: the pair not deduped by <agent>-<ts> counts the
+    // task twice; the tmp original winning the dedupe would read its
+    // prompt mtime from the tmp file (same mtime here, so the count is
+    // what the dedupe proves).
+    assert.deepEqual(o.roles.implementer, {
+      tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
+      minutes: { avg: 3.0, median: 3.0, max: 3.0 }, partials: 0,
+    });
+  } finally { fix.cleanup(); }
+});
+
 test('stats: --since filters by the prompt mtime; an invalid date dies 2', { timeout: 30000 }, () => {
   const fix = makeFix('ha-stats-since-');
   try {

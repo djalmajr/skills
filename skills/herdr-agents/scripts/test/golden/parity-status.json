@@ -33,7 +33,7 @@
           "roster"
         ],
         "err": "",
-        "out": "NAME                 ROLE               KIND     PANE     TAB              STATE     REPORT           CWD\n\n# other live agents (not spawned by this skill)\n\nlayout=split reuse_workers=on multi_role=on auto_approve=off\n",
+        "out": "NAME                 ROLE               KIND     PANE     TAB              STATE     REPORT           CWD TASK\n\n# other live agents (not spawned by this skill)\n\nlayout=split reuse_workers=on multi_role=on auto_approve=off\n",
         "rc": 0
       }
     ]
@@ -51,7 +51,7 @@
           "roster"
         ],
         "err": "",
-        "out": "NAME                 ROLE               KIND     PANE     TAB              STATE     REPORT           CWD\nbuild                implementer        grok     p1       herd-build-12345 working   ready            /work\ntask                 tasker (designer)  grok     p5       herd-build-12345 gone      pending          /work\nold8                 designer           agy      p2       t2               idle      none             /work2\n\n# other live agents (not spawned by this skill)\norchestrator         -                  null     p0       -                null     \nstray                -                  claude   p9       -                blocked  \n\nlayout=split reuse_workers=on multi_role=on auto_approve=off\n",
+        "out": "NAME                 ROLE               KIND     PANE     TAB              STATE     REPORT           CWD TASK\nbuild                implementer        grok     p1       herd-build-12345 working   ready            /work -\ntask                 tasker (designer)  grok     p5       herd-build-12345 gone      pending          /work -\nold8                 designer           agy      p2       t2               idle      none             /work2 -\n\n# other live agents (not spawned by this skill)\norchestrator         -                  null     p0       -                null     \nstray                -                  claude   p9       -                blocked  \n\nlayout=split reuse_workers=on multi_role=on auto_approve=off\n",
         "rc": 0
       },
       {
@@ -152,7 +152,7 @@
         "args": [
           "status"
         ],
-        "err": "PROG: status: give at least one agent name\n",
+        "err": "PROG: status: give at least one agent name (herdr-agents roster lists them all)\n",
         "out": "",
         "rc": 2
       },

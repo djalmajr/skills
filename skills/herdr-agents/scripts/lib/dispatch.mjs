@@ -26,7 +26,10 @@
 //     composed_prompt, report, report_exists, auto_approved,
 //     and lane/model/match/renewal only on a quota, and lane/model/cause —
 //     plus retries on a capacity — only on a provider-error/capacity);
-//     `amend: true` sits right after report_exists on an amendment, and
+//     `settled_report` sits right after `report` (before report_exists)
+//     only when the internal wait settled on another report — an
+//     amendment sent mid-wait re-pointed last-report-<agent> (D39) — and
+//     report_exists then qualifies that report; `amend: true` sits right after report_exists on an amendment, and
 //     `partial: N` right after that (or after report_exists without amend)
 //     when the done report marks N item(s) partial (the count is captured
 //     from the wait line; the warn is the wait's own, not repeated here);
@@ -48,9 +51,10 @@ import { cfg, DieError } from './config.mjs';
 import { hasWord } from './text.mjs';
 import { projectRoot } from './platform.mjs';
 import { fmGet, roleBody, roleFile, roleIsEdit, historyHasEdit, REVIEW_ROLES } from './roles.mjs';
-import { agentPrompt, agentState, agentRead, agentSendKeys } from './herdr.mjs';
+import { agentPrompt, agentState, agentRead, agentSendKeys, liveAgents } from './herdr.mjs';
 import { briefTask, paneTaskTitle } from './tasks.mjs';
 import { waitFor, pollIntervalMs, cksumField } from './wait.mjs';
+import { roleTimeoutMs } from './resolve.mjs';
 import { PROMPT_MARKER, lastNonEmptyLines, promptSitsInInput, markerSeq, markerSeqChanged } from './arrival.mjs';
 // Re-exported so the names that were exported here before the move to
 // lib/arrival.mjs keep their import path.
@@ -459,6 +463,7 @@ export function pendingBriefSection(pb) {
 function standingRules() {
   return [
     `- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n`,
+    `- Command output you put in the report is pasted from the run, never retyped or reconstructed.\n`,
     `- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n`,
     `- Never invent names, endpoints, flags, credentials, URLs or requirements.\n`,
     `- Do not commit, push, tag, or open pull requests.\n`,
@@ -472,7 +477,12 @@ function standingRules() {
 // amendment prompts; a roster line without the opening-args column counts
 // as empty args, and any other kind gets no note.
 const SANDBOX_GIT_NOTE = '- Your sandbox cannot write under .git: do not run git mv, git checkout, git add or git commit. Describe renames and restores in the report; the orchestrator runs them.\n';
-const SANDBOX_NET_NOTE = '- Your sandbox has no network, local ports included: tests that start a local server fail with "Operation not permitted". Mark them [partial] and say so; the orchestrator runs them.\n';
+const SANDBOX_NET_NOTE = '- Your sandbox has no network, local ports included: tests that start a local server fail with "Operation not permitted". Mark them [partial] and say so; the orchestrator runs them. Still write the integration tests the brief asks for, even if you cannot run them here; do not replace them with unit tests of helpers, and add a test seam (an injectable value) when the code depends on something fixed, such as the build type.\n';
+
+// D25: another live roster agent with an edit role shares this worker's
+// cwd (roster column 7): the tree is being edited in parallel, so the
+// global checks may fail in files outside this slice.
+const SHARED_TREE_NOTE = '- Another worker edits this same tree now: run the global checks the brief asks for, but report failures in files you do not own as outside your slice (name the files), not as [partial] items of yours.\n';
 
 export function sandboxNotes(kind, agentArgs) {
   if (kind !== 'codex') return [];
@@ -496,7 +506,7 @@ export function sandboxNotes(kind, agentArgs) {
 // and the standing worker rules (only the worker writes the report,
 // nobody watches the terminal, never invent, no git, reply with the report
 // path). Same lines, same order, as bash.
-export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env = process.env, kind = '', agentArgs = '') {
+export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env = process.env, kind = '', agentArgs = '', sharedTree = false) {
   const out = [];
   out.push(`# Role: ${fmGet(roleFile, 'name')}\n\n`);
   out.push(`You are running as the \`${role}\` role, agent name \`${agent}\`, inside a multi-agent run coordinated by an orchestrator that cannot see your terminal.\n\n`);
@@ -512,8 +522,33 @@ export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env 
     out.push(`- This brief is self-contained. Do NOT read CLAUDE.md, AGENTS.md, ai-memory rules, wiki pages or other project instruction files unless the brief names them explicitly; the rules that apply are quoted in the brief. Start on the task immediately.\n`);
   }
   for (const n of sandboxNotes(kind, agentArgs)) out.push(n);
+  if (sharedTree) out.push(SHARED_TREE_NOTE);
   out.push(standingRules());
   return out.join('');
+}
+
+// D25 pure core: does any OTHER roster agent hold an edit role, is live and
+// sit in the same cwd (column 7) as the worker? `rows` are the roster TSV
+// rows, `liveNames` the live agent names (one `herdr agent list` read, never
+// a call per agent), `self` the worker's name, `selfCwd` its column 7 and
+// `isEdit` the role→edit predicate (roleIsEdit).
+export function sharedTreeEditor(rows, liveNames, self, selfCwd, isEdit) {
+  if (String(selfCwd ?? '') === '') return false;
+  // `liveNames` holds names, or the agents of `herdr agent list`: with an
+  // agent's pane and a row's pane both known, the row is live only on the
+  // same pane (a name alive on another pane is a stale row), as the roster
+  // and the spawn read it.
+  const live = liveNames.map((a) => (typeof a === 'string' ? { name: a, pane: '' } : { name: a?.name ?? '', pane: String(a?.pane_id ?? '') }));
+  for (const row of rows) {
+    const f = String(row).split('\t');
+    const name = f[0] ?? '';
+    const rowPane = f[1] ?? '';
+    if (name === '' || name === self) continue;
+    if (!live.some((a) => a.name === name && (a.pane === '' || rowPane === '' || a.pane === rowPane))) continue;
+    if ((f[6] ?? '') !== selfCwd) continue;
+    if (isEdit(f[3] ?? '')) return true;
+  }
+  return false;
 }
 
 // The amendment composed prompt: `# Amendment to your current brief`, the
@@ -523,7 +558,7 @@ export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env 
 // `report_language` is set, the one-go rule and the standing worker rules.
 // The worker already has the role and the current brief in context, so the
 // amendment carries neither.
-export function composeAmendment(amendRaw, report, ctx, env = process.env, kind = '', agentArgs = '') {
+export function composeAmendment(amendRaw, report, ctx, env = process.env, kind = '', agentArgs = '', sharedTree = false) {
   const out = [];
   out.push(`# Amendment to your current brief\n\n`);
   out.push(amendRaw);
@@ -535,6 +570,7 @@ export function composeAmendment(amendRaw, report, ctx, env = process.env, kind 
   if (lang !== '') out.push(`- Write the report in ${lang}.\n`);
   out.push(`- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n`);
   for (const n of sandboxNotes(kind, agentArgs)) out.push(n);
+  if (sharedTree) out.push(SHARED_TREE_NOTE);
   out.push(standingRules());
   return out.join('');
 }
@@ -639,8 +675,10 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   // (mode != edit) needs no `Owned files` section. An amendment is a
   // delta, not a brief: no section lint.
   if (amend !== 1) lintBrief(brief, ctx, env, { readOnly: !roleIsEdit(role, env, cwd) });
-  if (timeout === '') timeout = fmGet(rf, 'timeout');
-  if (timeout === '') timeout = cfg(ctx, 'dispatch_timeout', '900000', env);
+  // The role's timeout (frontmatter, else dispatch_timeout), scaled by the
+  // role's effective effort (xhigh 1.5x, max 2x) — the same value a later
+  // `wait` without --timeout uses.
+  if (timeout === '') timeout = String(roleTimeoutMs(role, ctx, env, cwd));
 
   // Reviewer family check (REVIEW_ROLES, not REVIEW_ROLES_ALL): an edit
   // agent of the same family — current role or roles history — blocks a
@@ -704,6 +742,15 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   stateDir(ctx, env, cwd);
   const ts = nowStamp();
   const wcwd = cols[6] ?? '';
+  // D25: another live roster agent with an edit role in the same cwd
+  // (column 7) edits this same tree: the composed prompt (brief and
+  // amendment) carries the shared-tree line right before the standing
+  // rules. One `herdr agent list` read (never a call per agent); a herdr
+  // failure skips the advisory line and never blocks the dispatch.
+  let sharedTree = false;
+  try {
+    sharedTree = sharedTreeEditor(rosterRows(sd), liveAgents(env), agent, wcwd, (r) => roleIsEdit(r, env, cwd));
+  } catch { sharedTree = false; }
   const tmpReports = wcwd !== '' && wcwd !== projectRoot(env, cwd)
     ? path.join(env.TMPDIR || os.tmpdir(), 'herdr-agents', workspaceId(ctx, env, cwd), 'reports')
     : null;
@@ -723,8 +770,8 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   if (tmpReports !== null) fs.mkdirSync(tmpReports, { recursive: true });
   fs.mkdirSync(path.dirname(composed), { recursive: true });
   fs.writeFileSync(composed, amend === 1
-    ? composeAmendment(fs.readFileSync(brief, 'utf8'), report, ctx, env, kind, cols[13] ?? '')
-    : composePrompt(rf, role, agent, fs.readFileSync(brief, 'utf8'), report, ctx, env, kind, cols[13] ?? ''));
+    ? composeAmendment(fs.readFileSync(brief, 'utf8'), report, ctx, env, kind, cols[13] ?? '', sharedTree)
+    : composePrompt(rf, role, agent, fs.readFileSync(brief, 'utf8'), report, ctx, env, kind, cols[13] ?? '', sharedTree));
   fs.writeFileSync(path.join(sd, `last-report-${agent}`), `${report}\n`);
   for (const suf of ['size', 'screen', 'since', 'blocked', 'approvals', 'quota',
     'provider', 'provider-cause', 'capacity-retries', 'capacity-at',
@@ -871,6 +918,7 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   let wfindings;
   let wseverity;
   let wdialog;
+  let wsettled = '';
   if (wait === 1) {
     const lines = [];
     try {
@@ -882,6 +930,13 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
     const last = lines.length > 0 ? JSON.parse(lines[lines.length - 1]) : {};
     status = last.status ?? '';
     qerr = last.error ?? '';
+    // D39: the internal wait follows the last-report-<agent> pointer, and
+    // an amendment sent mid-wait re-points it: the wait line's `report`
+    // is then the report the agent is actually writing. Name it
+    // (settled_report) and qualify report_exists for it — the dispatch's
+    // own report will never arrive. Same report (or no report on the
+    // line): nothing changes, not even the key.
+    if (typeof last.report === 'string' && last.report !== '' && last.report !== report) wsettled = last.report;
     // The done wait line carries `partial: N` when the report marks
     // item(s) partial; it lands in the final JSON (the warn already came
     // from the wait).
@@ -914,7 +969,7 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   }
 
   let reportExists = false;
-  try { reportExists = fs.statSync(report).size > 0; } catch { reportExists = false; }
+  try { reportExists = fs.statSync(wsettled !== '' ? wsettled : report).size > 0; } catch { reportExists = false; }
   let approvals = 0;
   try {
     const v = Number(fs.readFileSync(path.join(sd, 'wait', `${agent}.approvals`), 'utf8').trim());
@@ -923,8 +978,13 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   const out = {
     wait_status: status,
     agent, role, kind, composed_prompt: composed, report,
-    report_exists: reportExists,
   };
+  // settled_report: the report the internal wait settled on when an
+  // amendment re-pointed last-report-<agent> mid-wait (D39). It sits
+  // right after `report`, before report_exists (which then qualifies it);
+  // absent when the wait followed the dispatch's own report.
+  if (wsettled !== '') out.settled_report = wsettled;
+  out.report_exists = reportExists;
   // amend: true marks this JSON as the one of an amendment (not a fresh
   // brief). It sits right after report_exists because it qualifies the
   // report named by `report` — the new one the wait now watches.

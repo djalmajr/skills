@@ -91,6 +91,7 @@ export function cmdCollect(argv, ctx, env = process.env, cwd = process.cwd()) {
   const agent = argv[0];
   if (agent === undefined) die('agent: Parameter not set', 1);
   let lines = 120;
+  let linesSet = false;
   let verify = false;
   for (let i = 1; i < argv.length; i += 1) {
     const a = argv[i];
@@ -98,6 +99,7 @@ export function cmdCollect(argv, ctx, env = process.env, cwd = process.cwd()) {
       const v = argv[i + 1];
       if (v === undefined) dieFriction('collect: --lines expects a value', 2);
       lines = v;
+      linesSet = true;
       i += 1;
     } else if (a === '--verify') {
       verify = true;
@@ -106,7 +108,17 @@ export function cmdCollect(argv, ctx, env = process.env, cwd = process.cwd()) {
     }
   }
   const sd = stateDir(ctx, env, cwd);
-  const report = lastReport(sd, agent);
+  // D54: the original report under the tmp routing dir may be gone ($TMPDIR
+  // is cleaned by the system): when the pointer path no longer exists and
+  // the mirror the wait made sits at <state>/reports/<same name>, read that
+  // copy (with --verify too — the sha lines check the project files, not
+  // the report's location). No copy: today's behavior (the pointer stays,
+  // the fallbacks run).
+  let report = lastReport(sd, agent);
+  if (report !== '' && !fs.existsSync(report)) {
+    const copy = path.join(sd, 'reports', path.basename(report));
+    if (fs.existsSync(copy)) report = copy;
+  }
   if (report !== '' && reportNonEmpty(report)) {
     if (verify) return verifyReport(sd, agent, report, env, cwd);
     process.stdout.write(`<!-- report: ${report} -->\n`);
@@ -117,6 +129,15 @@ export function cmdCollect(argv, ctx, env = process.env, cwd = process.cwd()) {
     const st = agentState(agent, env);
     if (st.state === 'unavailable') {
       warn(`no report file yet for '${agent}', and herdr agent get failed: ${st.cause}. The worker may still be live.`);
+      return 4;
+    }
+    // A worker still working (or blocked) has no report yet by definition:
+    // a short status line plus the wait pointer, and no terminal dump —
+    // the terminal only helps once the worker has stopped (the fallback
+    // below keeps it for idle/done/gone and the not-in-roster cases). An
+    // explicit --lines forces the terminal anyway.
+    if ((st.state === 'working' || st.state === 'blocked') && !linesSet) {
+      warn(`'${agent}' is ${st.state} and has no report yet (${report || '<none dispatched>'}); wait for it: herdr-agents wait ${agent}`);
       return 4;
     }
   }

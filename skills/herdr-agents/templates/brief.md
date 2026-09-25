@@ -82,6 +82,11 @@ issues.detail.linkProject = "…"
 - Tests that open a local port (a fake server, a local database, a workers
   runtime) do not run inside the Codex sandbox (`listen EPERM`): mark them
   `partial`; the orchestrator runs them.
+- A check that needs a live service (a cluster, a database, containers):
+  say whether the worker may start one. By default it may not — it marks
+  the item `[partial]` and the orchestrator runs the check. Name the exact
+  check: a client-side dry run misses what the server validates (for
+  Kubernetes, `kubectl apply --dry-run=server --validate=strict`).
 - Write one file per tool call, a few hundred lines at most per call; grow
   a larger file with follow-up edits.
 

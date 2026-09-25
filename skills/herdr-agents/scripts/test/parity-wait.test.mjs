@@ -197,7 +197,10 @@ function waitValue(entry, name, opts) {
         ...(step.env ?? {}),
       };
       const r = spawnSync(entry[0], [...entry.slice(1), ...step.args], { env: stepEnv, cwd: fix.repo, encoding: 'utf8', timeout: 60000 });
-      results.push({ args: step.args, rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: normalizeErr(r.stderr ?? '') });
+      // elapsed_ms (a timeout line) is wall-clock: normalized like the
+      // timestamps, so the golden stays stable.
+      const outNorm = (r.stdout ?? '').replace(/"elapsed_ms":\d+/g, '"elapsed_ms":"<ms>"');
+      results.push({ args: step.args, rc: r.status === null ? -1 : r.status, out: outNorm, err: normalizeErr(r.stderr ?? '') });
       const state = collectState(fix);
       // pollInsensitive: how many polls fit before a timeout depends on the
       // clock, so the call log keeps each distinct call once, in first-seen
@@ -253,7 +256,9 @@ test('parity wait: a worker working until the timeout (test-quota.sh)', { timeou
     pollInsensitive: true,
   });
   assert.equal(r.steps[0].rc, 9);
-  assert.deepEqual(lines(r.steps[0].out), [{ agent: 'build', status: 'timeout' }]);
+  // The timeout line says how long this wait ran (normalized above) and the
+  // agent's state at that moment.
+  assert.deepEqual(lines(r.steps[0].out), [{ agent: 'build', status: 'timeout', elapsed_ms: '<ms>', state: 'working' }]);
   assert.ok(!r.steps[0].out.includes('"status":"quota"'), 'a working agent never becomes quota');
 });
 

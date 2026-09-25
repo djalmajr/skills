@@ -12,7 +12,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
+import { loadConfig } from '../lib/config.mjs';
 import { roleDirs, roleFile, resolveRole, fmGet, roleBody, skillDir } from '../lib/roles.mjs';
+import { roleTimeoutMs } from '../lib/resolve.mjs';
 
 function setup() {
   let root = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-roles-'));
@@ -23,10 +25,10 @@ function setup() {
   const state = path.join(root, 'state');
   const tmp = path.join(root, 'tmp');
   for (const d of [repo, home, conf, state, tmp]) fs.mkdirSync(d, { recursive: true });
-  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore' });
+  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore', timeout: 30_000 });
   const env = fixtureEnv({ HOME: home, XDG_CONFIG_HOME: conf, HERDR_AGENTS_DIR: state, TMPDIR: tmp });
   const run = (...args) => {
-    const r = spawnSync(nodeBin(), [JS_ENTRY, ...args], { cwd: repo, env, encoding: 'utf8' });
+    const r = spawnSync(nodeBin(), [JS_ENTRY, ...args], { cwd: repo, env, encoding: 'utf8', timeout: 60_000 });
     return { rc: r.status === null ? -1 : r.status, out: r.stdout ?? '', err: r.stderr ?? '' };
   };
   return {
@@ -346,6 +348,35 @@ test('roles: effort.<kind> and empty values (dashes, default sources)', (t) => {
   } finally { s.cleanup(); }
 });
 
+test('roleTimeoutMs: the frontmatter timeout scaled by the effective effort, the dispatch_timeout fallback', { timeout: 60000 }, (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(s.projRoles, { recursive: true });
+    const writeRole = (name, lines) => fs.writeFileSync(path.join(s.projRoles, `${name}.md`), lines.join('\n'));
+    // Project config layer: the role efforts (the kind default
+    // effort.grok=xhigh would otherwise win over the frontmatter effort).
+    fs.mkdirSync(path.join(s.repo, '.agents'), { recursive: true });
+    fs.writeFileSync(path.join(s.repo, '.agents', 'herdr-agents.conf'),
+      'role.t_high.effort=high\nrole.t_max.effort=max\nrole.t_fallback.effort=high\n');
+    writeRole('t-high', ['---', 'name: t-high', 'kind: grok', 'effort: high', 'timeout: 1800000', '---', 'body', '']);
+    writeRole('t-max', ['---', 'name: t-max', 'kind: grok', 'effort: high', 'timeout: 1800000', '---', 'body', '']);
+    writeRole('t-fallback', ['---', 'name: t-fallback', 'kind: grok', 'effort: high', '---', 'body', '']);
+    const ctx = loadConfig(s.env, s.repo);
+    // Mutation captured: a factor applied to the wrong effort (or ignored
+    // entirely), a frontmatter timeout read from the wrong key, or the
+    // dispatch_timeout fallback skipped changes one of the values below.
+    assert.equal(roleTimeoutMs('t-high', ctx, s.env, s.repo), 1800000, 'high: × 1');
+    assert.equal(roleTimeoutMs('t-max', ctx, s.env, s.repo), 3600000, 'max (config layer beats frontmatter): × 2');
+    assert.equal(roleTimeoutMs('t-fallback', ctx, s.env, s.repo), 900000, 'no frontmatter timeout: dispatch_timeout × 1');
+    assert.equal(roleTimeoutMs('t-fallback', ctx, { ...s.env, HERDR_AGENTS_DISPATCH_TIMEOUT: '60000' }, s.repo), 60000, 'the env dispatch_timeout scales too');
+    // The shipped implementer: 30 min of frontmatter at xhigh is 45 min.
+    assert.equal(roleTimeoutMs('implementer', ctx, s.env, s.repo), 2700000);
+    // An unknown role (no file) resolves like a timeout-less one at
+    // default effort: dispatch_timeout, × 1.
+    assert.equal(roleTimeoutMs('nosuchrole', ctx, s.env, s.repo), 900000);
+  } finally { s.cleanup(); }
+});
+
 test('role command: JSON shape and values, pretty-printed like jq', (t) => {
   const s = setup();
   try {
@@ -385,4 +416,19 @@ test('role command: skill role resolves the skill file and its frontmatter', (t)
     assert.equal(j.timeout, '1800000');
     assert.ok(j.file.endsWith(path.join('roles', 'implementer.md')), j.file);
   } finally { s.cleanup(); }
+});
+
+// D54: the edit roles' process-stop directive checks only the PIDs kept
+// when each process was launched (`ps -p <pid> -o pid=`); listing the
+// command lines of all processes is forbidden (the lines can hold
+// credentials) — no `ps -axo` in any of the three role files.
+test('edit roles: the process check is PID-only (no ps -axo)', (t) => {
+  for (const role of ['implementer', 'tasker', 'designer']) {
+    const body = fs.readFileSync(path.join(skillDir(), 'roles', `${role}.md`), 'utf8');
+    assert.ok(!body.includes('ps -axo'), `${role}: no ps -axo`);
+    assert.ok(body.includes('ps -p <pid> -o pid='), `${role}: the PID-only check is the directive`);
+  }
+  // Mutation captured: the directive reverted to `ps -axo pid,command`
+  // (listing every process's command line) fails the first assert per
+  // file; the PID-only directive removed entirely fails the second.
 });

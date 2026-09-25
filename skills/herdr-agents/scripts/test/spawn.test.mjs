@@ -88,8 +88,17 @@ if (cmd === 'agent get') {
   process.stdout.write(JSON.stringify({ result: { agent: out } }) + '\\n');
 } else if (cmd === 'agent list') {
   if (process.env.FAKE_LIVE_FAIL) { process.stderr.write('herdr says no\\n'); process.exit(3); }
+  // Fail only after an agent start (the marker the fake touches on start):
+  // the pre-start name checks still list fine.
+  if (process.env.FAKE_LIVE_FAIL_AFTER_START) {
+    try { if (fs.existsSync(process.env.FAKE_LIVE_FAIL_AFTER_START)) { process.stderr.write('herdr says no\\n'); process.exit(3); } } catch {}
+  }
   process.stdout.write(JSON.stringify({ result: { agents: live() } }) + '\\n');
+} else if (cmd === 'pane close') {
+  if (process.env.FAKE_CLOSE_FAIL) { process.stderr.write('{"error":{"code":"pane_not_found","message":"no pane"}}\\n'); process.exit(1); }
+  process.stdout.write('{"result":{}}\\n');
 } else if (cmd === 'agent start') {
+  if (process.env.FAKE_LIVE_FAIL_AFTER_START) { try { fs.writeFileSync(process.env.FAKE_LIVE_FAIL_AFTER_START, '1\\n'); } catch {} }
   const m = process.env.FAKE_START_MODE;
   if (m === 'busy2' && process.env.FAKE_START_COUNT) {
     let n = 0;
@@ -102,6 +111,7 @@ if (cmd === 'agent get') {
     }
   }
   if (m === 'notready') { process.stderr.write('agent_not_ready: login prompt\\n'); process.exit(1); }
+  if (m === 'timeout') { process.stderr.write('{"error":{"code":"timeout","message":"timed out waiting for agent startup"}}\\n'); process.exit(1); }
   process.stdout.write('{"result":{"started":true}}\\n');
 } else if (cmd === 'agent read') {
   const t = argv[2] ?? '';
@@ -474,7 +484,7 @@ import { loadConfig } from '${CONFIG_URL}';
 const ctx = loadConfig(process.env, process.cwd());
 emitReuse(${JSON.stringify(name)}, ${JSON.stringify(role)}, ${JSON.stringify(kind)}, ctx, process.env, process.cwd());
 `;
-  return spawnSync(nodeBin(), ['--input-type=module', '-e', code], { env: fix.env, cwd: fix.repo, encoding: 'utf8' });
+  return spawnSync(nodeBin(), ['--input-type=module', '-e', code], { env: fix.env, cwd: fix.repo, encoding: 'utf8', timeout: 30_000 });
 }
 
 test('emitReuse: retargets column 4, grows the history, keeps model/approvals', () => {
@@ -860,6 +870,96 @@ function runSession(fix, args, over = {}) {
   delete env.HERDR_TAB_ID;
   return spawnSync(nodeBin(), [JS_ENTRY, 'session', 'set', ...args], { env, cwd: fix.repo, encoding: 'utf8', timeout: 30000 });
 }
+
+// Two editors in the same tree: the second spawn warns (one warn per
+// other live editor, read-only roles out, a not-alive row out) — on a
+// new worker and on a reuse (lanes off, the findReusable path).
+test('spawn: another live editor in the same cwd warns (one per editor)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-same-tree-');
+  try {
+    const row12 = (name, role, cwd) =>
+      `${name}\tp-${name}\tgrok\t${role}\txai\t0\t${cwd}\tnow\tgrok-4.7\task\t${role}\t`;
+    const TAIL = `both edit ${fix.repo}: builds and test runs see each other's changes in progress; give each a git worktree (spawn --cwd <worktree>) to isolate them`;
+    // A live editor and a live read-only role in this very repo (the cwd
+    // a spawn opens in), both outside the build lane (lane column empty).
+    fix.writeRoster(
+      row12('other', 'implementer', fix.repo),
+      row12('reader', 'scouter', fix.repo),
+    );
+    fix.live([
+      { name: 'other', pane_id: 'p-other', agent_status: 'working' },
+      { name: 'reader', pane_id: 'p-reader', agent_status: 'working' },
+    ]);
+    // New worker (lanes on): it warns about the live editor only.
+    let r = runSpawn(fix, ['implementer']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(r.stderr.includes(` and 'other' both edit ${fix.repo}: `) && r.stderr.includes(TAIL),
+      'the new worker warns about the live editor: ' + r.stderr);
+    assert.ok(!r.stderr.includes('reader'), 'the read-only role does not enter: ' + r.stderr);
+    // A roster line whose agent is not alive does not warn.
+    fix.writeRoster(row12('ghost', 'implementer', fix.repo));
+    fix.live([]);
+    r = runSpawn(fix, ['implementer']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(!r.stderr.includes('both edit'), 'a not-alive editor does not warn: ' + r.stderr);
+    // Two live editors in the same tree: one warn per other editor.
+    fix.writeRoster(row12('e1', 'implementer', fix.repo), row12('e2', 'implementer', fix.repo));
+    fix.live([
+      { name: 'e1', pane_id: 'p-e1', agent_status: 'working' },
+      { name: 'e2', pane_id: 'p-e2', agent_status: 'working' },
+    ]);
+    r = runSpawn(fix, ['implementer']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal((r.stderr.match(/both edit/g) || []).length, 2, 'one warn per other editor: ' + r.stderr);
+    // Reuse (lanes off): the reused worker is the one named in the warn.
+    fix.writeRoster(row12('other2', 'implementer', fix.repo), row12('other', 'implementer', fix.repo));
+    fix.live([
+      { name: 'other2', pane_id: 'p-other2', agent_status: 'idle' },
+      { name: 'other', pane_id: 'p-other', agent_status: 'working' },
+    ]);
+    r = runSpawn(fix, ['implementer'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(JSON.parse(r.stdout).reused === true, 'the idle worker is reused: ' + r.stdout);
+    assert.ok(r.stderr.includes(`'other2' and 'other' both edit ${fix.repo}: `) && r.stderr.includes(TAIL),
+      'the reuse warns about the other editor: ' + r.stderr);
+    // Mutation captured: the check skipped on the new-worker or reuse
+    // paths (no warn at all), a read-only role entering the check (a warn
+    // naming 'reader'), a not-alive row counted as a live editor (a warn
+    // in the ghost case), or two editors producing a single warn.
+  } finally { fix.cleanup(); }
+});
+
+// The advisory check runs after the worker is started: a failing
+// `agent list` there must not fail the spawn (the worker is already in
+// the roster) — it skips the warn, and the final JSON is still printed.
+test('spawn: a failing agent list after the start never fails the spawn', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-same-tree-fail-');
+  try {
+    const row12 = (name, role, cwd) =>
+      `${name}\tp-${name}\tgrok\t${role}\txai\t0\t${cwd}\tnow\tgrok-4.7\task\t${role}\t`;
+    // A live editor candidate in this very repo: the advisory check has
+    // something to look up once the worker is started.
+    fix.writeRoster(row12('other', 'implementer', fix.repo));
+    fix.live([{ name: 'other', pane_id: 'p-other', agent_status: 'working' }]);
+    // agent list fails only after an agent start (the marker the fake
+    // touches on start): the pre-start name check still lists fine.
+    const r = runSpawn(fix, ['implementer'], { FAKE_LIVE_FAIL_AFTER_START: path.join(fix.root, 'live-fail-after-start') });
+    assert.equal(r.status, 0, r.stderr);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.role, 'implementer');
+    assert.ok(j.name !== '', 'the final JSON names the started worker: ' + r.stdout);
+    assert.ok(!r.stderr.includes('both edit'), 'no advisory warn when the list fails: ' + r.stderr);
+    // The advisory call happened after the start (and failed there).
+    const log = fix.logLines();
+    const iStart = log.findIndex((l) => l.startsWith('agent start '));
+    const iList = log.findIndex((l, i) => i > iStart && l === 'agent list');
+    assert.ok(iStart > -1 && iList > iStart, `agent list after the start: ${log}`);
+    // Mutation captured: the advisory liveAgents failure propagating (the
+    // spawn dies without the final JSON after the worker is started, or
+    // the warn is printed anyway) breaks the rc, the JSON and the warn
+    // asserts above.
+  } finally { fix.cleanup(); }
+});
 
 test('spawn: codex effort max reaches the CLI when the model advertises it', () => {
   const cases = [
@@ -1299,7 +1399,7 @@ test('spawn: a gone lane worker is removed and the lane opens a new pane', () =>
   } finally { fix.cleanup(); }
 });
 
-test('spawn: the temporary (burst) worker — flex only, flex_roles, capped by flex_extra', () => {
+test('spawn: the temporary (burst) worker — flex only, flex_roles, capped by flex_extra', { timeout: 60000 }, () => {
   const fix = makeFix('ha-spawn-burst-');
   try {
     fs.mkdirSync(path.join(fix.repo, '.agents'), { recursive: true });
@@ -1711,6 +1811,69 @@ test('spawn: the roster records the native args (column 14) the spawn used', () 
     assert.equal(f[13], '-l build', 'column 14 is the lane args');
     // Mutation captured: the column not recorded (or column 13 missing
     // when empty) at the spawn.
+  } finally { fix.cleanup(); }
+});
+
+// A relative --cwd resolves against the caller's directory: the roster and
+// the pane get the absolute path (passed as written, the pane opened in the
+// home directory). A --cwd that is not a directory exits 2 before a pane.
+test('spawn: a relative --cwd is resolved to an absolute directory', { timeout: 60000 }, () => {
+  const { fix, proj } = confFix('ha-spawn-relcwd-');
+  try {
+    proj('lanes=off\n');
+    fs.mkdirSync(path.join(fix.repo, 'wt', 'ai'), { recursive: true });
+    let r = runSpawn(fix, ['implementer', '--cwd', 'wt/ai'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    const f = fix.row(JSON.parse(r.stdout).name).split('\t');
+    assert.equal(f[6], path.join(fix.repo, 'wt', 'ai'), 'column 7 holds the absolute cwd');
+    r = runSpawn(fix, ['scouter', '--cwd', 'no/such/dir'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /spawn: --cwd .*no\/such\/dir is not a directory/);
+    // Mutation captured: keeping the --cwd as written stores `wt/ai` in
+    // column 7; dropping the directory check opens a pane for a missing
+    // path.
+  } finally { fix.cleanup(); }
+});
+
+// Scoped native args are flags of one CLI: role.<r>.args set for the
+// role's configured kind is not passed when the spawn runs another kind (a
+// codex `-c <key>=<value>` is --continue to claude: it resumed the
+// orchestrator's conversation). A resume flag from any source is refused
+// before a pane opens; a failed start closes the pane the spawn opened.
+test('spawn: scoped args stay with their kind; resume flags are refused; a failed start closes its pane', { timeout: 60000 }, () => {
+  const { fix, proj } = confFix('ha-spawn-scoped-kind-');
+  try {
+    proj('lanes=off\nrole.implementer.kind=grok\nrole.implementer.args=-c sandbox_workspace_write.network_access=true\n');
+    // The configured kind: the args are passed.
+    let r = runSpawn(fix, ['implementer'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(JSON.parse(r.stdout).agent_args.includes('-c sandbox_workspace_write.network_access=true'), r.stdout);
+    // Another kind by flag: not passed, with a warning.
+    r = runSpawn(fix, ['implementer', '--kind', 'claude', '--fresh'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(!JSON.parse(r.stdout).agent_args.includes('-c'), 'the codex-style args never reach claude: ' + r.stdout);
+    assert.match(r.stderr, /role\.implementer\.args not passed: those args belong to kind grok and this spawn runs claude/);
+    // A resume flag for claude from args.claude: exit 2, no pane, no start.
+    proj('lanes=off\nargs.claude=--continue\n');
+    fix.clearLog();
+    r = runSpawn(fix, ['implementer', '--kind', 'claude', '--fresh'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /spawn: '--continue' would make claude resume an earlier session/);
+    assert.ok(!fix.logLines().some((l) => l.startsWith('pane split') || l.startsWith('agent start') || l.startsWith('tab create')), fix.logLines().join('\n'));
+    // A failed start in a pane the spawn opened: the pane is closed.
+    proj('lanes=off\n');
+    fix.clearLog();
+    r = runSpawn(fix, ['implementer', '--fresh'], { HERDR_AGENTS_LANES: 'off', FAKE_START_MODE: 'timeout' });
+    assert.equal(r.status, 4, r.stderr);
+    assert.match(r.stderr, /closed the pane this spawn opened/);
+    assert.ok(fix.logLines().some((l) => l.startsWith('pane close ')), fix.logLines().join('\n'));
+    // A close that fails says so: the agent may still be running there.
+    r = runSpawn(fix, ['implementer', '--fresh'], { HERDR_AGENTS_LANES: 'off', FAKE_START_MODE: 'timeout', FAKE_CLOSE_FAIL: '1' });
+    assert.equal(r.status, 4, r.stderr);
+    assert.match(r.stderr, /pane close failed and the pane is still open, check it for a running agent/);
+    // Mutation captured: dropping the kind check passes the codex args to
+    // claude; removing the resume guard starts claude with --continue; the
+    // old "pane left open" path skips the pane close.
   } finally { fix.cleanup(); }
 });
 

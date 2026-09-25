@@ -36,7 +36,10 @@ roles/<role>.md  ──▶  spawn (pane split + agent start)  ──▶  dispatc
   project overrides any role by dropping `.agents/herdr-roles/<role>.md`.
   The shipped roles set their own `timeout` (reviewer and
   security-reviewer run 30 min); a role without one falls back to
-  `dispatch_timeout` (15 min).
+  `dispatch_timeout` (15 min). That budget is the role's effective
+  timeout — scaled by its effective effort (`xhigh` × 1.5, `max` × 2, else
+  × 1) — and `dispatch` and a `wait` without `--timeout` both use it (a
+  multi-agent `wait` allows the largest across its roles).
 - **Table answers cite the lookup.** A `scouter` or `researcher` answer
   that depends on a lookup table (types, keys, routes, registries) also
   reads and cites the function that consults it — normalization, prefixes
@@ -129,12 +132,12 @@ $S title "slice 2"                   # this pane: `orchestrator: slice 2`
 $S roles
 $S spawn implementer                 # the agent is named after its lane (`build`)
 $S dispatch build brief.md           # waits for the report file
-$S collect build [--verify]          # prints the report; --verify re-checks its sha256 lines (exit 16 on changed/missing, 4 if unreadable)
+$S collect build [--verify]          # prints the report; an agent still working or blocked with no report: a short stderr line and exit 4 (`--lines` forces the terminal); --verify re-checks its sha256 lines (exit 16 on changed/missing, 4 if unreadable)
 $S stats [--since <date>] [--json]   # tasks, times and review findings per role (the four review roles); <date> is YYYY-MM-DD or ISO 8601
 $S friction add "<text>" [--brief P] # record one friction note (level note, command friction)
 $S run scouter brief.md               # spawn + dispatch + collect
 $S wait build review                 # block until every report exists
-$S roster
+$S roster                            # live agents with role/kind/pane/state/report and the current task (TASK)
 $S release build --close             # closes only panes the skill created
 $S clean --older-than 7              # drop gone agents, delete old briefs/reports
 ```
@@ -174,8 +177,10 @@ prompt` by hand: `wait` would keep watching the old report.
   fail on `.git/index.lock`) and has no network, local ports included. The
   worker's prompt says so; the orchestrator runs the git operations and
   the network tests, or grants network with
-  `role.<role>.args`/`lane.<name>.args=-c
-  sandbox_workspace_write.network_access=true`.
+  `args.codex=-c sandbox_workspace_write.network_access=true` (or the same
+  flag in `role.<role>.args`/`lane.<name>.args` when that role or lane is
+  configured with kind codex: scoped args only reach the kind they were
+  configured for, and `spawn` refuses resume flags such as claude's `-c`).
 - Herdr reports lifecycle state, not turns; `dispatch` waits for the
   report file, not just for `idle`.
 - A CLI that updates itself at start and exits (the Codex auto-update) is
@@ -189,6 +194,12 @@ prompt` by hand: `wait` would keep watching the old report.
   `wait` (or a waiting `dispatch`) in the background with the harness's
   own notification, not `timeout` in front; `wait --any` exits 0 as soon
   as one report lands, so run it again for the rest.
+- Two edit agents sharing a cwd see each other's in-progress changes:
+  `spawn` warns (new and reused workers alike) to give each a git worktree
+  (`spawn --cwd <worktree>`), and the worker's composed prompt adds a line
+  telling it to report failures in files it does not own as outside its
+  slice. A `done` report routed through `$TMPDIR/herdr-agents/<ws>/reports/`
+  is mirrored back into the state dir (best effort).
 - One agent name is one growing session. Spawn a new agent when slices
   must not share context.
 - `release --close` ends the agent; without `--close` it keeps running.
@@ -298,7 +309,10 @@ four columns (date, level, command, message).
 
 The report file is the completion signal. `dispatch` waits for it by
 default; `wait a b c` blocks on several; `status a b c` is the
-non-blocking check; `roster` shows a `REPORT` column. Do not poll Herdr
+non-blocking check (`status` with no names exits 2 and points to
+`roster`); `roster` shows a `REPORT` column and the worker's current task
+(`TASK`, the pane title text, `-` when none, cut to 40 characters). Do
+not poll Herdr
 agent states by hand: they flicker `idle`/`done` mid-task. Because the
 report's existence ends the wait, every prompt tells the worker that only
 it writes the report, after all of the brief is done, and never a
@@ -329,7 +343,10 @@ not landed:
 
 The other outcomes: `quota` (exit 11, the account's quota is out),
 `settled-no-report` or `gone` (exit 6), `unavailable` (exit 4 — restore
-access and retry; never spawn a replacement), `timeout` (exit 9 — run
+access and retry; never spawn a replacement), `timeout` (exit 9 — not a
+failure: the role's effective timeout expired while the worker may still
+be working; the line carries `elapsed_ms` and the last probed `state`,
+and a friction line suggests re-running with twice the timeout; run
 `wait` again). When several agents finish in one `wait`, the exit is the
 most severe of 4, 11, 14, 15, 7 and 6.
 
@@ -338,7 +355,9 @@ prompt asks for each item's state as `[done]`, `[partial]` or `[skipped]`):
 the JSON line gains `partial: N` (only when N > 0, after `report`) and the
 wait
 warns `report of '<agent>' marks N item(s) partial: a partial item is not
-a pass; read them before commit, push or release`. The `dispatch` JSON
+a pass; read them before commit, push or release` (once per report: a
+second `wait` on the same report warns nothing, a new report warns
+again). The `dispatch` JSON
 carries the same `partial: N` right after `report_exists` (after `amend`,
 when present).
 
@@ -354,11 +373,15 @@ roles tell the worker to run a test before calling it wrong, and to say so
 when it cannot run it — reading the code is not proof that a test fails.
 
 The `dispatch` JSON is one line with `wait_status` first (`dispatch … |
-tail -1` returns the whole JSON). Before the send, `dispatch` warns when
+tail -1` returns the whole JSON). When an amendment re-pointed the report
+mid-wait, it gains `settled_report` (right after `report`), and
+`report_exists` qualifies that report. Before the send, `dispatch` warns when
 the new brief owns files another worker is still editing (advisory, up to
 five paths). A codex worker's composed prompt carries the sandbox notes —
 no writing under `.git`, no network (local ports included) — unless its
-opening args grant the access. An `unavailable` that is a `herdr agent
+opening args grant the access; the network note tells the worker to still
+write the integration tests the brief asks for — marked `[partial]`, with
+a test seam when the code depends on a fixed value. An `unavailable` that is a `herdr agent
 get` killed by a signal (exit ≥ 128, e.g. 137 under load) is retried
 (after 1 s, then 2 s) before counting; the cause then names the signal
 (`herdr agent get was killed (exit <rc>, <signal>: memory pressure or an
@@ -397,8 +420,10 @@ was proved. The full contract is in
 seen while validating the skill (sandbox denials — including `.git` and
 network — premature `done`, Cursor model syntax, startup dialogs, a codex
 CLI that updates itself at start, focus, command guards, stale roster
-lines, an `auto_approve` dialog that loops) with the fix and the
-validation procedure for a new kind.
+lines, an `auto_approve` dialog that loops, a worker stuck without a
+report, the skill's own exit 137, `wait` timing out while the worker is
+still working, and the worktree/mutation isolation rules) with the fix
+and the validation procedure for a new kind.
 
 ## Requirements
 

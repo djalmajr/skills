@@ -256,7 +256,9 @@ sending the key again brings it back unchanged.
   the worker marks the item `partial` and the orchestrator runs them. If you
   accept network access (not only localhost), give it only to the readers:
   `role.<role>.args=-c sandbox_workspace_write.network_access=true` (with
-  `lanes=off`) or `lane.<name>.args=-c …` (lanes on — a lane session is
+  `lanes=off`, and only when that role is configured with kind codex — see
+  "A claude worker resumed the orchestrator's conversation") or
+  `lane.<name>.args=-c …` (lanes on — a lane session is
   shared by every role in it, so a `role.<role>.args` never applies inside
   a lane, and the `doctor` warns about a scoped key in a config file that
   the current lane mode cannot apply). `args.codex=-c sandbox_workspace_write.network_access=true`
@@ -449,3 +451,117 @@ without checking that generation succeeded and produced what you expect.
   (`scripts/run-tests.sh --env outside test-<x>.sh`); the full matrix runs
   once, before the report. A suite path is relative to the skill directory
   (`scripts/test-x.sh`); a bare name (`test-x.sh`) is looked up in `scripts/`.
+
+## Two edit agents in one tree: one worktree per worker (or per branch)
+
+- **Symptom:** two agents with an edit role work in the same cwd; builds
+  and test runs see each other's changes in progress.
+- **Cause:** one shared working tree; nothing isolates the two.
+- **Now:** `spawn` (a new worker and a reuse alike) warns per other live
+  edit-role agent in the same cwd: `'<a>' and '<b>' both edit <cwd>: builds
+  and test runs see each other's changes in progress; give each a git
+  worktree (spawn --cwd <worktree>) to isolate them` — the extra `agent
+  list` read happens only when a candidate exists. `dispatch` tells the
+  worker whose tree is shared (one `agent list` read, never a call per
+  agent): the composed prompt (brief and amendment) adds `Another worker
+  edits this same tree now: run the global checks the brief asks for, but
+  report failures in files you do not own as outside your slice (name the
+  files), not as [partial] items of yours.` (a Herdr failure listing the
+  agents skips the line: it is advisory).
+- **Do:** one worktree per worker (or per branch): `git worktree add
+  .worktrees/<slug>` (or `herdr worktree create`), then `spawn <role>
+  --cwd <worktree>`; the roster stays in the main repo and the brief and
+  report are routed through `$TMPDIR/herdr-agents/<ws>/reports/` (mirrored
+  back into the state dir on `done`). Merge with `git -C <worktree> diff |
+  git apply` (or cherry-pick). A reviewer can read and test in a worktree
+  of the branch under review. Rust projects: give each worktree its own
+  `CARGO_TARGET_DIR` so the target directories do not collide. The
+  orchestrator's own mutation checks follow the copy rule in the next
+  entry.
+
+## A mutation check in the shared tree breaks another worker's tests
+
+- **Symptom:** a worker's mutation check (a temporary change to make one
+  test fail), restored within seconds, breaks the tests of another worker
+  running in the same tree.
+- **Cause:** the other worker runs tests that import the mutated file. The
+  `Owned files` warning covers who edits, not who executes.
+- **Now:** the `implementer` runs the mutation check in a throwaway copy of
+  the project outside the repository (such as under `/tmp`) whenever other
+  workers may share the tree; in-place mutation is allowed only when alone
+  in the tree, and restores only after the file's sha256 still matches (a
+  changed file is someone else's edit: not restored, and reported). The
+  `reviewer` mutates only in a throwaway copy — it never edits the
+  repository.
+- **Do:** the same rule applies to the orchestrator, who also mutates. When
+  a brief needs an in-place mutation, make the tree single-user first
+  (release the other edit agents) or run the check in a copy.
+
+## The orchestrator cannot commit while workers edit the same tree
+
+- **Symptom:** a pre-commit hook that checks the whole tree (typecheck, related tests) fails on another worker's work in progress (a test in its red step, a half-made edit), not on the approved slice.
+- **Do:** commit from a clean worktree.
+  1. `git worktree add --detach ../<repo>-commit HEAD`, and install the dependencies there once.
+  2. Copy only the approved files, checking each sha256 against the one the review saw.
+  3. Commit there: the hook runs without anyone's work in progress.
+  4. In the main tree, check `git merge-base --is-ancestor HEAD <sha>`, then `git reset -q <sha>`. The mixed reset moves the branch and the index without touching the working tree, so the workers keep going.
+
+## A worker sits stuck without a report (the abandon flow)
+
+- **Symptom:** a worker is `working` for many minutes (a high-effort model
+  thinking) without writing anything; two `ctrl+c` presses queue answers
+  instead of interrupting, and the lane stays stuck.
+- **Cause:** the model is inside one long reasoning or tool phase; keys are
+  queued, not injected.
+- **Now:** after `stuck_warn_minutes` (20) of an unchanged screen (apart
+  from counters) while `working`, the wait logs one friction line ("may be
+  stuck in one tool call") and goes on; nothing is sent and nothing is
+  killed automatically.
+- **Do:** interrupt with `herdr agent send-keys <agent> esc` (or
+  `ctrl+c`), release the slot with `release <agent> --close --force`, and
+  log what happened with `friction add "<text>"`.
+
+## Exit 137 with no cause: the skill's own process was killed from outside
+
+- **Symptom:** a `dispatch` (or a foreground `wait`) dies with exit 137 and
+  no cause line; it looks like the wait timed out, but the skill's own
+  timeout exits 9 with a `timeout` JSON line and a friction suggestion.
+- **Cause:** an external kill — the process was SIGKILLed, usually by the
+  time cap of the command that called it. The 137 cause the skill prints
+  is for a killed `herdr agent get` child, not for the skill process
+  itself, which cannot write a cause once it is dead.
+- **Now:** a `herdr agent get` killed by a signal (exit ≥ 128) is retried
+  after 1 s and 2 s before counting; the skill process itself cannot catch
+  its own SIGKILL.
+- **Do:** the prompt may have gone out — run `status <agent>` (or
+  `wait <agent>`) before repeating, so a brief is not sent twice. Run a
+  `dispatch` that waits in the background (or `--no-wait` followed by
+  `wait`), which matters under a Bash call cap (10 minutes for a Claude
+  Code orchestrator).
+
+## `wait` exits 9 (timeout) while the worker is still working
+
+- **Symptom:** `wait` exits 9 with a `timeout` line; the pane shows the
+  agent still calling tools and no report has appeared.
+- **Cause:** the wait's timeout — the role's effective timeout (the
+  frontmatter `timeout`, else `dispatch_timeout`, × 1.5 for `xhigh`, × 2
+  for `max`) or the explicit `--timeout` — is shorter than the work. A
+  timeout is not a failure.
+- **Now:** the `timeout` line carries `elapsed_ms` and `state` (the last
+  probe tag, `working` or `pending`), and each timed-out agent gets a
+  friction line: `timeout waiting for '<agent>'; it may still be working
+  (state: <state>). Run: herdr-agents wait <agent> --timeout <2×>` — the
+  suggestion doubles the timeout this wait used.
+- **Do:** check with `status <agent>`; re-run `wait <agent> --timeout <2×>`
+  (or `--any` to wake per report). If the process instead died with 137
+  and no cause line, it was killed from outside — see the exit-137 entry.
+
+## A claude worker resumed the orchestrator's conversation
+
+- **Symptom:** a `spawn --kind claude` worker opened the orchestrator's own conversation (same cwd, the worker's approvals) and acted as the orchestrator: release, spawn, dispatch, file edits.
+- **Cause:** a codex flag in `role.reviewer.args` (`-c sandbox_workspace_write.network_access=true`) was appended to whatever kind played the role. To claude, `-c` is `--continue`, which resumes the most recent conversation of the cwd; to cursor it is `--cloud`, and the agent exits. The start also timed out and the pane stayed open with the agent running.
+- **Now:**
+  - scoped args (`role.<role>.args`, `lane.<name>.args`) reach a worker only when the spawn runs the kind configured for that role or lane; otherwise they are dropped, with a warning;
+  - `spawn` refuses resume flags for claude and cursor from any source before a pane opens;
+  - a start that fails in a pane the spawn opened closes that pane.
+- **Do:** put CLI-specific flags in `args.<kind>` (`args.codex=-c …`). Check any `role.<role>.args` or `lane.<name>.args` against the kind that role or lane runs.

@@ -47,7 +47,7 @@ function readMarker(p) {
 }
 
 export function cmdStatus(argv, ctx, env = process.env, cwd = process.cwd()) {
-  if (argv.length === 0) dieFriction('status: give at least one agent name', 2);
+  if (argv.length === 0) dieFriction('status: give at least one agent name (herdr-agents roster lists them all)', 2);
   const sd = stateDir(ctx, env, cwd);
   let rc = 0;
   for (const a of argv) {

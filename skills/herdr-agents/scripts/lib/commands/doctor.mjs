@@ -37,6 +37,8 @@ import { herdLabelMax } from '../herdtabs.mjs';
 import { setupHookDoctor } from '../setuptext.mjs';
 import { kindExe } from '../kinds.mjs';
 import { ownProviderDoctorLines } from '../ownproviders.mjs';
+import { sandboxNotes } from '../dispatch.mjs';
+import { configNativeArgs } from '../spawn.mjs';
 import { setupTargetExisting, projectNeedsConfigPrompt } from './setup.mjs';
 import { unifiedDiff } from './setup-plan.mjs';
 
@@ -533,6 +535,31 @@ export function laneArgsIgnoredWarnings(ctx, env = process.env, cwd = process.cw
   }
 }
 
+// The UI roles the codex-without-network check covers: the designer and
+// the inspector open the project's UI and run its e2e tests, and codex's
+// default sandbox does not open local ports (listen EPERM) — without
+// network access the UI work cannot be verified from the worker, so the
+// doctor says so before the work starts. The check uses the kind a spawn
+// would resolve for the role (lanes or not) and the exact tokens a spawn
+// would pass: args.codex plus lane.<n>.args or role.<r>.args (the same
+// assembly as the spawn's native args), and the dispatch's sandbox-notes
+// rule for the network lift (a token that ends in network_access=true,
+// danger-full-access, or the bypass flag).
+export function doctorCodexNetworkWarnings(ctx, env = process.env, cwd = process.cwd(), say = new DoctorSay()) {
+  for (const role of ['designer', 'inspector']) {
+    const res = resolveRoleSettings(role, ctx, env, cwd);
+    if (res.kind !== 'codex') continue;
+    const args = configNativeArgs('codex', res.lane, role, ctx, env, cwd);
+    // sandboxNotes ('codex', args) pushes the git note whenever the
+    // full-access flags are absent and the network note on top when the
+    // network is also not released — more than one note means the network
+    // stays off.
+    if (sandboxNotes('codex', args).length <= 1) continue;
+    const key = res.lane !== '' ? `lane.${res.lane}.args` : `role.${role}.args`;
+    say.warn(`config: ${role} runs on codex without network: it cannot open a local port, so the UI and e2e tests do not run (listen EPERM); set ${key}=-c sandbox_workspace_write.network_access=true, or run the e2e yourself`);
+  }
+}
+
 // project_has_roster port (:1683): a roster row under the state root (any
 // agents.tsv with a line that is not a `#` comment and not blank; a
 // header-only roster never counts).
@@ -717,6 +744,7 @@ export function doctorCheck(ctx, env = process.env, cwd = process.cwd()) {
   doctorDiscardedModels(ctx, env, cwd, s);
   doctorModelPairs(ctx, env, cwd, s);
   laneArgsIgnoredWarnings(ctx, env, cwd, s);
+  doctorCodexNetworkWarnings(ctx, env, cwd, s);
   const minRaw = cfg(ctx, 'split_min_pane', '0.18', env);
   if (!/^0?\.[0-9]+$/.test(minRaw)) s.warn(`config: split_min_pane='${minRaw}' must be a fraction like 0.18 (using 0.18)`);
   const hlmRaw = cfg(ctx, 'herd_label_max', '16', env);

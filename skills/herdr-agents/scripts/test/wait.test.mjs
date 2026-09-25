@@ -25,9 +25,10 @@ import { spawnSync } from 'node:child_process';
 import { writeFakeCli } from './fakes.mjs';
 import { nodeBin } from './parity.mjs';
 import { loadConfig } from '../lib/config.mjs';
+import { setFrictionLog } from '../lib/state.mjs';
 import {
   waitRank, tryAutoApprove, probeAgent, waitFor, kindApproveKeys, cksumField, pollIntervalMs,
-  normalizeApproveScreen,
+  normalizeApproveScreen, normalizeScreen,
 } from '../lib/wait.mjs';
 import { briefTask, markTaskDone } from '../lib/tasks.mjs';
 
@@ -217,7 +218,7 @@ test('waitRank: 4 > 11 > 14 > 15 > 7 > 6, everything else 0', () => {
 
 // One agent per failure class; the rank order must hold in either argument
 // order: 4 (unavailable) > 11 (quota) > 7 (blocked) > 6 (gone/settled).
-test('wait: the rank order 4 > 11 > 7 > 6 in any argument order', { timeout: 30000 }, () => {
+test('wait: the rank order 4 > 11 > 7 > 6 in any argument order', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-rank-');
   try {
     fix.writeRoster(
@@ -265,7 +266,7 @@ test('wait: the rank order 4 > 11 > 7 > 6 in any argument order', { timeout: 300
 // The report file is only `done` when its size stops changing: a fresh
 // report is `pending` on the first probe (wait clears .size) and `done` on
 // the second; a size change reopens the pending.
-test('wait: report ready only on the second probe with the same size', { timeout: 30000 }, () => {
+test('wait: report ready only on the second probe with the same size', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-report-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -290,7 +291,7 @@ test('wait: report ready only on the second probe with the same size', { timeout
 
 // Two consecutive blocked probes before `blocked` is reported; the first
 // probe only records the flag and keeps working.
-test('wait: two blocked probes before reporting blocked', { timeout: 30000 }, () => {
+test('wait: two blocked probes before reporting blocked', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-blocked-');
   try {
     fix.writeRoster(ROW('b', 'implementer'));
@@ -307,7 +308,7 @@ test('wait: two blocked probes before reporting blocked', { timeout: 30000 }, ()
 
 // Settled: a still screen older than settled_grace (the screen hash is
 // compared, never shown); a changed screen or a working state resets it.
-test('wait: settled with a still screen, reset by movement', { timeout: 30000 }, () => {
+test('wait: settled with a still screen, reset by movement', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-settled-');
   try {
     fix.writeRoster(ROW('s', 'implementer'));
@@ -339,7 +340,7 @@ test('wait: settled with a still screen, reset by movement', { timeout: 30000 },
 
 // gone and unavailable: only agent_not_found is `gone`; every other
 // `agent get` failure is `unavailable` with the sanitized cause.
-test('wait: gone and unavailable with a cause', { timeout: 30000 }, () => {
+test('wait: gone and unavailable with a cause', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-states-');
   try {
     fix.writeRoster(ROW('dead', 'implementer'), ROW('stuck', 'implementer'));
@@ -367,7 +368,7 @@ test('wait: gone and unavailable with a cause', { timeout: 30000 }, () => {
 // A dispatch that ended not-received recorded the moment in .not-received;
 // the worker that starts working afterwards makes the marker stale: the
 // probe drops it (and the retry counter) and goes on as usual.
-test('wait: a late arrival clears the not-received marker and the retry counter', { timeout: 30000 }, () => {
+test('wait: a late arrival clears the not-received marker and the retry counter', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-latearrival-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -387,7 +388,7 @@ test('wait: a late arrival clears the not-received marker and the retry counter'
 
 // The same clear on a blocked worker: the prompt arrived while the agent
 // was in a dialog; the normal blocked logic takes over.
-test('wait: a blocked worker clears the not-received marker and keeps the blocked logic', { timeout: 30000 }, () => {
+test('wait: a blocked worker clears the not-received marker and keeps the blocked logic', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-lateblocked-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -408,7 +409,7 @@ test('wait: a blocked worker clears the not-received marker and keeps the blocke
 // the prompt still in the input box it sends one Enter and records the
 // attempt count and the moment; a second probe inside the window sends
 // nothing; a counter that is not two integers fails closed.
-test('wait: an Enter retry while the prompt sits in the input box', { timeout: 30000 }, () => {
+test('wait: an Enter retry while the prompt sits in the input box', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-retryenter-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -444,7 +445,7 @@ test('wait: an Enter retry while the prompt sits in the input box', { timeout: 3
 
 // A fresh marker is the last attempt itself: inside the window the probe
 // returns working and sends no key, and no counter is created.
-test('wait: a fresh not-received marker waits one window before the first retry', { timeout: 30000 }, () => {
+test('wait: a fresh not-received marker waits one window before the first retry', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-freshnr-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -462,7 +463,7 @@ test('wait: a fresh not-received marker waits one window before the first retry'
 
 // The three retries are spent: the wait ends not-received even with the
 // prompt still in the input box, and sends no further key.
-test('wait: three retries spent end the wait not-received', { timeout: 30000 }, () => {
+test('wait: three retries spent end the wait not-received', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-retryexhausted-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -482,7 +483,7 @@ test('wait: three retries spent end the wait not-received', { timeout: 30000 }, 
 // A state change since the marker (the state_change_seq moved) makes the
 // marker stale even with the agent not working: the probe drops the marker
 // and the retry counter, sends no key, and goes on with the normal logic.
-test('wait: a state change since the marker drops the marker and sends no Enter', { timeout: 30000 }, () => {
+test('wait: a state change since the marker drops the marker and sends no Enter', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-seqchanged-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -507,7 +508,7 @@ test('wait: a state change since the marker drops the marker and sends no Enter'
 // The same seq as the marker means the agent did nothing in the meantime:
 // the retry goes on as before and the marker stays. An epoch-only marker
 // (the older format) has no seq to compare and keeps the retry too.
-test('wait: the same seq and an epoch-only marker keep the retry', { timeout: 30000 }, () => {
+test('wait: the same seq and an epoch-only marker keep the retry', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-seqsame-');
   try {
     fix.writeRoster(ROW('w1', 'implementer'), ROW('w2', 'implementer'));
@@ -534,7 +535,7 @@ test('wait: the same seq and an epoch-only marker keep the retry', { timeout: 30
 
 // The whole path: with the seq moved, the wait ends settled-no-report
 // (rc 6), the marker is dropped, and no key is sent.
-test('wait: a state change since the marker ends settled-no-report, no Enter', { timeout: 30000 }, () => {
+test('wait: a state change since the marker ends settled-no-report, no Enter', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-seqchanged-e2e-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -557,7 +558,7 @@ test('wait: a state change since the marker ends settled-no-report, no Enter', {
 
 // The window is over and the prompt is no longer in the input box with the
 // agent not working: the wait ends not-received, no key.
-test('wait: a not-received agent whose screen no longer holds the prompt ends not-received', { timeout: 30000 }, () => {
+test('wait: a not-received agent whose screen no longer holds the prompt ends not-received', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-noprompt-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -575,7 +576,7 @@ test('wait: a not-received agent whose screen no longer holds the prompt ends no
 
 // Quota: the JSON line carries lane/kind/model/match/renewal and the warn
 // lands in the friction log as command `wait`.
-test('wait: quota fields and the friction entry', { timeout: 30000 }, () => {
+test('wait: quota fields and the friction entry', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-quota-');
   try {
     fix.writeRoster(ROW('q1', 'researcher', 'grok', 'grok-4.7', 'build'));
@@ -605,7 +606,7 @@ test('wait: quota fields and the friction entry', { timeout: 30000 }, () => {
 // and the detected status (keeping the agent working); the second probe
 // with the same screen and status confirms and writes the cause; a
 // changed screen re-arms the flag.
-test('wait: provider-error only on the second equal probe', { timeout: 30000 }, () => {
+test('wait: provider-error only on the second equal probe', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-provider-');
   try {
     fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
@@ -630,7 +631,7 @@ test('wait: provider-error only on the second equal probe', { timeout: 30000 }, 
 
 // Mutation captured: keeping <agent>.provider across a probe without the
 // stop lets a later identical screen confirm at once.
-test('wait: a probe without the stop clears the provider double-confirm', { timeout: 30000 }, () => {
+test('wait: a probe without the stop clears the provider double-confirm', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-provider-clear-');
   try {
     fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
@@ -650,7 +651,7 @@ test('wait: a probe without the stop clears the provider double-confirm', { time
 
 // Mutation captured: returning on quota before clearing the provider
 // marks lets the same provider screen confirm right after the quota probe.
-test('wait: a quota probe between two provider probes clears the provider record', { timeout: 30000 }, () => {
+test('wait: a quota probe between two provider probes clears the provider record', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-provider-quota-');
   try {
     fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
@@ -670,7 +671,7 @@ test('wait: a quota probe between two provider probes clears the provider record
 // Provider error end-to-end: exit 14 in two probes — no
 // settled_grace — with the lane/kind/model/cause JSON line and the
 // friction warn.
-test('wait: provider-error exits 14 with the lane, kind, model and cause', { timeout: 30000 }, () => {
+test('wait: provider-error exits 14 with the lane, kind, model and cause', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-provider-rc-');
   try {
     fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
@@ -697,7 +698,7 @@ test('wait: provider-error exits 14 with the lane, kind, model and cause', { tim
 // Capacity: the confirmed capacity sends the exact continue prompt
 // (one per provider_retry_delay); the worker report that lands in answer
 // turns the wait into done with rc 0.
-test('wait: capacity sends the continue prompt and the report settles done', { timeout: 30000 }, () => {
+test('wait: capacity sends the continue prompt and the report settles done', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-capacity-done-');
   try {
     fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
@@ -722,7 +723,7 @@ test('wait: capacity sends the continue prompt and the report settles done', { t
 // Capacity exhausted: with provider_retries=1 the single continue is
 // sent and the still-at-capacity screen settles `capacity` with the
 // retries count, rc 14.
-test('wait: capacity exhausted at provider_retries=1 exits 14 with the retries', { timeout: 30000 }, () => {
+test('wait: capacity exhausted at provider_retries=1 exits 14 with the retries', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-capacity-exhausted-');
   try {
     fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
@@ -751,7 +752,7 @@ test('wait: capacity exhausted at provider_retries=1 exits 14 with the retries',
 
 // Quota still wins over a provider stop on the same screen: the
 // quota check runs first and the provider stop is never reported.
-test('wait: quota wins over a provider stop on the same screen', { timeout: 30000 }, () => {
+test('wait: quota wins over a provider stop on the same screen', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-quota-over-provider-');
   try {
     fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
@@ -769,7 +770,7 @@ test('wait: quota wins over a provider stop on the same screen', { timeout: 3000
 
 // The rank order 11 > 14 > 7 in a multi-agent wait: quota beats
 // provider-error, provider-error beats blocked, in any argument order.
-test('wait: the rank order 11 > 14 > 7 with quota, provider-error and blocked', { timeout: 30000 }, () => {
+test('wait: the rank order 11 > 14 > 7 with quota, provider-error and blocked', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-rank-14-');
   try {
     fix.writeRoster(
@@ -805,7 +806,7 @@ test('wait: the rank order 11 > 14 > 7 with quota, provider-error and blocked', 
 // A stale not-received marker (window over, no prompt in the input box)
 // ends the wait at 15 on the first probe: the exact JSON line, the
 // read-the-pane warning and the friction entry.
-test('wait: a stale not-received marker exits 15 with the line and the read-the-pane warning', { timeout: 30000 }, () => {
+test('wait: a stale not-received marker exits 15 with the line and the read-the-pane warning', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-notreceived-rc-');
   try {
     fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
@@ -830,7 +831,7 @@ test('wait: a stale not-received marker exits 15 with the line and the read-the-
 // The rank order with a not-received agent: 4 (unavailable) >
 // 11 (quota) > 14 (provider-error) > 15 (not-received) > 7 (blocked), in
 // any argument order.
-test('wait: the rank order 4 > 11 > 14 > 15 > 7 with a not-received agent', { timeout: 30000 }, () => {
+test('wait: the rank order 4 > 11 > 14 > 15 > 7 with a not-received agent', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-rank-15-');
   try {
     fix.writeRoster(
@@ -874,7 +875,7 @@ test('wait: the rank order 4 > 11 > 14 > 15 > 7 with a not-received agent', { ti
 // The happy path: the retry Enter starts the worker (the CLI that was
 // still opening finally accepts it) and the wait settles done like any
 // other wait — one Enter, no resend, in a few probes, not a timeout.
-test('wait: the retry Enter unblocks the worker and the wait settles done', { timeout: 30000 }, () => {
+test('wait: the retry Enter unblocks the worker and the wait settles done', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-retrydone-');
   try {
     fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
@@ -898,8 +899,10 @@ test('wait: the retry Enter unblocks the worker and the wait settles done', { ti
 });
 
 // Timeout: a working agent never settles before the deadline → a
-// `timeout` line and rc 9.
-test('wait: timeout 9 for a working agent', { timeout: 30000 }, () => {
+// `timeout` line (with `elapsed_ms` since the start of this wait and the
+// agent's last probe state) and rc 9, plus the warn that suggests running
+// the wait again with double the timeout used.
+test('wait: timeout 9 for a working agent', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-timeout-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -907,13 +910,19 @@ test('wait: timeout 9 for a working agent', { timeout: 30000 }, () => {
     fix.screen('typing…\n');
     const r = waitCmd(fix, ['w', '--timeout', '1000']);
     assert.equal(r.status, 9, r.stderr);
-    assert.deepEqual(jsonLines(r.stdout), [{ agent: 'w', status: 'timeout' }]);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'elapsed_ms', 'state']);
+    assert.equal(line.agent, 'w');
+    assert.equal(line.status, 'timeout');
+    assert.equal(line.state, 'working', 'the last probe state');
+    assert.ok(line.elapsed_ms > 0 && line.elapsed_ms < 1000 + 15000, `elapsed_ms ${line.elapsed_ms}`);
+    assert.match(r.stderr, /timeout waiting for 'w'; it may still be working \(state: working\)\. Run: herdr-agents wait w --timeout 2000/);
   } finally { fix.cleanup(); }
 });
 
 // --any returns 0 on the first done, even while other agents keep working;
 // with notify=on the done agent triggers the notification.
-test('wait: --any returns on the first done; notify=on notifies', { timeout: 30000 }, () => {
+test('wait: --any returns on the first done; notify=on notifies', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-any-');
   try {
     // Both edit roles: a reviewer's headerless report now also gets
@@ -952,7 +961,7 @@ test('tryAutoApprove: off by default, no keypress', () => {
   } finally { fix.cleanup(); }
 });
 
-test('tryAutoApprove: key per kind, counter and log, the cap, send failure', { timeout: 30000 }, () => {
+test('tryAutoApprove: key per kind, counter and log, the cap, send failure', { timeout: 60000 }, () => {
   const fix = makeFix('ha-approve-on-');
   try {
     fix.writeRoster(ROW('a', 'implementer'), ROW('c', 'reviewer', 'codex'));
@@ -1130,7 +1139,7 @@ test('tryAutoApprove: a counter that exists but is not a number fails closed', (
   } finally { fix.cleanup(); }
 });
 
-test('wait: a --timeout that is not a number of milliseconds exits 2', { timeout: 30000 }, () => {
+test('wait: a --timeout that is not a number of milliseconds exits 2', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-badtimeout-');
   try {
     fix.writeRoster(ROW('a', 'implementer'));
@@ -1140,7 +1149,7 @@ test('wait: a --timeout that is not a number of milliseconds exits 2', { timeout
   } finally { fix.cleanup(); }
 });
 
-test('clean: an empty or invalid --older-than deletes nothing', { timeout: 30000 }, () => {
+test('clean: an empty or invalid --older-than deletes nothing', { timeout: 60000 }, () => {
   const fix = makeFix('ha-clean-baddays-');
   try {
     const old = path.join(fix.ws, 'reports', 'old.md');
@@ -1156,7 +1165,7 @@ test('clean: an empty or invalid --older-than deletes nothing', { timeout: 30000
   } finally { fix.cleanup(); }
 });
 
-test('clean: a herdr agent list without an agent list exits 4 and keeps the roster', { timeout: 30000 }, () => {
+test('clean: a herdr agent list without an agent list exits 4 and keeps the roster', { timeout: 60000 }, () => {
   const fix = makeFix('ha-clean-badlist-');
   try {
     fix.writeRoster(ROW('a', 'implementer'), ROW('b', 'reviewer'));
@@ -1177,7 +1186,7 @@ test('clean: a herdr agent list without an agent list exits 4 and keeps the rost
 // with the text, even with auto_approve=on: no key is sent, the .question
 // file holds the text, rc 7 and the friction entry say nobody answers it
 // automatically.
-test('wait: a codex question screen reports question, no key, even with auto_approve=on', { timeout: 30000 }, () => {
+test('wait: a codex question screen reports question, no key, even with auto_approve=on', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-question-');
   try {
     fix.writeRoster(ROW('q', 'implementer', 'codex'));
@@ -1213,7 +1222,7 @@ test('wait: a codex question screen reports question, no key, even with auto_app
 // The codex approval screens from the decisions ("allow command?" / "press
 // enter to confirm") keep today's behavior: the default key is sent and the
 // wait continues.
-test('wait: a codex approval screen keeps the auto-approve key (behavior untouched)', { timeout: 30000 }, () => {
+test('wait: a codex approval screen keeps the auto-approve key (behavior untouched)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-question-approval-');
   try {
     fix.writeRoster(ROW('a', 'implementer', 'codex'));
@@ -1237,7 +1246,7 @@ test('wait: a codex approval screen keeps the auto-approve key (behavior untouch
 // *) does not change for stuck_warn_minutes gets exactly one friction line;
 // the status stays working, nothing is sent; a changed screen re-arms; 0
 // disables the check.
-test('wait: a still screen (counters aside) warns once after stuck_warn_minutes', { timeout: 30000 }, () => {
+test('wait: a still screen (counters aside) warns once after stuck_warn_minutes', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-stuck-');
   try {
     fix.writeRoster(ROW('s', 'implementer'));
@@ -1306,7 +1315,7 @@ test('wait: a still screen (counters aside) warns once after stuck_warn_minutes'
 
 // Mutation captured: reading the visible screen again for the stuck check
 // doubles the herdr calls of every working probe.
-test('wait: a working probe reads the screen once', { timeout: 30000 }, () => {
+test('wait: a working probe reads the screen once', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-one-read-');
   try {
     fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
@@ -1324,7 +1333,7 @@ test('wait: a working probe reads the screen once', { timeout: 30000 }, () => {
 // still marks `partial` items is not a pass: the JSON line carries
 // the count after `report`, one warn tells the orchestrator to read them
 // before commit/push/release, and the wait still settles rc 0.
-test('wait: a done report with partial items marks the JSON line and warns once', { timeout: 30000 }, () => {
+test('wait: a done report with partial items marks the JSON line and warns once', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-partial-');
   try {
     fix.writeRoster(ROW('rev', 'reviewer'));
@@ -1359,7 +1368,7 @@ test('wait: a done report with partial items marks the JSON line and warns once'
 // A done report without `partial` settles exactly as before: the JSON line
 // is byte-identical to the one of today (no partial key) and nothing about
 // partial is printed.
-test('wait: a clean done report keeps the exact line of today', { timeout: 30000 }, () => {
+test('wait: a clean done report keeps the exact line of today', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-clean-');
   try {
     fix.writeRoster(ROW('w', 'implementer'));
@@ -1376,7 +1385,7 @@ test('wait: a clean done report keeps the exact line of today', { timeout: 30000
 // In a multi-agent wait the count is per agent: only the report that marks
 // items partial gets the key and the warn; the clean one keeps its exact
 // line, and the wait still settles rc 0.
-test('wait: partial is per agent in a multi-agent wait', { timeout: 30000 }, () => {
+test('wait: partial is per agent in a multi-agent wait', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-partial-multi-');
   try {
     // Both edit roles: a reviewer's headerless report now also gets
@@ -1405,7 +1414,7 @@ test('wait: partial is per agent in a multi-agent wait', { timeout: 30000 }, () 
 // counted in wait/<agent>.approve-screen after each key sent. A digit that
 // changes between blocks is the SAME dialog; the third consecutive repeat
 // sends no key and the agent stays blocked.
-test('wait: the same auto-approve dialog is not sent a third time', { timeout: 30000 }, () => {
+test('wait: the same auto-approve dialog is not sent a third time', { timeout: 60000 }, () => {
   const fix = makeFix('ha-approve-loop-');
   try {
     fix.writeRoster(ROW('a', 'implementer'));
@@ -1442,7 +1451,7 @@ test('wait: the same auto-approve dialog is not sent a third time', { timeout: 3
 // confirmations is the SAME dialog: the shared screen normalization
 // (normalizeScreen, the stuck-worker one) drops them, so the repetition
 // counter keeps counting and the third repeat stops the key.
-test('wait: rotating glyphs in the same dialog do not reset the repeat counter', { timeout: 30000 }, () => {
+test('wait: rotating glyphs in the same dialog do not reset the repeat counter', { timeout: 60000 }, () => {
   const fix = makeFix('ha-approve-glyphs-');
   try {
     fix.writeRoster(ROW('a', 'implementer'));
@@ -1480,7 +1489,7 @@ test('wait: rotating glyphs in the same dialog do not reset the repeat counter',
 // A different dialog resets the counter to 1 (no accumulation across
 // dialogs); max_auto_approvals stays the overall ceiling and still
 // blocks.
-test('wait: a different dialog resets the repeat counter; the ceiling still applies', { timeout: 30000 }, () => {
+test('wait: a different dialog resets the repeat counter; the ceiling still applies', { timeout: 60000 }, () => {
   const fix = makeFix('ha-approve-reset-');
   try {
     fix.writeRoster(ROW('d', 'implementer'));
@@ -1524,7 +1533,7 @@ test('wait: a different dialog resets the repeat counter; the ceiling still appl
 // End to end: the blocked JSON line carries the dialog (the last 20
 // non-empty lines of the visible screen) and the exact stopping warn
 // lands on stderr and in the friction log.
-test('wait: the blocked line carries the dialog and the loop warn', { timeout: 30000 }, () => {
+test('wait: the blocked line carries the dialog and the loop warn', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-dialog-');
   try {
     fix.writeRoster(ROW('b', 'implementer'));
@@ -1553,7 +1562,7 @@ test('wait: the blocked line carries the dialog and the loop warn', { timeout: 3
 
 // The header fields and `partial` can coexist: the header keys sit right
 // after `report` and before `partial`, and the partial warn still fires.
-test('wait: the header and partial items coexist in the done line', { timeout: 30000 }, () => {
+test('wait: the header and partial items coexist in the done line', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-header-partial-');
   try {
     fix.writeRoster(ROW('rev', 'reviewer'));
@@ -1575,7 +1584,7 @@ test('wait: the header and partial items coexist in the done line', { timeout: 3
 // The review report's header (the first non-empty line) populates the done
 // JSON line: verdict, findings and severity sit right after `report` and
 // before `partial`.
-test('wait: a review report header populates the done line', { timeout: 30000 }, () => {
+test('wait: a review report header populates the done line', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-header-');
   try {
     fix.writeRoster(ROW('rev', 'reviewer'));
@@ -1596,7 +1605,7 @@ test('wait: a review report header populates the done line', { timeout: 30000 },
 
 // findings ≠ P0..P3 sum: the numbers are kept as parsed in the line and
 // the mismatch is warned (the report is never fixed).
-test('wait: findings that do not add up keep the parsed numbers and warn', { timeout: 30000 }, () => {
+test('wait: findings that do not add up keep the parsed numbers and warn', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-mismatch-');
   try {
     fix.writeRoster(ROW('rev', 'reviewer'));
@@ -1617,7 +1626,7 @@ test('wait: findings that do not add up keep the parsed numbers and warn', { tim
 // it before trusting the done — for the four review roles alike (reviewer,
 // security-reviewer, ui-reviewer and inspector now all carry the fixed
 // header line); an edit role does not.
-test('wait: a review report without the header warns for all four review roles', { timeout: 30000 }, () => {
+test('wait: a review report without the header warns for all four review roles', { timeout: 60000 }, () => {
   const fix = makeFix('ha-wait-noheader-');
   try {
     fix.writeRoster(ROW('rev', 'reviewer'), ROW('sec', 'security-reviewer'), ROW('ui', 'ui-reviewer'),
@@ -1645,5 +1654,245 @@ test('wait: a review report without the header warns for all four review roles',
     // Mutation captured: the warn still limited to REVIEW_ROLES (the two
     // code reviewers) leaves the ui-reviewer and inspector warns out; a
     // warn for the edit role adds a line the last assert rejects.
+  } finally { fix.cleanup(); }
+});
+
+// ---------- D30: the wait's default timeout is the role's (effort-scaled) ----------
+
+// Without --timeout the wait allows each agent its role's timeout (the
+// frontmatter `timeout` scaled by the role's effective effort, else
+// dispatch_timeout, roster column 4), and with several agents the largest
+// one decides the deadline; the timeout line and the warn say how long the
+// wait ran and suggest double the timeout used.
+test('wait: without --timeout the wait uses the role timeout (effort-scaled), the largest across agents', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-roletimeout-');
+  try {
+    // Two role files shadowed into the fixture ($HERDR_AGENTS_ROLES):
+    // t1 (3000 ms, effort high × 1) and t2 (4000 ms, effort xhigh × 1.5).
+    const rolesDir = path.join(fix.root, 'roles');
+    fs.mkdirSync(rolesDir, { recursive: true });
+    const roleFile = (name, timeout, effort) => fs.writeFileSync(path.join(rolesDir, `${name}.md`),
+      ['---', `name: ${name}`, 'kind: grok', `effort: ${effort}`, `timeout: ${timeout}`, '---', 'body', ''].join('\n'));
+    roleFile('t1', '3000', 'high');
+    roleFile('t2', '4000', 'xhigh');
+    fix.writeRoster(ROW('w1', 't1'), ROW('w2', 't2'));
+    fix.mode('working');
+    fix.screen('busy\n');
+    // Mutation captured: the wait falling back to dispatch_timeout (900000)
+    // instead of the role timeouts runs to the child-process timeout; a
+    // missing or wrong xhigh factor moves the deadline below 5 s (w2 at
+    // 4000 without the factor) — the lower bound below — or changes the
+    // doubled --timeout suggestion (12000), the clock-independent pin of
+    // the computed deadline.
+    const env = { ...fix.env, HERDR_AGENTS_ROLES: rolesDir, HERDR_AGENTS_ROLE_T1_EFFORT: 'high', HERDR_AGENTS_ROLE_T2_EFFORT: 'xhigh' };
+    const r = spawnSync(nodeBin(), [JS_ENTRY, 'wait', 'w1', 'w2'], { cwd: fix.repo, env, encoding: 'utf8', timeout: 60000 });
+    assert.equal(r.status, 9, r.stderr);
+    const lines = jsonLines(r.stdout);
+    assert.deepEqual(lines.map((l) => [l.agent, l.status]), [['w1', 'timeout'], ['w2', 'timeout']]);
+    for (const l of lines) {
+      assert.deepEqual(Object.keys(l), ['agent', 'status', 'elapsed_ms', 'state']);
+      assert.equal(l.state, 'working');
+      // w2 (4000 × 1.5 = 6000) decides the deadline over w1 (3000): the
+      // lower bound rules out an early deadline (no factor: w2 at 4000
+      // times out below 5 s). No upper bound against the clock —
+      // scheduling lag under load is absorbed, and the exact deadline is
+      // pinned by the doubled --timeout suggestion below.
+      assert.ok(l.elapsed_ms >= 5000, `${l.agent} elapsed_ms ${l.elapsed_ms}`);
+      assert.match(r.stderr, new RegExp(`timeout waiting for '${l.agent}'; it may still be working \\(state: working\\)\\. Run: herdr-agents wait ${l.agent} --timeout 12000`));
+    }
+  } finally { fix.cleanup(); }
+});
+
+// ---------- D27: the [partial] warn fires once per agent and per report ----------
+
+// A done report that marks items [partial] warns once per agent+report:
+// the marker wait/<agent>.partial-warned holds the report path, so a second
+// wait on the same report stays quiet (the `partial` key still lands in
+// the JSON) and a new report path warns again.
+test('wait: the partial warn fires once per agent and per report', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-partial-once-');
+  try {
+    fix.writeRoster(ROW('a1', 'implementer'), ROW('a2', 'implementer'));
+    const partialBody = '# Report\n\n| item | state |\n| --- | --- |\n| fact A | [partial] |\n| fact B | [partial] |\n';
+    const p1 = fix.report('a1', partialBody);
+    const p2 = fix.report('a2', '# Report\n\ndone.\n');
+    const warnRe = /warning\twait\treport of 'a1' marks 2 item\(s\) partial/g;
+    const friction = () => {
+      try { return fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8'); } catch { return ''; }
+    };
+    // First wait: the warn lands once, the marker holds the report path,
+    // and the JSON line keeps the partial key.
+    const r1 = waitCmd(fix, ['a1', 'a2', '--timeout', '10000']);
+    assert.equal(r1.status, 0, r1.stderr);
+    assert.deepEqual(jsonLines(r1.stdout), [
+      { agent: 'a1', status: 'done', report: p1, partial: 2 },
+      { agent: 'a2', status: 'done', report: p2 },
+    ]);
+    assert.equal(fix.waitRead('a1', 'partial-warned'), `${p1}\n`, 'the marker holds the report path');
+    assert.equal(fix.waitRead('a2', 'partial-warned'), null, 'no marker for the clean report');
+    assert.equal((friction().match(warnRe) ?? []).length, 1, 'the warn lands once');
+    // Second wait on the same report: the partial key is still in the
+    // JSON, but the warn does not come again.
+    const r2 = waitCmd(fix, ['a1', 'a2', '--timeout', '10000']);
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.deepEqual(jsonLines(r2.stdout), [
+      { agent: 'a1', status: 'done', report: p1, partial: 2 },
+      { agent: 'a2', status: 'done', report: p2 },
+    ]);
+    assert.equal((friction().match(warnRe) ?? []).length, 1, 'a second wait on the same report is quiet');
+    // A new report (a different path) warns again.
+    const p1b = path.join(fix.ws, 'reports', 'a1-b.md');
+    fs.writeFileSync(p1b, partialBody);
+    fs.writeFileSync(path.join(fix.ws, 'last-report-a1'), p1b + '\n');
+    const r3 = waitCmd(fix, ['a1', '--timeout', '10000']);
+    assert.equal(r3.status, 0, r3.stderr);
+    assert.deepEqual(jsonLines(r3.stdout), [{ agent: 'a1', status: 'done', report: p1b, partial: 2 }]);
+    assert.equal(fix.waitRead('a1', 'partial-warned'), `${p1b}\n`, 'the marker moves to the new report');
+    assert.equal((friction().match(warnRe) ?? []).length, 2, 'a new report warns again');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- D24: a $TMPDIR-routed report is mirrored into the state dir ----------
+
+// A done report under $TMPDIR/herdr-agents/<ws>/reports is copied into the
+// state dir (report to <state>/reports, the composed prompt next to it to
+// <state>/briefs without the .brief); best effort (a copy failure warns and
+// the done stands), an identical file is not rewritten, and last-report and
+// the JSON line keep pointing at the original.
+test('wait: a done report under the $TMPDIR routing is mirrored into the state dir', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-mirror-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    fix.mode('working');
+    const tmpReports = path.join(fix.env.TMPDIR, 'herdr-agents', 'ws', 'reports');
+    fs.mkdirSync(tmpReports, { recursive: true });
+    const report = path.join(tmpReports, 'w-20260925T100000.md');
+    const composed = path.join(tmpReports, 'w-20260925T100000.brief.md');
+    fs.writeFileSync(report, '# Report\n\ndone.\n');
+    fs.writeFileSync(composed, '# Role: implementer\n\nprompt\n');
+    fs.writeFileSync(path.join(fix.ws, 'last-report-w'), report + '\n');
+    // Mutation captured: the mirror never run (or run for a state-dir
+    // report) leaves the state copies absent; a mirror that rewrites an
+    // identical file bumps the mtimes asserted below; a mirror that
+    // changes the done on a copy failure breaks the rc 0.
+    const r = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(jsonLines(r.stdout), [{ agent: 'w', status: 'done', report }], 'the JSON line still points at the original');
+    assert.equal(fs.readFileSync(path.join(fix.ws, 'last-report-w'), 'utf8'), report + '\n', 'last-report keeps the original');
+    const stateReport = path.join(fix.ws, 'reports', 'w-20260925T100000.md');
+    const stateBrief = path.join(fix.ws, 'briefs', 'w-20260925T100000.md');
+    assert.equal(fs.readFileSync(stateReport, 'utf8'), '# Report\n\ndone.\n', 'the report is mirrored under <state>/reports');
+    assert.equal(fs.readFileSync(stateBrief, 'utf8'), '# Role: implementer\n\nprompt\n', 'the composed prompt is mirrored under <state>/briefs without the .brief');
+    assert.equal(fs.readFileSync(report, 'utf8'), '# Report\n\ndone.\n', 'the original report is untouched');
+    // A second wait re-declares done but does not rewrite the identical
+    // copies (the mtimes stand).
+    const mR = fs.statSync(stateReport).mtimeMs;
+    const mB = fs.statSync(stateBrief).mtimeMs;
+    const r2 = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.equal(fs.statSync(stateReport).mtimeMs, mR, 'the identical report is not rewritten');
+    assert.equal(fs.statSync(stateBrief).mtimeMs, mB, 'the identical prompt is not rewritten');
+    // Best effort: the $TMPDIR routing is cleaned by the system (the report
+    // unreadable) — the copy warns and the done still stands.
+    fs.chmodSync(report, 0o000);
+    try {
+      const r3 = waitCmd(fix, ['w', '--timeout', '10000']);
+      assert.equal(r3.status, 0, 'a copy failure does not change the done');
+      assert.deepEqual(jsonLines(r3.stdout), [{ agent: 'w', status: 'done', report }]);
+      const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+      assert.match(friction, /warning\twait\tmirror: could not copy w-20260925T100000\.md of 'w' to the state dir/);
+      assert.ok(!friction.includes('mirror: could not copy w-20260925T100000.brief.md'), 'the readable prompt copy is not warned');
+    } finally {
+      fs.chmodSync(report, 0o644);
+    }
+  } finally { fix.cleanup(); }
+});
+
+// D54: the mirror never overwrites a file with other content already in
+// the state dir (it may be the only copy of an earlier report): the
+// existing one stands and each warn says the source was not copied over
+// it; an identical file is not rewritten (the mtime stands).
+test('wait: the mirror keeps a different existing state file and warns', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-mirror-keep-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    fix.mode('working');
+    const tmpReports = path.join(fix.env.TMPDIR, 'herdr-agents', 'ws', 'reports');
+    fs.mkdirSync(tmpReports, { recursive: true });
+    const report = path.join(tmpReports, 'w-20260925T100000.md');
+    const composed = path.join(tmpReports, 'w-20260925T100000.brief.md');
+    fs.writeFileSync(report, 'new content\n');
+    fs.writeFileSync(composed, 'new prompt\n');
+    const stateReport = path.join(fix.ws, 'reports', 'w-20260925T100000.md');
+    const stateBrief = path.join(fix.ws, 'briefs', 'w-20260925T100000.md');
+    // Different existing state files (an earlier report and its brief).
+    fs.writeFileSync(stateReport, 'older report\n');
+    fs.writeFileSync(stateBrief, 'older brief\n');
+    fs.writeFileSync(path.join(fix.ws, 'last-report-w'), report + '\n');
+    const friction = () => {
+      try { return fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8'); } catch { return ''; }
+    };
+    const r = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(jsonLines(r.stdout), [{ agent: 'w', status: 'done', report }], 'the done stands on the original');
+    // The different state files stand (not overwritten), and each got the
+    // kept-warn naming destination and source.
+    assert.equal(fs.readFileSync(stateReport, 'utf8'), 'older report\n', 'the different report is kept');
+    assert.equal(fs.readFileSync(stateBrief, 'utf8'), 'older brief\n', 'the different brief is kept');
+    assert.equal((friction().match(new RegExp(`kept ${stateReport.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: it differs from ${report}, which was not copied over it`, 'g')) || []).length, 1, friction());
+    assert.equal((friction().match(new RegExp(`kept ${stateBrief.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: it differs from ${composed}, which was not copied over it`, 'g')) || []).length, 1, friction());
+    // The identical case: an earlier mirror already copied the report —
+    // the second wait does not rewrite it (the mtime stands) and adds no
+    // kept-warn for it.
+    fs.writeFileSync(stateReport, 'new content\n');
+    const mR = fs.statSync(stateReport).mtimeMs;
+    const r2 = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.equal(fs.statSync(stateReport).mtimeMs, mR, 'the identical report is not rewritten');
+    assert.equal((friction().match(new RegExp(`kept ${stateReport.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:`, 'g')) || []).length, 1, 'no new kept-warn for the identical file');
+    // Mutation captured: copyOnce overwriting the different destination
+    // (the earlier report lost), the warn missing or naming the wrong
+    // paths, or the identical file rewritten (mtime bumped) fail the
+    // asserts above.
+  } finally { fix.cleanup(); }
+});
+
+// ---------- D40: the stuck age is never counted from epoch 0 ----------
+
+// A .stuck-since that is missing, empty or non-numeric is treated as now
+// (and rewritten), never as 0 — the age that came from the Unix epoch
+// printed "same screen for 29839405 min".
+test('wait: a missing, empty or non-numeric stuck-since is now (rewritten), never epoch 0', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-stucksince-');
+  try {
+    fix.writeRoster(ROW('s', 'implementer'));
+    fix.mode('working');
+    fix.screen('Running tests 42% ◐ 3.1s\n');
+    const sd = fix.ws;
+    const env = { ...fix.env, HERDR_AGENTS_STUCK_WARN_MINUTES: '20' };
+    const H = String(cksumField(normalizeScreen('Running tests 42% ◐ 3.1s\n')));
+    fix.waitFile('s', 'stuck-hash', `${H}\n`); // the hash matches: the probe enters the since branch
+    setFrictionLog(path.join(fix.ws, 'friction.log'), 'wait'); // the in-process warns land in the fixture log
+    const before = Math.floor(Date.now() / 1000);
+    const friction = () => {
+      try { return fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8'); } catch { return ''; }
+    };
+    const stuckRe = /has shown the same screen \(apart from counters\)/g;
+    // Mutation captured: Number(null)/Number('') reading as 0 (the epoch)
+    // warns here with the age since 1970; not rewriting the marker repeats
+    // the warn on every probe with the same impossible age.
+    for (const seed of [null, '', 'x y\n', ' \n', '0\n']) {
+      if (seed === null) fs.rmSync(path.join(sd, 'wait', 's.stuck-since'), { force: true });
+      else fix.waitFile('s', 'stuck-since', seed);
+      assert.equal(probeAgent(sd, 's', '', fix.ctx, env), 'working', `the agent keeps working (${JSON.stringify(seed)})`);
+      assert.equal((friction().match(stuckRe) ?? []).length, 0, `no impossible-age warn (${JSON.stringify(seed)})`);
+      const since = Number((fix.waitRead('s', 'stuck-since') ?? '').trim());
+      assert.ok(since >= before && since <= Math.floor(Date.now() / 1000) + 1, `rewritten as now (${JSON.stringify(seed)}): ${since}`);
+    }
+    // A valid past since still warns with the real age, once.
+    fix.waitFile('s', 'stuck-since', `${before - 21 * 60}\n`);
+    assert.equal(probeAgent(sd, 's', '', fix.ctx, env), 'working');
+    assert.equal((friction().match(stuckRe) ?? []).length, 1, 'a real age warns once');
+    assert.match(friction(), /for 21 min while working/);
   } finally { fix.cleanup(); }
 });

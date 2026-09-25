@@ -215,7 +215,9 @@ notify=off
 # lane, a lane session is shared by every role in it, and only
 # lane.<name>.args applies (to every worker of the lane). Both are appended
 # after args.<kind>, before the native args given after `--` to spawn.
-# Example: role.scouter.args=-c a=b
+# They reach a worker only when the spawn runs the kind configured for that role
+# or lane (a --kind flag to another kind drops them): CLI flags differ, and a
+# codex `-c` is `--continue` to claude. Example: role.scouter.args=-c a=b
 # role.scouter.args=
 # lane.build.args=
 

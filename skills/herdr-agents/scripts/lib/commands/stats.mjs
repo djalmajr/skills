@@ -73,9 +73,13 @@ function parseSince(value) {
 }
 
 // Every dispatch pair of the workspace: the state-dir briefs and the
-// $TMPDIR routing (where the prompt and its report sit together).
+// $TMPDIR routing (where the prompt and its report sit together). Once the
+// wait has mirrored a tmp pair into the state dir, both scans see the same
+// <agent>-<ts> pair: it is counted once, the state-dir copy (scanned first)
+// wins over the $TMPDIR original.
 function collectPrompts(sd, tmpDir) {
   const pairs = [];
+  const seen = new Set();
   const scan = (dir, kind) => {
     let entries = [];
     try { entries = fs.readdirSync(dir); } catch { return; } // absent dir
@@ -84,6 +88,9 @@ function collectPrompts(sd, tmpDir) {
       const base = kind === 'tmp' ? f.slice(0, -'.brief.md'.length) : f.slice(0, -'.md'.length);
       const m = PAIR_RE.exec(base);
       if (!m) continue;
+      const key = `${m[1]}\t${m[2]}\t${m[3] ?? ''}`;
+      if (seen.has(key)) continue; // the mirrored pair: the state-dir copy wins
+      seen.add(key);
       let promptM = 0;
       try { promptM = fs.statSync(path.join(dir, f)).mtimeMs; } catch { continue; }
       pairs.push({

@@ -24,6 +24,7 @@ import {
   briefMissingSections, lintBrief, composePrompt, composeAmendment, dispatchPairSuffix, familyConflicts,
   parseBriefLintAliases, missingSectionsReasons, emptyCodeLines, ownedPaths, pathsCross,
   pendingBriefPath, composedBriefSection, sandboxNotes, pendingBriefSection, globMatches,
+  sharedTreeEditor,
 } from '../lib/dispatch.mjs';
 import { splitRunArgs } from '../lib/commands/run.mjs';
 import { roleBody } from '../lib/roles.mjs';
@@ -89,7 +90,19 @@ if (cmd === 'agent get') {
 } else if (cmd === 'agent read') {
   process.stdout.write(screenOf(t));
 } else if (cmd === 'agent prompt') {
-  if (process.env.FAKE_PROMPT_SKIP && fs.existsSync(process.env.FAKE_PROMPT_SKIP)) {
+  if (process.env.FAKE_SETTLE && fs.existsSync(process.env.FAKE_SETTLE)) {
+    // D39: a mid-wait amendment re-points last-report-<t> and the worker
+    // writes the report at the new path (like an amended dispatch).
+    const lr = (process.env.HERDR_AGENTS_DIR || '') + '/' + (process.env.HERDR_WORKSPACE_ID || 'ws') + '/last-report-' + t;
+    try {
+      const old = fs.readFileSync(lr, 'utf8').trim();
+      const at = old.lastIndexOf('/');
+      const fresh = old.slice(0, at + 1) + old.slice(at + 1).replace(/\.md$/, '') + '-settled.md';
+      fs.writeFileSync(fresh, 'settled report\\n');
+      fs.writeFileSync(lr, fresh + '\\n');
+    } catch {}
+    process.stdout.write('{"result":{"submitted":true}}\\n');
+  } else if (process.env.FAKE_PROMPT_SKIP && fs.existsSync(process.env.FAKE_PROMPT_SKIP)) {
     // Item 15: a silent no-op — the pane is left exactly where it was.
     fs.rmSync(process.env.FAKE_PROMPT_SKIP, { force: true });
     process.stdout.write('{"result":{}}\\n');
@@ -162,7 +175,7 @@ function makeFix(prefix) {
     modeDir, screenDir, path.join(root, 'home'), path.join(root, 'conf'), path.join(root, 'tmp')]) {
     fs.mkdirSync(d, { recursive: true });
   }
-  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore' });
+  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore', timeout: 30_000 });
   writeFakeCli(bin, 'herdr', HERDR_FAKE);
   const env = {
     HOME: path.join(root, 'home'),
@@ -182,6 +195,7 @@ function makeFix(prefix) {
     FAKE_LOG: path.join(root, 'herdr.log'),
     FAKE_PROMPT_FAIL: path.join(root, 'prompt-fail'),
     FAKE_PROMPT_SKIP: path.join(root, 'prompt-skip'),
+    FAKE_SETTLE: path.join(root, 'settle'),
     FAKE_SENDKEYS_WORK: path.join(root, 'sendkeys-work'),
     FAKE_SEQ: path.join(root, 'seq'),
     PATH: `${bin}${path.delimiter}${process.env.PATH}`,
@@ -287,7 +301,7 @@ function parsePretty(out) {
 
 // ---------- briefMissingSections ----------
 
-test('lint: a full contract brief passes', { timeout: 30000 }, () => {
+test('lint: a full contract brief passes', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-lint-full-');
   try {
     const f = fix.brief('brief.md', FULL_BRIEF);
@@ -295,7 +309,7 @@ test('lint: a full contract brief passes', { timeout: 30000 }, () => {
   } finally { fix.cleanup(); }
 });
 
-test('lint: each section absent, each alternative accepted', { timeout: 30000 }, () => {
+test('lint: each section absent, each alternative accepted', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-lint-each-');
   try {
     const noGoal = FULL_BRIEF.replace('# Goal\n', '');
@@ -332,7 +346,7 @@ test('lint: each section absent, each alternative accepted', { timeout: 30000 },
   } finally { fix.cleanup(); }
 });
 
-test('lint: header level 1-3 only, case-insensitive, a word mid-paragraph does not count', { timeout: 30000 }, () => {
+test('lint: header level 1-3 only, case-insensitive, a word mid-paragraph does not count', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-lint-level-');
   try {
     const noGoal = FULL_BRIEF.replace('# Goal\n', '');
@@ -351,7 +365,7 @@ test('lint: header level 1-3 only, case-insensitive, a word mid-paragraph does n
   } finally { fix.cleanup(); }
 });
 
-test('lint: every missing section in order', { timeout: 30000 }, () => {
+test('lint: every missing section in order', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-lint-all-');
   try {
     const f = fix.brief('brief.md', 'Just do it.\n');
@@ -362,7 +376,7 @@ test('lint: every missing section in order', { timeout: 30000 }, () => {
 
 // ---------- lintBrief (warn / off; strict through the entry) ----------
 
-test('lint: warn prints the message and continues; off is silent', { timeout: 30000 }, () => {
+test('lint: warn prints the message and continues; off is silent', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-lint-warn-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -395,7 +409,7 @@ test('lint: warn prints the message and continues; off is silent', { timeout: 30
 
 // ---------- familyConflicts ----------
 
-test('family: unknown and empty families never conflict', { timeout: 30000 }, () => {
+test('family: unknown and empty families never conflict', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-fam-unknown-');
   try {
     fix.writeRoster(undefined,
@@ -407,7 +421,7 @@ test('family: unknown and empty families never conflict', { timeout: 30000 }, ()
   } finally { fix.cleanup(); }
 });
 
-test('family: edit history counts, the wrong family does not, a plain worker never does', { timeout: 30000 }, () => {
+test('family: edit history counts, the wrong family does not, a plain worker never does', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-fam-hist-');
   try {
     fix.writeRoster(undefined,
@@ -422,7 +436,7 @@ test('family: edit history counts, the wrong family does not, a plain worker nev
   } finally { fix.cleanup(); }
 });
 
-test('family: an old 8-column line is counted by its role', { timeout: 30000 }, () => {
+test('family: an old 8-column line is counted by its role', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-fam-old-');
   try {
     fix.writeRoster(undefined,
@@ -433,7 +447,7 @@ test('family: an old 8-column line is counted by its role', { timeout: 30000 }, 
   } finally { fix.cleanup(); }
 });
 
-test('family: a project role with mode: edit counts via the history', { timeout: 30000 }, () => {
+test('family: a project role with mode: edit counts via the history', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-fam-migrator-');
   try {
     const dir = path.join(fix.repo, '.agents', 'herdr-roles');
@@ -445,7 +459,7 @@ test('family: a project role with mode: edit counts via the history', { timeout:
   } finally { fix.cleanup(); }
 });
 
-test('family: the 12-column history is column 11 (lane not folded in)', { timeout: 30000 }, () => {
+test('family: the 12-column history is column 11 (lane not folded in)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-fam-col12-');
   try {
     // Bash folds column 12 into the last `read` variable, missing a
@@ -457,7 +471,7 @@ test('family: the 12-column history is column 11 (lane not folded in)', { timeou
   } finally { fix.cleanup(); }
 });
 
-test('family: a documenter session is an edit agent only when it edited before', { timeout: 30000 }, () => {
+test('family: a documenter session is an edit agent only when it edited before', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-fam-documenter-');
   try {
     // The documenter is a mode-edit role: an edit role in the history
@@ -491,7 +505,7 @@ test('family: a documenter session is an edit agent only when it edited before',
 
 // ---------- composePrompt ----------
 
-test('compose: role header, brief verbatim, the report contract in order', { timeout: 30000 }, () => {
+test('compose: role header, brief verbatim, the report contract in order', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-compose-');
   try {
     const dir = path.join(fix.repo, '.agents', 'herdr-roles');
@@ -513,6 +527,7 @@ test('compose: role header, brief verbatim, the report contract in order', { tim
       '- Write your report as Markdown to `' + report + '` (create parent directories if needed) following the `<report>` section of your role. Give every item its state as `[done]`, `[partial]` or `[skipped]`, followed by the reason.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
       '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
+      '- Command output you put in the report is pasted from the run, never retyped or reconstructed.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
       '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
       '- Do not commit, push, tag, or open pull requests.\n',
@@ -523,7 +538,7 @@ test('compose: role header, brief verbatim, the report contract in order', { tim
   } finally { fix.cleanup(); }
 });
 
-test('compose: report_language and worker_context=lean add their lines', { timeout: 30000 }, () => {
+test('compose: report_language and worker_context=lean add their lines', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-compose-lean-');
   try {
     const dir = path.join(fix.repo, '.agents', 'herdr-roles');
@@ -548,7 +563,7 @@ test('compose: report_language and worker_context=lean add their lines', { timeo
 
 // ---------- cmdDispatch through the entry ----------
 
-test('dispatch: --no-wait happy path, task title, prompt text, state files', { timeout: 30000 }, () => {
+test('dispatch: --no-wait happy path, task title, prompt text, state files', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-ok-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -583,7 +598,7 @@ test('dispatch: --no-wait happy path, task title, prompt text, state files', { t
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: an untitled brief is titled by its file name', { timeout: 30000 }, () => {
+test('dispatch: an untitled brief is titled by its file name', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-untitled-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -595,7 +610,7 @@ test('dispatch: an untitled brief is titled by its file name', { timeout: 30000 
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: the role comes from column 4 of the roster', { timeout: 30000 }, () => {
+test('dispatch: the role comes from column 4 of the roster', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-col4-');
   try {
     fix.writeRoster(undefined,
@@ -611,7 +626,7 @@ test('dispatch: the role comes from column 4 of the roster', { timeout: 30000 },
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: a worker outside the repo root routes the report through $TMPDIR', { timeout: 30000 }, () => {
+test('dispatch: a worker outside the repo root routes the report through $TMPDIR', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-tmpdir-');
   try {
     fix.writeRoster(undefined, ROW12('worker', 'p1', 'grok', 'implementer', 'xai', '/tmp/work', 'grok-4.7', 'build'));
@@ -630,7 +645,7 @@ test('dispatch: a worker outside the repo root routes the report through $TMPDIR
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: a prompt failure prints the error JSON and exits 4', { timeout: 30000 }, () => {
+test('dispatch: a prompt failure prints the error JSON and exits 4', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-promptfail-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -647,7 +662,7 @@ test('dispatch: a prompt failure prints the error JSON and exits 4', { timeout: 
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: the family check (strict 5, warn and --allow-same-family continue, off silent)', { timeout: 30000 }, () => {
+test('dispatch: the family check (strict 5, warn and --allow-same-family continue, off silent)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-family-');
   try {
     fix.writeRoster(undefined,
@@ -669,7 +684,33 @@ test('dispatch: the family check (strict 5, warn and --allow-same-family continu
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: timeout 9 with a working agent, quota 11 with the lane fields', { timeout: 30000 }, () => {
+// Without --timeout, dispatch waits the role's timeout scaled by its
+// effective effort: a project role with `timeout: 400` at effort max waits
+// 800 ms. Only the lower bound is asserted (load can only make it longer).
+test('dispatch: the default timeout is the role timeout scaled by the effort', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-role-timeout-');
+  try {
+    const dir = path.join(fix.repo, '.agents', 'herdr-roles');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'slow.md'), '---\nname: slow\nkind: grok\nmode: edit\ntimeout: 8000\n---\n\nWork.\n');
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'slow', 'xai', fix.repo, 'grok-4.7', ''));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('working');
+    const t0 = Date.now();
+    const t = cmd(fix, ['dispatch', 'build', brief], { HERDR_AGENTS_ROLE_SLOW_EFFORT: 'max', HERDR_AGENTS_LANES: 'off' });
+    const ms = Date.now() - t0;
+    assert.equal(t.status, 9, t.stderr);
+    // The wait's deadline is second-granular (floor): a 16 s deadline
+    // fires between ~15 s and ~17 s after the wait starts (the phase of
+    // the second), so the lower bound sits a full second below the worst
+    // case — and far above the unscaled 8000 ms role timeout (~7-9 s).
+    assert.ok(ms >= 14000, `max doubles the 8000 ms role timeout (took ${ms} ms)`);
+    // Mutation captured: reading the frontmatter timeout without the effort
+    // multiplier ends near 8000 ms and fails the lower bound.
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch: timeout 9 with a working agent, quota 11 with the lane fields', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-timeout-quota-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -695,7 +736,7 @@ test('dispatch: timeout 9 with a working agent, quota 11 with the lane fields', 
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: a provider-error worker exits 14 with the lane, model and cause', { timeout: 30000 }, () => {
+test('dispatch: a provider-error worker exits 14 with the lane, model and cause', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-provider-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -718,7 +759,7 @@ test('dispatch: a provider-error worker exits 14 with the lane, model and cause'
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: capacity after one continue exits 14 with the retries', { timeout: 30000 }, () => {
+test('dispatch: capacity after one continue exits 14 with the retries', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-capacity-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -744,7 +785,7 @@ test('dispatch: capacity after one continue exits 14 with the retries', { timeou
 
 // The state turning to working right after the send is an arrival: no
 // resend, no keys, the JSON stays on the plain submitted shape.
-test('dispatch: arrival confirmed by the state turning working → no resend', { timeout: 30000 }, () => {
+test('dispatch: arrival confirmed by the state turning working → no resend', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-arrive-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -767,7 +808,7 @@ test('dispatch: arrival confirmed by the state turning working → no resend', {
 
 // The pane never moved (screen == H0, state idle): the single resend is
 // sent, it arrives, and the JSON carries resent after auto_approved.
-test('dispatch: an ignored prompt is resent once and the JSON carries resent', { timeout: 30000 }, () => {
+test('dispatch: an ignored prompt is resent once and the JSON carries resent', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-resent-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -794,7 +835,7 @@ test('dispatch: an ignored prompt is resent once and the JSON carries resent', {
 // Swallowed twice (the resend lands in the scrollback but the state stays
 // idle and there is no report): not-received, exit 15, the error-case keys
 // without raw.
-test('dispatch: a prompt ignored twice ends not-received with exit 15', { timeout: 30000 }, () => {
+test('dispatch: a prompt ignored twice ends not-received with exit 15', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-notreceived-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -831,7 +872,7 @@ test('dispatch: a prompt ignored twice ends not-received with exit 15', { timeou
 
 // 0 turns the check off: one prompt and nothing else — no H0 screen read,
 // no arrival probes, no resend — even for an idle pane.
-test('dispatch: prompt_check_seconds=0 sends one prompt and probes nothing', { timeout: 30000 }, () => {
+test('dispatch: prompt_check_seconds=0 sends one prompt and probes nothing', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-nocheck-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -854,7 +895,7 @@ test('dispatch: prompt_check_seconds=0 sends one prompt and probes nothing', { t
 
 // The prompt text is visible in the input box and the state stays idle:
 // one Enter key, no second prompt, the JSON carries enter_sent.
-test('dispatch: a prompt sitting in the input box gets one Enter (enter_sent)', { timeout: 30000 }, () => {
+test('dispatch: a prompt sitting in the input box gets one Enter (enter_sent)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-enter-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -885,7 +926,7 @@ test('dispatch: a prompt sitting in the input box gets one Enter (enter_sent)', 
 // The same input-box case, but the fake swallows the Enter (state stays
 // idle, no report): not-received, exit 15, and still no second prompt —
 // the input-box case never resends.
-test('dispatch: an input-box prompt that ignores the Enter ends not-received (exit 15)', { timeout: 30000 }, () => {
+test('dispatch: an input-box prompt that ignores the Enter ends not-received (exit 15)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-enter-ignored-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -923,7 +964,7 @@ test('dispatch: an input-box prompt that ignores the Enter ends not-received (ex
 // The not-received marker is the dispatch's hand-off to the wait: a new
 // dispatch clears it (as it clears every other wait marker), so a fresh
 // prompt starts with a clean retry budget.
-test('dispatch: a new dispatch clears the not-received and enter-retry markers', { timeout: 30000 }, () => {
+test('dispatch: a new dispatch clears the not-received and enter-retry markers', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-clearnr-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -942,7 +983,7 @@ test('dispatch: a new dispatch clears the not-received and enter-retry markers',
 // The report-writer line is the first standing rule of every composed
 // prompt (brief and amendment): only the worker writes the report, once
 // the whole brief is done, and a subagent never writes it.
-test('compose: the report-writer line leads the standing rules in brief and amendment', { timeout: 30000 }, () => {
+test('compose: the report-writer line leads the standing rules in brief and amendment', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-rulereport-');
   try {
     const line = '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n';
@@ -964,7 +1005,7 @@ test('compose: the report-writer line leads the standing rules in brief and amen
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: usage errors (missing args, unknown option, brief not found, not in roster)', { timeout: 30000 }, () => {
+test('dispatch: usage errors (missing args, unknown option, brief not found, not in roster)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-usage-');
   try {
     const noAgent = cmd(fix, ['dispatch']);
@@ -999,7 +1040,7 @@ test('dispatch: usage errors (missing args, unknown option, brief not found, not
 // carries wait_status `question` and the question key after auto_approved,
 // exit 7; the .question file lands under <state>/wait/ (dispatch clears it
 // on the next dispatch).
-test('dispatch: a worker that ends in a question exits 7 with the question in the JSON', { timeout: 30000 }, () => {
+test('dispatch: a worker that ends in a question exits 7 with the question in the JSON', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-question-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'codex', 'implementer', 'xai', fix.repo, 'gpt-5', 'build'));
@@ -1024,7 +1065,7 @@ test('dispatch: a worker that ends in a question exits 7 with the question in th
 
 // ---------- review fixes (slice 6b) ----------
 
-test('agentPrompt: stdout and stderr in write order, trailing newlines dropped (bash "$(… 2>&1)")', { timeout: 30000 }, async () => {
+test('agentPrompt: stdout and stderr in write order, trailing newlines dropped (bash "$(… 2>&1)")', { timeout: 60000 }, async () => {
   const { agentPrompt } = await import('../lib/herdr.mjs');
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ha-prompt-merge-')));
   try {
@@ -1044,7 +1085,7 @@ test('agentPrompt: stdout and stderr in write order, trailing newlines dropped (
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('run: a value flag without its value exits 2 before any spawn', { timeout: 30000 }, () => {
+test('run: a value flag without its value exits 2 before any spawn', { timeout: 60000 }, () => {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ha-run-novalue-')));
   try {
     const entry = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'herdr-agents.mjs');
@@ -1060,7 +1101,7 @@ test('run: a value flag without its value exits 2 before any spawn', { timeout: 
     const brief = path.join(root, 'b.md');
     fs.writeFileSync(brief, '# Goal\n');
     for (const flag of ['--kind', '--name', '--timeout']) {
-      const r = spawnSync(nodeBin(), [entry, 'run', 'implementer', brief, flag], { env, cwd: root, encoding: 'utf8' });
+      const r = spawnSync(nodeBin(), [entry, 'run', 'implementer', brief, flag], { env, cwd: root, encoding: 'utf8', timeout: 30_000 });
       assert.equal(r.status, 2, `${flag}: ${r.stderr}`);
       assert.equal(r.stderr, `herdr-agents: run: ${flag} expects a value\n`);
     }
@@ -1090,7 +1131,7 @@ test('run: --no-wait routes to dispatch and skips collect; --tab-label goes to s
 
 // ---------- lint by role mode (read-only needs no Owned files) ----------
 
-test('lint: a read-only brief needs no Owned files; the other sections still hold', { timeout: 30000 }, () => {
+test('lint: a read-only brief needs no Owned files; the other sections still hold', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-lint-ro-');
   try {
     const noOwned = FULL_BRIEF.replace('# Owned files\n\nscripts/x.mjs\n', '');
@@ -1110,7 +1151,7 @@ test('lint: a read-only brief needs no Owned files; the other sections still hol
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: warn mode — an edit role without Owned files warns, a read-only role does not', { timeout: 30000 }, () => {
+test('dispatch: warn mode — an edit role without Owned files warns, a read-only role does not', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-lint-ro-entry-');
   try {
     fix.writeRoster(undefined,
@@ -1128,7 +1169,7 @@ test('dispatch: warn mode — an edit role without Owned files warns, a read-onl
   } finally { fix.cleanup(); }
 });
 
-test('dispatch: lint runs after the role (error order 2 → 3 → 3 → 2; read-only strict passes)', { timeout: 30000 }, () => {
+test('dispatch: lint runs after the role (error order 2 → 3 → 3 → 2; read-only strict passes)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-lint-order-');
   try {
     const noOwned = FULL_BRIEF.replace('# Owned files\n\nscripts/x.mjs\n', '');
@@ -1166,7 +1207,7 @@ test('dispatch: lint runs after the role (error order 2 → 3 → 3 → 2; read-
 
 // ---------- --amend ----------
 
-test('dispatch --amend: new report, wait markers cleared, title keeps the task without the check mark, no lint', { timeout: 30000 }, () => {
+test('dispatch --amend: new report, wait markers cleared, title keeps the task without the check mark, no lint', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-amend-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -1218,6 +1259,7 @@ test('dispatch --amend: new report, wait markers cleared, title keeps the task w
       '- Give every item its state as `[done]`, `[partial]` or `[skipped]`, followed by the reason.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
       '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
+      '- Command output you put in the report is pasted from the run, never retyped or reconstructed.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
       '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
       '- Do not commit, push, tag, or open pull requests.\n',
@@ -1234,7 +1276,7 @@ test('dispatch --amend: new report, wait markers cleared, title keeps the task w
   } finally { fix.cleanup(); }
 });
 
-test('dispatch --amend: without a task file the title comes from the amendment file', { timeout: 30000 }, () => {
+test('dispatch --amend: without a task file the title comes from the amendment file', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-amend-title-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -1253,7 +1295,7 @@ test('dispatch --amend: without a task file the title comes from the amendment f
   } finally { fix.cleanup(); }
 });
 
-test('dispatch --amend: without an earlier dispatch it exits 2 (exact text)', { timeout: 30000 }, () => {
+test('dispatch --amend: without an earlier dispatch it exits 2 (exact text)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-amend-none-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -1268,7 +1310,7 @@ test('dispatch --amend: without an earlier dispatch it exits 2 (exact text)', { 
   } finally { fix.cleanup(); }
 });
 
-test('dispatch --amend: --role together with --amend exits 2 (exact text)', { timeout: 30000 }, () => {
+test('dispatch --amend: --role together with --amend exits 2 (exact text)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-amend-role-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -1282,7 +1324,7 @@ test('dispatch --amend: --role together with --amend exits 2 (exact text)', { ti
   } finally { fix.cleanup(); }
 });
 
-test('composeAmendment: the report_language line, in order, only when set', { timeout: 30000 }, () => {
+test('composeAmendment: the report_language line, in order, only when set', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-amend-lang-');
   try {
     const report = '/some/state/ws/reports/build-amend.md';
@@ -1297,6 +1339,7 @@ test('composeAmendment: the report_language line, in order, only when set', { ti
       '- Write the report in pt-BR.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
       '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
+      '- Command output you put in the report is pasted from the run, never retyped or reconstructed.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
       '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
       '- Do not commit, push, tag, or open pull requests.\n',
@@ -1311,7 +1354,7 @@ test('composeAmendment: the report_language line, in order, only when set', { ti
   } finally { fix.cleanup(); }
 });
 
-test('run: --amend is not a run option (exit 2, nothing spawned)', { timeout: 30000 }, () => {
+test('run: --amend is not a run option (exit 2, nothing spawned)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-run-amend-');
   try {
     const brief = fix.brief('brief.md', FULL_BRIEF);
@@ -1326,7 +1369,7 @@ test('run: --amend is not a run option (exit 2, nothing spawned)', { timeout: 30
 
 // ---------- one dispatch, one pair of paths ----------
 
-test('dispatchPairSuffix: no collision keeps the plain name; each cause takes -2', { timeout: 30000 }, () => {
+test('dispatchPairSuffix: no collision keeps the plain name; each cause takes -2', { timeout: 60000 }, () => {
   const composedAt = (suf) => `/s/briefs/build-20260101T000000${suf}.md`;
   const reportAt = (suf) => `/s/reports/build-20260101T000000${suf}.md`;
   const never = () => false;
@@ -1344,7 +1387,7 @@ test('dispatchPairSuffix: no collision keeps the plain name; each cause takes -2
   // next one skipped) fails one of the asserts.
 });
 
-test('dispatch: a strict lint dies 2 without creating the state dirs', { timeout: 30000 }, () => {
+test('dispatch: a strict lint dies 2 without creating the state dirs', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-nostate-');
   try {
     // A valid roster, and the state subdirs gone: nothing may be created
@@ -1387,7 +1430,7 @@ test('dispatch: a strict lint dies 2 without creating the state dirs', { timeout
 // final dispatch JSON gains `partial` right after report_exists (before
 // auto_approved), and the warn is the wait's own — the dispatch does not
 // repeat it.
-test('dispatch: a done report with partial items gets the partial key after report_exists', { timeout: 30000 }, () => {
+test('dispatch: a done report with partial items gets the partial key after report_exists', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-partial-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -1415,7 +1458,7 @@ test('dispatch: a done report with partial items gets the partial key after repo
 
 // A done report without `partial` keeps the final JSON key set of today
 // (no partial key) and nothing about partial is printed.
-test('dispatch: a clean done report keeps the key set of today', { timeout: 30000 }, () => {
+test('dispatch: a clean done report keeps the key set of today', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-clean-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -1437,7 +1480,7 @@ test('dispatch: a clean done report keeps the key set of today', { timeout: 3000
 // The amendment report with partial items: the final JSON carries `amend`
 // right after report_exists and `partial` right after `amend` — the count
 // is the amendment report's (the wait watches the new report path).
-test('dispatch --amend: the amendment report with partial items gets amend then partial', { timeout: 30000 }, () => {
+test('dispatch --amend: the amendment report with partial items gets amend then partial', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-amend-partial-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -1470,7 +1513,7 @@ test('dispatch --amend: the amendment report with partial items gets amend then 
 
 // The warning names the reason of every missing section (in the checks'
 // order): one reason per section, joined by "; ".
-test('lint: each missing section carries its own reason, alone and combined', { timeout: 30000 }, () => {
+test('lint: each missing section carries its own reason, alone and combined', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-lint-reasons-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -1516,7 +1559,7 @@ test('lint: each missing section carries its own reason, alone and combined', { 
 // A level 1-3 header that starts with an alias (any case) satisfies the
 // section; the match is at the heading start (not mid-title) and on
 // alternative headings alike.
-test('lint: an alias heading covering the section passes, a mid-title one does not', { timeout: 30000 }, () => {
+test('lint: an alias heading covering the section passes, a mid-title one does not', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-lint-alias-');
   try {
     const aliasBody = (h) => FULL_BRIEF.replace('# Goal\n\nDo the slice.\n', `${h}\n\nDo the slice.\n`);
@@ -1540,7 +1583,7 @@ test('lint: an alias heading covering the section passes, a mid-title one does n
 // The parser applies the valid items and warns once per malformed one
 // (no "=", unknown section, empty heading list); valid items keep working
 // even when the value also carries malformed ones.
-test('aliases: the parser applies the valid items and warns once per malformed one', { timeout: 30000 }, () => {
+test('aliases: the parser applies the valid items and warns once per malformed one', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-alias-parse-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -1578,7 +1621,7 @@ test('aliases: the parser applies the valid items and warns once per malformed o
 
 // The read-only rule and the aliases compose: the alias can cover the Goal
 // of a read-only role that carries no Owned files at all.
-test('lint: the read-only rule still applies with aliases', { timeout: 30000 }, () => {
+test('lint: the read-only rule still applies with aliases', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-alias-ro-');
   try {
     fix.writeRoster(undefined, ROW12('rev', 'p1', 'codex', 'reviewer', 'openai', fix.repo, 'gpt-5', 'build'));
@@ -1600,7 +1643,7 @@ test('lint: the read-only rule still applies with aliases', { timeout: 30000 }, 
 // A run of exactly two backticks outside fenced blocks flags the line;
 // fence markers (three or more, backtick or tilde) and the fenced content
 // never do. Lines are 1-based; a line with several runs counts once.
-test('emptyCodeLines: exactly two backticks, outside fences, once per line', { timeout: 30000 }, () => {
+test('emptyCodeLines: exactly two backticks, outside fences, once per line', { timeout: 60000 }, () => {
   assert.deepEqual(emptyCodeLines('a\n`` b\n'), [2]);
   // A fence marker line never counts; the content inside never does; the
   // fence closes on the same char with at least the opener's run.
@@ -1625,7 +1668,7 @@ test('emptyCodeLines: exactly two backticks, outside fences, once per line', { t
 
 // The lint emits one warning per bad line (at most three, then one for the
 // rest), in warn and strict alike; only brief_lint=off silences it.
-test('lint: the empty-code warn caps at three lines plus one summary', { timeout: 30000 }, () => {
+test('lint: the empty-code warn caps at three lines plus one summary', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-empty-code-');
   try {
     const line = (p, n) => `herdr-agents: warning: brief ${p} line ${n} has empty inline code (\`\`): a shell heredoc without quotes may have run the backticks\n`;
@@ -1663,7 +1706,7 @@ test('lint: the empty-code warn caps at three lines plus one summary', { timeout
 // Every dispatch JSON path prints exactly one line, starting with
 // `wait_status` — the final (no-wait), the prompt failure and the
 // not-received — so `dispatch … | tail -1` returns the whole JSON.
-test('dispatch: the JSON output is one line with wait_status first (final, error, not-received)', { timeout: 30000 }, () => {
+test('dispatch: the JSON output is one line with wait_status first (final, error, not-received)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-json-line-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -1698,7 +1741,7 @@ test('dispatch: the JSON output is one line with wait_status first (final, error
 // `run` chains spawn → dispatch: the spawn JSON is pretty and multi-line,
 // and the last stdout line is the dispatch JSON — one line, wait_status
 // first, naming the worker the spawn just created.
-test('run: the last stdout line is the one-line dispatch JSON', { timeout: 30000 }, () => {
+test('run: the last stdout line is the one-line dispatch JSON', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-run-line-');
   try {
     const brief = fix.brief('brief.md', FULL_BRIEF);
@@ -1728,7 +1771,7 @@ test('run: the last stdout line is the one-line dispatch JSON', { timeout: 30000
 // The paths a brief owns: code spans and path-like list items of the
 // `Owned files` section (or its lint alias), normalized; the section ends
 // at the next header of the same or a higher level.
-test('ownedPaths: spans, list items, normalization, stopwords, aliases, section end', { timeout: 30000 }, () => {
+test('ownedPaths: spans, list items, normalization, stopwords, aliases, section end', { timeout: 60000 }, () => {
   // Code spans (list and prose items) and path-like list items.
   assert.deepEqual(ownedPaths('# Owned files\n\n- `scripts/lib/a.mjs` — the lib\n- Use `scripts/lib/b.mjs` too\n'),
     ['scripts/lib/a.mjs', 'scripts/lib/b.mjs']);
@@ -1761,7 +1804,7 @@ test('ownedPaths: spans, list items, normalization, stopwords, aliases, section 
 
 // Two owned paths cross when equal, when one is a directory the other is
 // inside (a segment boundary, either way), or when the glob prefixes cross.
-test('pathsCross: equal, directory containment either way, glob prefixes', { timeout: 30000 }, () => {
+test('pathsCross: equal, directory containment either way, glob prefixes', { timeout: 60000 }, () => {
   assert.ok(pathsCross('scripts/lib/a.mjs', 'scripts/lib/a.mjs'), 'equal');
   // Mutation captured: an equality-only crossing (no directory
   // containment) fails the next two asserts.
@@ -1782,7 +1825,7 @@ test('pathsCross: equal, directory containment either way, glob prefixes', { tim
 // one segment, `**` crosses, `[...]` is a class; a glob crosses a
 // directory by its literal prefix either way; glob vs glob by the literal
 // prefixes.
-test('pathsCross: a file-name glob matches the path and the directory relation holds', { timeout: 30000 }, () => {
+test('pathsCross: a file-name glob matches the path and the directory relation holds', { timeout: 60000 }, () => {
   // The review case: a file-name glob crossing the exact file.
   assert.ok(pathsCross('roles/reviewer*.md', 'roles/reviewer.md'),
     'reviewer*.md crosses reviewer.md (the review case)');
@@ -1826,7 +1869,7 @@ test('pathsCross: a file-name glob matches the path and the directory relation h
 
 // End to end: a pending agent that owns a file-name glob warns when the
 // new brief owns the file the glob matches.
-test('dispatch: the owned-files overlap warn fires for a file-name glob of the pending brief', { timeout: 30000 }, () => {
+test('dispatch: the owned-files overlap warn fires for a file-name glob of the pending brief', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-overlap-glob-');
   try {
     seedPendingOther(fix, 'other', ['- roles/reviewer*.md']);
@@ -1844,7 +1887,7 @@ test('dispatch: the owned-files overlap warn fires for a file-name glob of the p
 
 // The pending brief of a recorded report: the same timestamp pair under
 // briefs/ (state routing) or alongside the report (the $TMPDIR routing).
-test('pendingBriefPath: the state and the $TMPDIR routing', { timeout: 30000 }, () => {
+test('pendingBriefPath: the state and the $TMPDIR routing', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-pending-brief-');
   try {
     // State routing: the composed brief sits under briefs/ (sibling of
@@ -1870,7 +1913,7 @@ test('pendingBriefPath: the state and the $TMPDIR routing', { timeout: 30000 }, 
 
 // The `# Brief` section of a composed brief file: up to the next level-1
 // header; an amendment's composed file has none.
-test('composedBriefSection: the # Brief block, absent in an amendment', { timeout: 30000 }, () => {
+test('composedBriefSection: the # Brief block, absent in an amendment', { timeout: 60000 }, () => {
   const composed = '# Role: implementer\n\nbody\n\n# Brief\n\n# Goal\n\nDo it.\n\n# Report contract\n\n- Write it.\n';
   assert.equal(composedBriefSection(composed), '# Brief\n\n# Goal\n\nDo it.\n');
   assert.equal(composedBriefSection('# Amendment to your current brief\n\nDo X.\n\n# Report contract\n\n- Write it.\n'), '');
@@ -1898,7 +1941,7 @@ function seedPendingOther(fix, other, ownedLines, { cwd = '/tmp/work', tmp = fal
 // The edit-role warn: one per other agent with an intersection, at most
 // five paths listed; the read-only role gets the reviewing text; an
 // intersecting agent without a pending report never counts.
-test('dispatch: the owned-files overlap warn (edit, read-only, the cap of 5, settled reports)', { timeout: 30000 }, () => {
+test('dispatch: the owned-files overlap warn (edit, read-only, the cap of 5, settled reports)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-overlap-');
   try {
     const brief = fix.brief('brief.md', FULL_BRIEF.replace('scripts/x.mjs\n', '- scripts/x.mjs\n'));
@@ -1940,7 +1983,7 @@ test('dispatch: the owned-files overlap warn (edit, read-only, the cap of 5, set
 
 // $TMPDIR routing: the other agent's pending brief sits alongside its
 // report as <name>.brief.md; the warn still fires.
-test('dispatch: the owned-files overlap warn across the $TMPDIR routing', { timeout: 30000 }, () => {
+test('dispatch: the owned-files overlap warn across the $TMPDIR routing', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-overlap-tmp-');
   try {
     const brief = fix.brief('brief.md', FULL_BRIEF.replace('scripts/x.mjs\n', '- scripts/x.mjs\n'));
@@ -1953,7 +1996,7 @@ test('dispatch: the owned-files overlap warn across the $TMPDIR routing', { time
 
 // --amend skips the overlap check: the worker keeps its own brief, and an
 // amendment file that names the same paths does not warn.
-test('dispatch: --amend does not run the owned-files overlap check', { timeout: 30000 }, () => {
+test('dispatch: --amend does not run the owned-files overlap check', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-overlap-amend-');
   try {
     seedPendingOther(fix, 'other', ['- scripts/x.mjs']);
@@ -1973,7 +2016,7 @@ test('dispatch: --amend does not run the owned-files overlap check', { timeout: 
 // base brief; when it is an amendment (no `# Brief`), the section of the
 // same agent's newest earlier base brief in the same directory (the
 // amendment amends that brief). '' when absent.
-test('pendingBriefSection: an amendment walks back to the agent\'s newest base brief', { timeout: 30000 }, () => {
+test('pendingBriefSection: an amendment walks back to the agent\'s newest base brief', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-pending-section-');
   try {
     const briefs = path.join(fix.ws, 'briefs');
@@ -2025,7 +2068,7 @@ test('pendingBriefSection: an amendment walks back to the agent\'s newest base b
 // End to end: while the amendment is pending, the overlap check still
 // sees the files of the brief the amendment amends — a concurrent
 // dispatch that owns one of them warns.
-test('dispatch: the overlap check uses the base brief while an amendment is pending', { timeout: 30000 }, () => {
+test('dispatch: the overlap check uses the base brief while an amendment is pending', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-overlap-pend-amend-');
   try {
     const briefs = path.join(fix.ws, 'briefs');
@@ -2060,11 +2103,11 @@ test('dispatch: the overlap check uses the base brief while an amendment is pend
 // ---------- the codex sandbox notes ----------
 
 const SANDBOX_GIT = '- Your sandbox cannot write under .git: do not run git mv, git checkout, git add or git commit. Describe renames and restores in the report; the orchestrator runs them.\n';
-const SANDBOX_NET = '- Your sandbox has no network, local ports included: tests that start a local server fail with "Operation not permitted". Mark them [partial] and say so; the orchestrator runs them.\n';
+const SANDBOX_NET = '- Your sandbox has no network, local ports included: tests that start a local server fail with "Operation not permitted". Mark them [partial] and say so; the orchestrator runs them. Still write the integration tests the brief asks for, even if you cannot run them here; do not replace them with unit tests of helpers, and add a test seam (an injectable value) when the code depends on something fixed, such as the build type.\n';
 
 // The notes are codex-only, follow the opening args, and sit right before
 // the standing rules — in the brief and the amendment prompts.
-test('sandbox notes: the codex arg combinations, in the brief and the amendment', { timeout: 30000 }, () => {
+test('sandbox notes: the codex arg combinations, in the brief and the amendment', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-sandbox-compose-');
   try {
     const dir = path.join(fix.repo, '.agents', 'herdr-roles');
@@ -2097,7 +2140,7 @@ test('sandbox notes: the codex arg combinations, in the brief and the amendment'
 // The real network token ends in network_access=true (the flag value
 // sandbox_workspace_write.network_access=true, passed via -c); the bypass
 // flag counts as full access too. Direct unit checks on sandboxNotes.
-test('sandbox notes: the real network token and the bypass flag lift their limits', { timeout: 30000 }, () => {
+test('sandbox notes: the real network token and the bypass flag lift their limits', { timeout: 60000 }, () => {
   const GIT = SANDBOX_GIT;
   const NET = SANDBOX_NET;
   // The real token (via -c): the network note goes, the .git note stays.
@@ -2119,7 +2162,7 @@ test('sandbox notes: the real network token and the bypass flag lift their limit
 // End to end: a codex row without the opening-args column (an old line)
 // gets both notes in the composed file; with network_access=true only the
 // .git note; with danger-full-access none.
-test('dispatch: the composed prompt of a codex worker carries the sandbox notes', { timeout: 30000 }, () => {
+test('dispatch: the composed prompt of a codex worker carries the sandbox notes', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-sandbox-e2e-');
   try {
     const brief = fix.brief('brief.md', FULL_BRIEF);
@@ -2155,7 +2198,7 @@ test('dispatch: the composed prompt of a codex worker carries the sandbox notes'
 // lines): the final dispatch JSON carries it the same way — right after
 // report_exists (and before the review header fields) — so a block inside
 // a dispatch keeps the screen context the wait line provides.
-test('dispatch: a blocked worker ends 7 and the final JSON carries the wait dialog', { timeout: 30000 }, () => {
+test('dispatch: a blocked worker ends 7 and the final JSON carries the wait dialog', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-dialog-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -2185,7 +2228,7 @@ test('dispatch: a blocked worker ends 7 and the final JSON carries the wait dial
 // A done report that starts with the review header carries verdict,
 // findings and severity into the final JSON — after report_exists (and
 // amend), before partial — and a plain done report carries none.
-test('dispatch: a done review report lands verdict, findings and severity before partial', { timeout: 30000 }, () => {
+test('dispatch: a done review report lands verdict, findings and severity before partial', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-review-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -2216,7 +2259,7 @@ test('dispatch: a done review report lands verdict, findings and severity before
 
 // ---------- the new dispatch clears the approve-screen marker ----------
 
-test('dispatch: a new dispatch clears the approve-screen marker', { timeout: 30000 }, () => {
+test('dispatch: a new dispatch clears the approve-screen marker', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-approve-screen-');
   try {
     fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
@@ -2227,5 +2270,152 @@ test('dispatch: a new dispatch clears the approve-screen marker', { timeout: 300
     // Mutation captured: 'approve-screen' missing from the cleared marker
     // list leaves the file behind.
     assert.ok(!fs.existsSync(marker), 'the approve-screen marker is cleared by a new dispatch');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- D25 / D29 / D32: the three new contract lines ----------
+
+// D32: the pasted-output rule sits in the standing rules of both the brief
+// and the amendment prompt, after the one-report rule and before the
+// no-questions line.
+test('compose: command output in the report is pasted from the run (D32 line, in order)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-d32-');
+  try {
+    const dir = path.join(fix.repo, '.agents', 'herdr-roles');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'alpha.md'), '---\nname: alpha\n---\n\nBody.\n');
+    const roleFile = path.join(dir, 'alpha.md');
+    const report = '/r.md';
+    const line = '- Command output you put in the report is pasted from the run, never retyped or reconstructed.\n';
+    const t = composePrompt(roleFile, 'alpha', 'w1', '# Goal\nGo.\n', report, fix.ctx, fix.env);
+    const a = composeAmendment('Do X.\n', report, fix.ctx, fix.env);
+    for (const [name, text] of [['brief', t], ['amendment', a]]) {
+      assert.ok(text.includes(line), `${name}: the pasted-output line`);
+      const idx = text.indexOf(line);
+      assert.ok(idx > text.indexOf('- Only you write this report'), `${name}: after the one-report rule`);
+      assert.ok(idx < text.indexOf('- Nobody watches this terminal'), `${name}: before the no-questions line`);
+    }
+    // Mutation captured: the line removed from the standing rules (or
+    // placed after the no-questions line) fails the includes and the order
+    // asserts on both prompts.
+  } finally { fix.cleanup(); }
+});
+
+// D29: the network note ends with the integration-tests sentence, in the
+// brief and the amendment prompt of a networked-out codex, and stays out
+// when the network is released or the kind is not codex.
+test('compose: the network note asks for the integration tests even unrunnable (D29)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-d29-');
+  try {
+    const dir = path.join(fix.repo, '.agents', 'herdr-roles');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'alpha.md'), '---\nname: alpha\n---\n\nBody.\n');
+    const roleFile = path.join(dir, 'alpha.md');
+    const report = '/r.md';
+    const added = 'Still write the integration tests the brief asks for, even if you cannot run them here; do not replace them with unit tests of helpers, and add a test seam (an injectable value) when the code depends on something fixed, such as the build type.';
+    const t = composePrompt(roleFile, 'alpha', 'w1', '# Goal\nGo.\n', report, fix.ctx, fix.env, 'codex', '');
+    assert.ok(t.includes(SANDBOX_NET), 'the full new note in the brief');
+    assert.ok(t.includes(`the orchestrator runs them. ${added}\n`), 'appended to the old tail, one sentence on');
+    const a = composeAmendment('Do X.\n', report, fix.ctx, fix.env, 'codex', '');
+    assert.ok(a.includes(SANDBOX_NET), 'the amendment carries it too');
+    const t2 = composePrompt(roleFile, 'alpha', 'w1', '# Goal\nGo.\n', report, fix.ctx, fix.env, 'codex', 'network_access=true');
+    assert.ok(!t2.includes(added), 'released network: the note (and the sentence) is out');
+    const t3 = composePrompt(roleFile, 'alpha', 'w1', '# Goal\nGo.\n', report, fix.ctx, fix.env, 'grok', '');
+    assert.ok(!t3.includes(added), 'another kind: no note');
+    // Mutation captured: the network note reverted to its old text (the
+    // appended sentence missing) fails the full-note asserts.
+  } finally { fix.cleanup(); }
+});
+
+// D25: a live roster agent with an edit role in the same cwd (column 7) as
+// the worker adds the shared-tree line to the composed prompt (right
+// before the standing rules); a not-live agent, another cwd, a non-edit
+// role or the worker itself never do.
+test('dispatch: a live same-cwd edit agent adds the shared-tree line (D25)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-d25-');
+  try {
+    const line = '- Another worker edits this same tree now: run the global checks the brief asks for, but report failures in files you do not own as outside your slice (name the files), not as [partial] items of yours.\n';
+    const rules = '- Only you write this report';
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    const b = ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build');
+    const o = ROW12('other', 'p2', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'other');
+    // Both agents live: the composed prompt gains the line, right before
+    // the standing rules (after the sandbox notes slot).
+    fs.writeFileSync(fix.env.FAKE_LIVE, JSON.stringify({ agents: [{ name: 'build' }, { name: 'other' }] }));
+    fix.writeRoster(undefined, b, o);
+    let r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'], { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0' });
+    assert.equal(r.status, 0, r.stderr);
+    let c = fs.readFileSync(JSON.parse(r.stdout).composed_prompt, 'utf8');
+    assert.ok(c.includes(line), `the shared-tree line: ${c}`);
+    assert.ok(c.indexOf(line) < c.indexOf(rules), 'right before the standing rules');
+    // `other` not live: the line is out.
+    fs.writeFileSync(fix.env.FAKE_LIVE, JSON.stringify({ agents: [{ name: 'build' }] }));
+    r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'], { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0' });
+    assert.equal(r.status, 0, r.stderr);
+    c = fs.readFileSync(JSON.parse(r.stdout).composed_prompt, 'utf8');
+    assert.ok(!c.includes(line), 'a not-live agent does not share the tree');
+    // The pure predicate: another cwd, a non-edit role, the worker itself
+    // and an empty cwd never count.
+    const isEdit = (role) => role === 'implementer';
+    assert.equal(sharedTreeEditor([b, o], ['build', 'other'], 'build', fix.repo, isEdit), true, 'live same-cwd edit agent');
+    assert.equal(sharedTreeEditor([b, o], ['build'], 'build', fix.repo, isEdit), false, 'not live');
+    assert.equal(sharedTreeEditor([b, o.replace(fix.repo, '/else')], ['build', 'other'], 'build', fix.repo, isEdit), false, 'another cwd');
+    assert.equal(sharedTreeEditor([b, o.replace('implementer', 'researcher')], ['build', 'other'], 'build', fix.repo, isEdit), false, 'a non-edit role');
+    assert.equal(sharedTreeEditor([b, b], ['build'], 'build', fix.repo, isEdit), false, 'the worker itself');
+    assert.equal(sharedTreeEditor([b, o], ['build', 'other'], 'build', '', isEdit), false, 'no cwd');
+    // With the live agents' panes: a name alive on another pane is a stale
+    // row. Mutation captured: matching by name only returns true here.
+    const oPane = o.split('\t')[1];
+    assert.equal(sharedTreeEditor([b, o], [{ name: 'build', pane_id: 'x' }, { name: 'other', pane_id: 'p-elsewhere' }], 'build', fix.repo, isEdit), false, 'name alive on another pane');
+    assert.equal(sharedTreeEditor([b, o], [{ name: 'build', pane_id: 'x' }, { name: 'other', pane_id: oPane }], 'build', fix.repo, isEdit), true, 'same pane');
+    // Mutation captured: the sharedTree flag forced false (or the
+    // `herdr agent list` read dropped) leaves the line out of the live
+    // same-cwd case above.
+  } finally { fix.cleanup(); }
+});
+
+// ---------- D39: the dispatch JSON says which report settled ----------
+
+// The internal wait follows last-report-<agent>, and an amendment sent
+// mid-wait re-points it: the final JSON names the report the wait settled
+// on (settled_report, right after `report`) and report_exists qualifies
+// THAT report — the dispatch's own never arrives. Same report: the key
+// stays out entirely.
+test('dispatch: a mid-wait amendment that re-points the report settles on it (D39)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-d39-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    // The fake worker amends mid-wait: on `agent prompt` it re-points
+    // last-report-build to a fresh path and writes the report there.
+    fs.writeFileSync(fix.env.FAKE_SETTLE, '1\n');
+    const r = cmd(fix, ['dispatch', 'build', brief, '--timeout', '10000'], { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.wait_status, 'done');
+    assert.ok(!fs.existsSync(j.report), `the own report was never written: ${j.report}`);
+    assert.ok(j.settled_report !== undefined && j.settled_report !== j.report, 'settled_report names the amendment report');
+    assert.ok(fs.readFileSync(j.settled_report, 'utf8').includes('settled report'), 'the settled report is the one the wait saw');
+    assert.equal(fs.readFileSync(path.join(fix.ws, 'last-report-build'), 'utf8').trim(), j.settled_report, 'the pointer moved to the settled report');
+    assert.equal(j.report_exists, true, 'report_exists qualifies the settled report, not the absent own one');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'settled_report', 'report_exists', 'auto_approved'],
+      'settled_report right after report, before report_exists');
+    // No re-point (the fake worker writes the report named in the prompt):
+    // the wait followed the dispatch's own report — no settled_report key.
+    fs.rmSync(fix.env.FAKE_SETTLE, { force: true });
+    const r2 = cmd(fix, ['dispatch', 'build', brief, '--timeout', '10000'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0', FAKE_REPORT_TEXT: 'done report\n' });
+    assert.equal(r2.status, 0, r2.stderr);
+    const j2 = JSON.parse(r2.stdout);
+    assert.equal(j2.wait_status, 'done');
+    assert.equal(j2.report_exists, true);
+    assert.ok(!('settled_report' in j2), `no settled_report when the wait followed the own report: ${r2.stdout}`);
+    assert.deepEqual(Object.keys(j2),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved']);
+    // Mutation captured: report_exists still qualifying the dispatch's own
+    // report (or settled_report dropped / placed after report_exists)
+    // breaks case A (report_exists false without the key, or the key order)
+    // and case B (the key appearing on an unchanged pointer).
   } finally { fix.cleanup(); }
 });

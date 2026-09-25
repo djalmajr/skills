@@ -340,7 +340,7 @@
           "designer"
         ],
         "err": "PROG: warning: caller tab has no room for another pane (full); placing 'designer' in a herd tab\n",
-        "log": "agent get c\nagent get c\nagent list\nagent rename c orchestrator\nagent list\nagent list\nagent list\npane list\npane layout --current\npane list --workspace ws\ntab create --workspace ws --cwd <ROOT>/repo --label des --no-focus\nagent start designer --kind agy --pane p-new --timeout 60000 -- --model gemini-2.5 --effort high\nagent get designer\nagent read designer --source visible --lines 40\npane list --workspace ws\ntab get t-herd\n",
+        "log": "agent get c\nagent get c\nagent list\nagent rename c orchestrator\nagent list\nagent list\nagent list\npane list\npane layout --current\npane list --workspace ws\ntab create --workspace ws --cwd <ROOT>/repo --label des --no-focus\nagent start designer --kind agy --pane p-new --timeout 60000 -- --model gemini-2.5 --effort high\nagent get designer\nagent read designer --source visible --lines 40\nagent list\npane list --workspace ws\ntab get t-herd\n",
         "out": "{\n  \"name\": \"designer\",\n  \"pane_id\": \"p-new\",\n  \"kind\": \"agy\",\n  \"role\": \"designer\",\n  \"family\": \"google\",\n  \"created_pane\": true,\n  \"layout\": \"split\",\n  \"placement\": \"herd\",\n  \"effort\": \"high\",\n  \"model\": \"gemini-2.5\",\n  \"model_spec\": \"gemini|opus\",\n  \"approvals\": \"ask\",\n  \"agent_args\": \"--model gemini-2.5 --effort high\",\n  \"status\": \"ready\"\n}\n",
         "rc": 0
       }

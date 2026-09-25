@@ -18,7 +18,7 @@ import { spawnSync } from 'node:child_process';
 import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
 import { writeFakeCli } from './fakes.mjs';
 import {
-  cmdDoctor, doctorCheck, doctorDiscardedModels, doctorFix, doctorLaneWarnings, doctorModelPairs,
+  cmdDoctor, doctorCheck, doctorCodexNetworkWarnings, doctorDiscardedModels, doctorFix, doctorLaneWarnings, doctorModelPairs,
   doctorRoleKind, doctorUsedKinds, laneArgsIgnoredWarnings, projectIsFirstRun, ENTRY_SCRIPT,
 } from '../lib/commands/doctor.mjs';
 import { explainActivity, explainIdleParagraph, explainPrintRunning, explainRecommendation, explainStateDir } from '../lib/commands/explain.mjs';
@@ -627,6 +627,80 @@ test('doctor: the native args the current lane mode ignores (lanes on: role args
   // lane key, with the role list in parentheses), the role list missing or
   // the preset lane roles wrong, or the lanes-on branch switching to the
   // per-lane text.
+  cleanLayers();
+});
+
+// ---------- codex network (UI roles) ----------
+
+test('doctorCodexNetworkWarnings: codex UI roles without a network token warn, lifted by the spawn tokens', () => {
+  cleanLayers();
+  const EXACT = (role, key) =>
+    `config: ${role} runs on codex without network: it cannot open a local port, so the UI and e2e tests do not run (listen EPERM); set ${key}=-c sandbox_workspace_write.network_access=true, or run the e2e yourself`;
+  // Lanes off: the effective kind codex comes from the project layer (the
+  // role files frontmatter is agy) — both UI roles warn with the role key.
+  writeProj('lanes=off\nrole.designer.kind=codex\nrole.inspector.kind=codex\n');
+  let s = capture();
+  doctorCodexNetworkWarnings(ctxOf(), ENV, REPO, s);
+  assert.deepEqual(s.lines, [
+    `warn: ${EXACT('designer', 'role.designer.args')}`,
+    `warn: ${EXACT('inspector', 'role.inspector.args')}`,
+  ], 'both UI roles, the role-args key: ' + s.lines.join(' | '));
+  // The global args.codex takes part in the check: a token that ends in
+  // network_access=true (the -c value) lifts both roles.
+  writeProj('lanes=off\nrole.designer.kind=codex\nrole.inspector.kind=codex\nargs.codex=-c sandbox_workspace_write.network_access=true\n');
+  s = capture();
+  doctorCodexNetworkWarnings(ctxOf(), ENV, REPO, s);
+  assert.equal(s.lines.length, 0, 'args.codex lifts the network: ' + s.lines.join(' | '));
+  // The same token in the role args lifts that role only.
+  writeProj('lanes=off\nrole.designer.kind=codex\nrole.inspector.kind=codex\nrole.designer.args=-c sandbox_workspace_write.network_access=true\n');
+  s = capture();
+  doctorCodexNetworkWarnings(ctxOf(), ENV, REPO, s);
+  assert.deepEqual(s.lines, [`warn: ${EXACT('inspector', 'role.inspector.args')}`], s.lines.join(' | '));
+  // danger-full-access and the bypass flag lift it too (exact tokens).
+  for (const tok of ['--sandbox danger-full-access', '--dangerously-bypass-approvals-and-sandbox']) {
+    writeProj(`lanes=off\nrole.designer.kind=codex\nargs.codex=${tok}\n`);
+    s = capture();
+    doctorCodexNetworkWarnings(ctxOf(), ENV, REPO, s);
+    assert.equal(s.lines.length, 0, `${tok} lifts it: ` + s.lines.join(' | '));
+  }
+  // The token rule, not a substring: a flag text with a suffix does not
+  // end in network_access=true, and a prefixed flag is not the exact token.
+  for (const bad of ['sandbox_workspace_write.network_access=trueno', 'xdanger-full-access']) {
+    writeProj(`lanes=off\nrole.designer.kind=codex\nrole.inspector.kind=codex\nargs.codex=${bad}\n`);
+    s = capture();
+    doctorCodexNetworkWarnings(ctxOf(), ENV, REPO, s);
+    assert.equal(s.lines.length, 2, `${bad} does not lift: ` + s.lines.join(' | '));
+  }
+  // Lanes on: the suggestion and the assembly follow the lane — designer
+  // in build, inspector in review (the preset lanes at panes=4); the lane
+  // kind applies to every role of the lane.
+  writeProj('panes=4\nlane.build.kind=codex\nlane.review.kind=codex\n');
+  s = capture();
+  doctorCodexNetworkWarnings(ctxOf(), ENV, REPO, s);
+  assert.deepEqual(s.lines, [
+    `warn: ${EXACT('designer', 'lane.build.args')}`,
+    `warn: ${EXACT('inspector', 'lane.review.args')}`,
+  ], 'the lane-args keys: ' + s.lines.join(' | '));
+  // The lane args lift the lane role; the role args of a laned role are
+  // not what a spawn would pass, so they do not.
+  writeProj('panes=4\nlane.build.kind=codex\nlane.review.kind=codex\nlane.review.args=-c sandbox_workspace_write.network_access=true\nrole.designer.args=-c sandbox_workspace_write.network_access=true\n');
+  s = capture();
+  doctorCodexNetworkWarnings(ctxOf(), ENV, REPO, s);
+  assert.deepEqual(s.lines, [`warn: ${EXACT('designer', 'lane.build.args')}`], s.lines.join(' | '));
+  // A non-codex kind never warns (the frontmatter kind, no config).
+  cleanLayers();
+  s = capture();
+  doctorCodexNetworkWarnings(ctxOf(), ENV, REPO, s);
+  assert.equal(s.lines.length, 0, 'agy frontmatter kind: no warn: ' + s.lines.join(' | '));
+  // The full doctor carries the line (lanes off).
+  writeProj('lanes=off\nrole.designer.kind=codex\n');
+  const out = doctorOut();
+  assert.ok(out.split('\n').includes(`warn   ${EXACT('designer', 'role.designer.args')}`), out);
+  // Mutation captured: the gate skipped a role (a missing line) or widened
+  // (an extra one), args.codex dropped from the assembly (the global token
+  // no longer lifts), the token rule a plain substring (the suffixed flag
+  // lifts), the lane key suggested with the lanes on (the role key), or
+  // the role args of a laned role lifting it (no designer line).
   cleanLayers();
 });
 
