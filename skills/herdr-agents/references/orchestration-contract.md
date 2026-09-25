@@ -21,7 +21,7 @@ and role prompts encode them; the orchestrator is responsible for the rest.
 5. **Contract, not description.** Goal, owned files, forbidden files, local
    sources by path, applicable project rules, checks the worker may run, and
    the report format.
-6. **Per-item report with three states:** done / partial / skipped + reason.
+6. **Per-item report with three states:** `[done]` / `[partial]` / `[skipped]` + reason. The brackets are what `wait` counts: a report with `[partial]` items is flagged.
    "Skipped because the capability/data/API does not exist" is a correct
    answer; pretending is the only wrong one.
 7. **No dead triggers.** A button, tab, command, or shortcut without real

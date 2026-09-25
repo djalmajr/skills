@@ -107,7 +107,7 @@ export function cfgSource(ctx, key, env = process.env) {
 }
 
 // config_key_ok() port: scalar keys plus role/model/effort/args/lane patterns.
-const DOTTED_KEY_RE = /^(?:role\.[a-z][a-z0-9_-]*\.(?:kind|model|effort)|lane\.[a-z][a-z0-9_-]*\.(?:roles|kind|model|effort|approvals|panes)|model\.[a-z][a-z0-9_.-]+|effort\.[a-z][a-z0-9_-]+|args\.[a-z][a-z0-9_-]+)$/;
+const DOTTED_KEY_RE = /^(?:role\.[a-z][a-z0-9_-]*\.(?:kind|model|effort|args)|lane\.[a-z][a-z0-9_-]*\.(?:roles|kind|model|effort|approvals|panes|args)|model\.[a-z][a-z0-9_.-]+|effort\.[a-z][a-z0-9_-]+|args\.[a-z][a-z0-9_-]+)$/;
 export function configKeyOk(key) {
   if (CONFIG_SCALAR_KEYS.includes(key)) return true;
   return DOTTED_KEY_RE.test(key);
@@ -339,8 +339,20 @@ export function cmdConfigSet(argv, ctx, env = process.env, cwd = process.cwd()) 
   for (const a of argv) {
     if (a === '--project' || a === '--user') { where = a === '--user' ? 'user' : 'project'; continue; }
     if (a.startsWith('--')) die(`config set: unknown option '${a}'`, 2);
-    if (!key) key = a;
-    else if (sawValue === 0) { value = a; sawValue = 1; }
+    if (!key) {
+      // An unquoted `key=<part> <rest>`: the shell splits the value on the
+      // space and the first half arrives as `key=<part>` — split at the
+      // first `=` so the next argument continues the value.
+      const eq = a.indexOf('=');
+      if (eq > 0) { key = a.slice(0, eq); value = a.slice(eq + 1); if (value !== '') sawValue = 1; }
+      else key = a;
+      continue;
+    }
+    if (sawValue === 0) { value = a; sawValue = 1; }
+    // A value that starts with `-` (native CLI args, e.g. `-c a=b`) is not
+    // split by the shell: keep joining the following arguments until the
+    // value is complete. Values without a dash keep the old strict parse.
+    else if (value.startsWith('-')) value += ` ${a}`;
     else die(`config set: unexpected argument '${a}'`, 2);
   }
   ({ key, value, sawValue } = splitPairArg(key, value, sawValue, 'config set'));

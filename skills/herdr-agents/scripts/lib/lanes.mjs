@@ -691,9 +691,9 @@ export function migrateLaneAttr(dest, lane, rolesCsv, attr, acc, env = process.e
 }
 
 // The attrs of a lane key as written in the file (`lane.<l>.<attr>`,
-// dotted form, the five attrs the config validator accepts besides
+// dotted form, the attrs the config validator accepts besides
 // roles) or null.
-const LANE_ATTR_RE = /^lane\.([A-Za-z0-9_-]+)\.(kind|model|effort|approvals|panes)$/;
+const LANE_ATTR_RE = /^lane\.([A-Za-z0-9_-]+)\.(kind|model|effort|approvals|panes|args)$/;
 const LANE_ROLES_RE = /^lane\.[A-Za-z0-9_-]+\.roles$/;
 
 // file_key_present <file> <key>: the exact trimmed key has a line in the

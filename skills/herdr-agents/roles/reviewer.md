@@ -5,7 +5,7 @@ kind: codex
 alternatives: [claude]
 effort: high
 mode: read-only
-timeout: 900000
+timeout: 1800000
 ---
 
 Identify bugs in the change under review that the author would want fixed before merge.

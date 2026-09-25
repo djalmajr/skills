@@ -45,6 +45,10 @@ to a file.
    URLs and seeds named in a brief must be verified first (`git grep`, the
    seed script), not guessed.
 4. **Reviewer from another model family** than the implementers, before push.
+   **A review item marked `partial` is not a pass.** The reviewer could not
+   verify it (often no network, or a source it could not reach). Give the
+   reviewer what it lacked, or verify the item yourself, before commit,
+   push or release; `wait` and `dispatch` flag reports with `partial` items.
 5. **State never under `.agents/` or `.codex/`** (Codex sandbox denies them).
 6. **Nested orchestrators must not be sandboxed Codex**: its sandbox blocks
    the Herdr socket. Use `claude` (or Codex with its sandbox disabled).
@@ -329,7 +333,14 @@ exist (7 blocked/`question`, 6 settled/`gone`, 4 `unavailable`, 9 timeout,
 11 quota, 14 `provider-error`/`capacity`, 15 `not-received`). When
 several agents finish in one `wait`, the exit is the most severe of those:
 4, then 11, then 14, then 15, then 7, then 6. Argument order does not
-change it.
+change it. Every composed prompt asks for each item's state as `[done]`,
+`[partial]` or `[skipped]`. A `done` line gains `partial: N` (only when
+N > 0, after `report`) when N lines of the report outside code blocks
+carry `[partial]`, and the wait warns:
+`report of '<agent>' marks N item(s) partial: a partial item is not a
+pass; read them before commit, push or release` (an unreadable report
+counts 0 and the line is unchanged). The `dispatch` JSON carries the same
+`partial: N` right after `report_exists` (after `amend`, when present).
 `provider-error` is an idle worker whose last error line shows its model
 provider down (for example `Request timed out`, `Connection error`, `Retry
 failed after N attempts`, `503: {…}`); the JSON `cause` is that line.
@@ -417,12 +428,21 @@ waiting; off by default, see below), `max_effort`
 `spawn_timeout`, `dispatch_timeout`, `state_dir`, `report_language`,
 `notify`, `args.<kind>` (native flags always appended, the place for
 hook-trust or workspace-trust bypasses you accept), `role.<role>.kind`
-(swap the kind of a role without copying its file), `panes` (`2|3|4`,
+(swap the kind of a role without copying its file), `role.<role>.args`
+(native args for a role, with `lanes=off`; with lanes on every role runs
+in a lane, a lane session is shared by every role in it, and only
+`lane.<name>.args` applies), `panes` (`2|3|4`,
 default 4), `lanes` (`on|off`), `pane_mode` (`strict|flex`, default
 `strict`), `flex_extra` (temporary workers flex may add, default 1),
 `flex_roles` (who may use them, default `reviewer,documenter`), and
-`lane.<name>.roles|kind|model|effort|approvals|panes` (`panes` = the lane's
-capacity).
+`lane.<name>.roles|kind|model|effort|approvals|panes|args` (`panes` = the
+lane's capacity; `args` = native args for every worker of the lane). The
+scoped args are appended after `args.<kind>`, before the native args after
+`--`. The `doctor` warns about a scoped key in a config file that the
+current lane mode cannot apply. A worker keeps the native args it opened
+with (roster column 14), so after a change to these keys an idle worker
+started with other args is not reused: `lanes=off` opens a new one, and a
+lane answers `kind-mismatch` (exit 13) until you release its worker.
 
 ## Commands
 
@@ -997,9 +1017,11 @@ plan and confirmation) and finish with `doctor --fix`.
 
 `multi_role=on` (the default, including when the key is unset): `spawn`
 without `--fresh` reuses an idle worker of another role when the kind, the
-cwd and the resolved model are the same and the worker's `approvals` are
-at least the request (`ask` < `edits` < `full`). The same role is tried
-first. A worker that has held an edit role — `implementer`, `designer`,
+cwd and the resolved model are the same, the worker's `approvals` are
+at least the request (`ask` < `edits` < `full`), and the native args it
+opened with (roster column 14) are the ones this spawn would pass (native
+args hold for the whole process). The same
+role is tried first. A worker that has held an edit role — `implementer`, `designer`,
 `tasker`, or any role with `mode: edit` — is never reused as `reviewer`,
 `security-reviewer`, `ui-reviewer` or `inspector`. Spawn then opens a new
 worker, and `max_workers` applies. `multi_role=off` reuses only the same
@@ -1008,7 +1030,10 @@ role.
 The roster file gains columns after the original eight. Old lines
 stay valid and are reused only for the same role when `lanes=off`. The
 columns are `model`, `approvals`, `roles` (comma-separated history, for
-example `scouter,implementer`), and `lane`. Column 4 stays the current role.
+example `scouter,implementer`), `lane`, `burst` (a temporary worker of the
+flex mode) and `args` (the configured native args it opened with:
+`args.<kind>` plus `lane.<name>.args` or `role.<role>.args`). Column 4
+stays the current role.
 With lanes on, reuse stays inside the lane. With `lanes=off`, reuse across
 roles rewrites that line in place and appends the new role. The reused
 spawn JSON includes `previous_role`. `dispatch` reads column 4, so the

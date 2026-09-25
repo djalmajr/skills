@@ -1313,3 +1313,80 @@ test('wait: a working probe reads the screen once', { timeout: 30000 }, () => {
     assert.equal(reads.length, 1, reads.join('\n'));
   } finally { fix.cleanup(); }
 });
+
+// ---------- a done report that marks items partial ----------
+
+// The report contract fixes a per-item state marker; a done report that
+// still marks `partial` items is not a pass: the JSON line carries
+// the count after `report`, one warn tells the orchestrator to read them
+// before commit/push/release, and the wait still settles rc 0.
+test('wait: a done report with partial items marks the JSON line and warns once', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-partial-');
+  try {
+    fix.writeRoster(ROW('rev', 'reviewer'));
+    const body = [
+      '# Report', '',
+      '| item | state |',
+      '| --- | --- |',
+      '| read the brief | [done] |',
+      '| fact A | [partial] |',
+      '| fact B | [partial] |',
+      '',
+    ].join('\n');
+    const p = fix.report('rev', body);
+    const warnLine = "report of 'rev' marks 2 item(s) partial: a partial item is not a pass; read them before commit, push or release";
+    // Mutation captured: not scanning the done report (or counting
+    // occurrences) drops the partial key, the rc-0 line shape below or the
+    // warn count.
+    const r = waitCmd(fix, ['rev', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report', 'partial'],
+      'the partial key sits right after report');
+    assert.deepEqual(line, { agent: 'rev', status: 'done', report: p, partial: 2 });
+    assert.equal(r.stderr.split(`herdr-agents: warning: ${warnLine}`).length - 1, 1,
+      `the exact warn once on stderr: ${r.stderr}`);
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.match(friction, /warning\twait\t/);
+    assert.ok(friction.includes(`warning\twait\t${warnLine}`), 'the warn lands in the friction log as a wait entry');
+  } finally { fix.cleanup(); }
+});
+
+// A done report without `partial` settles exactly as before: the JSON line
+// is byte-identical to the one of today (no partial key) and nothing about
+// partial is printed.
+test('wait: a clean done report keeps the exact line of today', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-clean-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    const p = fix.report('w', '# Report\n\ndone.\n');
+    // Mutation captured: the partial key present with 0 (or any reordering
+    // of the keys) breaks the byte-identical stdout below.
+    const r = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `{"agent":"w","status":"done","report":"${p}"}\n`, 'byte-identical to the line of today');
+    assert.ok(!r.stderr.includes('partial'), 'no partial warn for a clean report');
+  } finally { fix.cleanup(); }
+});
+
+// In a multi-agent wait the count is per agent: only the report that marks
+// items partial gets the key and the warn; the clean one keeps its exact
+// line, and the wait still settles rc 0.
+test('wait: partial is per agent in a multi-agent wait', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-partial-multi-');
+  try {
+    fix.writeRoster(ROW('a1', 'implementer'), ROW('a2', 'reviewer'));
+    const p1 = fix.report('a1', '# Report\n\n| item | state |\n| --- | --- |\n| fact A | [partial] |\n');
+    const p2 = fix.report('a2', '# Report\n\ndone.\n');
+    // Mutation captured: a shared (not per-agent) count, or a warn for the
+    // clean report, breaks the key sets or the warn asserts below.
+    const r = waitCmd(fix, ['a1', 'a2', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(jsonLines(r.stdout), [
+      { agent: 'a1', status: 'done', report: p1, partial: 1 },
+      { agent: 'a2', status: 'done', report: p2 },
+    ]);
+    assert.match(r.stderr, /report of 'a1' marks 1 item\(s\) partial: a partial item is not a pass; read them before commit, push or release/);
+    assert.ok(!r.stderr.includes("report of 'a2'"), 'no warn for the clean report');
+  } finally { fix.cleanup(); }
+});

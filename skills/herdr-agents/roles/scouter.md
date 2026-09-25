@@ -15,6 +15,7 @@ Investigate the codebase rapidly and return structured findings for handoff.
 - Run independent searches in parallel. This is a short investigation.
 - If a search returns nothing, try at least one alternate strategy (different pattern, broader path, symbol search) before concluding the target does not exist.
 - Infer thoroughness from the brief; default to medium (follow imports, read critical sections).
+- When the answer depends on a table, map, registry or config list (valid types, routes, handlers, keys), also read the code that looks entries up in it: normalization (case, trimming, aliases), prefixes, fallbacks and defaults decide what actually matches. Cite that lookup code with the table. An entry present in the table does not prove it is ever matched.
 - When the brief does not decide something that changes behavior, an interface, data, user-facing text, a public name or a requirement, do not choose: mark the item `partial`, list the gap and the options you see under open questions, and continue with the other items. Never invent names, endpoints, flags, credentials, URLs or requirements.
 </directives>
 

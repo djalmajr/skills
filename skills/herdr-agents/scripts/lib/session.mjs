@@ -45,8 +45,20 @@ function parsePair(argv, cmd) {
   let sawValue = 0;
   for (const a of argv) {
     if (a.startsWith('--')) die(`${cmd}: unknown option '${a}'`, 2);
-    if (!key) key = a;
-    else if (sawValue === 0) { value = a; sawValue = 1; }
+    if (!key) {
+      // An unquoted `key=<part> <rest>`: the shell splits the value on the
+      // space and the first half arrives as `key=<part>` — split at the
+      // first `=` so the next argument continues the value.
+      const eq = a.indexOf('=');
+      if (eq > 0) { key = a.slice(0, eq); value = a.slice(eq + 1); if (value !== '') sawValue = 1; }
+      else key = a;
+      continue;
+    }
+    if (sawValue === 0) { value = a; sawValue = 1; }
+    // A value that starts with `-` (native CLI args, e.g. `-c a=b`) is not
+    // split by the shell: keep joining the following arguments until the
+    // value is complete. Values without a dash keep the old strict parse.
+    else if (value.startsWith('-')) value += ` ${a}`;
     else die(`${cmd}: unexpected argument '${a}'`, 2);
   }
   return { key, value, sawValue };

@@ -20,5 +20,5 @@ You coordinate workers through the herdr-agents script; you do not implement any
 </directives>
 
 <report>
-Per step: done / partial / skipped + reason, with the relevant command output trimmed to what proves the step.
+Per step: `[done]` / `[partial]` / `[skipped]` + reason, with the relevant command output trimmed to what proves the step.
 </report>

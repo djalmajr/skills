@@ -23,6 +23,10 @@
 //     composed_prompt, report, wait_status, report_exists, auto_approved,
 //     and lane/model/match/renewal only on a quota, and lane/model/cause —
 //     plus retries on a capacity — only on a provider-error/capacity);
+//     `amend: true` sits right after report_exists on an amendment, and
+//     `partial: N` right after that (or after report_exists without amend)
+//     when the done report marks N item(s) partial (the count is captured
+//     from the wait line; the warn is the wait's own, not repeated here);
 //   - the wait JSON lines are captured, not printed (bash `out="$(wait_for
 //     …)"`); waitFor's sink parameter (lib/wait.mjs) makes that possible
 //     without changing the `wait` command;
@@ -148,7 +152,7 @@ export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env 
   out.push(`\n\n# Brief\n\n`);
   out.push(briefRaw);
   out.push(`\n\n# Report contract\n\n`);
-  out.push(`- Write your report as Markdown to \`${report}\` (create parent directories if needed) following the \`<report>\` section of your role and the per-item states done / partial / skipped + reason.\n`);
+  out.push(`- Write your report as Markdown to \`${report}\` (create parent directories if needed) following the \`<report>\` section of your role. Give every item its state as \`[done]\`, \`[partial]\` or \`[skipped]\`, followed by the reason.\n`);
   const lang = cfg(ctx, 'report_language', '', env);
   if (lang !== '') out.push(`- Write the report in ${lang}.\n`);
   out.push(`- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n`);
@@ -173,6 +177,7 @@ export function composeAmendment(amendRaw, report, ctx, env = process.env) {
   out.push(`\n\n# Report contract\n\n`);
   out.push(`- This amendment overrides your current brief where they differ; the rest of that brief still holds.\n`);
   out.push(`- Write your report as Markdown to \`${report}\` (create parent directories if needed). If you have not written the report of your current brief yet, write one report there that covers the brief and this amendment; otherwise report only on the amendment.\n`);
+  out.push(`- Give every item its state as \`[done]\`, \`[partial]\` or \`[skipped]\`, followed by the reason.\n`);
   const lang = cfg(ctx, 'report_language', '', env);
   if (lang !== '') out.push(`- Write the report in ${lang}.\n`);
   out.push(`- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n`);
@@ -472,6 +477,7 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   let pcause = '';
   let preties = 0;
   let qtext = '';
+  let wpartial = 0;
   if (wait === 1) {
     const lines = [];
     try {
@@ -483,6 +489,10 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
     const last = lines.length > 0 ? JSON.parse(lines[lines.length - 1]) : {};
     status = last.status ?? '';
     qerr = last.error ?? '';
+    // The done wait line carries `partial: N` when the report marks
+    // item(s) partial; it lands in the final JSON (the warn already came
+    // from the wait).
+    if (last.status === 'done' && Number.isInteger(last.partial)) wpartial = last.partial;
     if (last.status === 'quota') {
       qmatch = last.match ?? '';
       qrenew = last.renewal ?? '';
@@ -513,6 +523,9 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   // brief). It sits right after report_exists because it qualifies the
   // report named by `report` — the new one the wait now watches.
   if (amend === 1) out.amend = true;
+  // partial: N sits right after report_exists (and amend, when present):
+  // it qualifies the same report. The warn already came from waitFor.
+  if (wpartial > 0) out.partial = wpartial;
   out.auto_approved = approvals;
   if (status === 'question') out.question = qtext;
   if (enterSent) out.enter_sent = true;

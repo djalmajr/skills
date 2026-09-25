@@ -202,6 +202,14 @@ notify=off
 # args.pi=
 # args.opencode=
 
+# Native args for a role, with lanes=off. With lanes on every role runs in a
+# lane, a lane session is shared by every role in it, and only
+# lane.<name>.args applies (to every worker of the lane). Both are appended
+# after args.<kind>, before the native args given after `--` to spawn.
+# Example: role.scouter.args=-c a=b
+# role.scouter.args=
+# lane.build.args=
+
 # Kind override per role without copying the role file. Example: role.reviewer.kind=grok
 # role.reviewer.kind=
 

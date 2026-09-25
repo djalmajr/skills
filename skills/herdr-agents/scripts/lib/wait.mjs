@@ -38,6 +38,7 @@ import { agentState, agentRead, agentSendKeys, notificationShow, agentPrompt } f
 import { promptSitsInInput, markerSeqChanged } from './arrival.mjs';
 import { sanitizeCause } from './text.mjs';
 import { dialogKind, questionText } from './dialog.mjs';
+import { partialCountFile } from './reportscan.mjs';
 import { quotaDetect } from './quota.mjs';
 import { providerDetect } from './provider.mjs';
 import { laneOfRole } from './lanes.mjs';
@@ -450,12 +451,24 @@ export function waitFor(agents, opts) {
       const st = probeAgent(sd, a, r, ctx, env);
       const tag = st.split('\t')[0];
       switch (tag) {
-        case 'done':
-          jsonLine({ agent: a, status: 'done', report: r }, sink);
+        case 'done': {
+          // A done report that still marks `partial` items is not a pass:
+          // the JSON line carries the count (key present only when it is
+          // > 0, after `report`) and one warn tells the orchestrator to
+          // read the partial items before commit, push or release. An
+          // unreadable report counts 0 and the line is unchanged.
+          const partial = partialCountFile(r);
+          const done = { agent: a, status: 'done', report: r };
+          if (partial > 0) done.partial = partial;
+          jsonLine(done, sink);
+          if (partial > 0) {
+            warn(`report of '${a}' marks ${partial} item(s) partial: a partial item is not a pass; read them before commit, push or release`);
+          }
           notifyDone(a, r, ctx, env);
           markTaskDone(sd, a, env);
           if (any) return 0;
           break;
+        }
         case 'blocked':
           jsonLine({ agent: a, status: 'blocked', report: r }, sink);
           rc = waitRaise(rc, 7);

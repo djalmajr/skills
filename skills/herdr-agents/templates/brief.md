@@ -92,5 +92,5 @@ issues.detail.linkProject = "…"
 ## Report
 
 Write Markdown to `<report-path>` using the format in `templates/report.md`
-(per item: done / partial / skipped + reason). When finished, reply with
+(per item: `[done]` / `[partial]` / `[skipped]` + reason). When finished, reply with
 only that path.

@@ -119,6 +119,65 @@ test('config set writes dotted role/lane/model keys', (t) => {
   } finally { s.cleanup(); }
 });
 
+test('config set writes the role/lane/args keys with dash-led values', (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.proj), { recursive: true });
+    fs.writeFileSync(s.proj, SEED);
+    // A dash-led value as one argument (the shell keeps it quoted).
+    let r = s.run('config', 'set', 'role.reviewer.args', '-c a=b');
+    assert.equal(r.rc, 0, r.err);
+    // Unquoted: the shell splits the value; the arguments after a dash-led
+    // value join it instead of dying as unexpected arguments.
+    r = s.run('config', 'set', 'lane.build.args', '-s', 'workspace-write');
+    assert.equal(r.rc, 0, r.err);
+    // key=value with a dash-led value: only the first = splits.
+    r = s.run('config', 'set', 'args.codex=-c a=b');
+    assert.equal(r.rc, 0, r.err);
+    // Unquoted key=value: the shell delivers `lane.review.args=-c` and
+    // `a=b` separately — the first `=` of the first argument splits the
+    // key, the rest continues the dash-led value.
+    r = s.run('config', 'set', 'lane.review.args=-c', 'a=b');
+    assert.equal(r.rc, 0, r.err);
+    const content = fs.readFileSync(s.proj, 'utf8');
+    assert.match(content, /^role\.reviewer\.args=-c a=b$/m, 'role args were not written');
+    assert.match(content, /^lane\.build\.args=-s workspace-write$/m, 'lane args were not written');
+    assert.match(content, /^args\.codex=-c a=b$/m, 'kind args were not written');
+    assert.match(content, /^lane\.review\.args=-c a=b$/m, 'the split key=value was not written');
+    assert.match(content, /^# keep this comment$/m, 'comment lost after args set');
+    // The config table lists the new keys like the other dotted keys.
+    const c = s.run('config');
+    assert.equal(c.rc, 0, c.err);
+    const row = c.out.split('\n').find((l) => l.startsWith('role_reviewer_args'));
+    assert.ok(row && row.includes('-c a=b') && row.trimEnd().endsWith('project'), `config row: ${row}`);
+    // A value without a dash still refuses a third argument.
+    const bad = s.run('config', 'set', 'args.codex', 'a', 'b');
+    assert.equal(bad.rc, 2, bad.err);
+    assert.match(bad.err, /unexpected argument 'b'/);
+    // The where flags after a dash-led value stay flags: the value is
+    // written whole to the selected file, the flag is not swallowed into
+    // it.
+    fs.mkdirSync(path.dirname(s.user), { recursive: true });
+    fs.writeFileSync(s.user, '# user\n');
+    const userBefore = fs.readFileSync(s.user, 'utf8');
+    const pr = s.run('config', 'set', 'args.claude', '-c a=b', '--project');
+    assert.equal(pr.rc, 0, pr.err);
+    assert.match(fs.readFileSync(s.proj, 'utf8'), /^args\.claude=-c a=b$/m, '--project not swallowed into the value');
+    assert.ok(!fs.readFileSync(s.proj, 'utf8').split('\n').some((l) => l.includes('--project')), 'the flag leaked into the value');
+    assert.equal(fs.readFileSync(s.user, 'utf8'), userBefore, 'the user file is untouched by --project');
+    const us = s.run('config', 'set', 'args.cursor', '-c a=b', '--user');
+    assert.equal(us.rc, 0, us.err);
+    assert.match(fs.readFileSync(s.user, 'utf8'), /^args\.cursor=-c a=b$/m, '--user not swallowed into the value');
+    assert.ok(!fs.readFileSync(s.user, 'utf8').split('\n').some((l) => l.includes('--user')), 'the flag leaked into the user value');
+    assert.match(fs.readFileSync(s.proj, 'utf8'), /^args\.claude=-c a=b$/m, 'the project file keeps its own key');
+    // Mutation captured: the where flags consumed into the value after a
+    // dash-led value (the written value would carry --project/--user, or
+    // the wrong file would receive the key), or the unquoted `key=<part>
+    // <rest>` not split at the first = of the first argument (the set
+    // would die 2 as an unknown key).
+  } finally { s.cleanup(); }
+});
+
 test('unknown key / invalid value / empty value refuse with rc 2 and leave the file', (t) => {
   const s = setup();
   try {
@@ -191,8 +250,11 @@ test('configKeyOk: scalar plus dotted patterns', (t) => {
   assert.ok(configKeyOk('role.x.kind'));
   assert.ok(configKeyOk('role.x.model'));
   assert.ok(configKeyOk('role.x.effort'));
+  assert.ok(configKeyOk('role.x.args'));
+  assert.ok(configKeyOk('role.security-reviewer.args'));
   assert.ok(configKeyOk('lane.x.roles'));
   assert.ok(configKeyOk('lane.x.panes')); // the lane capacity key
+  assert.ok(configKeyOk('lane.x.args'));
   assert.ok(configKeyOk('pane_mode'));
   assert.ok(configKeyOk('flex_extra'));
   assert.ok(configKeyOk('flex_roles'));
@@ -202,10 +264,21 @@ test('configKeyOk: scalar plus dotted patterns', (t) => {
   assert.ok(configKeyOk('args.codex'));
   assert.ok(!configKeyOk('nope'));
   assert.ok(!configKeyOk('role.x.timeout'));
+  assert.ok(!configKeyOk('role.x.args.timeout')); // args is a value, not a prefix
   assert.ok(!configKeyOk('role.X.kind'));
   assert.ok(!configKeyOk('effort.x')); // needs at least two chars after the dot
   assert.ok(!configKeyOk('model.'));
   assert.ok(!configKeyOk('lane.x.pane')); // only lane.x.panes is a key
+  // Mutation captured: the new keys not accepted by the pattern (the
+  // config set calls in the test below would die 2).
+});
+
+test('configValueOk: the args keys take any one-line value, dash-led included', (t) => {
+  assert.ok(configValueOk('role.reviewer.args', '-c sandbox_workspace_write.network_access=true'));
+  assert.ok(configValueOk('lane.build.args', '-s workspace-write -a never'));
+  assert.ok(configValueOk('args.codex', '-c a=b'));
+  assert.ok(!configValueOk('role.reviewer.args', 'a\n b'));
+  assert.ok(!configValueOk('lane.build.args', 'a#b'));
 });
 
 test('configValueOk: enums, ladders and role resolution', (t) => {

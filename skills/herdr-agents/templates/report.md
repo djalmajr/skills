@@ -6,9 +6,9 @@ Role: <role> · Agent: <agent-name> · Kind: <kind> · Run: <run-id>
 
 | # | Item from brief | State | Notes |
 |---|---|---|---|
-| 1 | … | done | … |
-| 2 | … | partial | what is missing and why |
-| 3 | … | skipped | no capability / data / API — not stubbed |
+| 1 | … | [done] | … |
+| 2 | … | [partial] | what is missing and why |
+| 3 | … | [skipped] | no capability / data / API — not stubbed |
 
 ## Files changed
 

@@ -5,7 +5,7 @@ kind: claude
 alternatives: [codex]
 effort: high
 mode: read-only
-timeout: 900000
+timeout: 1800000
 ---
 
 Find vulnerabilities in the scope given by the brief and back each one with evidence.

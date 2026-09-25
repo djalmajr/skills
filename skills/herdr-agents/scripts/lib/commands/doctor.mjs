@@ -253,7 +253,7 @@ export function doctorLaneWarnings(ctx, env = process.env, cwd = process.cwd(), 
   // is not one of the lane names — one line per key, sorted.
   const lanes = laneNames(ctx, env);
   const knownLanes = new Set(lanes);
-  const orphanRe = /^lane_(.+)_(roles|kind|model|effort|approvals|panes)$/;
+  const orphanRe = /^lane_(.+)_(roles|kind|model|effort|approvals|panes|args)$/;
   const orphans = [];
   for (const key of ctx.entries.keys()) {
     const m = key.match(orphanRe);
@@ -303,6 +303,40 @@ export function doctorLaneWarnings(ctx, env = process.env, cwd = process.cwd(), 
     if (src === 'user' || src === 'project' || src === 'env') {
       say.warn(`config: ${key} is set (${src}) but the planner is the orchestrator and opens no pane. Remove it (doctor --fix).`);
     }
+  }
+}
+
+// lane_args_ignored warnings: the native args the current lane mode cannot
+// apply. With lanes on, a role.<role>.args never reaches a worker that
+// opens in a lane (the lane session is shared by its roles, one set of
+// args per lane) — one line per lane and laned role. With lanes off, a
+// lane.<name>.args reaches no worker (the lanes never open) — one line per
+// set lane key, naming the effective roles of the lane (the per-role key
+// is where the args belong then; a lane without roles ends without the
+// role list). Advisory only: nothing here rewrites the config.
+export function laneArgsIgnoredWarnings(ctx, env = process.env, cwd = process.cwd(), say = new DoctorSay()) {
+  if (lanesEnabled(ctx, env)) {
+    for (const lane of laneNames(ctx, env)) {
+      if (lane === '') continue;
+      for (const part of laneRolesCsv(ctx, lane, env).split(',')) {
+        const r = part.trim();
+        if (r === '') continue;
+        if (cfg(ctx, `role_${String(r).replace(/-/g, '_')}_args`, '', env) === '') continue;
+        say.warn(`config: role.${r}.args is ignored: '${r}' runs in lane '${lane}' (lanes=on); set lane.${lane}.args instead`);
+      }
+    }
+    return;
+  }
+  const keys = [...ctx.entries.keys()]
+    .filter((k) => /^lane_(.*)_args$/.test(k) && cfg(ctx, k, '', env) !== '')
+    .sort();
+  for (const key of keys) {
+    const lane = key.match(/^lane_(.*)_args$/)[1];
+    const roles = laneRolesCsv(ctx, lane, env).split(',')
+      .map((part) => part.trim())
+      .filter((r) => r !== '');
+    const list = roles.length > 0 ? ` (${roles.join(', ')})` : '';
+    say.warn(`config: lane.${lane}.args is ignored (lanes=off); set role.<role>.args for its roles instead${list}`);
   }
 }
 
@@ -479,6 +513,7 @@ export function doctorCheck(ctx, env = process.env, cwd = process.cwd()) {
   else s.ok(`config: max_workers=${mw} (orchestrator + ${mw} workers)`);
   if (lanesEnabled(ctx, env)) doctorLaneWarnings(ctx, env, cwd, s);
   else s.ok('config: lanes=off (per-role reuse unchanged)');
+  laneArgsIgnoredWarnings(ctx, env, cwd, s);
   const minRaw = cfg(ctx, 'split_min_pane', '0.18', env);
   if (!/^0?\.[0-9]+$/.test(minRaw)) s.warn(`config: split_min_pane='${minRaw}' must be a fraction like 0.18 (using 0.18)`);
   const hlmRaw = cfg(ctx, 'herd_label_max', '16', env);

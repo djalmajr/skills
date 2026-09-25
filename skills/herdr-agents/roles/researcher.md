@@ -14,7 +14,8 @@ Answer the question by reading the library's actual source (node_modules, vendor
 1. Find the installed version (lockfile, package.json, Cargo.toml, pyproject, go.mod).
 2. Classify the question: conceptual (types, docs, examples), implementation (read the code path), behavioral (find where defaults/values are set; check tests).
 3. Ground every claim in a file path and line range. Quote signatures verbatim.
-4. Call out breaking changes relevant to the installed version and any undocumented behavior you hit.
+4. When the answer depends on a lookup table (types, keys, routes, registries), read the function that consults it — normalization, prefixes, fallbacks — and cite it: an entry listed in the table does not prove a value matches.
+5. Call out breaking changes relevant to the installed version and any undocumented behavior you hit.
 </procedure>
 
 <critical>

@@ -150,7 +150,11 @@ function makeFix(prefix) {
       for (const r of rows) fs.appendFileSync(f, r + '\n');
     },
     row: (name) => {
-      const lines = fs.readFileSync(path.join(ws, 'agents.tsv'), 'utf8').trim().split('\n');
+      // No trim: the last row's trailing empty columns (13/14) are tabs,
+      // which trim would eat; the file's own reader (tsvLines) only drops
+      // the final newline.
+      const lines = fs.readFileSync(path.join(ws, 'agents.tsv'), 'utf8').split('\n');
+      if (lines.length && lines[lines.length - 1] === '') lines.pop();
       return lines.filter((l) => l.split('\t')[0] === name).at(-1) ?? '';
     },
     roster() { return fs.readFileSync(path.join(ws, 'agents.tsv'), 'utf8'); },
@@ -264,6 +268,48 @@ test('findReusable: multi_role=off refuses another role, still reuses the same r
     assert.equal(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full', off), null);
     fix.writeRoster('impl\tp-impl\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer');
     assert.deepEqual(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full', off), { name: 'impl' });
+  } finally { fix.cleanup(); }
+});
+
+// Roster column 14 records the native args the process opened with (a
+// line without the column reads as ''); the live session keeps them, so a
+// config or session change after the spawn cannot silently swap the
+// worker's args — reuse only when the column equals the args this spawn
+// would build now (args.<kind> + role.<role>.args).
+test('findReusable: the roster column 14 (the args the worker opened with) gates reuse', () => {
+  const fix = makeFix('ha-spawn-reuse-col14-');
+  try {
+    // 14-column line: column 13 (burst) empty, column 14 the args.
+    const row = (args) => `scout\tp-scout\tgrok\tscouter\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\tscouter\t\t\t${args}`;
+    const withImplArgs = { HERDR_AGENTS_ROLE_IMPLEMENTER_ARGS: '-r x' };
+    // Old line without the column reads as '': an empty request reuses, a
+    // request with args does not.
+    fix.writeRoster('scout\tp-scout\tgrok\tscouter\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\tscouter');
+    assert.deepEqual(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full'), { name: 'scout' }, 'old line, empty request');
+    fix.writeRoster('scout\tp-scout\tgrok\tscouter\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\tscouter');
+    assert.equal(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full', { ...fix.env, ...withImplArgs }), null, 'old line, args requested');
+    // Column 14 '' (the worker opened without args): args requested now → no reuse.
+    fix.writeRoster(row(''));
+    assert.equal(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full', { ...fix.env, ...withImplArgs }), null, 'column empty, args requested');
+    // Column 14 with args and an empty request → no reuse.
+    fix.writeRoster(row('-r x'));
+    assert.equal(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full'), null, 'column has args, empty request');
+    // Equal column and request: the role args, and args.<kind> + role args
+    // combined (args.<kind> tokens first).
+    fix.writeRoster(row('-r x'));
+    assert.deepEqual(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full', { ...fix.env, ...withImplArgs }), { name: 'scout' }, 'role args equal');
+    fix.writeRoster(row('-k y -r x'));
+    assert.deepEqual(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full', { ...fix.env, HERDR_AGENTS_ARGS_GROK: '-k y', HERDR_AGENTS_ROLE_IMPLEMENTER_ARGS: '-r x' }), { name: 'scout' }, 'kind + role args equal');
+    // Different column and request → no reuse, the same role included.
+    fix.writeRoster(row('-r x'));
+    assert.equal(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full', { ...fix.env, HERDR_AGENTS_ROLE_IMPLEMENTER_ARGS: '-r y' }), null, 'role args differ');
+    fix.writeRoster('impl\tp-impl\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer\t\t\t-r x');
+    assert.equal(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full'), null, 'same role, column has args, empty request');
+    fix.writeRoster('impl\tp-impl\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer\t\t\t-r x');
+    assert.deepEqual(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full', { ...fix.env, ...withImplArgs }), { name: 'impl' }, 'same role, equal');
+    // Mutation captured: comparing the current configuration instead of
+    // the roster column (the "column has args, empty request" and "column
+    // empty, args requested" cases would flip).
   } finally { fix.cleanup(); }
 });
 
@@ -648,6 +694,14 @@ function runSpawn(fix, args, over = {}) {
   return spawnSync(nodeBin(), [JS_ENTRY, 'spawn', ...args], { env, cwd: fix.repo, encoding: 'utf8', timeout: 30000 });
 }
 
+// `session set` in the same fixture (the session layer a spawn reads next).
+function runSession(fix, args, over = {}) {
+  const env = { ...fix.env, ...over };
+  delete env.HERDR_PANE_ID;
+  delete env.HERDR_TAB_ID;
+  return spawnSync(nodeBin(), [JS_ENTRY, 'session', 'set', ...args], { env, cwd: fix.repo, encoding: 'utf8', timeout: 30000 });
+}
+
 test('spawn: codex effort max reaches the CLI when the model advertises it', () => {
   const cases = [
     { model: 'big', effort: 'max', warn: null },
@@ -964,7 +1018,8 @@ test('spawn: the temporary (burst) worker — flex only, flex_roles, capped by f
     assert.equal(j.burst, true, 'the JSON marks the temporary worker');
     let f = fix.row('docs').split('\t');
     assert.equal(f[12], 'burst', 'roster column 13 is the burst marker');
-    assert.equal(f.length, 13, 'the burst row has 13 columns');
+    assert.equal(f.length, 14, 'the burst row has 14 columns (13 present even when empty)');
+    assert.equal(f[13], '', 'column 14 is the native args (none here)');
     assert.equal(f[11], 'docs', 'the lane column is the docs lane');
     // (b) the strict mode (the default) never opens a burst: the documenter
     // sits in the build lane, and a full build lane is busy 10.
@@ -1207,6 +1262,239 @@ test('spawn: lanes=off — the same role on another recorded model spawns a new 
     // Mutation captured: the recorded model ignored (the first spawn would
     // reuse the other-model worker).
   } finally { fix.cleanup(); }
+});
+
+// The agent_args assembly order: the skill's own args (kind context/
+// approvals/model/effort), then args.<kind>, then the lane args when the
+// worker opens in a lane or the role args when it opens outside one, and
+// finally the args after `--`.
+test('spawn: the agent args order — skill args, args.<kind>, role args, then --', () => {
+  const { fix, proj } = confFix('ha-spawn-args-order-');
+  try {
+    proj('lanes=off\nargs.grok=--kind-extra\nrole.implementer.args=-r impl\n');
+    fix.clearLog();
+    const r = runSpawn(fix, ['implementer', '--', '-n', 'one', '-n', 'two'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.agent_args, '--model grok-4.7 --reasoning-effort xhigh --kind-extra -r impl -n one -n two', j.agent_args);
+    assert.ok(fix.logLines().includes('agent start implementer --kind grok --pane p-new --timeout 60000 -- --model grok-4.7 --reasoning-effort xhigh --kind-extra -r impl -n one -n two'),
+      fix.logLines().join('\n'));
+    // Mutation captured: the order swapped between args.<kind> and the
+    // role/lane args (the agent_args string would carry -r impl before
+    // --kind-extra), or the `--` args landing before the config args.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: lanes=off — role.<role>.args reaches only that role', () => {
+  const { fix, proj } = confFix('ha-spawn-role-args-');
+  try {
+    proj('lanes=off\nrole.implementer.args=-c sandbox_workspace_write.network_access=true\n');
+    fix.clearLog();
+    const r = runSpawn(fix, ['implementer'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.agent_args, '--model grok-4.7 --reasoning-effort xhigh -c sandbox_workspace_write.network_access=true', j.agent_args);
+    // The other role gets the same skill args and none of the role args.
+    fix.clearLog();
+    const r2 = runSpawn(fix, ['scouter', '--fresh'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r2.status, 0, r2.stderr);
+    const j2 = JSON.parse(r2.stdout);
+    assert.equal(j2.agent_args, '--model grok-4.7 --reasoning-effort xhigh', 'the other role gets no role args');
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: lanes on — lane.<lane>.args reaches every worker of the lane; role args stay ignored', () => {
+  const { fix, proj } = confFix('ha-spawn-lane-args-');
+  try {
+    proj([
+      'lane.build.roles=implementer',
+      'lane.build.kind=grok',
+      'lane.review.roles=reviewer,inspector',
+      'lane.review.kind=grok',
+      'lane.review.panes=2',
+      'lane.review.args=-l review',
+      'role.reviewer.args=-r reviewer',
+    ].join('\n'));
+    fix.clearLog();
+    // build lane: no lane args and no role args inside a lane.
+    let r = runSpawn(fix, ['implementer']);
+    assert.equal(r.status, 0, r.stderr);
+    let j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'build');
+    assert.equal(j.agent_args, '--model grok-4.7 --reasoning-effort xhigh', 'the build lane gets no review args');
+    // review lane: the lane args reach every worker of the lane, the
+    // per-role key never applies inside one.
+    r = runSpawn(fix, ['reviewer']);
+    assert.equal(r.status, 0, r.stderr);
+    j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'review');
+    assert.equal(j.agent_args, '--model grok-4.7 --reasoning-effort xhigh -l review', j.agent_args);
+    assert.ok(!j.agent_args.includes('-r reviewer'), 'role args are ignored inside a lane');
+    fix.live([{ name: 'review', pane_id: 'p-review', agent_status: 'working' }]);
+    fix.clearLog();
+    r = runSpawn(fix, ['inspector']);
+    assert.equal(r.status, 0, r.stderr);
+    j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'review-2', 'the second worker of the lane');
+    assert.equal(j.agent_args, '--model grok-4.7 --reasoning-effort xhigh -l review', 'every worker of the lane gets the lane args');
+    // Mutation captured: the role args applied inside a lane (the review
+    // agent_args would carry -r reviewer), or the lane args missing from a
+    // worker of the lane.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: lanes=off — a worker opened with different native args is not reused; equal args are', () => {
+  const { fix, proj } = confFix('ha-spawn-reuse-args-');
+  try {
+    const row = `impl\tp-impl\tgrok\timplementer\txai\t1\t${fix.repo}\tnow\tgrok-4.7\tfull\timplementer`;
+    const row14 = (args) => `impl\tp-impl\tgrok\timplementer\txai\t1\t${fix.repo}\tnow\tgrok-4.7\tfull\timplementer\t\t\t${args}`;
+    proj('lanes=off\nrole.scouter.args=-r scout\n');
+    // The idle implementer opened without native args (no column 14); the
+    // scouter wants -r scout: not borrowed, a fresh scouter opens with the
+    // role args.
+    fix.writeRoster(row);
+    fix.live([{ name: 'impl', pane_id: 'p-impl', agent_status: 'idle' }]);
+    fix.clearLog();
+    let r = runSpawn(fix, ['scouter'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    let j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'scouter', 'a different-args worker is not reused');
+    assert.ok(!('reused' in j), 'a fresh spawn has no reused key');
+    assert.equal(j.agent_args, '--model grok-4.7 --reasoning-effort xhigh -r scout', j.agent_args);
+    assert.ok(fix.logLines().some((l) => l.startsWith('agent start scouter ')), fix.logLines().join('\n'));
+    // The idle implementer opened with -r x (column 14) and the scouter
+    // wants -r x now: reused — and the rewrite (the role swap) keeps the
+    // column.
+    proj('lanes=off\nrole.scouter.args=-r x\n');
+    fix.writeRoster(row14('-r x'));
+    fix.live([{ name: 'impl', pane_id: 'p-impl', agent_status: 'idle' }]);
+    fix.clearLog();
+    r = runSpawn(fix, ['scouter'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'impl');
+    assert.equal(j.reused, true);
+    assert.equal(j.previous_role, 'implementer');
+    const f = fix.row('impl').split('\t');
+    assert.equal(f.length, 14, 'the rewritten row keeps 14 columns');
+    assert.equal(f[13], '-r x', 'the rewritten row keeps the args column');
+    assert.ok(!fix.logLines().some((l) => l.startsWith('agent start')), 'reuse starts no pane');
+    // Mutation captured: the reuse comparing the current configuration
+    // (instead of column 14) — the first spawn would reuse the idle
+    // implementer — or the role-swap rewrite dropping the column.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: the roster records the native args (column 14) the spawn used', () => {
+  const { fix, proj } = confFix('ha-spawn-col14-');
+  try {
+    // lanes=off: role args → column 14; column 13 present even when empty.
+    proj('lanes=off\nargs.grok=--kind-extra\nrole.implementer.args=-r impl\n');
+    fix.clearLog();
+    let r = runSpawn(fix, ['implementer'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    let f = fix.row(JSON.parse(r.stdout).name).split('\t');
+    assert.equal(f.length, 14, 'the row has 14 columns');
+    assert.equal(f[12], '', 'column 13 is present (not a burst)');
+    assert.equal(f[13], '--kind-extra -r impl', 'column 14 is args.<kind> then role args');
+    // No args configured: column 14 is empty.
+    proj('lanes=off\n');
+    r = runSpawn(fix, ['scouter'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    f = fix.row(JSON.parse(r.stdout).name).split('\t');
+    assert.equal(f.length, 14, 'the row has 14 columns');
+    assert.equal(f[13], '', 'no native args → empty column 14');
+    // lanes on: lane args → column 14 for every worker of the lane.
+    proj('lane.build.roles=implementer\nlane.build.kind=grok\nlane.build.args=-l build\n');
+    r = runSpawn(fix, ['implementer']);
+    assert.equal(r.status, 0, r.stderr);
+    f = fix.row(JSON.parse(r.stdout).name).split('\t');
+    assert.equal(f[13], '-l build', 'column 14 is the lane args');
+    // Mutation captured: the column not recorded (or column 13 missing
+    // when empty) at the spawn.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: a session set after the spawn blocks the reuse', (t) => {
+  // Same role: the worker opened without args; a session-layer role arg
+  // afterwards makes the requested args differ → no reuse.
+  t.test('same role', () => {
+    const { fix, proj } = confFix('ha-spawn-session-after-1-');
+    try {
+      proj('lanes=off\n');
+      fix.writeRoster();
+      fix.live([]);
+      let r = runSpawn(fix, ['implementer'], { HERDR_AGENTS_LANES: 'off' });
+      assert.equal(r.status, 0, r.stderr);
+      const first = JSON.parse(r.stdout).name;
+      const f1 = fix.row(first).split('\t');
+      assert.equal(f1.length, 14);
+      assert.equal(f1[13], '', 'the worker opened without args');
+      const s = runSession(fix, ['role.implementer.args', '-r x'], { HERDR_AGENTS_LANES: 'off' });
+      assert.equal(s.status, 0, s.stderr);
+      fix.live([{ name: first, pane_id: `p-${first}`, agent_status: 'idle' }]);
+      fix.clearLog();
+      r = runSpawn(fix, ['implementer'], { HERDR_AGENTS_LANES: 'off' });
+      assert.equal(r.status, 0, r.stderr);
+      const j1 = JSON.parse(r.stdout);
+      assert.notEqual(j1.name, first, 'the same-role worker is not reused');
+      assert.ok(!('reused' in j1), 'a fresh spawn has no reused key');
+      assert.ok(fix.logLines().some((l) => l.startsWith('agent start ')), 'a fresh worker opens');
+    } finally { fix.cleanup(); }
+  });
+  // Cross-role: the idle worker opened without args; a session-layer arg
+  // for the requested role → no cross-role reuse.
+  t.test('cross-role', () => {
+    const { fix, proj } = confFix('ha-spawn-session-after-2-');
+    try {
+      proj('lanes=off\n');
+      fix.writeRoster();
+      fix.live([]);
+      const r0 = runSpawn(fix, ['implementer'], { HERDR_AGENTS_LANES: 'off' });
+      assert.equal(r0.status, 0, r0.stderr);
+      const implName = JSON.parse(r0.stdout).name;
+      const s = runSession(fix, ['role.scouter.args', '-r x'], { HERDR_AGENTS_LANES: 'off' });
+      assert.equal(s.status, 0, s.stderr);
+      fix.live([{ name: implName, pane_id: `p-${implName}`, agent_status: 'idle' }]);
+      fix.clearLog();
+      const r = runSpawn(fix, ['scouter'], { HERDR_AGENTS_LANES: 'off' });
+      assert.equal(r.status, 0, r.stderr);
+      const j2 = JSON.parse(r.stdout);
+      assert.notEqual(j2.name, implName, 'the idle implementer is not borrowed');
+      assert.ok(!('reused' in j2), 'no cross-role reuse after the session set');
+      assert.ok(fix.logLines().some((l) => l.startsWith('agent start ')), 'a fresh worker opens');
+    } finally { fix.cleanup(); }
+  });
+  // Lane: the idle lane worker opened without args; a session-layer lane
+  // arg afterwards → kind-mismatch 13 on the next spawn of the lane.
+  t.test('lane', () => {
+    const { fix, proj } = confFix('ha-spawn-session-after-3-');
+    try {
+      proj('lane.build.roles=implementer\nlane.build.kind=grok\n');
+      fix.writeRoster();
+      fix.live([]);
+      const r0 = runSpawn(fix, ['implementer']);
+      assert.equal(r0.status, 0, r0.stderr);
+      const laneWorker = JSON.parse(r0.stdout).name;
+      const s = runSession(fix, ['lane.build.args', '-l net']);
+      assert.equal(s.status, 0, s.stderr);
+      fix.live([{ name: laneWorker, pane_id: `p-${laneWorker}`, agent_status: 'idle' }]);
+      fix.clearLog();
+      const r = runSpawn(fix, ['implementer']);
+      assert.equal(r.status, 13, r.stderr);
+      const jm = JSON.parse(r.stdout);
+      assert.equal(jm.status, 'kind-mismatch');
+      assert.equal(jm.lane, 'build');
+      assert.equal(jm.name, laneWorker);
+      assert.equal(jm.session_args, '');
+      assert.equal(jm.requested_args, '-l net');
+      assert.ok(r.stderr.includes(`lane 'build' worker '${laneWorker}' was started with other native args (''); this spawn wants '-l net'. Release the lane, then spawn again.`), r.stderr);
+      assert.ok(!fix.logLines().some((l) => l.startsWith('agent start')), 'the mismatch starts no pane');
+    } finally { fix.cleanup(); }
+  });
+  // Mutation captured: the reuse comparing the current configuration
+  // (session or file) instead of the roster column 14 (all three spawns
+  // above would reuse the worker).
 });
 
 // A dead worker on the last roster line is simply not counted (bash used to

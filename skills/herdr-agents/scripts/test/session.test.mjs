@@ -230,6 +230,45 @@ test('session set with "key value" in one argument names the shell mistake', () 
   } finally { s.cleanup(); }
 });
 
+// The args keys (args.<kind>, role.<role>.args, lane.<name>.args) hold
+// native CLI flags: the value starts with `-` and, unquoted, arrives split
+// across several arguments — the following arguments join a dash-led value
+// instead of dying as unexpected arguments.
+test('session set writes the args keys with dash-led values', () => {
+  const s = setup();
+  try {
+    // A dash-led value as one argument (the shell keeps it quoted).
+    const r = s.run('session', 'set', 'role.reviewer.args', '-c a=b');
+    assert.equal(r.rc, 0, r.err);
+    assert.match(fs.readFileSync(s.sess, 'utf8'), /^role\.reviewer\.args=-c a=b$/m, 'role args content');
+    // Unquoted: the value continues in the following arguments.
+    const r2 = s.run('session', 'set', 'lane.build.args', '-s', 'workspace-write');
+    assert.equal(r2.rc, 0, r2.err);
+    assert.match(fs.readFileSync(s.sess, 'utf8'), /^lane\.build\.args=-s workspace-write$/m, 'lane args content');
+    // key=value with a dash-led value: only the first = splits (the value
+    // may itself hold '=').
+    const r3 = s.run('session', 'set', 'role.scouter.args=-c a=b');
+    assert.equal(r3.rc, 0, r3.err);
+    assert.match(fs.readFileSync(s.sess, 'utf8'), /^role\.scouter\.args=-c a=b$/m, 'role args via key=value');
+    // Unquoted key=value: the shell delivers `lane.review.args=-c` and
+    // `a=b` separately — the first `=` of the first argument splits the
+    // key, the rest continues the dash-led value.
+    const r5 = s.run('session', 'set', 'lane.review.args=-c', 'a=b');
+    assert.equal(r5.rc, 0, r5.err);
+    assert.match(fs.readFileSync(s.sess, 'utf8'), /^lane\.review\.args=-c a=b$/m, 'the split key=value was not written');
+    // A value without a dash still refuses a third argument.
+    const r4 = s.run('session', 'set', 'args.codex', 'a', 'b');
+    assert.equal(r4.rc, 2, r4.err);
+    assert.match(r4.err, /unexpected argument 'b'/);
+    // Mutation captured: the new keys refused by the key pattern (the sets
+    // would die 2 as unknown keys), a dash-led value not joining the
+    // following argument (the unquoted lane args set would die on the
+    // unexpected argument), or the unquoted `key=<part> <rest>` not split
+    // at the first = of the first argument (the set would die 2 as an
+    // unknown key).
+  } finally { s.cleanup(); }
+});
+
 // Mutation captured: splitting key=value after the file selector is read
 // wrongly (or dropping the selector) writes the pair to the other file.
 test('config set key=value honors --user and --project', () => {

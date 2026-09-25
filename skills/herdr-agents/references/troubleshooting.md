@@ -218,8 +218,13 @@ you should do. Read this before changing the script or adding a kind.
   ok` with the key below).
 - **Do:** in the brief, say that such tests do not run in the Codex sandbox:
   the worker marks the item `partial` and the orchestrator runs them. If you
-  accept full network access for the worker (not only localhost), set
-  `args.codex=-c sandbox_workspace_write.network_access=true`.
+  accept network access (not only localhost), give it only to the readers:
+  `role.<role>.args=-c sandbox_workspace_write.network_access=true` (with
+  `lanes=off`) or `lane.<name>.args=-c …` (lanes on — a lane session is
+  shared by every role in it, so a `role.<role>.args` never applies inside
+  a lane, and the `doctor` warns about a scoped key in a config file that
+  the current lane mode cannot apply). `args.codex=-c sandbox_workspace_write.network_access=true`
+  stays the option that applies to every worker of the kind.
 
 ## QA worker stopped at sign-in
 
@@ -233,7 +238,9 @@ you should do. Read this before changing the script or adding a kind.
 
 - `agents.tsv` columns are: name, pane, kind, role, family, created_pane,
   cwd, started, and, on lines written by a current `spawn`, model,
-  approvals, roles, lane. Old lines stop at `started` (8 columns) and are
+  approvals, roles, lane, burst (column 13, `burst` for a temporary worker
+  of the flex mode, else empty) and args (column 14, the configured native
+  args the worker opened with). Old lines stop at `started` (8 columns) and are
   reused only for the same role. Column 4 is the current role. `roles` is a
   comma-separated history (`scouter,implementer`). Column 12 is the lane
   (`build`, `explore`, `review`, `read`). `reuse_workers` once

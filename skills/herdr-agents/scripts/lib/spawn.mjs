@@ -24,7 +24,7 @@ import {
   fmGet, historyHasEdit, isReviewRole, resolveRole, roleFile, roleIsEdit,
 } from './roles.mjs';
 import {
-  customLanesPresent, enforceWorkerCap, flexExtra, laneAttr, laneDecide, lanesEnabled,
+  customLanesPresent, enforceWorkerCap, flexExtra, laneAttr, laneDecide, laneKey, lanesEnabled,
   liveBurstWorkers, paneMode, panesValue, spawnKindLayer, splitRoles,
 } from './lanes.mjs';
 import { resolveRoleSettings } from './resolve.mjs';
@@ -119,12 +119,32 @@ export function resolveSpawnEffort(role, lane, kind, kindLayer = '', ctx, env = 
 
 // ---------- reuse (no lane) ----------
 
+// The native args a spawn passes from the configuration layers: the
+// `args.<kind>` tokens followed by the `lane.<lane>.args` tokens (a lane
+// spawn) or the `role.<role>.args` tokens (everything else), joined with a
+// single space. Recorded in roster column 14 at the spawn and compared by
+// the reuse checks: the live process keeps the args it opened with, so a
+// config/session change after the spawn cannot silently swap them.
+function configNativeArgs(kind, lane, role, ctx, env = process.env) {
+  const scoped = lane !== ''
+    ? cfg(ctx, laneKey(lane, 'args'), '', env)
+    : cfg(ctx, `role_${String(role).replace(/-/g, '_')}_args`, '', env);
+  const tokens = [];
+  for (const v of [cfg(ctx, `args_${kind}`, '', env), scoped]) {
+    if (v === '') continue;
+    for (const a of v.split(/\s+/).filter((x) => x !== '')) tokens.push(a);
+  }
+  return tokens.join(' ');
+}
+
 // find_reusable :3206: an idle/done worker of the same role (always) or,
 // with multi_role=on, of another role when kind, cwd and resolved model
 // match, the worker's approvals are at least the request, and the roster
 // line has the model/approvals/roles columns. A worker that has edited
 // (EDIT_ROLES or mode: edit, now or in `roles`) is never reused as a
-// review role. Old 8-column lines are only reused for the same role.
+// review role. Old 8-column lines are only reused for the same role. In
+// both cases the roster column 14 (the native args the worker opened with)
+// must equal the args this spawn would build now.
 // Returns:
 //   { name }                         — reuse (bash rc 0, the name);
 //   { unavailable: { cause, name } } — a same-role match cannot be queried
@@ -172,6 +192,12 @@ export function findReusable(role, kind, workerCwd, name = '', wantModel = '', w
       if (approvalsRank(wApprovals) < reqRank) continue;
       if (isReviewRole(role) && (roleIsEdit(r, env, cwd) || historyHasEdit(wRoles, env, cwd))) continue;
     }
+    // Roster column 14 holds the native args the process opened with
+    // (a line without the column reads as ''); the live session still runs
+    // with them, so a config or session change after the spawn must not
+    // silently swap the worker's args — reuse only when they match the
+    // args this spawn would build now.
+    if ((f.length >= 14 ? (f[13] ?? '') : '') !== configNativeArgs(kind, '', role, ctx, env)) continue;
     // A recorded report path pointing at an empty (or missing) file is a
     // pending report — the worker is not ready to be reused.
     const rep = lastReport(sd, nm);
@@ -431,6 +457,20 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
           warn(`lane '${lane}' worker '${d.name}' runs ${actualKind} but lane.${lane}.kind is ${kind}. Release the lane ('release ${d.name} --close'), then spawn again.`);
           process.exit(13);
         }
+        // The roster column 14 holds the native args the idle worker opened
+        // with (a line without the column reads as ''); the lane session is
+        // shared by its roles, so a change after the spawn cannot silently
+        // swap them.
+        const sessionArgs = lf.length >= 14 ? (lf[13] ?? '') : '';
+        const wantedArgs = configNativeArgs(kind, lane, role, ctx, env);
+        if (sessionArgs !== wantedArgs) {
+          process.stdout.write(`${JSON.stringify({
+            status: 'kind-mismatch', lane, name: d.name,
+            session_args: sessionArgs, requested_args: wantedArgs,
+          })}\n`);
+          warn(`lane '${lane}' worker '${d.name}' was started with other native args ('${sessionArgs}'); this spawn wants '${wantedArgs}'. Release the lane, then spawn again.`);
+          process.exit(13);
+        }
         emitReuse(d.name, role, actualKind, ctx, env, cwd);
         warn(`reusing idle lane '${lane}' worker '${d.name}' as ${role}; its session already holds earlier briefs`);
         return;
@@ -519,8 +559,11 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
     ...kindModelArgs(kind, model, effort),
     ...kindEffortArgs(kind, effort, model, env),
   ];
-  const extra = cfg(ctx, `args_${kind}`, '', env);
-  if (extra !== '') for (const a of extra.split(/\s+/).filter((x) => x !== '')) built.push(a);
+  // The configured native args (args.<kind> then lane.<lane>.args or
+  // role.<role>.args) come after the skill args and before the args after
+  // --; the joined string is what roster column 14 records.
+  const native = configNativeArgs(kind, lane, role, ctx, env);
+  if (native !== '') for (const a of native.split(/\s+/)) built.push(a);
   const agentArgs = [...built, ...nativeArgs];
   let created = 0;
   let placement = 'given';
@@ -575,8 +618,11 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
   }
   restoreFocusIfStolen(focusBefore, pane, direction, env);
   const family = agentFamily(kind, model);
-  const rosterFields = [name, pane, kind, role, family, String(created), cwdArg, nowStamp(), model, approvals !== '' ? approvals : 'ask', role, lane];
-  if (burst === 1) rosterFields.push('burst'); // column 13; rows without it are not temporary
+  // Roster line: the 12 base columns, then column 13 (the `burst` marker
+  // for temporary workers — present even when empty, since writing column
+  // 14 requires it) and column 14 (the native args the worker opened with,
+  // '' when none; a line without it reads as '').
+  const rosterFields = [name, pane, kind, role, family, String(created), cwdArg, nowStamp(), model, approvals !== '' ? approvals : 'ask', role, lane, burst === 1 ? 'burst' : '', native];
   rosterAppend(sd, rosterFields);
   if (placement === 'herd') {
     try { herdTabsRelabel(ctx, env, cwd); }

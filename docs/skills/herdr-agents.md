@@ -34,6 +34,14 @@ roles/<role>.md  ──▶  spawn (pane split + agent start)  ──▶  dispatc
 - **Roles** are markdown files with frontmatter (`kind`, `alternatives`,
   `mode`, `timeout`) and a prompt body, like omp's `.omp/agents/*.md`. A
   project overrides any role by dropping `.agents/herdr-roles/<role>.md`.
+  The shipped roles set their own `timeout` (reviewer and
+  security-reviewer run 30 min); a role without one falls back to
+  `dispatch_timeout` (15 min).
+- **Table answers cite the lookup.** A `scouter` or `researcher` answer
+  that depends on a lookup table (types, keys, routes, registries) also
+  reads and cites the function that consults it — normalization, prefixes
+  and fallbacks decide what actually matches, so an entry in the table does
+  not prove a value matches.
 - **Kinds** are Herdr agent kinds (`codex`, `claude`, `grok`, `agy`,
   `cursor`, `pi`, `opencode`, …). A fresh install uses the role defaults —
   implementation and research on `grok`, review and documentation on
@@ -44,7 +52,7 @@ roles/<role>.md  ──▶  spawn (pane split + agent start)  ──▶  dispatc
   files, local sources, applicable rules, allowed checks, report format.
   Workers never commit or push.
 - **Reports** are files under the state dir, per-item with three states
-  (done / partial / skipped + reason), so collection never depends on
+  (`[done]` / `[partial]` / `[skipped]` + reason), so collection never depends on
   scraping a TUI.
 
 ## The team: panels and lanes
@@ -86,7 +94,9 @@ The **documenter** edits documentation only (README, guides, references,
 ADRs, CHANGELOG), never code, and works after a slice passed review, from
 the spec and the committed diff. Documentation that describes behavior
 (commands, flags, config) goes to a reviewer; the rest the orchestrator
-checks.
+checks. Its report is a claims table: each factual claim with its source
+(`path:line`, or the exact read-only command and what it printed); a claim
+it could not verify goes to open questions, not into the text.
 
 ## Who is who
 
@@ -168,7 +178,15 @@ prompt` by hand: `wait` would keep watching the old report.
 versioned) → `HERDR_AGENTS_<KEY>` → flags. `herdr-agents config` shows the
 effective values and where each came from. The team shape lives in the
 same place: `panes` (2|3|4), `lanes` (on|off), `pane_mode` (`strict|flex`)
-and per-lane keys (`lane.<name>.roles|kind|model|effort|approvals|panes`).
+and per-lane keys
+(`lane.<name>.roles|kind|model|effort|approvals|panes|args`). Two more keys
+carry native args to a subset of the workers: `role.<role>.args` (with
+`lanes=off`) and `lane.<name>.args` (every worker of the lane; a lane
+session is shared by every role in it, so the per-role key never applies
+inside one). They are appended after `args.<kind>` (the kind-wide native
+args), before the native args given after `--` to `spawn`. A worker keeps
+the args it opened with: after a change, an idle worker started with other
+args is not reused.
 Typical project file:
 
 ```ini
@@ -265,6 +283,15 @@ The other outcomes: `quota` (exit 11, the account's quota is out),
 access and retry; never spawn a replacement), `timeout` (exit 9 — run
 `wait` again). When several agents finish in one `wait`, the exit is the
 most severe of 4, 11, 14, 15, 7 and 6.
+
+A `done` report that still marks items `[partial]` is not a pass (every
+prompt asks for each item's state as `[done]`, `[partial]` or `[skipped]`):
+the JSON line gains `partial: N` (only when N > 0, after `report`) and the
+wait
+warns `report of '<agent>' marks N item(s) partial: a partial item is not
+a pass; read them before commit, push or release`. The `dispatch` JSON
+carries the same `partial: N` right after `report_exists` (after `amend`,
+when present).
 
 ## Reusing workers
 

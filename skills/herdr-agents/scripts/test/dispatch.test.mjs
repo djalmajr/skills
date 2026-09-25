@@ -38,7 +38,8 @@ const JS_ENTRY = path.join(SCRIPTS, 'herdr-agents.mjs');
 // file); `agent prompt` fails when FAKE_PROMPT_FAIL exists, is a silent
 // no-op when the FAKE_PROMPT_SKIP file exists (consumed on the call),
 // leaves the prompt text in the input box (FAKE_PROMPT_INPUT), turns the
-// worker to working (FAKE_PROMPT_ARRIVE), or is accepted into the
+// worker to working (FAKE_PROMPT_ARRIVE), writes the report named in the
+// prompt text with the FAKE_REPORT_TEXT body, or is accepted into the
 // scrollback (default: the screen moves, the state stays); `agent
 // send-keys` turns the worker to working when the FAKE_SENDKEYS_WORK file
 // exists; `agent list` from FAKE_LIVE. Every call is logged as one "$*"
@@ -100,6 +101,14 @@ if (cmd === 'agent get') {
   } else if (process.env.FAKE_PROMPT_ARRIVE) {
     try { fs.writeFileSync(modeFileOf(t), 'working\\n'); } catch {}
     try { fs.writeFileSync(screenTargetOf(t), 'thinking…\\n'); } catch {}
+    process.stdout.write('{"result":{"submitted":true}}\\n');
+  } else if (process.env.FAKE_REPORT_TEXT !== undefined) {
+    // The fake worker writes the report in answer to the prompt: the
+    // report path is the last "write your report to <path> and reply" of
+    // the prompt text, the body is the FAKE_REPORT_TEXT value.
+    const promptText = argv[3] ?? '';
+    const rm = promptText.match(/write your report to (.+) and reply with exactly that path and nothing else\.$/);
+    if (rm) { try { fs.writeFileSync(rm[1], process.env.FAKE_REPORT_TEXT); } catch {} }
     process.stdout.write('{"result":{"submitted":true}}\\n');
   } else {
     // Accepted into the scrollback: the screen moves, the state stays.
@@ -488,7 +497,7 @@ test('compose: role header, brief verbatim, the report contract in order', { tim
       + 'You are running as the `alpha` role, agent name `w1`, inside a multi-agent run coordinated by an orchestrator that cannot see your terminal.\n\n';
     const body = roleBody(roleFile);
     const contract = [
-      '- Write your report as Markdown to `' + report + '` (create parent directories if needed) following the `<report>` section of your role and the per-item states done / partial / skipped + reason.\n',
+      '- Write your report as Markdown to `' + report + '` (create parent directories if needed) following the `<report>` section of your role. Give every item its state as `[done]`, `[partial]` or `[skipped]`, followed by the reason.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
       '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
@@ -1193,6 +1202,7 @@ test('dispatch --amend: new report, wait markers cleared, title keeps the task w
     const contract = [
       '- This amendment overrides your current brief where they differ; the rest of that brief still holds.\n',
       `- Write your report as Markdown to \`${j.report}\` (create parent directories if needed). If you have not written the report of your current brief yet, write one report there that covers the brief and this amendment; otherwise report only on the amendment.\n`,
+      '- Give every item its state as `[done]`, `[partial]` or `[skipped]`, followed by the reason.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
       '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
@@ -1270,6 +1280,7 @@ test('composeAmendment: the report_language line, in order, only when set', { ti
       '\n\n# Report contract\n\n',
       '- This amendment overrides your current brief where they differ; the rest of that brief still holds.\n',
       `- Write your report as Markdown to \`${report}\` (create parent directories if needed). If you have not written the report of your current brief yet, write one report there that covers the brief and this amendment; otherwise report only on the amendment.\n`,
+      '- Give every item its state as `[done]`, `[partial]` or `[skipped]`, followed by the reason.\n',
       '- Write the report in pt-BR.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
       '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
@@ -1354,5 +1365,90 @@ test('dispatch: a strict lint dies 2 without creating the state dirs', { timeout
     assert.ok(!fs.existsSync(path.join(fix.ws, 'wait')));
     // Mutation captured: stateDir called before the lint (the original
     // order) would recreate the subdirs and fail the existsSync asserts.
+  } finally { fix.cleanup(); }
+});
+
+// ---------- a done report that marks items partial ----------
+
+// The wait line of a done report with partial items carries the count; the
+// final dispatch JSON gains `partial` right after report_exists (before
+// auto_approved), and the warn is the wait's own — the dispatch does not
+// repeat it.
+test('dispatch: a done report with partial items gets the partial key after report_exists', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-partial-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    const body = ['# Report', '', '| item | state |', '| --- | --- |', '| slice | [done] |',
+      '| fact A | [partial] |', '| fact B | [partial] |', ''].join('\n');
+    const warnLine = "herdr-agents: warning: report of 'build' marks 2 item(s) partial: a partial item is not a pass; read them before commit, push or release";
+    // Mutation captured: not reading the partial count from the wait line
+    // (or placing the key anywhere else) breaks the key set and the warn
+    // count below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--timeout', '10000'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0', FAKE_REPORT_TEXT: body });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'done');
+    assert.equal(j.report_exists, true);
+    assert.equal(j.partial, 2);
+    assert.deepEqual(Object.keys(j),
+      ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists', 'partial', 'auto_approved'],
+      'partial right after report_exists, before auto_approved');
+    assert.equal(r.stderr.split(`${warnLine}`).length - 1, 1,
+      `the warn is the wait's own and is not repeated: ${r.stderr}`);
+  } finally { fix.cleanup(); }
+});
+
+// A done report without `partial` keeps the final JSON key set of today
+// (no partial key) and nothing about partial is printed.
+test('dispatch: a clean done report keeps the key set of today', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-clean-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    // Mutation captured: the partial key present with 0 (or emitted on a
+    // non-done wait) breaks the key set below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--timeout', '10000'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0', FAKE_REPORT_TEXT: '# Report\n\ndone.\n' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'done');
+    assert.equal(j.report_exists, true);
+    assert.deepEqual(Object.keys(j),
+      ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists', 'auto_approved']);
+    assert.ok(!r.stderr.includes('partial'), 'no partial warn for a clean report');
+  } finally { fix.cleanup(); }
+});
+
+// The amendment report with partial items: the final JSON carries `amend`
+// right after report_exists and `partial` right after `amend` — the count
+// is the amendment report's (the wait watches the new report path).
+test('dispatch --amend: the amendment report with partial items gets amend then partial', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-amend-partial-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF.replace('# Goal\n', '# Brief — fix the flag\n# Goal\n'));
+    const first = cmd(fix, ['dispatch', 'build', brief, '--no-wait']);
+    assert.equal(first.status, 0, first.stderr);
+    const j1 = parsePretty(first.stdout);
+    fs.writeFileSync(j1.report, '# Report\n\nall done\n');
+    const amend = fix.brief('amend.md', '# Amend — verify the external fact\n\nDo X with `--flag` instead.\n');
+    const body = ['# Report', '', '| item | state |', '| --- | --- |', '| fact A | [partial] |', ''].join('\n');
+    // Mutation captured: the partial key before amend (or missing on an
+    // amendment, or counted from the finished brief's report) breaks the
+    // key set and the count below.
+    const r = cmd(fix, ['dispatch', 'build', amend, '--amend', '--timeout', '10000'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0', FAKE_REPORT_TEXT: body });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'done');
+    assert.equal(j.amend, true);
+    assert.equal(j.partial, 1, 'the count is the amendment report, not the finished brief\'s');
+    assert.deepEqual(Object.keys(j),
+      ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists', 'amend', 'partial', 'auto_approved'],
+      'amend right after report_exists, partial right after amend');
+    assert.equal(r.stderr.split("herdr-agents: warning: report of 'build' marks 1 item(s) partial").length - 1, 1,
+      `the warn is the wait's own and is not repeated: ${r.stderr}`);
   } finally { fix.cleanup(); }
 });

@@ -19,7 +19,7 @@ import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
 import { writeFakeCli } from './fakes.mjs';
 import {
   cmdDoctor, doctorCheck, doctorFix, doctorLaneWarnings, doctorRoleKind,
-  doctorUsedKinds, projectIsFirstRun, ENTRY_SCRIPT,
+  doctorUsedKinds, laneArgsIgnoredWarnings, projectIsFirstRun, ENTRY_SCRIPT,
 } from '../lib/commands/doctor.mjs';
 import { explainActivity, explainIdleParagraph, explainPrintRunning, explainRecommendation, explainStateDir } from '../lib/commands/explain.mjs';
 import { loadConfig } from '../lib/config.mjs';
@@ -327,6 +327,15 @@ test('doctorLaneWarnings: the old preset lanes and the orphan lane keys', () => 
   const s4 = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s4);
   assert.ok(s4.lines.includes('warn: config: lane.explore.kind=codex (project) sets a lane that does not exist (lanes: build review). doctor --fix removes it.'), s4.lines.join('\n'));
+  // The args attr is orphan-checked like the other lane attrs.
+  cleanLayers();
+  writeProj('lane.explore.args=-c x\n');
+  const s4b = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s4b);
+  assert.ok(s4b.lines.includes('warn: config: lane.explore.args=-c x (project) sets a lane that does not exist (lanes: build review). doctor --fix removes it.'), s4b.lines.join('\n'));
+  // Mutation captured: the args attr missing from the orphan check (the
+  // second warn would not appear), or an orphan key of an existing lane
+  // warned about.
   // Counter-example: an attr of an existing lane (a capacity override).
   cleanLayers();
   writeProj('lane.review.panes=2\n');
@@ -335,6 +344,79 @@ test('doctorLaneWarnings: the old preset lanes and the orphan lane keys', () => 
   assert.ok(!s5.lines.some((l) => l.includes('sets a lane that does not exist')), s5.lines.join('\n'));
   // Mutation captured: the old preset signature not detected (the warn
   // vanishes), or an orphan key of an existing lane warned about.
+  cleanLayers();
+});
+
+test('doctor: the native args the current lane mode ignores (lanes on: role args; lanes off: lane args)', () => {
+  cleanLayers();
+  // Lanes on: every laned role with a role.<role>.args gets the warn, once
+  // per lane (the preset build and review lanes at panes=4).
+  writeProj([
+    'panes=4',
+    'role.implementer.args=-c net=true',
+    'role.reviewer.args=-c net=true',
+  ].join('\n'));
+  let s = capture();
+  laneArgsIgnoredWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes("warn: config: role.implementer.args is ignored: 'implementer' runs in lane 'build' (lanes=on); set lane.build.args instead"), s.lines.join('\n'));
+  assert.ok(s.lines.includes("warn: config: role.reviewer.args is ignored: 'reviewer' runs in lane 'review' (lanes=on); set lane.review.args instead"), s.lines.join('\n'));
+  // A role outside every lane (sub-orchestrator) keeps its role args: no warn.
+  cleanLayers();
+  writeProj('panes=4\nrole.sub-orchestrator.args=-c net=true\n');
+  s = capture();
+  laneArgsIgnoredWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(!s.lines.some((l) => l.includes('.args is ignored')), s.lines.join('\n'));
+  // No role args at all: no warn.
+  cleanLayers();
+  writeProj('panes=4\n');
+  s = capture();
+  laneArgsIgnoredWarnings(ctxOf(), ENV, REPO, s);
+  assert.equal(s.lines.length, 0, s.lines.join('\n'));
+  // Lanes off: one line per set lane.<name>.args, naming the effective
+  // roles of the lane (the preset review roles at panes=4).
+  cleanLayers();
+  writeProj('panes=4\nlanes=off\nlane.review.args=-c net=true\n');
+  s = capture();
+  laneArgsIgnoredWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes('warn: config: lane.review.args is ignored (lanes=off); set role.<role>.args for its roles instead (reviewer, security-reviewer, ui-reviewer, inspector)'), s.lines.join('\n'));
+  assert.equal(s.lines.length, 1, 'one line per lane key');
+  // A custom lane names its own roles, not the preset ones.
+  cleanLayers();
+  writeProj('lanes=off\nlane.ops.roles=implementer,tasker\nlane.ops.args=-c net=true\n');
+  s = capture();
+  laneArgsIgnoredWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes('warn: config: lane.ops.args is ignored (lanes=off); set role.<role>.args for its roles instead (implementer, tasker)'), s.lines.join('\n'));
+  assert.equal(s.lines.length, 1, s.lines.join('\n'));
+  // A lane without roles ends without the role list.
+  cleanLayers();
+  writeProj('lanes=off\nlane.explore.args=-c net=true\n');
+  s = capture();
+  laneArgsIgnoredWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes('warn: config: lane.explore.args is ignored (lanes=off); set role.<role>.args for its roles instead'), s.lines.join('\n'));
+  assert.equal(s.lines.length, 1, s.lines.join('\n'));
+  // No lane args at all: no warn (and the lanes-on branch stays silent
+  // when nothing is set).
+  cleanLayers();
+  writeProj('lanes=off\n');
+  s = capture();
+  laneArgsIgnoredWarnings(ctxOf(), ENV, REPO, s);
+  assert.equal(s.lines.length, 0, s.lines.join('\n'));
+  // The full doctor carries both warns (lanes on: the role-args line after
+  // the lane warnings; lanes off: after the lanes=off ok line).
+  cleanLayers();
+  writeProj('panes=4\nrole.reviewer.args=-c net=true\n');
+  let out = doctorOut();
+  assert.ok(out.split('\n').includes("warn   config: role.reviewer.args is ignored: 'reviewer' runs in lane 'review' (lanes=on); set lane.review.args instead"), out);
+  cleanLayers();
+  writeProj('lanes=off\nlane.build.args=-c net=true\n');
+  out = doctorOut();
+  assert.ok(out.split('\n').includes('warn   config: lane.build.args is ignored (lanes=off); set role.<role>.args for its roles instead (implementer, designer, tasker, scouter, researcher, documenter)'), out);
+  // Mutation captured: the role args warned with the lanes off, the lane
+  // args warned with the lanes on (the texts carry the mode), a laned role
+  // without args warned, the lanes-off warn split per role (one line per
+  // lane key, with the role list in parentheses), the role list missing or
+  // the preset lane roles wrong, or the lanes-on branch switching to the
+  // per-lane text.
   cleanLayers();
 });
 
@@ -550,6 +632,22 @@ test('doctorFix: a divergent review lane keeps the per-role kinds and warns on s
   assert.ok(!conf.includes('role.planner.model'), conf);
   assert.ok(err.includes('reviewer=codex') && err.includes('security-reviewer=claude'), err);
   assert.ok(err.includes('setup --lane review='), err);
+  cleanLayers();
+});
+
+test('doctorFix: an orphan lane args key is removed like the other orphan lane keys', () => {
+  cleanLayers();
+  // No roles lines: a preset file; the ops lane is outside the panes=4
+  // preset, so its attrs go with the generic removal line.
+  writeProj('lane.ops.args=-c x\nlane.review.kind=grok\npanes=4\n');
+  const r = runFix(['project', '4']);
+  assert.equal(r.threw, null, String(r.threw));
+  assert.ok(r.out.includes("removed lane.ops.args=-c x (no lane 'ops' in the panes=4 preset)"), r.out);
+  const conf = fs.readFileSync(PROJ_CONF, 'utf8');
+  assert.ok(!/^lane\.ops\./m.test(conf), 'the orphan lane args key was not removed:\n' + conf);
+  assert.ok(conf.split('\n').includes('lane.review.kind=grok'), 'the preset lane keeps its attrs');
+  // Mutation captured: the args attr missing from the orphan lane removal
+  // (the lane.ops.args line would stay in the file).
   cleanLayers();
 });
 
