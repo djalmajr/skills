@@ -45,6 +45,12 @@ dispatching: any place where you would have to choose is a gap.
   *is* a family name decides the family (`my-router/anthropic/x` →
   anthropic; `anthropic-proxy/x` → unknown)" — not "a segment that is a
   family prefix", which a worker reads as *starts with*.
+- **A grep used as a criterion anchors what it looks for.** "`grep -n
+  slice` finds nothing" was meant for a process label in comments; the
+  worker also rewrote every `.slice()` call (one into a mutating
+  `.splice()`) to satisfy it. Write the pattern that matches only the
+  target (`// .*\bslice\b`, a word in a test name) and say what must not
+  change.
 - **Every option the user can pick has its exact semantics.** An option
   label ("2 panels") without the configuration it maps to gets invented,
   and the invention can silently drop the user's other choices.
