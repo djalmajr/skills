@@ -50,6 +50,7 @@ run_cmd() {
   : > "$errf"
   : > "$TEST_ROOT/herdr.log"
   set +e
+  # The fake agents never start working after the prompt, so the arrival check would end every dispatch not-received (15); the check itself is covered by scripts/test/dispatch.test.mjs.
   RUN_OUT="$(
     cd "$REPO"
     HOME="$TEST_ROOT/home" \
@@ -59,6 +60,7 @@ run_cmd() {
       HERDR_WORKSPACE_ID=ws \
       HERDR_AGENTS_DIR="$STATE" \
       HERDR_AGENTS_REGRID=off \
+      HERDR_AGENTS_PROMPT_CHECK_SECONDS=0 \
       PATH="$FAKE:$PATH" \
       sh "$SKILL_SCRIPT" "$@" 2>"$errf"
   )"
