@@ -217,7 +217,7 @@ else. Shipped defaults:
 
 ```ini
 model.claude.orchestrator=fable     model.claude.worker=opus
-model.codex.orchestrator=astra      model.codex.worker=gpt-5
+model.codex.orchestrator=astra      model.codex.worker=sol|gpt-5
 model.cursor.worker=grok|muse       model.agy.worker=gemini|opus
 model.grok.worker=grok
 ```

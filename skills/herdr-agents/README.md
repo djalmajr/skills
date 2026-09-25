@@ -11,13 +11,16 @@ the team.
 
 ## What you see
 
-Up to four panels, counting yours.
+Up to four panels, counting yours. In flex mode one more may open for a
+short review or documentation job, and it closes when that job ends.
 
-- **4 panels (recommended).** Yours, plus one that writes code, one that
-  researches, and one that reviews. Those three can work at the same time.
-  This uses more quota.
-- **3 panels.** Yours, plus one that writes code, and one that takes turns
-  researching and reviewing. Lighter on quota.
+- **4 panels (recommended).** Yours, plus two that write code in parallel
+  (and research when needed), and one that reviews. Those three can work
+  at the same time. This uses more quota.
+- **3 panels.** Yours, plus one that writes code and one that reviews.
+  Lighter on quota.
+- **2 panels.** Yours, plus one that writes code; the review happens in
+  your own panel. The lightest.
 
 You can watch any panel or close one. Closing a panel stops that agent.
 The first time, nothing opens until you agree, and you are asked how many
