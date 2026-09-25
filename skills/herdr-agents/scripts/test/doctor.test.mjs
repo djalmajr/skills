@@ -1,4 +1,4 @@
-// doctor / doctor --fix (slice 7d): unit tests for lib/commands/doctor.mjs
+// doctor / doctor --fix: unit tests for lib/commands/doctor.mjs
 // and lib/commands/explain.mjs — every doctorLaneWarnings warn line (invalid
 // lanes value, panes outside 3/4, unknown role, role in two lanes, edit and
 // review in the same lane, planner in a lane, the lane model/effort dropped
@@ -19,7 +19,7 @@ import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
 import { writeFakeCli } from './fakes.mjs';
 import {
   cmdDoctor, doctorCheck, doctorFix, doctorLaneWarnings, doctorRoleKind,
-  doctorUsedKinds, projectIsFirstRun,
+  doctorUsedKinds, projectIsFirstRun, ENTRY_SCRIPT,
 } from '../lib/commands/doctor.mjs';
 import { explainActivity, explainIdleParagraph, explainPrintRunning, explainRecommendation, explainStateDir } from '../lib/commands/explain.mjs';
 import { loadConfig } from '../lib/config.mjs';
@@ -50,7 +50,7 @@ let ENV;
   TMP = path.join(root, 'tmp');
   FAKES = path.join(root, 'fakes');
   for (const d of [REPO, HOME, CONF, STATE, TMP, FAKES]) fs.mkdirSync(d, { recursive: true });
-  spawnSync('git', ['init', '-q'], { cwd: REPO, stdio: 'ignore' });
+  spawnSync('git', ['init', '-q'], { cwd: REPO, stdio: 'ignore', timeout: 30000 });
   ENV = fixtureEnv({ HOME, XDG_CONFIG_HOME: CONF, HERDR_AGENTS_DIR: STATE, TMPDIR: TMP });
 })();
 test.after(() => fs.rmSync(ROOT, { recursive: true, force: true }));
@@ -86,7 +86,7 @@ function capture() {
 
 // ---------- doctorLaneWarnings ----------
 
-test('doctorLaneWarnings: an invalid lanes value and panes outside 3/4', () => {
+test('doctorLaneWarnings: an invalid lanes value and panes outside 2/3/4', () => {
   cleanLayers();
   writeProj('lanes=bogus\n');
   const s1 = capture();
@@ -96,16 +96,21 @@ test('doctorLaneWarnings: an invalid lanes value and panes outside 3/4', () => {
   writeProj('panes=5\n');
   const s2 = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s2);
-  assert.ok(s2.lines.includes("warn: config: panes='5' is not 3 or 4 (doctor --fix --panes 3|4 writes a preset)"), s2.lines.join('\n'));
+  assert.ok(s2.lines.includes("warn: config: panes='5' is not 2, 3 or 4 (doctor --fix --panes 2|3|4 writes a preset)"), s2.lines.join('\n'));
   cleanLayers();
   const s3 = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s3);
-  assert.ok(s3.lines.some((l) => l.startsWith('warn: config: panes is not set in the project or user file')), s3.lines.join('\n'));
+  assert.ok(s3.lines.includes(`warn: config: panes is not set in the project or user file (default 4). Ask the user for 2, 3 or 4 panes, then run '${ENTRY_SCRIPT} doctor --fix --panes <n>' with their answer.`), s3.lines.join('\n'));
   cleanLayers();
   writeProj('panes=3\n');
   const s4 = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s4);
   assert.ok(s4.lines.includes('ok: config: panes=3 (project)'), s4.lines.join('\n'));
+  cleanLayers();
+  writeProj('panes=2\n');
+  const s4b = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s4b);
+  assert.ok(s4b.lines.includes('ok: config: panes=2 (project)'), s4b.lines.join('\n'));
   cleanLayers();
   // The doctor does not validate the lane kind against the known kinds
   // (only setup --lane dies): a bogus kind flows into the report as-is.
@@ -113,7 +118,71 @@ test('doctorLaneWarnings: an invalid lanes value and panes outside 3/4', () => {
   const s5 = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s5); // must not throw
   assert.ok(!s5.lines.some((l) => l.includes('unknown kind')), s5.lines.join('\n'));
+  // Mutation captured: panes '2' read as invalid (the ok line would warn
+  // instead), or the old "3 or 4" texts in the warns above.
   cleanLayers();
+});
+
+test('doctorLaneWarnings: the pane_mode status line (strict ok, flex ok, invalid warn)', () => {
+  cleanLayers();
+  // The default (strict): the ok line carries the effective pane count.
+  writeProj('panes=4\n');
+  let s = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes('ok: config: pane_mode=strict (never more than 4 panels)'), s.lines.join('\n'));
+  writeProj('panes=2\n');
+  s = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes('ok: config: pane_mode=strict (never more than 2 panels)'), s.lines.join('\n'));
+  // flex: the temporary-panel line with the effective flex_roles.
+  writeProj('panes=3\npane_mode=flex\n');
+  s = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes('ok: config: pane_mode=flex (+1 temporary panel for reviewer,documenter)'), s.lines.join('\n'));
+  writeProj('panes=3\npane_mode=flex\nflex_roles=documenter\n');
+  s = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes('ok: config: pane_mode=flex (+1 temporary panel for documenter)'), s.lines.join('\n'));
+  // An invalid value warns; the run time still resolves strict (the strict
+  // lanes stay the effective ones).
+  writeProj('panes=4\npane_mode=bogus\n');
+  s = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes("warn: config: pane_mode='bogus' is not strict|flex"), s.lines.join('\n'));
+  assert.ok(!s.lines.some((l) => l.startsWith('ok: config: pane_mode')), s.lines.join('\n'));
+  // Mutation captured: the invalid value reported as ok, the flex line
+  // without the effective flex_roles, or a wrong pane count in the strict
+  // line.
+  cleanLayers();
+});
+
+test('doctor: the flex split_max_panes warns (the mode cap, strict keeps its text)', () => {
+  cleanLayers();
+  rmOwnFiles();
+  // flex panes=4 with an explicit split_max_panes=4 < 4 + 1: the room warn.
+  writeProj('panes=4\npane_mode=flex\nsplit_max_panes=4\n');
+  let out = doctorOut();
+  assert.ok(out.split('\n').includes('warn   config: split_max_panes=4 leaves no room for the temporary panel (panes=4 + flex_extra=1); the extra worker will open in a herd tab. Remove split_max_panes or set 5.'), out);
+  // At exactly panes + flex_extra there is room: no warn at all (the old
+  // "greater than" check compares with the mode cap in flex).
+  writeProj('panes=4\npane_mode=flex\nsplit_max_panes=5\n');
+  out = doctorOut();
+  assert.ok(!out.split('\n').some((l) => l.includes('is greater than panes') || l.includes('leaves no room for the temporary panel')), out);
+  // Above the mode cap: the flex text of the old check.
+  writeProj('panes=4\npane_mode=flex\nsplit_max_panes=6\n');
+  out = doctorOut();
+  assert.ok(out.split('\n').includes('warn   config: split_max_panes=6 is greater than panes=4 + flex_extra=1. Set split_max_panes=5 (doctor --fix aligns it).'), out);
+  // The strict mode never gets the room warn (no temporary panel) and
+  // keeps its own "greater than" text (pinned elsewhere).
+  writeProj('panes=4\nsplit_max_panes=4\n');
+  out = doctorOut();
+  assert.ok(!out.split('\n').some((l) => l.includes('leaves no room for the temporary panel')), out);
+  // Mutation captured: the old check comparing with panes alone in flex
+  // (sp=5 would fire "greater than panes=4"), the flex text in the strict
+  // mode, or the room warn with split_max_panes unset (the derived value
+  // already includes the temporary panel).
+  cleanLayers();
+  rmOwnFiles();
 });
 
 test('doctorLaneWarnings: unknown role, a role in two lanes, edit+review mixed, planner in a lane', () => {
@@ -145,21 +214,21 @@ test('doctorLaneWarnings: the planner in a solo lane is the only role: no used k
 
 test('doctorLaneWarnings: a lane model/effort from a lower layer than the lane kind is reported as ok', () => {
   cleanLayers();
-  // panes=3 so the preset lanes are build and read (the read lane of a
-  // panes=4 preset is absent and its keys are never consulted).
-  writeUser('lane.build.model=claude-opus\nlane.read.effort=low\n');
-  writeProj('panes=3\nlane.build.kind=grok\nlane.read.kind=codex\n');
+  // panes=3 so the preset lanes are build and review (the old read lane
+  // is gone from the presets and its keys are not the lane keys).
+  writeUser('lane.build.model=claude-opus\nlane.review.effort=low\n');
+  writeProj('panes=3\nlane.build.kind=grok\nlane.review.kind=codex\n');
   const s = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s);
   assert.ok(s.lines.includes('ok: lanes: lane \'build\' kind grok (project); ignored lane model claude-opus from user (another kind)'), s.lines.join('\n'));
-  assert.ok(s.lines.includes('ok: lanes: lane \'read\' kind codex (project); ignored lane effort low from user (another kind)'), s.lines.join('\n'));
+  assert.ok(s.lines.includes('ok: lanes: lane \'review\' kind codex (project); ignored lane effort low from user (another kind)'), s.lines.join('\n'));
   // A model from the same layer as the kind is kept, not reported.
-  writeProj('panes=3\nlane.build.kind=grok\nlane.build.model=grok-4.7\nlane.read.kind=codex\n');
-  writeUser('lane.read.effort=low\n');
+  writeProj('panes=3\nlane.build.kind=grok\nlane.build.model=grok-4.7\nlane.review.kind=codex\n');
+  writeUser('lane.review.effort=low\n');
   const s2 = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s2);
   assert.ok(!s2.lines.some((l) => l.includes('ignored lane model')), s2.lines.join('\n'));
-  assert.ok(s2.lines.includes('ok: lanes: lane \'read\' kind codex (project); ignored lane effort low from user (another kind)'), s2.lines.join('\n'));
+  assert.ok(s2.lines.includes('ok: lanes: lane \'review\' kind codex (project); ignored lane effort low from user (another kind)'), s2.lines.join('\n'));
   cleanLayers();
 });
 
@@ -181,19 +250,91 @@ test('doctorLaneWarnings: per-role kind/model under a lane kind, divergent kinds
   const s2 = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s2);
   assert.ok(s2.lines.some((l) => l.startsWith("warn: lanes: lane 'build' has no lane.build.kind and its roles disagree (") && l.includes('implementer=grok designer=agy tasker=grok') && l.includes("setup --lane build=")), s2.lines.join('\n'));
-  // max_workers mismatch and split_max_panes above panes.
+  // max_workers mismatch (against the sum of the lane capacities) and
+  // split_max_panes above panes.
   cleanLayers();
   writeProj('max_workers=5\nsplit_max_panes=6\npanes=3\n');
   const s3 = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s3);
-  assert.ok(s3.lines.includes('warn: config: max_workers=5 but there are 2 lanes. Set max_workers=2 (doctor --fix aligns it).'), s3.lines.join('\n'));
+  assert.ok(s3.lines.includes('warn: config: max_workers=5 but the lanes hold 2 workers (build=1 review=1). Set max_workers=2 (doctor --fix aligns it).'), s3.lines.join('\n'));
   assert.ok(s3.lines.includes('warn: config: split_max_panes=6 is greater than panes=3. Set split_max_panes=3 (doctor --fix aligns it).'), s3.lines.join('\n'));
+  // The ok line names the capacities (panes=4: build holds 2).
+  cleanLayers();
+  writeProj('panes=4\n');
+  const s3b = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s3b);
+  assert.ok(s3b.lines.includes('ok: config: max_workers=3 matches the lanes (build=2 review=1)'), s3b.lines.join('\n'));
+  // In the flex mode the max_workers target is the capacity sum plus
+  // flex_extra (the temporary worker's live slot): the explicit capacity
+  // sum is a mismatch, the sum + 1 matches.
+  cleanLayers();
+  writeProj('pane_mode=flex\nmax_workers=2\npanes=3\n');
+  const s3c = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s3c);
+  assert.ok(s3c.lines.includes('warn: config: max_workers=2 but the lanes hold 3 workers (build=1 review=1 docs=0). Set max_workers=3 (doctor --fix aligns it).'), s3c.lines.join('\n'));
+  cleanLayers();
+  writeProj('pane_mode=flex\nmax_workers=3\npanes=3\n');
+  const s3d = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s3d);
+  assert.ok(s3d.lines.includes('ok: config: max_workers=3 matches the lanes (build=1 review=1 docs=0)'), s3d.lines.join('\n'));
+  // Mutation captured: the lane count used as the sum (the panes=4 ok
+  // line would read "matches the lanes (build=1 review=1)" with max_workers=2),
+  // or the old "there are N lanes" text.
   // role.planner.* set in the project file (the defaults layer does not warn).
   cleanLayers();
   writeProj('role.planner.model=fable\n');
   const s4 = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s4);
   assert.ok(s4.lines.includes('warn: config: role_planner_model is set (project) but the planner is the orchestrator and opens no pane. Remove it (doctor --fix).'), s4.lines.join('\n'));
+  cleanLayers();
+});
+
+test('doctorLaneWarnings: the old preset lanes and the orphan lane keys', () => {
+  cleanLayers();
+  // The old 3-pane preset (build|read) still loads: the lanes are the old
+  // ones, so the doctor points at the migration.
+  writeProj([
+    'lane.build.roles=implementer,designer,tasker',
+    'lane.read.roles=scouter,researcher,reviewer,security-reviewer,ui-reviewer,inspector',
+    'panes=3',
+  ].join('\n'));
+  const s = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes(`warn: lanes: the lanes come from an old preset (build, read); run '${ENTRY_SCRIPT} doctor --fix --panes 3' to move to the new ones (research joins the build lane).`), s.lines.join('\n'));
+  cleanLayers();
+  // The old 4-pane preset names its three lanes.
+  writeProj([
+    'lane.build.roles=implementer,designer,tasker',
+    'lane.explore.roles=scouter,researcher',
+    'lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector',
+  ].join('\n'));
+  const s2 = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s2);
+  assert.ok(s2.lines.includes(`warn: lanes: the lanes come from an old preset (build, explore, review); run '${ENTRY_SCRIPT} doctor --fix --panes 4' to move to the new ones (research joins the build lane).`), s2.lines.join('\n'));
+  // Counter-example: the current preset lanes are not old.
+  cleanLayers();
+  writeProj([
+    'lane.build.roles=implementer,designer,tasker,scouter,researcher',
+    'lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector',
+  ].join('\n'));
+  const s3 = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s3);
+  assert.ok(!s3.lines.some((l) => l.includes('old preset')), s3.lines.join('\n'));
+  // Orphan lane key: an effective lane.<l>.<attr> with <l> outside the
+  // lane names — one line per key.
+  cleanLayers();
+  writeProj('lane.explore.kind=codex\n');
+  const s4 = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s4);
+  assert.ok(s4.lines.includes('warn: config: lane.explore.kind=codex (project) sets a lane that does not exist (lanes: build review). doctor --fix removes it.'), s4.lines.join('\n'));
+  // Counter-example: an attr of an existing lane (a capacity override).
+  cleanLayers();
+  writeProj('lane.review.panes=2\n');
+  const s5 = capture();
+  doctorLaneWarnings(ctxOf(), ENV, REPO, s5);
+  assert.ok(!s5.lines.some((l) => l.includes('sets a lane that does not exist')), s5.lines.join('\n'));
+  // Mutation captured: the old preset signature not detected (the warn
+  // vanishes), or an orphan key of an existing lane warned about.
   cleanLayers();
 });
 
@@ -229,14 +370,14 @@ test('doctor requires the current SessionStart command', () => {
   fs.writeFileSync(settings, JSON.stringify({
     hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'sh -c herdr-agents doctor' }] }] },
   }));
-  const old = spawnSync(nodeBin(), [JS_ENTRY, 'doctor'], { cwd: REPO, env: ENV, encoding: 'utf8' });
+  const old = spawnSync(nodeBin(), [JS_ENTRY, 'doctor'], { cwd: REPO, env: ENV, encoding: 'utf8', timeout: 60000 });
   assert.equal(old.status, 0, old.stderr);
   assert.ok(old.stdout.includes('warn   no herdr-agents hooks in .claude/settings.json'), old.stdout);
 
   fs.writeFileSync(settings, JSON.stringify({
     hooks: { SessionStart: [{ hooks: [{ type: 'command', command: setupHookDoctor() }] }] },
   }));
-  const current = spawnSync(nodeBin(), [JS_ENTRY, 'doctor'], { cwd: REPO, env: ENV, encoding: 'utf8' });
+  const current = spawnSync(nodeBin(), [JS_ENTRY, 'doctor'], { cwd: REPO, env: ENV, encoding: 'utf8', timeout: 60000 });
   assert.equal(current.status, 0, current.stderr);
   assert.ok(current.stdout.includes('ok     Claude hooks present in .claude/settings.json'), current.stdout);
   fs.rmSync(path.join(REPO, '.claude'), { recursive: true, force: true });
@@ -247,13 +388,14 @@ test('doctor requires the current SessionStart command', () => {
 test('doctorUsedKinds: lane kind wins, else the lane roles, else every role file; planner excluded', () => {
   cleanLayers();
   writeProj('lane.build.kind=claude\n');
-  // build: the lane kind wins; explore: grok (frontmatter); review: the
-  // frontmatter codex/claude/agy/agy.
-  assert.deepEqual(doctorUsedKinds(ctxOf(), ENV, REPO), ['agy', 'claude', 'codex', 'grok']);
+  // build: the lane kind wins; review: the frontmatter
+  // codex/claude/agy/agy. The build lane carries the research roles, so
+  // nothing grok is in use here.
+  assert.deepEqual(doctorUsedKinds(ctxOf(), ENV, REPO), ['agy', 'claude', 'codex']);
   cleanLayers();
   writeProj('role.implementer.kind=codex\nrole.designer.kind=claude\nrole.tasker.kind=codex\n');
-  // build: codex/claude/codex; explore: grok (frontmatter); review: the
-  // frontmatter codex/claude/agy/agy — sorted unique.
+  // build: codex/claude/codex + the research roles' frontmatter grok;
+  // review: the frontmatter codex/claude/agy/agy — sorted unique.
   assert.deepEqual(doctorUsedKinds(ctxOf(), ENV, REPO), ['agy', 'claude', 'codex', 'grok']);
   // Lanes off: every role file (the planner's frontmatter kind is excluded —
   // spawn planner exits 12 before resolving a kind).
@@ -264,12 +406,21 @@ test('doctorUsedKinds: lane kind wins, else the lane roles, else every role file
   cleanLayers();
   writeProj('lane.solo.roles=planner\n');
   assert.deepEqual(doctorUsedKinds(ctxOf(), ENV, REPO), []);
+  // The documenter never votes a kind (its kind is configured per role, or
+  // via the docs lane in the flex mode): a lane holding only the documenter
+  // contributes nothing.
+  cleanLayers();
+  writeProj('lane.solo.roles=documenter\n');
+  assert.deepEqual(doctorUsedKinds(ctxOf(), ENV, REPO), [], 'the documenter never joins the used kinds');
   // doctorRoleKind: config wins over frontmatter; the planner uses none.
   cleanLayers();
   writeProj('role.reviewer.kind=grok\n');
   assert.equal(doctorRoleKind('reviewer', ctxOf(), ENV, REPO), 'grok', 'config kind wins');
   assert.equal(doctorRoleKind('planner', ctxOf(), ENV, REPO), '', 'the planner uses no kind');
   assert.equal(doctorRoleKind('designer', ctxOf(), ENV, REPO), 'agy', 'frontmatter kind');
+  // Mutation captured: the research roles kept out of the build lane (the
+  // first case would name grok), or the lane kind not winning over the
+  // role kinds.
   cleanLayers();
 });
 
@@ -309,34 +460,41 @@ test('doctorFix: the dies 2 (bad flag, no panes anywhere, bad file panes)', () =
   writeProj(LEGACY);
   let r = runFix(['project', '5']);
   assert.ok(r.threw instanceof DieError && r.threw.code === 2, String(r.threw));
-  assert.equal(r.threw.message, 'doctor --fix: --panes must be 3 or 4');
+  assert.equal(r.threw.message, 'doctor --fix: --panes must be 2, 3 or 4');
   r = runFix(['project', '']);
   assert.ok(r.threw instanceof DieError && r.threw.code === 2, String(r.threw));
   assert.ok(r.threw.message.startsWith('doctor --fix: panes is not set in '), r.threw.message);
-  assert.ok(r.threw.message.includes('doctor --fix --panes 3'), r.threw.message);
+  assert.ok(r.threw.message.includes("doctor --fix --panes <n>'."), r.threw.message);
   writeProj('panes=7\n');
   r = runFix(['project', '']);
-  assert.equal(r.threw.message, 'doctor --fix: panes=7 in ' + PROJ_CONF + ' is not 3 or 4');
+  assert.equal(r.threw.message, 'doctor --fix: panes=7 in ' + PROJ_CONF + ' is not 2, 3 or 4');
   // The file is untouched by the dies.
   assert.equal(fs.readFileSync(PROJ_CONF, 'utf8'), 'panes=7\n');
+  // Mutation captured: the flag/file validation still on 3|4 (the dies
+  // above would accept 2 or warn with the old texts).
   cleanLayers();
 });
 
-test('doctorFix: the preset 3 and 4 rewrites (unanimous kinds copied, planner dropped)', () => {
+test('doctorFix: the preset 3 and 4 rewrites (no frozen roles or limits, planner dropped)', () => {
   cleanLayers();
   writeProj(LEGACY);
   let r = runFix(['project', '3']);
   assert.equal(r.threw, null, r.threw);
   assert.ok(r.out.includes('set panes=3'), r.out);
+  assert.ok(r.out.includes('removed split_max_panes=6 (derived from panes)'), r.out);
+  assert.ok(!r.out.includes('set lane.build.roles'), r.out);
+  assert.ok(!r.out.includes('set max_workers='), r.out);
   assert.ok(r.out.includes(`doctor --fix: updated ${PROJ_CONF}`), r.out);
   const conf3 = fs.readFileSync(PROJ_CONF, 'utf8');
-  for (const line of ['panes=3', 'lane.build.roles=implementer,designer,tasker', 'lane.read.roles=scouter,researcher,reviewer,security-reviewer,ui-reviewer,inspector', 'max_workers=2', 'split_max_panes=3', 'reuse_workers=on', 'lane.build.kind=grok', 'lane.read.kind=grok', '# keep this comment', '# tail comment']) {
+  for (const line of ['panes=3', 'reuse_workers=on', 'lane.build.kind=grok', 'lane.review.kind=grok', '# keep this comment', '# tail comment']) {
     assert.ok(conf3.split('\n').includes(line), `missing ${line}:\n${conf3}`);
   }
+  assert.ok(!/^max_workers=/m.test(conf3), conf3);
+  assert.ok(!/^split_max_panes=/m.test(conf3), conf3);
+  assert.ok(!/^lane\..*\.roles=/m.test(conf3), conf3);
   assert.ok(!conf3.includes('role.implementer.kind'), conf3);
   assert.ok(!conf3.includes('role.planner.model'), conf3);
-  assert.ok(!conf3.includes('lane.explore.roles'), conf3);
-  // The diff is shown (7c unifiedDiff, a/<file> / b/<file> labels).
+  // The diff is shown (unifiedDiff, a/<file> / b/<file> labels).
   assert.ok(r.out.includes(`--- a/${PROJ_CONF}`), r.out);
   assert.ok(r.out.includes(`+++ b/${PROJ_CONF}`), r.out);
   // Re-running on the already-fixed file: no changes.
@@ -347,9 +505,16 @@ test('doctorFix: the preset 3 and 4 rewrites (unanimous kinds copied, planner dr
   writeProj(LEGACY);
   r = runFix(['project', '4']);
   const conf4 = fs.readFileSync(PROJ_CONF, 'utf8');
-  for (const line of ['panes=4', 'lane.explore.roles=scouter,researcher', 'lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector', 'max_workers=3', 'split_max_panes=4', 'lane.build.kind=grok', 'lane.explore.kind=grok', 'lane.review.kind=grok']) {
+  for (const line of ['panes=4', 'reuse_workers=on', 'lane.build.kind=grok', 'lane.review.kind=grok']) {
     assert.ok(conf4.split('\n').includes(line), `missing ${line}:\n${conf4}`);
   }
+  assert.ok(!/^lane\..*\.roles=/m.test(conf4), conf4);
+  assert.ok(!/^max_workers=/m.test(conf4), conf4);
+  assert.ok(!/^split_max_panes=/m.test(conf4), conf4);
+  assert.ok(!conf4.includes('lane.explore'), conf4);
+  // Mutation captured: writing the preset lane roles or max_workers back
+  // into the file, or keeping the explore lane, would leave the lines
+  // asserted absent here.
   cleanLayers();
 });
 
@@ -378,7 +543,10 @@ test('doctorFix: a divergent review lane keeps the per-role kinds and warns on s
   assert.ok(!/^lane\.review\.kind=/m.test(conf), conf);
   assert.ok(!/^lane\.build\.kind=/m.test(conf), conf);
   assert.ok(!/^lane\.review\.model=/m.test(conf), conf);
-  assert.ok(conf.split('\n').includes('lane.explore.kind=grok'), conf);
+  // The old explore lane is gone (research joins the build lane) and the
+  // preset file freezes no roles.
+  assert.ok(!conf.includes('lane.explore'), conf);
+  assert.ok(!/^lane\..*\.roles=/m.test(conf), conf);
   assert.ok(!conf.includes('role.planner.model'), conf);
   assert.ok(err.includes('reviewer=codex') && err.includes('security-reviewer=claude'), err);
   assert.ok(err.includes('setup --lane review='), err);
@@ -414,14 +582,16 @@ test('cmdDoctor: unknown option dies 2; doctor --fix --user re-runs the check in
   cleanLayers();
   writeProj('panes=3\n');
   writeFakeCli(FAKES, 'herdr', 'process.exit(0);\n'); // no host herdr may be called
-  const r = spawnSync(nodeBin(), [JS_ENTRY, 'doctor', '--fix', '--panes', '4'], { cwd: REPO, env: { ...ENV, PATH: FAKES }, encoding: 'utf8' });
+  const r = spawnSync(nodeBin(), [JS_ENTRY, 'doctor', '--fix', '--panes', '4'], { cwd: REPO, env: { ...ENV, PATH: FAKES }, encoding: 'utf8', timeout: 60000 });
   assert.equal(r.status, 0, r.stderr);
   assert.ok(r.stdout.includes('set panes=4'), r.stdout);
-  // The fix wrote lane.explore.kind=grok (the explore frontmatter is
-  // unanimous), so the re-run no longer reads as a first run.
-  assert.ok(r.stdout.includes('first_run: false'), r.stdout);
+  // The preset file freezes no roles or kinds, so the team choice is
+  // still open and the re-run reads as a first run.
+  assert.ok(r.stdout.includes('first_run: true'), r.stdout);
   const last = r.stdout.trimEnd().split('\n').pop();
   assert.ok(/^\d+ ok, \d+ warning\(s\)$/.test(last), r.stdout);
+  // Mutation captured: the fix writing lane roles/kinds into the preset
+  // file (the re-run would read first_run: false).
   cleanLayers();
 });
 
@@ -473,21 +643,28 @@ if (sub === 'get') {
   cleanLayers();
 });
 
-test('explainRecommendation: the 3 and 4 panel texts and the lanes-off note', () => {
+test('explainRecommendation: the 2, 3 and 4 panel texts and the lanes-off note', () => {
   cleanLayers();
-  writeProj('panes=3\nlane.build.kind=grok\nlane.read.kind=codex\n');
+  writeProj('panes=2\nlane.build.kind=grok\n');
   let rec = explainRecommendation(ctxOf(), ENV, REPO);
-  assert.equal(rec[0], 'Recommendation: 3 panels - one writes code, and one takes turns researching and reviewing. Lighter on quota. 4 panels run research, implementation, and review at the same time.');
+  assert.equal(rec[0], 'Recommendation: 2 panels - one writes code (research included) and the review happens here, from another model family. The lightest choice. 3 panels add a reviewer panel.');
   assert.ok(rec.includes('Chosen for build: grok.'), rec.join('\n'));
-  assert.ok(rec.includes('Chosen for read: codex.'), rec.join('\n'));
-  writeProj('panes=4\nlane.build.kind=grok\nlane.explore.kind=agy:grok-model\n');
+  writeProj('panes=3\nlane.build.kind=grok\nlane.review.kind=codex\n');
   rec = explainRecommendation(ctxOf(), ENV, REPO);
-  assert.equal(rec[0], 'Recommendation: 4 panels - research, implementation, and review at the same time. Uses more quota. 3 panels are the lighter choice.');
+  assert.equal(rec[0], 'Recommendation: 3 panels - one writes code (research included) and one reviews. Lighter on quota. 4 panels add a second writer; with 2 panels the review happens here.');
+  assert.ok(rec.includes('Chosen for build: grok.'), rec.join('\n'));
+  assert.ok(rec.includes('Chosen for review: codex.'), rec.join('\n'));
+  writeProj('panes=4\nlane.build.kind=grok\nlane.review.kind=codex\nlane.review.model=gpt-5\n');
+  rec = explainRecommendation(ctxOf(), ENV, REPO);
+  assert.equal(rec[0], 'Recommendation: 4 panels - two write code (research included) in parallel and one reviews. Uses more quota. 3 panels are lighter: one writes and one reviews. With 2 panels one writes and the review happens here.');
   // A lane attr with a model renders the model, a kind-only lane does not.
   assert.ok(rec.includes('Chosen for build: grok.'), rec.join('\n'));
+  assert.ok(rec.includes('Chosen for review: codex, model gpt-5.'), rec.join('\n'));
   writeProj('lanes=off\n');
   rec = explainRecommendation(ctxOf(), ENV, REPO);
   assert.ok(rec.includes('Each agent keeps its own assistant instead of sharing one panel.'), rec.join('\n'));
+  // Mutation captured: the old 3-vs-4 texts, or a 3-panel recommendation
+  // for panes=2 (the 2-pane text is the lightest-choice one).
   cleanLayers();
 });
 
@@ -502,15 +679,32 @@ test('explainPrintRunning: the panel count, the preset order and the idle paragr
   const lines = explainPrintRunning(rows, ctx, ENV, REPO);
   assert.equal(lines[0], 'Panels: 4.');
   assert.ok(lines.includes('build: implementer, grok, model grok-4.7, working'), lines.join('\n'));
-  assert.ok(lines.includes('explore: not started'), 'a preset lane without a row is not started: ' + lines.join('\n'));
   assert.ok(lines.includes('review: reviewer, codex, model gpt-5, idle'), lines.join('\n'));
+  // A preset lane without a row is not started (no review row).
+  const onlyBuild = [[ 'build', 'implementer', 'grok', 'grok-4.7', 'working']];
+  assert.ok(explainPrintRunning(onlyBuild, ctx, ENV, REPO).includes('review: not started'), 'a preset lane without a row is not started: ' + explainPrintRunning(onlyBuild, ctx, ENV, REPO).join('\n'));
   writeProj('panes=3\n');
   assert.equal(explainPrintRunning(rows, ctxOf(), ENV, REPO)[0], 'Panels: 3.');
-  assert.ok(explainPrintRunning(rows, ctxOf(), ENV, REPO).includes('read: not started'));
-  // The idle paragraph is the fixed text.
-  const idle = explainIdleParagraph().join('\n');
-  assert.ok(idle.includes('Nothing is running yet.'), idle);
-  assert.ok(idle.includes('never commit or push'), idle);
+  writeProj('panes=2\n');
+  assert.equal(explainPrintRunning(rows, ctxOf(), ENV, REPO)[0], 'Panels: 2.');
+  // The flex mode: the Panels line notes the temporary panel, and a burst
+  // worker's row (roster column 13 `burst`) ends with (temporary).
+  writeProj('panes=4\npane_mode=flex\n');
+  const fctx = ctxOf();
+  const burstRow = ['docs', 'documenter', 'codex', 'gpt-5', 'working', 'burst'];
+  assert.equal(explainPrintRunning(rows, fctx, ENV, REPO)[0], 'Panels: 4 (+1 temporary).');
+  const flines = explainPrintRunning([burstRow], fctx, ENV, REPO);
+  assert.ok(flines.some((l) => l === 'docs: documenter, codex, model gpt-5, working (temporary)'), flines.join('\n'));
+  // Without lanes the mode has no effect on the Panels line (a burst row
+  // still carries the suffix — the roster row is the evidence).
+  writeProj('panes=4\npane_mode=flex\nlanes=off\n');
+  assert.equal(explainPrintRunning(rows, ctxOf(), ENV, REPO)[0], 'Panels: 4.');
+  assert.ok(explainPrintRunning([burstRow], ctxOf(), ENV, REPO).some((l) => l.endsWith('(temporary)')));
+  // The idle paragraph is the fixed text (the panels wording).
+  assert.equal(explainIdleParagraph().join('\n'),
+    'herdr-agents runs a small team of agents in Herdr panels. You stay in this panel and lead. Each other panel is one agent with one job: writing code (research included) or reviewing. Those agents never commit or push. You can watch a panel or close it. Each assistant spends the quota of its own account. Nothing is running yet. To start, describe the work here. The first time, you are asked how many panels to open and which assistant each job should use, and nothing opens until you agree. Four panels are recommended: two write code in parallel and one reviews; that uses more quota. Three panels are lighter: one writes and one reviews. With two panels one writes and the review happens here.');
+  // Mutation captured: the old idle paragraph (the "how many agents to
+  // open" wording), or a lane without a row printed with a row.
   cleanLayers();
 });
 
@@ -534,7 +728,7 @@ test('explainStateDir: an unreadable state root lists nothing (bash find 2>/dev/
   }
 });
 
-// ---------- own-provider traps (backlog item 8) ----------
+// ---------- own-provider traps ----------
 
 const PI_MODELS_FILE = path.join(HOME, '.pi', 'agent', 'models.json');
 const PI_SETTINGS_FILE = path.join(HOME, '.pi', 'agent', 'settings.json');

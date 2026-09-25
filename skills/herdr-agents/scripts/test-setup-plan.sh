@@ -68,7 +68,10 @@ run_rc setup --plan --panes 4
 [ "$RUN_RC" -eq 0 ] || fail "plan rc $RUN_RC err $RUN_ERR"
 printf '%s\n' "$RUN_OUT" | grep -q "$PROJ" || fail "plan misses the project file: $RUN_OUT"
 printf '%s\n' "$RUN_OUT" | grep -Eq 'panes[[:space:]]+\(unset\) +→ +4' || fail "plan misses panes before->after: $RUN_OUT"
-printf '%s\n' "$RUN_OUT" | grep -Eq 'lane\.build\.roles[[:space:]]+\(unset\)' || fail "plan misses the preset lane: $RUN_OUT"
+printf '%s\n' "$RUN_OUT" | grep -Eq 'reuse_workers[[:space:]]+\(unset\) +→ +on' || fail "plan misses the preset write: $RUN_OUT"
+# The preset file freezes no roles or limits: the plan writes only the
+# preset's keys (panes, reuse_workers) — no lane roles, no limits.
+printf '%s\n' "$RUN_OUT" | grep -Eq 'lane\..*\.roles=|max_workers|split_max_panes' && fail "plan froze the preset roles or limits: $RUN_OUT"
 printf '%s\n' "$RUN_OUT" | grep -q 'AGENTS.md' || fail "plan misses the instruction block: $RUN_OUT"
 printf '%s\n' "$RUN_OUT" | grep -qi 'settings.json' || fail "plan misses the hooks: $RUN_OUT"
 [ ! -f "$PROJ" ] || fail "plan wrote the project file: $(cat "$PROJ")"

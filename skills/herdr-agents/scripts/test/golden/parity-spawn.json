@@ -47,7 +47,7 @@
   "given-pane": {
     "files": {
       "herdTab": null,
-      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nsolo\tp-x\tgrok\timplementer\txai\t0\t<ROOT>/repo\tT\tgrok-4.7\task\timplementer\tbuild\nside\tp-y\tgrok\tscouter\txai\t0\t<ROOT>/repo\tT\tgrok-4.7\task\tscouter\texplore\n"
+      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nsolo\tp-x\tgrok\timplementer\txai\t0\t<ROOT>/repo\tT\tgrok-4.7\task\timplementer\tbuild\nside\tp-y\tgrok\tscouter\txai\t0\t<ROOT>/repo\tT\tgrok-4.7\task\tscouter\tbuild\n"
     },
     "steps": [
       {
@@ -103,10 +103,10 @@
           "spawn",
           "researcher"
         ],
-        "err": "PROG: lane 'explore' worker 'explore' matches but herdr agent get failed (agent get returned no agent_status). Not spawning a replacement; it may still be live.\n",
-        "log": "agent get explore\n",
-        "out": "",
-        "rc": 4
+        "err": "",
+        "log": "agent list\nagent list\nagent list\npane list\npane list --workspace ws\ntab create --workspace ws --cwd <ROOT>/repo --label res --no-focus\nagent start build --kind grok --pane p-new --timeout 60000 -- --model grok-4.7 --reasoning-effort xhigh\npane list --workspace ws\ntab get t-herd\n",
+        "out": "{\n  \"name\": \"build\",\n  \"pane_id\": \"p-new\",\n  \"kind\": \"grok\",\n  \"role\": \"researcher\",\n  \"family\": \"xai\",\n  \"created_pane\": true,\n  \"layout\": \"tab\",\n  \"placement\": \"herd\",\n  \"effort\": \"xhigh\",\n  \"model\": \"grok-4.7\",\n  \"model_spec\": \"grok\",\n  \"approvals\": \"ask\",\n  \"agent_args\": \"--model grok-4.7 --reasoning-effort xhigh\",\n  \"status\": \"ready\"\n}\n",
+        "rc": 0
       },
       {
         "args": [
@@ -230,8 +230,8 @@
           "scouter"
         ],
         "err": "",
-        "log": "agent list\nagent list\nagent list\npane list\npane list --workspace ws\ntab create --workspace ws --cwd <ROOT>/repo --label scout --no-focus\nagent start explore --kind codex --pane p-new --timeout 60000 -- -m sol|gpt-5 -c model_reasoning_effort=\"high\"\npane list --workspace ws\ntab get t-herd\n",
-        "out": "{\n  \"name\": \"explore\",\n  \"pane_id\": \"p-new\",\n  \"kind\": \"codex\",\n  \"role\": \"scouter\",\n  \"family\": \"openai\",\n  \"created_pane\": true,\n  \"layout\": \"tab\",\n  \"placement\": \"herd\",\n  \"effort\": \"high\",\n  \"model\": \"sol|gpt-5\",\n  \"model_spec\": \"sol|gpt-5\",\n  \"approvals\": \"ask\",\n  \"agent_args\": \"-m sol|gpt-5 -c model_reasoning_effort=\\\"high\\\"\",\n  \"status\": \"ready\"\n}\n",
+        "log": "agent list\nagent list\nagent list\npane list\npane list --workspace ws\ntab create --workspace ws --cwd <ROOT>/repo --label scout --no-focus\nagent start build --kind grok --pane p-new --timeout 60000 -- --model grok-4.7 --reasoning-effort xhigh\npane list --workspace ws\ntab get t-herd\n",
+        "out": "{\n  \"name\": \"build\",\n  \"pane_id\": \"p-new\",\n  \"kind\": \"grok\",\n  \"role\": \"scouter\",\n  \"family\": \"xai\",\n  \"created_pane\": true,\n  \"layout\": \"tab\",\n  \"placement\": \"herd\",\n  \"effort\": \"xhigh\",\n  \"model\": \"grok-4.7\",\n  \"model_spec\": \"grok\",\n  \"approvals\": \"ask\",\n  \"agent_args\": \"--model grok-4.7 --reasoning-effort xhigh\",\n  \"status\": \"ready\"\n}\n",
         "rc": 0
       },
       {
@@ -240,8 +240,8 @@
           "scouter"
         ],
         "err": "",
-        "log": "agent list\nagent list\nagent list\npane list\npane list --workspace ws\ntab create --workspace ws --cwd <ROOT>/repo --label scout --no-focus\nagent start explore --kind codex --pane p-new --timeout 60000 -- -m grok-4.7 -c model_reasoning_effort=\"high\"\npane list --workspace ws\ntab get t-herd\n",
-        "out": "{\n  \"name\": \"explore\",\n  \"pane_id\": \"p-new\",\n  \"kind\": \"codex\",\n  \"role\": \"scouter\",\n  \"family\": \"openai\",\n  \"created_pane\": true,\n  \"layout\": \"tab\",\n  \"placement\": \"herd\",\n  \"effort\": \"high\",\n  \"model\": \"grok-4.7\",\n  \"model_spec\": \"grok-4.7\",\n  \"approvals\": \"ask\",\n  \"agent_args\": \"-m grok-4.7 -c model_reasoning_effort=\\\"high\\\"\",\n  \"status\": \"ready\"\n}\n",
+        "log": "agent list\nagent list\nagent list\npane list\npane list --workspace ws\ntab create --workspace ws --cwd <ROOT>/repo --label scout --no-focus\nagent start build --kind grok --pane p-new --timeout 60000 -- --model grok-4.7 --reasoning-effort xhigh\npane list --workspace ws\ntab get t-herd\n",
+        "out": "{\n  \"name\": \"build\",\n  \"pane_id\": \"p-new\",\n  \"kind\": \"grok\",\n  \"role\": \"scouter\",\n  \"family\": \"xai\",\n  \"created_pane\": true,\n  \"layout\": \"tab\",\n  \"placement\": \"herd\",\n  \"effort\": \"xhigh\",\n  \"model\": \"grok-4.7\",\n  \"model_spec\": \"grok\",\n  \"approvals\": \"ask\",\n  \"agent_args\": \"--model grok-4.7 --reasoning-effort xhigh\",\n  \"status\": \"ready\"\n}\n",
         "rc": 0
       },
       {

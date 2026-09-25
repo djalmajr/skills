@@ -17,14 +17,18 @@ orchestrator_name=orchestrator
 layout=split
 
 # Live workers of this skill at once in the workspace; the orchestrator does
-# not count (3 = four panes with the caller, a 2x2 grid). `spawn` refuses a
-# new pane past it (exit 8): release a finished worker with `release --close`
-# or let `reuse_workers` pick an idle one. 0 = no cap.
+# not count. With lanes on and no value set in a user/project/session/env
+# layer, it is the sum of the lane capacities (3 for panes=4: build x2 +
+# review), plus flex_extra in pane_mode=flex. `spawn` refuses a new pane past
+# it (exit 8): release a finished worker with `release --close` or let
+# `reuse_workers` pick an idle one. 0 = no cap.
 max_workers=3
 
 # Panes per tab before new workers overflow into the next herd tab. In the
 # caller's tab the caller counts (4 = caller + 3 workers, a 2x2 grid); herd
-# tabs hold that many workers. `release --close` frees the slot again.
+# tabs hold that many workers. `release --close` frees the slot again. When
+# no user/project/session/env layer sets it, it follows `panes` (plus
+# flex_extra in pane_mode=flex, so the temporary worker stays in this tab).
 split_max_panes=4
 
 # Smallest pane a spawn may leave, as a fraction of the tab's width/height
@@ -61,13 +65,27 @@ herd_label_max=16
 # not share context. Reuse never counts against max_workers.
 reuse_workers=on
 
-# How many panes the team uses, counting the orchestrator. 4 (default) is
-# orchestrator + build + explore + review. 3 is orchestrator + build + read.
-# When max_workers and split_max_panes are left at the defaults, they follow
-# the lane count and panes. `lanes=off` keeps one pane per role and the
-# multi_role reuse from before lanes existed.
+# How many panes the team uses, counting the orchestrator: 4 (default) =
+# orchestrator + build (2 workers: implementer, designer, tasker, scouter,
+# researcher) + review (reviewer, security-reviewer, ui-reviewer,
+# inspector); 3 = orchestrator + build (1) + review; 2 = orchestrator + build
+# (1), and the orchestrator reviews. The preset is resolved at run time;
+# when max_workers and split_max_panes are left at their defaults they
+# follow it. `lanes=off` keeps one pane per role and the multi_role reuse
+# from before lanes existed.
 panes=4
 lanes=on
+
+# strict (default): no temporary worker; each lane stays within its capacity
+# (lane.<name>.panes raises it; max_workers is only the global cap and opens
+# no slot in a lane) and documentation is build work.
+# flex: up to flex_extra temporary workers above `panes`, only for the roles
+# in flex_roles — a second reviewer, or the documenter (lane `docs`). With
+# one slot the review comes first. A temporary worker is `burst` in the
+# roster and `release` closes its pane.
+pane_mode=strict
+flex_extra=1
+flex_roles=reviewer,documenter
 
 # Optional lane overrides. Any lane.<name>.roles replaces the preset.
 # lane.<name>.kind is the CLI for every role in that lane. When it is empty,
@@ -77,6 +95,7 @@ lanes=on
 # doctor --fix copies a unanimous role.<role>.kind (file, else frontmatter)
 # onto the lane before it deletes those per-role keys.
 # lane.build.roles=implementer,designer,tasker
+# lane.build.panes=2          (capacity: workers the lane may hold at once)
 # lane.build.kind=
 # lane.build.model=
 # lane.build.effort=

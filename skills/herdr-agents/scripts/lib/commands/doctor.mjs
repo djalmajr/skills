@@ -1,4 +1,4 @@
-// `doctor` and `doctor --fix` (slice 7d of the bash port): the advisory
+// `doctor` and `doctor --fix` (bash port): the advisory
 // environment/configuration check that never blocks, and the preset writer.
 // Port of the original bash implementation :1528-1557 (doctor_fix), :1558-1682
 // (doctor_lane_warnings), :1683-1709 (project_has_roster /
@@ -11,7 +11,7 @@
 // decision 5 — the ok count drops by one) and the launcher path where the
 // bash prints `$0` (decision 2b; switch-to-JS decision 4 — the user runs
 // the launcher, not the .mjs). `--fix` writes with the ported applyLaneFile
-// and shows the diff with slice 7c's unifiedDiff (labels `a/<file>` /
+// and shows the diff with the unifiedDiff (labels `a/<file>` /
 // `b/<file>` instead of bash's process-substitution header, which is
 // non-deterministic — /dev/fd/N and a timestamp); after a successful fix it
 // runs the check in-process where the bash re-execs itself (spec §4.4).
@@ -23,8 +23,9 @@ import {
   stateRoot, stateRootPath,
 } from '../config.mjs';
 import {
-  applyLaneFile, cfgLayerRank, configExplicit, laneAttr, laneCount, laneKey,
-  laneNames, laneRolesCsv, lanesEnabled, maxWorkers, panesValue,
+  applyLaneFile, cfgLayerRank, configExplicit, effectiveLaneSignature, flexExtra, laneAttr, laneCapacity,
+  laneCapacitySum, laneKey, laneNames, laneRolesCsv, lanesEnabled, legacyPresetSignature,
+  LEGACY_PRESETS, maxWorkers, paneMode, panesValue,
 } from '../lanes.mjs';
 import { findExecutable, homeDir, projectRoot, readTextFile, runCli } from '../platform.mjs';
 import { fmGet, isReviewRole, roleDirs, roleFile, roleIsEdit } from '../roles.mjs';
@@ -89,7 +90,11 @@ export function doctorRoleKind(r, ctx, env = process.env, cwd = process.cwd()) {
 // doctor_used_kinds port (:1724): the sorted, unique kinds the effective
 // configuration resolves — for each lane, lane.<name>.kind when set (it wins
 // for every role in the lane), else the effective kind of the lane's roles;
-// with lanes off, every role file. Kinds no spawn can resolve are not
+// with lanes off, every role file. The documenter never counts: in strict
+// it borrows a build slot without joining the lane's kind, and in the flex
+// mode its kind belongs to the capacity-0 docs lane, which the lanes-on
+// branch reaches through the lane.<name>.kind key (or, with lanes off, is
+// configured per role). Kinds no spawn can resolve are not
 // warned about.
 export function doctorUsedKinds(ctx, env = process.env, cwd = process.cwd()) {
   const out = [];
@@ -101,6 +106,7 @@ export function doctorUsedKinds(ctx, env = process.env, cwd = process.cwd()) {
       for (const part of laneRolesCsv(ctx, lane, env).split(',')) {
         const r = part.trim();
         if (r === '') continue;
+        if (r === 'documenter') continue; // its kind never joins the lane's
         const rk = doctorRoleKind(r, ctx, env, cwd);
         if (rk !== '') out.push(rk);
       }
@@ -115,6 +121,7 @@ export function doctorUsedKinds(ctx, env = process.env, cwd = process.cwd()) {
         const r = name.slice(0, -3);
         if (seen.has(r)) continue;
         seen.add(r);
+        if (r === 'documenter') continue; // see above: per-role, not a lane
         const k = doctorRoleKind(r, ctx, env, cwd);
         if (k !== '') out.push(k);
       }
@@ -127,21 +134,31 @@ export function doctorUsedKinds(ctx, env = process.env, cwd = process.cwd()) {
 // explicit-panes prompt, unknown/duplicated roles, edit+review in one lane,
 // the planner in a lane, per-role kind/model under a lane kind, divergent
 // role kinds without lane.<name>.kind, the dropped lane model/effort (as an
-// ok line, so the orchestrator sees the resolution decision), the
-// max_workers / split_max_panes alignment and the role.planner.* leftovers.
+// ok line, so the orchestrator sees the resolution decision), the old
+// preset lanes, the orphan lane keys (a lane.<l>.<attr> whose
+// lane does not exist), the max_workers / split_max_panes alignment and
+// the role.planner.* leftovers.
 export function doctorLaneWarnings(ctx, env = process.env, cwd = process.cwd(), say = new DoctorSay()) {
   const psrc = cfgSource(ctx, 'panes', env);
   const lanesVal = cfg(ctx, 'lanes', 'on', env);
   if (lanesVal !== 'on' && lanesVal !== 'off') say.warn(`config: lanes='${lanesVal}' is not on|off`);
   const panesRaw = cfg(ctx, 'panes', '4', env);
-  if (panesRaw === '3' || panesRaw === '4') {
+  if (panesRaw === '2' || panesRaw === '3' || panesRaw === '4') {
     if (psrc === 'defaults' || psrc === 'builtin') {
-      say.warn(`config: panes is not set in the project or user file (default ${panesRaw}). Ask the user for 3 or 4 panes, then run '${ENTRY_SCRIPT} doctor --fix --panes 3' or '--panes 4'.`);
+      say.warn(`config: panes is not set in the project or user file (default ${panesRaw}). Ask the user for 2, 3 or 4 panes, then run '${ENTRY_SCRIPT} doctor --fix --panes <n>' with their answer.`);
     } else {
       say.ok(`config: panes=${panesRaw} (${psrc})`);
     }
   } else {
-    say.warn(`config: panes='${panesRaw}' is not 3 or 4 (doctor --fix --panes 3|4 writes a preset)`);
+    say.warn(`config: panes='${panesRaw}' is not 2, 3 or 4 (doctor --fix --panes 2|3|4 writes a preset)`);
+  }
+  const pmRaw = cfg(ctx, 'pane_mode', 'strict', env);
+  if (pmRaw === 'strict') {
+    say.ok(`config: pane_mode=strict (never more than ${panesValue(ctx, env)} panels)`);
+  } else if (pmRaw === 'flex') {
+    say.ok(`config: pane_mode=flex (+${flexExtra(ctx, env)} temporary panel for ${cfg(ctx, 'flex_roles', 'reviewer,documenter', env)})`);
+  } else {
+    say.warn(`config: pane_mode='${pmRaw}' is not strict|flex`);
   }
   let unknown = '';
   let dup = '';
@@ -183,6 +200,7 @@ export function doctorLaneWarnings(ctx, env = process.env, cwd = process.cwd(), 
       for (const part of roles.split(',')) {
         const r = part.trim();
         if (r === '') continue;
+        if (r === 'documenter') continue; // its kind is per-role, never the lane's
         const rk = `role_${String(r).replace(/-/g, '_')}_kind`;
         const rm = `role_${String(r).replace(/-/g, '_')}_model`;
         if (configExplicit(ctx, rk, env)) {
@@ -201,6 +219,7 @@ export function doctorLaneWarnings(ctx, env = process.env, cwd = process.cwd(), 
         const r = part.trim();
         if (r === '') continue;
         if (r === 'planner') continue;
+        if (r === 'documenter') continue; // its kind never joins the lane's
         const rkind = resolvedRoleKind(r, ctx, env, cwd);
         kindsList = kindsList === '' ? `${r}=${rkind}` : `${kindsList} ${r}=${rkind}`;
         if (haveK === 0) { firstK = rkind; haveK = 1; }
@@ -220,17 +239,61 @@ export function doctorLaneWarnings(ctx, env = process.env, cwd = process.cwd(), 
   } else {
     say.ok('lanes: edit and review roles are separated');
   }
-  const n = laneCount(ctx, env);
+  // The effective lane.*.roles come from an old preset (build|read or
+  // build|explore|review): the config still loads, but the lanes are the
+  // old ones — point at the migration (research joins the build lane).
+  const effSig = effectiveLaneSignature(ctx, env);
+  for (const p of ['4', '3']) {
+    if (effSig !== legacyPresetSignature(p)) continue;
+    const names = Object.keys(LEGACY_PRESETS[p]).join(', ');
+    say.warn(`lanes: the lanes come from an old preset (${names}); run '${ENTRY_SCRIPT} doctor --fix --panes ${panesValue(ctx, env)}' to move to the new ones (research joins the build lane).`);
+    break;
+  }
+  // Orphan lane keys (lanes on): every effective lane.<l>.<attr> whose lane
+  // is not one of the lane names — one line per key, sorted.
+  const lanes = laneNames(ctx, env);
+  const knownLanes = new Set(lanes);
+  const orphanRe = /^lane_(.+)_(roles|kind|model|effort|approvals|panes)$/;
+  const orphans = [];
+  for (const key of ctx.entries.keys()) {
+    const m = key.match(orphanRe);
+    if (!m) continue;
+    const value = cfg(ctx, key, '', env);
+    if (value === '' || knownLanes.has(m[1])) continue;
+    orphans.push([key, `lane.${m[1]}.${m[2]}`, value]);
+  }
+  orphans.sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  for (const [key, dotted, value] of orphans) {
+    say.warn(`config: ${dotted}=${value} (${cfgSource(ctx, key, env)}) sets a lane that does not exist (lanes: ${lanes.join(' ')}). doctor --fix removes it.`);
+  }
+  // max_workers against the sum of the lane capacities (not the lane
+  // count: the build lane of panes=4 holds 2); in the flex mode the sum
+  // includes flex_extra, the temporary worker's live slot.
   const mw = cfg(ctx, 'max_workers', '3', env);
-  if (configExplicit(ctx, 'max_workers', env) && mw !== String(n)) {
-    say.warn(`config: max_workers=${mw} but there are ${n} lanes. Set max_workers=${n} (doctor --fix aligns it).`);
+  const sum = laneCapacitySum(ctx, env) + (paneMode(ctx, env) === 'flex' ? flexExtra(ctx, env) : 0);
+  const caps = lanes.map((lane) => `${lane}=${laneCapacity(ctx, lane, env)}`).join(' ');
+  if (configExplicit(ctx, 'max_workers', env) && mw !== String(sum)) {
+    say.warn(`config: max_workers=${mw} but the lanes hold ${sum} workers (${caps}). Set max_workers=${sum} (doctor --fix aligns it).`);
   } else {
-    say.ok(`config: max_workers=${maxWorkers(ctx, env)} matches ${n} lanes`);
+    say.ok(`config: max_workers=${maxWorkers(ctx, env)} matches the lanes (${caps})`);
   }
   if (configExplicit(ctx, 'split_max_panes', env)) {
     const sp = cfg(ctx, 'split_max_panes', '', env);
-    if (/^[0-9]+$/.test(sp) && Number(sp) > Number(panesValue(ctx, env))) {
-      say.warn(`config: split_max_panes=${sp} is greater than panes=${panesValue(ctx, env)}. Set split_max_panes=${panesValue(ctx, env)} (doctor --fix aligns it).`);
+    const p = Number(panesValue(ctx, env));
+    const e = flexExtra(ctx, env);
+    const flex = paneMode(ctx, env) === 'flex';
+    // The mode's cap: panes in strict, panes + flex_extra in flex (the
+    // temporary panel counts, so it stays in the caller's tab).
+    const cap = flex ? p + e : p;
+    if (/^[0-9]+$/.test(sp) && Number(sp) > cap) {
+      if (flex) {
+        say.warn(`config: split_max_panes=${sp} is greater than panes=${panesValue(ctx, env)} + flex_extra=${e}. Set split_max_panes=${cap} (doctor --fix aligns it).`);
+      } else {
+        say.warn(`config: split_max_panes=${sp} is greater than panes=${panesValue(ctx, env)}. Set split_max_panes=${panesValue(ctx, env)} (doctor --fix aligns it).`);
+      }
+    }
+    if (lanesEnabled(ctx, env) && flex && /^[0-9]+$/.test(sp) && Number(sp) < cap) {
+      say.warn(`config: split_max_panes=${sp} leaves no room for the temporary panel (panes=${panesValue(ctx, env)} + flex_extra=${e}); the extra worker will open in a herd tab. Remove split_max_panes or set ${cap}.`);
     }
   }
   // compgen -v | grep '^CFG_role_planner_' port: every role.planner.* key
@@ -276,23 +339,23 @@ export function projectIsFirstRun(ctx, env = process.env, cwd = process.cwd()) {
   return !projectHasRoster(ctx, env, cwd);
 }
 
-// doctor_fix port (:1528): validate --panes (3|4) or take it from the
+// doctor_fix port (:1528): validate --panes (2|3|4) or take it from the
 // target file, apply the preset with applyLaneFile, and print the diff of
-// the simulated write (unifiedDiff — slice 7c; the bash diff header carries
+// the simulated write (unifiedDiff; the bash diff header carries
 // a process-substitution path and a timestamp, which the JS replaces with
 // the a/<file> / b/<file> labels of the same diff format).
 export function doctorFix(where, flag, ctx, env = process.env, cwd = process.cwd()) {
   const dest = configFileFor(where, env, cwd);
   let panes = '';
   if (flag === '' || flag === undefined) { /* panes from the file below */ }
-  else if (flag === '3' || flag === '4') panes = flag;
-  else throw new DieError('doctor --fix: --panes must be 3 or 4', 2);
+  else if (flag === '2' || flag === '3' || flag === '4') panes = flag;
+  else throw new DieError('doctor --fix: --panes must be 2, 3 or 4', 2);
   if (panes === '') panes = fileKeyValue(dest, 'panes');
-  if (panes === '3' || panes === '4') { /* ok */ }
+  if (panes === '2' || panes === '3' || panes === '4') { /* ok */ }
   else if (panes === '') {
-    throw new DieError(`doctor --fix: panes is not set in ${dest}. Orchestrator: ask the user whether to run 3 or 4 panes, then re-run 'doctor --fix --panes 3' or 'doctor --fix --panes 4'.`, 2);
+    throw new DieError(`doctor --fix: panes is not set in ${dest}. Orchestrator: ask the user whether to run 2, 3 or 4 panes, then re-run 'doctor --fix --panes <n>'.`, 2);
   } else {
-    throw new DieError(`doctor --fix: panes=${panes} in ${dest} is not 3 or 4`, 2);
+    throw new DieError(`doctor --fix: panes=${panes} in ${dest} is not 2, 3 or 4`, 2);
   }
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   // `$(cat "$dest")` — the command substitution strips the trailing newlines;
@@ -378,7 +441,7 @@ export function doctorCheck(ctx, env = process.env, cwd = process.cwd()) {
   if (used.length === 0) s.ok('kinds: none configured (spawn passes --kind)');
   else if (missing.length === 0) s.ok(`kinds installed: ${used.join(' ')}`);
   else s.warn(`kinds in use but not in PATH: ${missing.join(' ')} (roles or lanes using them will fail to start)`);
-  // Own-provider traps (backlog item 8, references/kinds.md "Reasoning
+  // Own-provider traps (references/kinds.md "Reasoning
   // models on your own server"): each warning as its own warn line (into
   // the friction count like the others), after the kinds lines; one ok
   // line when an own provider is declared and nothing was found; nothing
@@ -443,7 +506,7 @@ function readTextFileSafe(file) {
   try { return readTextFile(file); } catch { return ''; }
 }
 
-// cmd_doctor port (:1755): `doctor --fix [--panes 3|4] [--user]` rewrites
+// cmd_doctor port (:1755): `doctor --fix [--panes 2|3|4] [--user]` rewrites
 // the project (or user) file, then runs the check in the same process
 // (where the bash re-execs itself, unless HERDR_AGENTS_LIB=1).
 export function cmdDoctor(args, ctx, env = process.env, cwd = process.cwd()) {

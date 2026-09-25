@@ -203,7 +203,7 @@ test('parity: doctor --fix without panes dies 2 and leaves the file (test-doctor
   const s = r.steps[0];
   assert.equal(s.rc, 2, s.err);
   assert.ok(s.err.includes('doctor --fix: panes is not set in'), s.err);
-  assert.ok(s.err.includes('doctor --fix --panes 3'), s.err);
+  assert.ok(s.err.includes('doctor --fix --panes <n>'), s.err);
   assert.equal(s.out, '', 'nothing on stdout');
   assert.equal(r.conf, LEGACY, 'the file is untouched by the die');
 });
@@ -239,9 +239,14 @@ test('parity: doctor --fix --panes 3 writes the preset 3 (test-doctor-fix.sh)', 
   assert.ok(s.out.includes('doctor --fix: updated'), s.out);
   assert.ok(s.out.includes('first_run:'), 'the check re-runs after the fix');
   const conf = r.conf;
-  for (const line of ['panes=3', 'lane.build.roles=implementer,designer,tasker', 'lane.read.roles=scouter,researcher,reviewer,security-reviewer,ui-reviewer,inspector', 'max_workers=2', 'split_max_panes=3', 'reuse_workers=on', 'lane.build.kind=grok', 'lane.read.kind=grok', '# keep this comment', '# tail comment']) {
+  for (const line of ['panes=3', 'reuse_workers=on', 'lane.build.kind=grok', 'lane.review.kind=grok', '# keep this comment', '# tail comment']) {
     assert.ok(conf.split('\n').includes(line), `missing ${line}:\n${conf}`);
   }
+  // The preset file freezes no roles or limits.
+  assert.ok(!conf.includes('lane.build.roles'), conf);
+  assert.ok(!conf.includes('lane.read'), conf);
+  assert.ok(!conf.includes('max_workers'), conf);
+  assert.ok(!conf.includes('split_max_panes'), conf);
   assert.ok(!conf.includes('role.implementer.kind'), conf);
   assert.ok(!conf.includes('role.planner.model'), conf);
   assert.ok(!conf.includes('lane.explore.roles'), conf);
@@ -259,9 +264,15 @@ test('parity: doctor --fix --panes 4 writes the preset 4 (test-doctor-fix.sh)', 
   const s = r.steps[0];
   assert.equal(s.rc, 0, s.err);
   const conf = r.conf;
-  for (const line of ['panes=4', 'lane.explore.roles=scouter,researcher', 'lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector', 'max_workers=3', 'split_max_panes=4', 'lane.build.kind=grok', 'lane.explore.kind=grok', 'lane.review.kind=grok']) {
+  for (const line of ['panes=4', 'reuse_workers=on', 'lane.build.kind=grok', 'lane.review.kind=grok']) {
     assert.ok(conf.split('\n').includes(line), `missing ${line}:\n${conf}`);
   }
+  // The preset file freezes no roles or limits (the old explore lane is
+  // gone: research joins the build lane).
+  assert.ok(!conf.includes('lane.explore'), conf);
+  assert.ok(!conf.includes('lane.review.roles'), conf);
+  assert.ok(!conf.includes('max_workers'), conf);
+  assert.ok(!conf.includes('split_max_panes'), conf);
   assert.ok(!conf.includes('role.reviewer.kind'), conf);
 });
 
@@ -285,7 +296,8 @@ test('parity: doctor --fix --panes 4 on a divergent review lane keeps the per-ro
   assert.ok(!/^lane\.review\.kind=/m.test(conf), conf);
   assert.ok(!/^lane\.build\.kind=/m.test(conf), conf);
   assert.ok(!/^lane\.review\.model=/m.test(conf), conf);
-  assert.ok(conf.split('\n').includes('lane.explore.kind=grok'), conf);
+  // The old explore lane is gone (research joins the build lane).
+  assert.ok(!conf.includes('lane.explore'), conf);
   assert.ok(!conf.includes('role.planner.model'), conf);
 });
 

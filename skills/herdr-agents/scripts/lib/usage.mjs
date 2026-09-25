@@ -18,14 +18,14 @@ commits, pushes, or closes panes it did not create.
 Usage:
   herdr-agents init                          # doctor + name the caller \`orchestrator\`, print context
   herdr-agents title "<objective>" | title --clear   # this pane's title: orchestrator: <objective>
-  herdr-agents doctor [--fix] [--panes 3|4] [--user]
+  herdr-agents doctor [--fix] [--panes 2|3|4] [--user]
                                              # advisory check; --fix normalizes lanes in the project file
   herdr-agents explain                       # plain text for a person: what is running, or how to start
   herdr-agents setup [--target FILE] [--no-hooks] [--dry-run]
                      [--detect | --probe [--kind K --model M] [--timeout S]
-                      | --plan [--panes 3|4] [--lane name=kind[:model[:effort]]]
+                      | --plan [--panes 2|3|4] [--lane name=kind[:model[:effort]]]
                         [--set K V] [--user-set K V] [--session-set K V]]
-                     [--panes 3|4] [--lane name=kind[:model[:effort]]]
+                     [--panes 2|3|4] [--lane name=kind[:model[:effort]]]
                                              # write the block + hooks; --detect/--probe/--plan print and write nothing
   herdr-agents roles | kinds
   herdr-agents config [set <key> <value> [--project|--user]]

@@ -105,7 +105,10 @@ test('parity: plan --panes 4 on a fresh project (nothing written)', { timeout: 6
   assert.equal(s.rc, 0, s.err);
   assert.ok(s.out.startsWith('plan (nothing is written):\n\n'));
   assert.ok(s.out.includes('  panes                (unset) → 4'), s.out);
-  assert.ok(s.out.includes('  lane.build.roles     (unset) → implementer,designer,tasker'), s.out);
+  // The preset file freezes no roles: the plan shows only panes and
+  // reuse_workers for the config file.
+  assert.ok(s.out.includes('  reuse_workers        (unset) → on'), s.out);
+  assert.ok(!s.out.includes('lane.build.roles'), s.out);
   assert.ok(s.out.includes('--- a/<ROOT>/repo/AGENTS.md'), s.out);
   assert.ok(s.out.includes('+++ b/<ROOT>/repo/AGENTS.md'), s.out);
 });
@@ -205,7 +208,7 @@ test('parity: plan dies 2 on an invalid key or value', { timeout: 60000, skip: S
   assert.equal(v.steps[1].rc, 2, v.steps[1].err);
   assert.ok(v.steps[1].err.includes("setup --plan: invalid value '-1' for max_workers"), v.steps[1].err);
   assert.equal(v.steps[2].rc, 2, v.steps[2].err);
-  assert.ok(v.steps[2].err.includes('setup --plan: --panes must be 3 or 4'), v.steps[2].err);
+  assert.ok(v.steps[2].err.includes('setup --plan: --panes must be 2, 3 or 4'), v.steps[2].err);
   for (const s of v.steps) assert.equal(s.out, '', 'nothing on stdout');
 });
 

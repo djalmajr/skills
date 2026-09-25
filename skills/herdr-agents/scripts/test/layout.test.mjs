@@ -158,6 +158,19 @@ test('splitCap/splitMin: validation and the lanes-on follows-panes rule', () => 
     e = ctx(root, env);
     assert.equal(splitCap(e, env), 7, 'lanes off → the explicit value');
 
+    // flex mode: the derived cap adds the temporary panel, so the burst
+    // worker fits the caller's tab (panes + flex_extra).
+    fs.writeFileSync(projectConf(root), 'panes=3\npane_mode=flex\n');
+    e = ctx(root, env);
+    assert.equal(splitCap(e, env), 4, 'flex lanes on, no explicit → panes(3) + flex_extra(1) = 4');
+    fs.writeFileSync(projectConf(root), 'panes=4\npane_mode=flex\nflex_extra=2\n');
+    e = ctx(root, env);
+    assert.equal(splitCap(e, env), 6, 'flex flex_extra=2 → panes(4) + 2 = 6');
+    // An explicit split_max_panes still wins over the flex derivation.
+    fs.writeFileSync(projectConf(root), 'panes=4\npane_mode=flex\nsplit_max_panes=3\n');
+    e = ctx(root, env);
+    assert.equal(splitCap(e, env), 3, 'flex with an explicit split_max_panes → the explicit value');
+
     assert.equal(splitMin(e, { ...env, HERDR_AGENTS_SPLIT_MIN_PANE: '0.10' }), 0.1, 'env min');
     assert.equal(splitMin(e, { ...env, HERDR_AGENTS_SPLIT_MIN_PANE: '1' }), 0.18, 'integer → default');
     assert.equal(splitMin(e, { ...env, HERDR_AGENTS_SPLIT_MIN_PANE: '0.5x' }), 0.18, 'bad fraction → default');

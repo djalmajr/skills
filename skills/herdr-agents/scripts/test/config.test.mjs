@@ -192,6 +192,10 @@ test('configKeyOk: scalar plus dotted patterns', (t) => {
   assert.ok(configKeyOk('role.x.model'));
   assert.ok(configKeyOk('role.x.effort'));
   assert.ok(configKeyOk('lane.x.roles'));
+  assert.ok(configKeyOk('lane.x.panes')); // the lane capacity key
+  assert.ok(configKeyOk('pane_mode'));
+  assert.ok(configKeyOk('flex_extra'));
+  assert.ok(configKeyOk('flex_roles'));
   assert.ok(configKeyOk('lane.x.approvals'));
   assert.ok(configKeyOk('model.pi.worker'));
   assert.ok(configKeyOk('effort.grok'));
@@ -201,6 +205,7 @@ test('configKeyOk: scalar plus dotted patterns', (t) => {
   assert.ok(!configKeyOk('role.X.kind'));
   assert.ok(!configKeyOk('effort.x')); // needs at least two chars after the dot
   assert.ok(!configKeyOk('model.'));
+  assert.ok(!configKeyOk('lane.x.pane')); // only lane.x.panes is a key
 });
 
 test('configValueOk: enums, ladders and role resolution', (t) => {
@@ -208,7 +213,27 @@ test('configValueOk: enums, ladders and role resolution', (t) => {
   assert.ok(!configValueOk('max_workers', '-1'));
   assert.ok(!configValueOk('max_workers', '3.5'));
   assert.ok(configValueOk('panes', '4'));
-  assert.ok(!configValueOk('panes', '2'));
+  assert.ok(configValueOk('panes', '3'));
+  assert.ok(configValueOk('panes', '2'));
+  assert.ok(!configValueOk('panes', '5'));
+  // lane.<name>.panes (the lane capacity): integer ≥ 1 only.
+  assert.ok(configValueOk('lane.build.panes', '1'));
+  assert.ok(configValueOk('lane.build.panes', '4'));
+  assert.ok(!configValueOk('lane.build.panes', '0'));
+  assert.ok(!configValueOk('lane.build.panes', '-1'));
+  assert.ok(!configValueOk('lane.build.panes', '1.5'));
+  // pane_mode: the strict|flex pane mode; flex_extra: integer ≥ 0;
+  // flex_roles: a known-roles list (empty allowed).
+  assert.ok(configValueOk('pane_mode', 'strict'));
+  assert.ok(configValueOk('pane_mode', 'flex'));
+  assert.ok(!configValueOk('pane_mode', 'flex2'));
+  assert.ok(configValueOk('flex_extra', '0'));
+  assert.ok(configValueOk('flex_extra', '3'));
+  assert.ok(!configValueOk('flex_extra', '-1'));
+  assert.ok(!configValueOk('flex_extra', '1.5'));
+  assert.ok(configValueOk('flex_roles', 'reviewer,documenter'));
+  assert.ok(!configValueOk('flex_roles', ''));
+  assert.ok(!configValueOk('flex_roles', 'nosuchrole'));
   assert.ok(configValueOk('lanes', 'off'));
   assert.ok(!configValueOk('lanes', 'no'));
   assert.ok(configValueOk('approvals', 'edits'));

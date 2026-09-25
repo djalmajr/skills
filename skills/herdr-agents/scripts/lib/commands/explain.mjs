@@ -1,4 +1,4 @@
-// `explain` (slice 7d of the bash port): what the team is doing right now,
+// `explain` (bash port): what the team is doing right now,
 // as human text (never JSON). Port of the original bash implementation :4132-4165
 // (explain_state_dir), :4167-4205 (explain_activity), :4207-4229
 // (explain_collect_rows), :4231-4253 (explain_recommendation),
@@ -15,7 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { DieError, stateRootPath } from '../config.mjs';
-import { laneAttr, laneNames, laneOfRole, lanesEnabled, panesValue } from '../lanes.mjs';
+import { flexExtra, laneAttr, laneNames, laneOfRole, lanesEnabled, paneMode, panesValue } from '../lanes.mjs';
 import { findExecutable, readTextFile, runCli } from '../platform.mjs';
 import { stateDir, lastReport } from '../state.mjs';
 import { agentRead, agentState } from '../herdr.mjs';
@@ -113,7 +113,9 @@ export function explainActivity(name, sd, ctx, env = process.env, cwd = process.
 }
 
 // explain_collect_rows port (:4207): one TSV row per roster row —
-// lane<TAB>role<TAB>kind<TAB>model<TAB>activity, with the file's lane
+// lane<TAB>role<TAB>kind<TAB>model<TAB>activity<TAB>burst (the roster
+// column 13 marker `burst`, '' when the row is not a temporary worker),
+// with the file's lane
 // column 12, the lane of the role, then the name as fallbacks, and
 // default / unspecified for the empty fields.
 export function explainCollectRows(sd, ctx, env = process.env, cwd = process.cwd()) {
@@ -137,19 +139,23 @@ export function explainCollectRows(sd, ctx, env = process.env, cwd = process.cwd
       kind === '' ? 'unspecified' : kind,
       model === '' ? 'default' : model,
       explainActivity(name, sd, ctx, env, cwd),
+      (f[12] ?? '') === 'burst' ? 'burst' : '',
     ]);
   }
   return rows;
 }
 
-// explain_recommendation port (:4231): the 3-vs-4 panels paragraph, the
+// explain_recommendation port (:4231): the 2/3/4 panels paragraph, the
 // lanes=off note, and the `Chosen for <lane>: …` lines.
 export function explainRecommendation(ctx, env = process.env) {
   const out = [];
-  if (panesValue(ctx, env) === '3') {
-    out.push('Recommendation: 3 panels - one writes code, and one takes turns researching and reviewing. Lighter on quota. 4 panels run research, implementation, and review at the same time.');
+  const p = panesValue(ctx, env);
+  if (p === '2') {
+    out.push('Recommendation: 2 panels - one writes code (research included) and the review happens here, from another model family. The lightest choice. 3 panels add a reviewer panel.');
+  } else if (p === '3') {
+    out.push('Recommendation: 3 panels - one writes code (research included) and one reviews. Lighter on quota. 4 panels add a second writer; with 2 panels the review happens here.');
   } else {
-    out.push('Recommendation: 4 panels - research, implementation, and review at the same time. Uses more quota. 3 panels are the lighter choice.');
+    out.push('Recommendation: 4 panels - two write code (research included) in parallel and one reviews. Uses more quota. 3 panels are lighter: one writes and one reviews. With 2 panels one writes and the review happens here.');
   }
   if (!lanesEnabled(ctx, env)) {
     out.push('Each agent keeps its own assistant instead of sharing one panel.');
@@ -165,13 +171,16 @@ export function explainRecommendation(ctx, env = process.env) {
   return out;
 }
 
-const rowLine = (r) => `${r[0]}: ${r[1]}, ${r[2]}, model ${r[3]}, ${r[4]}`;
+// A temporary (burst) worker's line ends with the (temporary) marker.
+const rowLine = (r) => `${r[0]}: ${r[1]}, ${r[2]}, model ${r[3]}, ${r[4]}${r[5] === 'burst' ? ' (temporary)' : ''}`;
 
-// explain_print_running port (:4255): `Panels: <n>.`, one line per lane in
-// the preset order (a lane with no row is `not started`), the lanes outside
-// the preset in roster order, then the recommendation.
+// explain_print_running port (:4255): `Panels: <n>.` — or, with the flex
+// mode and lanes on, `Panels: <n> (+<flex_extra> temporary).` — one line
+// per lane in the preset order (a lane with no row is `not started`), the
+// lanes outside the preset in roster order, then the recommendation.
 export function explainPrintRunning(rows, ctx, env = process.env) {
-  const out = [`Panels: ${panesValue(ctx, env)}.`];
+  const flex = lanesEnabled(ctx, env) && paneMode(ctx, env) === 'flex';
+  const out = [flex ? `Panels: ${panesValue(ctx, env)} (+${flexExtra(ctx, env)} temporary).` : `Panels: ${panesValue(ctx, env)}.`];
   const lanes = laneNames(ctx, env);
   if (lanesEnabled(ctx, env)) {
     for (const lane of lanes) {
@@ -194,7 +203,7 @@ export function explainPrintRunning(rows, ctx, env = process.env) {
 
 // explain_idle_paragraph port (:4275) — the fixed idle text.
 export function explainIdleParagraph() {
-  return ['herdr-agents runs a small team of agents in Herdr panels. You stay in this panel and lead. Each other panel is one agent with one job: researching, writing code, or reviewing. Those agents never commit or push. You can watch a panel or close it. Each assistant spends the quota of its own account. Nothing is running yet. To start, describe the work here. The first time, you are asked how many agents to open and which assistant each job should use, and nothing opens until you agree. Four panels are recommended when research, implementation, and review should happen at the same time; that uses more quota. Three panels are the lighter choice: one writes code, and one takes turns researching and reviewing.'];
+  return ['herdr-agents runs a small team of agents in Herdr panels. You stay in this panel and lead. Each other panel is one agent with one job: writing code (research included) or reviewing. Those agents never commit or push. You can watch a panel or close it. Each assistant spends the quota of its own account. Nothing is running yet. To start, describe the work here. The first time, you are asked how many panels to open and which assistant each job should use, and nothing opens until you agree. Four panels are recommended: two write code in parallel and one reviews; that uses more quota. Three panels are lighter: one writes and one reviews. With two panels one writes and the review happens here.'];
 }
 
 // cmd_explain port (:4283): no arguments; the ambiguity message (rc 2)

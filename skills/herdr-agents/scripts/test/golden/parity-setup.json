@@ -15,7 +15,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -41,7 +41,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: CLAUDE.md exists separately and has no block: run 'setup --target CLAUDE.md' too, or make CLAUDE.md a symlink to AGENTS.md\nPROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: CLAUDE.md exists separately and has no block: run 'setup --target CLAUDE.md' too, or make CLAUDE.md a symlink to AGENTS.md\nPROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -63,7 +63,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       },
@@ -71,7 +71,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block updated: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -145,7 +145,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -167,7 +167,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -189,7 +189,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block updated: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       },
@@ -197,7 +197,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block updated: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -219,7 +219,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       },
@@ -227,7 +227,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block updated: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -250,7 +250,7 @@
           "setup",
           "--no-hooks"
         ],
-        "err": "PROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -259,7 +259,7 @@
   "setup-panes-3": {
     "files": [
       {
-        "content": "panes=3\nlane.build.roles=implementer,designer,tasker\nlane.read.roles=scouter,researcher,reviewer,security-reviewer,ui-reviewer,inspector\nmax_workers=2\nsplit_max_panes=3\nreuse_workers=on\n",
+        "content": "panes=3\nreuse_workers=on\n",
         "rel": "repo/.agents/herdr-agents.conf"
       },
       {
@@ -278,8 +278,8 @@
           "--panes",
           "3"
         ],
-        "err": "PROG: warning: lane 'build' kinds differ (implementer=grok designer=agy tasker=grok). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane build=<kind>[:<model>[:<effort>]]'.\nPROG: warning: lane 'read' kinds differ (scouter=grok researcher=grok reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane read=<kind>[:<model>[:<effort>]]'.\nPROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
-        "out": "set panes=3\nset lane.build.roles=implementer,designer,tasker\nset lane.read.roles=scouter,researcher,reviewer,security-reviewer,ui-reviewer,inspector\nset max_workers=2\nset split_max_panes=3\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\nblock written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
+        "err": "PROG: warning: lane 'build' kinds differ (implementer=grok designer=agy tasker=grok scouter=grok researcher=grok). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane build=<kind>[:<model>[:<effort>]]'.\nPROG: warning: lane 'review' kinds differ (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\nPROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
+        "out": "set panes=3\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\nblock written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
     ]
@@ -287,7 +287,7 @@
   "setup-panes-4-lane": {
     "files": [
       {
-        "content": "lane.explore.kind=grok\npanes=4\nlane.build.roles=implementer,designer,tasker\nlane.explore.roles=scouter,researcher\nlane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nmax_workers=3\nsplit_max_panes=4\nreuse_workers=on\nlane.review.kind=claude\nlane.review.model=opus\nlane.review.effort=high\n",
+        "content": "panes=4\nreuse_workers=on\nlane.review.kind=claude\nlane.review.model=opus\nlane.review.effort=high\n",
         "rel": "repo/.agents/herdr-agents.conf"
       },
       {
@@ -308,8 +308,8 @@
           "--lane",
           "review=claude:opus:high"
         ],
-        "err": "PROG: warning: lane 'build' kinds differ (implementer=grok designer=agy tasker=grok). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane build=<kind>[:<model>[:<effort>]]'.\nPROG: warning: lane 'review' kinds differ (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\nPROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\n",
-        "out": "set lane.explore.kind=grok\nset panes=4\nset lane.build.roles=implementer,designer,tasker\nset lane.explore.roles=scouter,researcher\nset lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector\nset max_workers=3\nset split_max_panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\nset lane.review.kind=claude\nset lane.review.model=opus\nset lane.review.effort=high\nblock written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
+        "err": "PROG: warning: lane 'build' kinds differ (implementer=grok designer=agy tasker=grok scouter=grok researcher=grok). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane build=<kind>[:<model>[:<effort>]]'.\nPROG: warning: lane 'review' kinds differ (reviewer=codex security-reviewer=claude ui-reviewer=agy inspector=agy). Left the role.*.kind keys in place. Orchestrator: ask the user which kind this lane should use, then run 'setup --lane review=<kind>[:<model>[:<effort>]]'.\nPROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\n",
+        "out": "set panes=4\nset reuse_workers=on\nremoved role.planner.* and the role kind/model keys of lanes that agreed; divergent lanes kept theirs\nset lane.review.kind=claude\nset lane.review.model=opus\nset lane.review.effort=high\nblock written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
     ]
@@ -330,7 +330,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -352,7 +352,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -370,7 +370,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -388,7 +388,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -432,7 +432,7 @@
         "args": [
           "setup"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/AGENTS.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -460,7 +460,7 @@
           "--target",
           "CLAUDE.md"
         ],
-        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.\n",
+        "err": "PROG: warning: SessionStart hook cannot resolve herdr-agents; install the skill under the project's or user's .agents/skills or .claude/skills directory\nPROG: warning: project config <ROOT>/repo/.agents/herdr-agents.conf sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.\n",
         "out": "block written: <ROOT>/repo/CLAUDE.md\nhooks written: <ROOT>/repo/.claude/settings.json (UserPromptSubmit reminder, SessionStart doctor)\nstate dir ignored: .herdr-agents/\nnote: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n",
         "rc": 0
       }
@@ -488,7 +488,7 @@
           "--panes",
           "5"
         ],
-        "err": "PROG: setup: --panes must be 3 or 4\n",
+        "err": "PROG: setup: --panes must be 2, 3 or 4\n",
         "out": "",
         "rc": 2
       },

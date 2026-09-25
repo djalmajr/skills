@@ -1,4 +1,4 @@
-// `setup --detect` (slice 7b of the bash port): print as JSON what this
+// `setup --detect` (bash port): print as JSON what this
 // machine has — installed kinds (family, effort ceiling, three newest
 // models), the models the user declared for the generic kinds pi and
 // opencode (ids and the highest declared reasoning level only — apiKey,
@@ -22,7 +22,7 @@ import { KNOWN_KINDS, cfg, cfgSource } from '../config.mjs';
 import { agentFamily, kindExe, kindFamilyDisplay, kindEffortCeiling, kindSummary } from '../kinds.mjs';
 import { modelIds, versionSortDesc } from '../models.mjs';
 import { findExecutable } from '../platform.mjs';
-import { laneAttr, laneNames, laneRolesCsv, presetLaneNamesFor, presetLaneRoles, splitRoles } from '../lanes.mjs';
+import { laneAttr, laneCapacity, laneNames, laneRolesCsv, paneMode, presetLaneCapacity, presetLaneNamesFor, presetLaneRoles, splitRoles } from '../lanes.mjs';
 import { fmGet, roleDirs } from '../roles.mjs';
 import { resolvedRoleKind } from '../spawn.mjs';
 import { opencodeOwnModels, piOwnModels, piProvidersParsed, opencodeFilesParsed } from '../ownproviders.mjs';
@@ -178,9 +178,11 @@ export function detectWorkerModelsJson(ctx, env = process.env) {
 // bash key order: kinds, recommended_reviewer, then config (max_workers,
 // multi_role, reuse_workers, panes, lanes, effective_lanes, presets,
 // role_kinds, worker_models). The effective lanes are the preset of the
-// panes value, or the custom lanes; the presets are the fixed 3- and
-// 4-pane lists. The reviewer suggestion uses the installed kinds only
-// (setup --probe refines it to the kinds that answer a real prompt).
+// panes value, or the custom lanes; each carries its capacity (`panes`,
+// from laneCapacity). The presets are the fixed 2-, 3- and 4-pane
+// lists per pane_mode, each lane with its preset capacity (`panes`, from
+// presetLaneCapacity). The reviewer suggestion uses the installed kinds
+// only (setup --probe refines it to the kinds that answer a real prompt).
 export function setupDetectJson(ctx, env = process.env, cwd = process.cwd()) {
   const kinds = KNOWN_KINDS.map((k) => detectKindJson(ctx, k, env, cwd));
   const roleKinds = detectRoleKindsJson(ctx, env, cwd);
@@ -188,16 +190,19 @@ export function setupDetectJson(ctx, env = process.env, cwd = process.cwd()) {
   const effectiveLanes = laneNames(ctx, env).map((lane) => ({
     name: lane,
     roles: splitRoles(laneRolesCsv(ctx, lane, env)),
+    panes: laneCapacity(ctx, lane, env),
     kind: laneAttr(ctx, lane, 'kind', null, env),
     model: laneAttr(ctx, lane, 'model', null, env),
     effort: laneAttr(ctx, lane, 'effort', null, env),
     approvals: laneAttr(ctx, lane, 'approvals', null, env),
   }));
   const presets = {};
-  for (const p of ['3', '4']) {
-    presets[p] = presetLaneNamesFor(p).map((lane) => ({
+  const mode = paneMode(ctx, env);
+  for (const p of ['2', '3', '4']) {
+    presets[p] = presetLaneNamesFor(p, mode).map((lane) => ({
       name: lane,
-      roles: splitRoles(presetLaneRoles(lane, p)),
+      roles: splitRoles(presetLaneRoles(lane, p, mode)),
+      panes: presetLaneCapacity(lane, p, mode),
     }));
   }
   const buildFamily = effectiveBuildFamily(ctx, env, cwd);

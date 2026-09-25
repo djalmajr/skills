@@ -1,4 +1,4 @@
-// setup --detect (slice 7b): unit tests for lib/commands/setup-detect.mjs —
+// setup --detect: unit tests for lib/commands/setup-detect.mjs —
 // the custom-provider readers (pi ~/.pi/agent/models.json, opencode.json in
 // project/$OPENCODE_CONFIG/user, secrets never in the output, malformed
 // files and CRLF), the reviewer policy, the effective build family, the top
@@ -31,7 +31,7 @@ function tmp(prefix) {
 function isoRoot(prefix) {
   const root = tmp(prefix);
   for (const d of ['repo/.agents', 'home', 'conf', 'tmp', 'state']) fs.mkdirSync(path.join(root, d), { recursive: true });
-  spawnSync('git', ['init', '-q'], { cwd: path.join(root, 'repo'), stdio: 'ignore' });
+  spawnSync('git', ['init', '-q'], { cwd: path.join(root, 'repo'), stdio: 'ignore', timeout: 30000 });
   const env = {
     HOME: path.join(root, 'home'),
     XDG_CONFIG_HOME: path.join(root, 'conf'),
@@ -488,35 +488,76 @@ test('setupDetectJson: the bash key order and the preset/effective lanes default
     assert.deepEqual(c.panes, { value: '4', source: 'defaults' });
     assert.deepEqual(c.lanes, { value: 'on', source: 'defaults' });
     assert.equal(doc.recommended_reviewer, null, 'no installed kind, no candidate');
-    assert.deepEqual(c.effective_lanes.map((l) => l.name), ['build', 'explore', 'review']);
-    assert.deepEqual(c.effective_lanes[0].roles, ['implementer', 'designer', 'tasker']);
+    // The effective lanes are the 4-pane preset (strict mode): build
+    // carries the research roles and the documenter (it borrows a build
+    // slot) with capacity 2, review capacity 1; each lane carries its
+    // capacity right after the roles.
+    assert.deepEqual(c.effective_lanes.map((l) => l.name), ['build', 'review']);
+    assert.deepEqual(c.effective_lanes[0].roles, ['implementer', 'designer', 'tasker', 'scouter', 'researcher', 'documenter']);
+    assert.equal(c.effective_lanes[0].panes, 2);
+    assert.equal(c.effective_lanes[1].panes, 1);
+    assert.deepEqual(c.effective_lanes[1].roles, ['reviewer', 'security-reviewer', 'ui-reviewer', 'inspector']);
     assert.equal(c.effective_lanes[0].kind, '');
     assert.equal(c.effective_lanes[0].model, '');
     assert.equal(c.effective_lanes[0].effort, '');
     assert.equal(c.effective_lanes[0].approvals, '');
-    assert.deepEqual(Object.keys(c.presets), ['3', '4']);
-    assert.deepEqual(c.presets['3'], [
-      { name: 'build', roles: ['implementer', 'designer', 'tasker'] },
-      { name: 'read', roles: ['scouter', 'researcher', 'reviewer', 'security-reviewer', 'ui-reviewer', 'inspector'] },
+    assert.deepEqual(Object.keys(c.presets), ['2', '3', '4']);
+    assert.deepEqual(c.presets['2'], [
+      { name: 'build', roles: ['implementer', 'designer', 'tasker', 'scouter', 'researcher', 'documenter'], panes: 1 },
     ]);
-    assert.deepEqual(c.presets['4'].map((l) => l.name), ['build', 'explore', 'review']);
-    // Custom lanes replace the preset effective lanes (panes still defaults).
+    assert.deepEqual(c.presets['3'], [
+      { name: 'build', roles: ['implementer', 'designer', 'tasker', 'scouter', 'researcher', 'documenter'], panes: 1 },
+      { name: 'review', roles: ['reviewer', 'security-reviewer', 'ui-reviewer', 'inspector'], panes: 1 },
+    ]);
+    assert.deepEqual(c.presets['4'], [
+      { name: 'build', roles: ['implementer', 'designer', 'tasker', 'scouter', 'researcher', 'documenter'], panes: 2 },
+      { name: 'review', roles: ['reviewer', 'security-reviewer', 'ui-reviewer', 'inspector'], panes: 1 },
+    ]);
+    // The flex mode: build | review | docs on every preset (the documenter
+    // owns the capacity-0 docs lane; the review lane is capacity 0 at
+    // panes=2, a temporary worker only).
+    write(r.projectConf, 'pane_mode=flex\n');
+    const docF = setupDetectJson(loadConfig(r.env, r.repo), r.env, r.repo);
+    assert.deepEqual(docF.config.effective_lanes.map((l) => l.name), ['build', 'review', 'docs']);
+    assert.deepEqual(docF.config.effective_lanes[0].roles, ['implementer', 'designer', 'tasker', 'scouter', 'researcher']);
+    assert.equal(docF.config.effective_lanes[0].panes, 2);
+    assert.equal(docF.config.effective_lanes[1].panes, 1);
+    assert.deepEqual(docF.config.effective_lanes[2].roles, ['documenter']);
+    assert.equal(docF.config.effective_lanes[2].panes, 0);
+    assert.deepEqual(docF.config.presets['2'], [
+      { name: 'build', roles: ['implementer', 'designer', 'tasker', 'scouter', 'researcher'], panes: 1 },
+      { name: 'review', roles: ['reviewer', 'security-reviewer', 'ui-reviewer', 'inspector'], panes: 0 },
+      { name: 'docs', roles: ['documenter'], panes: 0 },
+    ]);
+    assert.deepEqual(docF.config.presets['4'], [
+      { name: 'build', roles: ['implementer', 'designer', 'tasker', 'scouter', 'researcher'], panes: 2 },
+      { name: 'review', roles: ['reviewer', 'security-reviewer', 'ui-reviewer', 'inspector'], panes: 1 },
+      { name: 'docs', roles: ['documenter'], panes: 0 },
+    ]);
+    // Custom lanes replace the preset effective lanes (panes still
+    // defaults); a custom lane starts with capacity 1.
     write(r.projectConf, 'lane.build.roles=implementer,designer\nlane.review.roles=reviewer\n');
     const doc2 = setupDetectJson(loadConfig(r.env, r.repo), r.env, r.repo);
     assert.deepEqual(doc2.config.effective_lanes.map((l) => l.name), ['build', 'review']);
     assert.deepEqual(doc2.config.effective_lanes[0].roles, ['implementer', 'designer']);
-    // panes=3 (project layer) switches the preset lanes.
+    assert.equal(doc2.config.effective_lanes[0].panes, 1, 'custom lane: capacity 1');
+    // panes=3 (project layer) switches the preset lanes (both capacity 1).
     write(r.projectConf, 'panes=3\n');
     const doc3 = setupDetectJson(loadConfig(r.env, r.repo), r.env, r.repo);
-    assert.deepEqual(doc3.config.effective_lanes.map((l) => l.name), ['build', 'read']);
+    assert.deepEqual(doc3.config.effective_lanes.map((l) => l.name), ['build', 'review']);
+    assert.equal(doc3.config.effective_lanes[0].panes, 1);
     assert.deepEqual(doc3.config.panes, { value: '3', source: 'project' });
+    // Mutation captured: the old preset tables in `presets` (keys 3/4
+    // with the read/explore lanes), the documenter missing from the
+    // strict build lane (or present in the flex build lane / missing from
+    // the docs lane), or the capacity missing from the lanes.
     // The JSON round-trips and keeps the key order.
     const keys = Object.keys(JSON.parse(JSON.stringify(doc)));
     assert.deepEqual(keys, ['kinds', 'recommended_reviewer', 'config']);
   } finally { r.cleanup(); }
 });
 
-// ---------- own-provider trap warnings (backlog item 8) ----------
+// ---------- own-provider trap warnings ----------
 
 // Mutation captured: `<=` instead of `<` at the headroom boundary (edge
 // would warn), a default level other than high (the texts and the 24576
@@ -616,7 +657,7 @@ test('opencodeOwnModels: the trap warnings per model (literal key, missing budge
   } finally { r.cleanup(); }
 });
 
-// ---------- review fixes (slice 7b) ----------
+// ---------- review fixes ----------
 
 test('piCustomModelsJson: a thinkingLevelMap key named like an Object.prototype member is an unknown level', () => {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ha-detect-proto-')));

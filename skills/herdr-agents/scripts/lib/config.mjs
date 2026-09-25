@@ -15,7 +15,8 @@ import { sessionConfPath } from './session.mjs';
 export const CONFIG_SCALAR_KEYS = [
   'orchestrator_name', 'layout', 'regrid', 'max_workers', 'split_max_panes',
   'split_min_pane', 'herd_label', 'herd_label_max', 'reuse_workers',
-  'multi_role', 'panes', 'lanes', 'worker_context', 'brief_lint', 'approvals',
+  'multi_role', 'panes', 'lanes', 'pane_mode', 'flex_extra', 'flex_roles',
+  'worker_context', 'brief_lint', 'approvals',
   'auto_approve', 'max_auto_approvals', 'max_effort', 'family_check',
   'settled_grace', 'spawn_timeout', 'dispatch_timeout', 'provider_retries',
   'provider_retry_delay', 'prompt_check_seconds', 'stuck_warn_minutes', 'state_dir',
@@ -106,7 +107,7 @@ export function cfgSource(ctx, key, env = process.env) {
 }
 
 // config_key_ok() port: scalar keys plus role/model/effort/args/lane patterns.
-const DOTTED_KEY_RE = /^(?:role\.[a-z][a-z0-9_-]*\.(?:kind|model|effort)|lane\.[a-z][a-z0-9_-]*\.(?:roles|kind|model|effort|approvals)|model\.[a-z][a-z0-9_.-]+|effort\.[a-z][a-z0-9_-]+|args\.[a-z][a-z0-9_-]+)$/;
+const DOTTED_KEY_RE = /^(?:role\.[a-z][a-z0-9_-]*\.(?:kind|model|effort)|lane\.[a-z][a-z0-9_-]*\.(?:roles|kind|model|effort|approvals|panes)|model\.[a-z][a-z0-9_.-]+|effort\.[a-z][a-z0-9_-]+|args\.[a-z][a-z0-9_-]+)$/;
 export function configKeyOk(key) {
   if (CONFIG_SCALAR_KEYS.includes(key)) return true;
   return DOTTED_KEY_RE.test(key);
@@ -131,7 +132,11 @@ export function configValueOk(key, value, env = process.env, cwd = process.cwd()
   if (key === 'max_workers' || key === 'provider_retries' || key === 'provider_retry_delay'
     || key === 'prompt_check_seconds' || key === 'stuck_warn_minutes') return /^[0-9]+$/.test(value);
   if (key === 'multi_role' || key === 'reuse_workers' || key === 'lanes') return ['on', 'off'].includes(value);
-  if (key === 'panes') return ['3', '4'].includes(value);
+  if (key === 'panes') return ['2', '3', '4'].includes(value);
+  if (key === 'pane_mode') return ['strict', 'flex'].includes(value);
+  if (key === 'flex_extra') return /^[0-9]+$/.test(value);
+  if (key === 'flex_roles') return configRolesOk(value, env, cwd);
+  if (/^lane\..*\.panes$/.test(key)) return /^[1-9][0-9]*$/.test(value);
   if (/^role\..*\.kind$/.test(key) || /^lane\..*\.kind$/.test(key)) return KNOWN_KINDS.includes(value);
   if (/^lane\..*\.roles$/.test(key)) return configRolesOk(value, env, cwd);
   if (/^lane\..*\.effort$/.test(key)) return EFFORT_LADDER.includes(value);

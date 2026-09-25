@@ -1,4 +1,4 @@
-// The `setup` command (slice 7a of the bash port): write the marked
+// The `setup` command (bash port): write the marked
 // "Multi-agent workflow (herdr-agents)" block into the project's canonical
 // instruction file, merge the two Claude Code hooks into
 // .claude/settings.json, apply `--panes`/`--lane` to the project config and
@@ -7,10 +7,10 @@
 // setup_write_block / setup_hook_* / settings_hooks_result /
 // setup_write_hooks), :2181-2214 (project_needs_config_prompt) and
 // :2614-2719 (cmd_setup). The pure texts and merge live in lib/setuptext.mjs;
-// this module owns the disk and the die messages. `--detect` is slice 7b
-// (lib/commands/setup-detect.mjs) and writes nothing; `--plan` is slice 7c
-// (lib/commands/setup-plan.mjs) and simulates the writes; `--probe` is
-// slice 8b (lib/commands/setup-probe.mjs) and runs the per-kind probes.
+// this module owns the disk and the die messages. `--detect` lives in
+// lib/commands/setup-detect.mjs and writes nothing; `--plan` lives in
+// lib/commands/setup-plan.mjs and simulates the writes; `--probe` lives in
+// lib/commands/setup-probe.mjs and runs the per-kind probes.
 import fs from 'node:fs';
 import path from 'node:path';
 import { DieError, cfg, configWritePair, configFileFor, stateRoot } from '../config.mjs';
@@ -100,7 +100,7 @@ export function cmdSetup(args, ctx, env, cwd = process.cwd()) {
   if (wantProbe === 1 && wantPlan === 1) throw new DieError('setup: --probe and --plan are exclusive', 2);
   if (wantProbe === 1) {
     // bash: strip every --probe and run cmd_setup_probe with the rest —
-    // the probe needs no Herdr environment and opens no state (slice 8b).
+    // the probe needs no Herdr environment and opens no state.
     const rest = [];
     for (const a of args) if (a !== '--probe') rest.push(a);
     cmdSetupProbe(rest, ctx, env, cwd);
@@ -108,7 +108,7 @@ export function cmdSetup(args, ctx, env, cwd = process.cwd()) {
   }
   if (wantPlan === 1) {
     // bash: strip every --plan and run cmd_setup_plan with the rest — the
-    // simulation writes nothing (slice 7c).
+    // simulation writes nothing.
     const rest = [];
     for (const a of args) if (a !== '--plan') rest.push(a);
     cmdSetupPlan(rest, ctx, env, cwd);
@@ -153,7 +153,7 @@ export function cmdSetup(args, ctx, env, cwd = process.cwd()) {
   }
   if (!path.isAbsolute(target)) target = root + '/' + target;
 
-  if (panes !== '' && panes !== '3' && panes !== '4') throw new DieError('setup: --panes must be 3 or 4', 2);
+  if (panes !== '' && panes !== '2' && panes !== '3' && panes !== '4') throw new DieError('setup: --panes must be 2, 3 or 4', 2);
   const conf = configFileFor('project', env, cwd);
   if (panes !== '') {
     if (dry === 1) {
@@ -207,6 +207,6 @@ export function cmdSetup(args, ctx, env, cwd = process.cwd()) {
   process.stdout.write(`state dir ignored: ${cfg(ctx, 'state_dir', '.herdr-agents', env)}/\n`);
   process.stdout.write('note: Codex, Grok, Cursor and agy read the instruction file; only Claude Code runs the hooks.\n');
   if (projectNeedsConfigPrompt(conf)) {
-    warn(`project config ${conf} sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, or 3) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 3|4'.`);
+    warn(`project config ${conf} sets neither multi_role, any lane.<name>.kind, nor any role.<role>.kind. max_workers alone is not that choice. Orchestrator: run 'setup --detect', ask the user in their language how many agents at once (4 recommended, 3, or 2) and which detected assistant should implement, review, and research — do not say lane, kind, or panes to them — then run 'setup --panes 2|3|4 [--lane name=kind:model:effort]'. If doctor reports a missing or legacy config, finish with 'doctor --fix --panes 2|3|4'.`);
   }
 }

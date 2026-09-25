@@ -251,11 +251,12 @@ test('roles: lane.<l>.kind/model/effort decide for the roles of the lane', (t) =
     assert.deepEqual([x.kind, x.model, x.effort], ['pi', 'lane-model', 'medium']);
     assert.equal(x.from,
       `kind: lane build (project); model: lane build (project); effort: lane build (project); file: ${path.join(skillDir(), 'roles', 'implementer.md')}`);
-    // scouter sits in the explore lane (no lane keys): unchanged sources.
+    // scouter sits in the build lane too (research runs there): all three
+    // from the lane (project), like implementer.
     const y = row('scouter');
-    assert.deepEqual([y.kind, y.model, y.effort], ['grok', 'grok', 'xhigh']);
+    assert.deepEqual([y.kind, y.model, y.effort], ['pi', 'lane-model', 'medium']);
     assert.equal(y.from,
-      `kind: role file; model: model.grok.worker (defaults); effort: effort.grok (defaults); file: ${path.join(skillDir(), 'roles', 'scouter.md')}`);
+      `kind: lane build (project); model: lane build (project); effort: lane build (project); file: ${path.join(skillDir(), 'roles', 'scouter.md')}`);
     // Mutation captured: skipping the lane steps in the resolution (kind
     // 'grok'/'lane-model' absent) or a lane FROM without the layer.
   } finally { s.cleanup(); }

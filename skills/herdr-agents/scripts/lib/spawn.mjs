@@ -1,14 +1,16 @@
-// The `spawn` command (port slice 5b): resolve kind/model/effort/approvals
+// The `spawn` command (bash port): resolve kind/model/effort/approvals
 // of a role (same order as bash `cmd_spawn` :3377-3607 and spec 5.3),
-// decide reuse (by lane or by role), enforce the worker cap, place the
-// pane (split, herd tab or a given `--pane`), start the agent with the
-// `agent_pane_busy` retry and register the worker in the roster.
+// decide the lane (capacity per lane — reuse the first idle worker,
+// open another while there is room, otherwise busy) or reuse by role,
+// enforce the worker cap, place the pane (split, herd tab or a given
+// `--pane`), start the agent with the `agent_pane_busy` retry and register
+// the worker in the roster.
 //
 // Behavior mirrors the original bash implementation (:735-736, :1507-1523,
 // :3198-3376, :3377-3607). The lane decision, the worker cap, the split
 // anchor and the herd tabs come from the already-ported modules (lanes,
-// layout, herdtabs); regrid after spawn is slice 8 (decision 5 — one
-// commented extension point in cmdSpawn).
+// layout, herdtabs); regrid after spawn is decision 5 (one commented
+// extension point in cmdSpawn).
 import fs from 'node:fs';
 import { DieError, cfg, EFFORT_LADDER } from './config.mjs';
 import { runCli, findExecutable } from './platform.mjs';
@@ -22,7 +24,8 @@ import {
   fmGet, historyHasEdit, isReviewRole, resolveRole, roleFile, roleIsEdit,
 } from './roles.mjs';
 import {
-  enforceWorkerCap, laneAttr, laneDecide, lanesEnabled, panesValue, spawnKindLayer,
+  customLanesPresent, enforceWorkerCap, flexExtra, laneAttr, laneDecide, lanesEnabled,
+  liveBurstWorkers, paneMode, panesValue, spawnKindLayer, splitRoles,
 } from './lanes.mjs';
 import { resolveRoleSettings } from './resolve.mjs';
 import {
@@ -146,7 +149,17 @@ export function findReusable(role, kind, workerCwd, name = '', wantModel = '', w
     if (name !== '' && nm !== name) continue;
     if (k !== kind || c !== workerCwd) continue;
     const isSame = r === role;
-    if (!isSame) {
+    if (isSame) {
+      // Same-role reuse compares the recorded model and approvals when the
+      // row has the columns: the model as a string ('' only
+      // matches '') and the approvals rank ≥ the request ('ask' when
+      // empty). Old 8-column lines keep kind + cwd only, as before.
+      if (f.length >= 9 && wModel !== wantModel) continue;
+      if (f.length >= 10) {
+        const reqRank = approvalsRank(wantApprovals !== '' ? wantApprovals : 'ask');
+        if (approvalsRank(wApprovals) < reqRank) continue;
+      }
+    } else {
       if (multi !== 'on') continue;
       if (f.length < 11) continue; // old 8-column lines: same role only
       // Both models recorded and equal (bash :3318): never borrow a session
@@ -182,6 +195,21 @@ export function findReusable(role, kind, workerCwd, name = '', wantModel = '', w
   if (blocked) return { unavailable: blocked };
   if (crossHit !== '') return { name: crossHit };
   return null;
+}
+
+// The capacity-0 lane refusal (the flex presets only): the lane takes a
+// temporary worker only, and no burst slot is free. A role in flex_roles
+// is told to release a live temporary worker or raise flex_extra; a role
+// outside flex_roles may not use the temporary panel at all.
+function tempLaneBusy(lane, role, sd, ctx, env) {
+  const rolesCsv = cfg(ctx, 'flex_roles', 'reviewer,documenter', env);
+  if (!splitRoles(rolesCsv).includes(role)) {
+    warn(`role '${role}' may not use the temporary panel (flex_roles=${rolesCsv})`);
+    return;
+  }
+  const live = liveBurstWorkers(sd, env);
+  const remedy = live.length > 0 ? `Release one (release ${live[0]}), or raise flex_extra.` : 'Raise flex_extra.';
+  warn(`lane '${lane}' only takes a temporary worker (pane_mode=flex) and none is free: flex_extra=${flexExtra(ctx, env)}, live temporary workers: ${live.length > 0 ? live.join(', ') : 'none'}. ${remedy}`);
 }
 
 // emit_reuse :3344: when the role changes, retarget the roster line, then
@@ -297,6 +325,12 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
   const res = resolveRoleSettings(role, ctx, env, cwd, { kind, model, effort, approvals });
   const lane = res.lane;
   if (lane === '' && lanesEnabled(ctx, env)) {
+    // panes=2 has no review lane at all: the orchestrator reviews (its
+    // model family is picked by hand). Other roles keep the generic
+    // message.
+    if (panesValue(ctx, env) === '2' && isReviewRole(role) && !customLanesPresent(ctx, env)) {
+      dieFriction(`spawn: with panes=2 the orchestrator reviews (pick its model family by hand); role '${role}' has no lane. Use panes=3 or 4, or pane_mode=flex for a temporary reviewer.`, 3);
+    }
     dieFriction(`spawn: role '${role}' is not in any lane (panes=${panesValue(ctx, env)}). Add it with lane.<name>.roles, or set lanes=off.`, 3);
   }
   kind = res.kind;
@@ -341,16 +375,30 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
   if (reuse === '') reuse = cfg(ctx, 'reuse_workers', 'on', env);
 
   const sd = stateDir(ctx, env, cwd);
-  // Lane decision (lanes on, no --pane): reuse/busy/gone/unavailable/locked.
+  // Lane decision (lanes on, no --pane): capacity — reuse the first
+  // idle worker, open another while there is room, otherwise busy. Gone
+  // rows are removed (today's warning) and never count against the
+  // capacity. A temporary (burst) worker opens when the decision is
+  // busy (the lane is full, no idle) or the lane holds no resident
+  // worker at all (capacity 0), and only in the flex mode, only for a
+  // flex_roles role, and only while fewer than flex_extra temporary
+  // workers are live; otherwise the busy exit 10 (the strict mode never
+  // opens a burst).
+  let burst = 0;
   if (lane !== '' && pane === '') {
-    const d = laneDecide(ctx, lane, role, env, cwd);
+    const d = laneDecide(ctx, lane, role, env, cwd, reuse === 'on');
+    for (const g of d.gone) {
+      rosterRemove(sd, g);
+      warn(`lane '${lane}' worker '${g}' is gone; opening a new pane`);
+    }
+    burst = paneMode(ctx, env) === 'flex'
+      && splitRoles(cfg(ctx, 'flex_roles', 'reviewer,documenter', env)).includes(role)
+      && (d.decision === 'busy' || (d.capacity === 0 && d.decision === 'absent'))
+      && liveBurstWorkers(sd, env).length < flexExtra(ctx, env)
+        ? 1
+        : 0;
     switch (d.decision) {
       case 'reuse': {
-        if (reuse !== 'on') {
-          process.stdout.write(`${JSON.stringify({ status: 'busy', lane, name: d.name })}\n`);
-          warn(`lane '${lane}' already has idle worker '${d.name}'. Release it before --fresh, or dispatch on it. Run 'wait ${d.name}', then dispatch.`);
-          process.exit(10);
-        }
         const line = rosterLine(sd, d.name);
         const lf = line.split('\t');
         const actualKind = lf[2] ?? '';
@@ -387,22 +435,43 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
         warn(`reusing idle lane '${lane}' worker '${d.name}' as ${role}; its session already holds earlier briefs`);
         return;
       }
-      case 'busy':
+      case 'busy': {
+        if (burst === 1) break; // the temporary worker opens below
+        // --fresh with an idle worker and a full lane: today's busy.
+        if (d.candidate !== '' && reuse !== 'on') {
+          process.stdout.write(`${JSON.stringify({ status: 'busy', lane, name: d.candidate })}\n`);
+          warn(`lane '${lane}' already has idle worker '${d.candidate}'. Release it before --fresh, or dispatch on it. Run 'wait ${d.candidate}', then dispatch.`);
+          process.exit(10);
+        }
+        if (d.capacity === 0) {
+          // A capacity-0 lane holds a temporary worker only (flex);
+          // with no burst slot left it is full.
+          process.stdout.write(`${JSON.stringify({ status: 'busy', lane, name: d.name })}\n`);
+          tempLaneBusy(lane, role, sd, ctx, env);
+          process.exit(10);
+          break;
+        }
         process.stdout.write(`${JSON.stringify({ status: 'busy', lane, name: d.name })}\n`);
-        warn(`lane '${lane}' worker '${d.name}' is busy (${d.state}). Run 'wait ${d.name}', then dispatch.`);
+        warn(`lane '${lane}' is full (${d.n} of ${d.capacity}: ${d.occupants.join(' ')}). Run 'wait ${d.name}', then dispatch.`);
         process.exit(10);
         break;
-      case 'gone':
-        rosterRemove(sd, d.name);
-        warn(`lane '${lane}' worker '${d.name}' is gone; opening a new pane`);
+      }
+      case 'open':
+        break;
+      case 'absent':
+        if (d.capacity === 0 && burst === 0) {
+          // A capacity-0 lane holds a temporary worker only (flex);
+          // with no burst slot left it is full.
+          process.stdout.write(`${JSON.stringify({ status: 'busy', lane, name: d.name })}\n`);
+          tempLaneBusy(lane, role, sd, ctx, env);
+          process.exit(10);
+        }
         break;
       case 'unavailable':
         dieFriction(`lane '${lane}' worker '${d.name}' matches but herdr agent get failed (${d.cause}). Not spawning a replacement; it may still be live.`, 4);
         break;
       case 'locked':
         dieFriction(`lane '${lane}' worker '${d.name}' has edited and cannot take review role '${role}'.`, 5);
-        break;
-      case 'absent':
         break;
       default:
         dieFriction(`spawn: unexpected lane decision '${d.decision}'`, 4);
@@ -428,9 +497,21 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
     }
   }
   enforceWorkerCap(ctx, env, cwd);
-  if (name === '') name = uniqueName(lane !== '' ? lane : role, env);
-  if (!/^[a-z][a-z0-9_-]{0,31}$/.test(name)) dieFriction(`invalid agent name '${name}' (must match [a-z][a-z0-9_-]{0,31})`, 2);
-  if (agentNameTaken(name, env)) dieFriction(`agent name '${name}' is already live`, 3);
+  // A --name already live (any pane or workspace) gets a unique suffix
+  // instead of dying; a computed name is already unique.
+  if (name !== '') {
+    if (!/^[a-z][a-z0-9_-]{0,31}$/.test(name)) dieFriction(`invalid agent name '${name}' (must match [a-z][a-z0-9_-]{0,31})`, 2);
+    if (agentNameTaken(name, env)) {
+      const taken = name;
+      name = uniqueName(name, env);
+      if (!/^[a-z][a-z0-9_-]{0,31}$/.test(name)) dieFriction(`invalid agent name '${name}' (must match [a-z][a-z0-9_-]{0,31})`, 2);
+      warn(`agent name '${taken}' is taken by another pane or workspace; using '${name}'`);
+    }
+  } else {
+    name = uniqueName(lane !== '' ? lane : role, env);
+    if (!/^[a-z][a-z0-9_-]{0,31}$/.test(name)) dieFriction(`invalid agent name '${name}' (must match [a-z][a-z0-9_-]{0,31})`, 2);
+    if (agentNameTaken(name, env)) dieFriction(`agent name '${name}' is already live`, 3);
+  }
   const wctx = cfg(ctx, 'worker_context', 'full', env);
   const built = [
     ...kindContextArgs(kind, wctx),
@@ -494,12 +575,14 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
   }
   restoreFocusIfStolen(focusBefore, pane, direction, env);
   const family = agentFamily(kind, model);
-  rosterAppend(sd, [name, pane, kind, role, family, String(created), cwdArg, nowStamp(), model, approvals !== '' ? approvals : 'ask', role, lane]);
+  const rosterFields = [name, pane, kind, role, family, String(created), cwdArg, nowStamp(), model, approvals !== '' ? approvals : 'ask', role, lane];
+  if (burst === 1) rosterFields.push('burst'); // column 13; rows without it are not temporary
+  rosterAppend(sd, rosterFields);
   if (placement === 'herd') {
     try { herdTabsRelabel(ctx, env, cwd); }
     catch { warn('relabel of the herd tabs failed (see friction)'); }
   }
-  process.stdout.write(jqPretty({
+  const out = {
     name,
     pane_id: pane,
     kind,
@@ -514,7 +597,9 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
     approvals: approvals !== '' ? approvals : 'ask',
     agent_args: agentArgs.join(' '),
     status: blocked === 1 ? 'blocked_at_startup' : 'ready',
-  }));
+  };
+  if (burst === 1) out.burst = true;
+  process.stdout.write(jqPretty(out));
   // `(cmd_regrid) >/dev/null 2>&1 || warn …` (:3604): after the JSON and
   // before the blocked check, like bash; the regrid output is suppressed
   // and a failure becomes the warning (the friction log holds the detail).

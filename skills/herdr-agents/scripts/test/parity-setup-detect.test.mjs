@@ -282,14 +282,15 @@ test('parity: setup --detect with custom lanes', { timeout: 120000, skip: SKIP }
   const s = r.steps[0];
   const doc = JSON.parse(s.out);
   assert.deepEqual(doc.config.effective_lanes, [
-    { name: 'build', roles: ['implementer', 'designer'], kind: 'codex', model: '', effort: '', approvals: '' },
-    { name: 'review', roles: ['reviewer'], kind: '', model: '', effort: '', approvals: '' },
+    { name: 'build', roles: ['implementer', 'designer'], panes: 1, kind: 'codex', model: '', effort: '', approvals: '' },
+    { name: 'review', roles: ['reviewer'], panes: 1, kind: '', model: '', effort: '', approvals: '' },
   ]);
   // The build lane pins codex (openai); grok (installed, xai) is the first
   // installed other family.
   assert.deepEqual(doc.recommended_reviewer, { kind: 'grok', family: 'xai', model: '' });
-  // The preset tables are independent of the custom lanes.
-  assert.deepEqual(doc.config.presets['4'].map((l) => l.name), ['build', 'explore', 'review']);
+  // The preset tables are independent of the custom lanes (2/3/4 presets,
+  // the research roles on the build lane).
+  assert.deepEqual(doc.config.presets['4'].map((l) => l.name), ['build', 'review']);
 });
 
 test('parity: setup --detect with role.<r>.kind and model.<kind>.worker in different layers', { timeout: 120000, skip: SKIP }, () => {

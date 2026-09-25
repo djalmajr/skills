@@ -430,6 +430,38 @@ test('family: the 12-column history is column 11 (lane not folded in)', { timeou
   } finally { fix.cleanup(); }
 });
 
+test('family: a documenter session is an edit agent only when it edited before', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-fam-documenter-');
+  try {
+    // The documenter is a mode-edit role: an edit role in the history
+    // (before the documentation) counts as an edit agent.
+    fix.writeRoster(undefined,
+      ROW11('doc', 'p1', 'codex', 'documenter', 'openai', '/tmp/work', 'gpt-5', 'implementer,documenter'));
+    assert.deepEqual(familyConflicts(fix.ws, 'openai', fix.env, fix.repo), ['doc (codex)'], 'an edit before the documentation counts');
+    // A worker that only documented (current role documenter, a roles
+    // history holding nothing but documenter) is not an edit agent.
+    fix.writeRoster(undefined,
+      ROW11('doc', 'p1', 'codex', 'documenter', 'openai', '/tmp/work', 'gpt-5', 'documenter'));
+    assert.deepEqual(familyConflicts(fix.ws, 'openai', fix.env, fix.repo), [], 'only documented: free for the reviewer');
+    // An empty history holds nothing but documenter: it qualifies.
+    fix.writeRoster(undefined,
+      ROW11('doc', 'p1', 'codex', 'documenter', 'openai', '/tmp/work', 'gpt-5', ''));
+    assert.deepEqual(familyConflicts(fix.ws, 'openai', fix.env, fix.repo), [], 'empty history qualifies');
+    // An old 8-column documenter line (no history) does not block.
+    fix.writeRoster(undefined,
+      ROW8('doc', 'p1', 'codex', 'documenter', 'openai'));
+    assert.deepEqual(familyConflicts(fix.ws, 'openai', fix.env, fix.repo), [], '8-column line: no history');
+    // Another edit role in the history also counts (historyHasEdit).
+    fix.writeRoster(undefined,
+      ROW11('doc', 'p1', 'codex', 'documenter', 'openai', '/tmp/work', 'gpt-5', 'designer,documenter'));
+    assert.deepEqual(familyConflicts(fix.ws, 'openai', fix.env, fix.repo), ['doc (codex)']);
+    // Mutation captured: the documenter-only history counted as an edit
+    // (a reviewer blocked by a pure documentation session), or the edit
+    // before the documentation not counted (a reviewer let through a
+    // session that edited the code).
+  } finally { fix.cleanup(); }
+});
+
 // ---------- composePrompt ----------
 
 test('compose: role header, brief verbatim, the report contract in order', { timeout: 30000 }, () => {

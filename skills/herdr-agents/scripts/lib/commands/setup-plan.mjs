@@ -1,4 +1,4 @@
-// `setup --plan` (slice 7c of the bash port): the same arguments as `setup`,
+// `setup --plan` (bash port): the same arguments as `setup`,
 // `config set` and `session set`, but nothing is written — every write is
 // simulated on copies in a private temp dir (fs.mkdtempSync under TMPDIR,
 // removed at the end, including when the simulation fails) and the change of
@@ -8,7 +8,7 @@
 // file, the Claude hooks and the .gitignore entry get a unified diff of the
 // simulated write (planFileDiff, port of bash plan_file_diff).
 //
-// The unified diff is a own implementation (decision 2 of the slice brief):
+// The unified diff is a own implementation (decision 2 of the brief):
 // no dependency and no `diff` call — Myers' shortest-edit algorithm with
 // three lines of context, in the exact format of
 // `diff -u -L a/<p> -L b/<p>` (labels without date, `\ No newline at end
@@ -18,7 +18,7 @@
 //
 // Port of the original bash implementation :2318-2330 (need_value/need_pair),
 // :2384-2418 (conf_keys/plan_diff_file/plan_file_diff) and :2420-2515
-// (cmd_setup_plan). Reuses the ports of the earlier slices: setupLaneSpec /
+// (cmd_setup_plan). Reuses the earlier ports: setupLaneSpec /
 // applyLaneFile (lanes.mjs), configKeyOk / configValueOk /
 // configWritePair / configFileFor / fileKeyValue / stateRootPath
 // (config.mjs), sessionConfPath (session.mjs), setupTargetExisting
@@ -344,7 +344,7 @@ export function cmdSetupPlan(args, ctx, env = process.env, cwd = process.cwd()) 
       throw new DieError(`setup --plan: unknown option '${a}'`, 2);
     }
   }
-  if (panes !== '' && panes !== '3' && panes !== '4') throw new DieError('setup --plan: --panes must be 3 or 4', 2);
+  if (panes !== '' && panes !== '2' && panes !== '3' && panes !== '4') throw new DieError('setup --plan: --panes must be 2, 3 or 4', 2);
   for (const spec of laneSpecs) setupLaneSpec(spec); // the same writer as setup
   const validate = (pairs) => {
     for (const [k, v] of pairs) {

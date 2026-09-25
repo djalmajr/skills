@@ -1,4 +1,4 @@
-// setup --plan (slice 7c): unit tests for lib/commands/setup-plan.mjs —
+// setup --plan: unit tests for lib/commands/setup-plan.mjs —
 // unifiedDiff (own Myers implementation in the `diff -u` format: new file,
 // equal, append at the end, change in the middle, no final newline on both
 // sides and on one only, several hunks near and far), confKeys and
@@ -35,7 +35,7 @@ test.before(() => {
   STATE = path.join(root, 'state');
   TMP = path.join(root, 'tmp');
   for (const d of [REPO, HOME, CONF, STATE, TMP]) fs.mkdirSync(d, { recursive: true });
-  spawnSync('git', ['init', '-q'], { cwd: REPO, stdio: 'ignore' });
+  spawnSync('git', ['init', '-q'], { cwd: REPO, stdio: 'ignore', timeout: 30000 });
   ENV = fixtureEnv({ HOME, XDG_CONFIG_HOME: CONF, HERDR_AGENTS_DIR: STATE, HERDR_WORKSPACE_ID: 'ws', TMPDIR: TMP });
 });
 test.after(() => fs.rmSync(ROOT, { recursive: true, force: true }));
@@ -387,7 +387,7 @@ function e2e(seed = {}) {
     repo: tree(REPO), conf: tree(CONF), state: tree(STATE), tmp: planLeftovers(),
   };
   const r = spawnSync(nodeBin(), [JS_ENTRY, ...(seed.args ?? [])], {
-    cwd: REPO, env: seed.env ? { ...ENV, ...seed.env } : ENV, encoding: 'utf8',
+    cwd: REPO, env: seed.env ? { ...ENV, ...seed.env } : ENV, encoding: 'utf8', timeout: 60000,
   });
   const after = {
     repo: tree(REPO), conf: tree(CONF), state: tree(STATE), tmp: planLeftovers(),
@@ -417,7 +417,12 @@ test('e2e: setup --plan --panes prints the plan and writes nothing', { timeout: 
   assert.ok(r.out.startsWith('plan (nothing is written):\n\n'), r.out.slice(0, 80));
   assert.ok(r.out.includes(path.join(REPO, '.agents', 'herdr-agents.conf')), 'project file path');
   assert.ok(r.out.includes('  panes                3 → 4'), r.out);
-  assert.ok(r.out.includes('  lane.build.roles     (unset) → implementer,designer,tasker'), r.out);
+  assert.ok(r.out.includes('  reuse_workers        (unset) → on'), r.out);
+  // The preset file freezes no roles or limits: no lane roles, no
+  // max_workers, no split_max_panes in the plan.
+  assert.ok(!r.out.includes('lane.build.roles'), r.out);
+  assert.ok(!r.out.includes('max_workers'), r.out);
+  assert.ok(!r.out.includes('split_max_panes'), r.out);
   assert.ok(r.out.includes(`--- a/${path.join(REPO, 'AGENTS.md')}`), 'block diff label');
   assert.ok(r.out.includes(`+++ b/${path.join(REPO, 'AGENTS.md')}`), 'block diff label');
   assert.ok(r.out.includes('+<!-- herdr-agents:start -->'), 'block marker in the diff');
@@ -426,6 +431,19 @@ test('e2e: setup --plan --panes prints the plan and writes nothing', { timeout: 
   assert.ok(!fs.existsSync(path.join(STATE, 'ws')), 'the state dir is not created');
   assert.ok(r.unchanged, 'repo, user conf and state trees changed');
   assert.ok(r.clean, 'temp dir leftovers or pre-existing leftovers');
+});
+
+test('e2e: --panes 2 plans the 2-pane preset (nothing written)', { timeout: 30000 }, () => {
+  const r = e2e({
+    args: ['setup', '--plan', '--panes', '2'],
+    'AGENTS.md': AGENTS_SEED,
+    '.claude/settings.json': SETTINGS_SEED,
+  });
+  assert.equal(r.rc, 0, `rc ${r.rc}: ${r.err}`);
+  assert.ok(r.out.includes('  panes                (unset) → 2'), r.out);
+  assert.ok(r.out.includes('  reuse_workers        (unset) → on'), r.out);
+  assert.ok(!r.out.includes('lane.build.roles'), r.out);
+  assert.ok(r.unchanged && r.clean, 'nothing written, no leftovers');
 });
 
 test('e2e: --set, --user-set and --session-set together — the three sections, nothing written', { timeout: 30000 }, () => {
@@ -451,7 +469,7 @@ test('e2e: invalid keys/values and a missing flag value die 2 before anything is
   for (const [args, frag] of [
     [['setup', '--plan', '--set', 'nope', '1'], "setup --plan: unknown key 'nope'"],
     [['setup', '--plan', '--set', 'max_workers', '-1'], "setup --plan: invalid value '-1' for max_workers"],
-    [['setup', '--plan', '--panes', '5'], 'setup --plan: --panes must be 3 or 4'],
+    [['setup', '--plan', '--panes', '5'], 'setup --plan: --panes must be 2, 3 or 4'],
     [['setup', '--plan', '--lane', 'build=boguskind'], "setup: unknown kind 'boguskind'"],
     [['setup', '--plan', '--set', 'max_workers'], 'setup --plan: --set expects a value'],
     [['setup', '--plan', '--lane'], 'setup --plan: --lane expects a value'],

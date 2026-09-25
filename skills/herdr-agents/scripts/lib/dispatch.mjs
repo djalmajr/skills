@@ -50,7 +50,11 @@ import { waitFor, pollIntervalMs, cksumField } from './wait.mjs';
 
 // One "name (kind)" per edit agent of the family `fam` (roster rows whose
 // family column equals `fam` and whose current role OR any roles-history
-// token is an edit role). An empty or `unknown` family never conflicts, so a
+// token is an edit role; edit = role mode != read-only, so a documenter
+// session counts too). A worker that only documented is not an edit
+// agent: current role documenter with a roles history holding nothing but
+// documenter (an empty history qualifies) is skipped. An empty or `unknown`
+// family never conflicts, so a
 // reviewer of an unmapped kind is never refused.
 export function familyConflicts(sd, fam, env = process.env, cwd = process.cwd()) {
   if (fam === '' || fam === 'unknown') return [];
@@ -62,6 +66,10 @@ export function familyConflicts(sd, fam, env = process.env, cwd = process.cwd())
     if ((f[4] ?? '') !== fam) continue;
     const role = f[3] ?? '';
     const hist = f.length >= 11 ? (f[10] ?? '') : '';
+    if (role === 'documenter') {
+      const toks = hist === '' ? [] : hist.split(',').map((s) => s.trim()).filter((s) => s !== '');
+      if (toks.every((t) => t === 'documenter')) continue;
+    }
     if (roleIsEdit(role, env, cwd) || historyHasEdit(hist, env, cwd)) {
       out.push(`${name} (${f[2] ?? ''})`);
     }

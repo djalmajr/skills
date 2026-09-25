@@ -76,8 +76,8 @@ open a pane in the same turn.
 Português:
 
 > Vou abrir até 3 painéis ao lado deste (4 no total, contando este).
-> Cada um é um agente com uma função: um pesquisa, um escreve o código e um revisa.
-> (Com 3 painéis no total, pesquisa e revisão ficam no mesmo agente.)
+> Dois escrevem o código em paralelo (e pesquisam quando preciso) e um revisa.
+> (Com 3 painéis no total, um escreve e um revisa; com 2, um escreve e eu reviso.)
 > Eles não fazem commit nem push; isso fica comigo.
 > Você pode acompanhar qualquer painel ou fechar o que não quiser.
 > Cada assistente gasta a cota da própria conta.
@@ -86,8 +86,8 @@ Português:
 English:
 
 > I will open up to 3 panels beside this one (4 in total, counting this one).
-> Each one is an agent with a job: one researches, one writes the code, and one reviews.
-> (With 3 panels in total, research and review share one agent.)
+> Two write the code in parallel (and research when needed) and one reviews.
+> (With 3 panels in total, one writes and one reviews; with 2, one writes and I review.)
 > They do not commit or push; I do that.
 > You can watch any panel or close one you do not want.
 > Each assistant spends its own account's quota.
@@ -136,8 +136,11 @@ does the rename lazily. When `first_run` is true, follow
 [First run](#first-run) before any spawn.
 
 With lanes on (the default), a worker is named after its lane (`build`,
-`explore`, `review`, or `read` when `panes=3`). Pass `--name` for something
-more telling. `lanes=off` keeps the old names: the role (`scouter`,
+then `build-2` for the second worker of a lane that holds two, `review`,
+and `docs` for the documenter in flex mode). Agent names are global in
+Herdr: a name another workspace already uses gets the next free suffix, and
+a `--name` that is taken does the same with a warning. Pass `--name` for
+something more telling. `lanes=off` keeps the old names: the role (`scouter`,
 `implementer`, …), then `implementer-2`. A nested orchestrator uses the
 `sub-orchestrator` role and stays outside the lanes unless a `lane.*.roles`
 list includes it.
@@ -168,6 +171,7 @@ when one worker is reused across tasks.
 | `reviewer` | codex | high | read-only | Patch-anchored correctness findings before push |
 | `security-reviewer` | claude | high | read-only | Evidence-backed vulnerability findings |
 | `inspector` | agy | high | read-only | Screenshots in both themes, UX findings, no fixes |
+| `documenter` | codex | high | edit (docs only) | Documentation of what already landed, after review; never code |
 | `sub-orchestrator` | claude | medium | read-only | Runs this skill from another pane; never codex sandboxed (socket blocked) |
 
 **Which assistant for which work.** The `Default kind` column is what a
@@ -366,9 +370,9 @@ does not exist.
 `$S config` prints every effective value with its source. Keys:
 `orchestrator_name`, `layout` (`split`: panes in the caller's tab until it is
 full, then herd tabs; `tab`: herd tabs only), `max_workers` (live workers
-at once, orchestrator not counted; default 3 = four panes with the caller;
-`spawn` exits 8 at the cap; `0` = no cap), `split_max_panes` (panes per
-tab, caller included; default 4), `split_min_pane` (smallest pane a spawn may
+at once, orchestrator not counted; default the sum of the lane capacities,
+3 for four panes; `spawn` exits 8 at the cap; `0` = no cap),
+`split_max_panes` (panes per tab, caller included; default `panes`), `split_min_pane` (smallest pane a spawn may
 leave, fraction of the tab; default 0.18), `regrid` (exact grids after every
 spawn/release), `herd_label` + `herd_label_max` (template and length of the
 automatic herd-tab labels; default `{roles}` → `impl+rev`, 16 characters;
@@ -387,8 +391,12 @@ waiting; off by default, see below), `max_effort`
 `spawn_timeout`, `dispatch_timeout`, `state_dir`, `report_language`,
 `notify`, `args.<kind>` (native flags always appended, the place for
 hook-trust or workspace-trust bypasses you accept), `role.<role>.kind`
-(swap the kind of a role without copying its file), `panes` (`3|4`,
-default 4), `lanes` (`on|off`), and `lane.<name>.roles|kind|model|effort|approvals`.
+(swap the kind of a role without copying its file), `panes` (`2|3|4`,
+default 4), `lanes` (`on|off`), `pane_mode` (`strict|flex`, default
+`strict`), `flex_extra` (temporary workers flex may add, default 1),
+`flex_roles` (who may use them, default `reviewer,documenter`), and
+`lane.<name>.roles|kind|model|effort|approvals|panes` (`panes` = the lane's
+capacity).
 
 ## Commands
 
@@ -445,7 +453,8 @@ SessionStart hook checks these locations in order: project
 `sh "<skill-root>/scripts/herdr-agents" doctor`.
 
 **Naming.** With lanes on, the agent is named after the lane (`build`,
-`explore`, `review`, `read`). `lanes=off` names it after the role
+`build-2`, `review`, `docs`). A name already live anywhere in Herdr gets the
+next free suffix (with a warning when it was a `--name`). `lanes=off` names it after the role
 (`implementer`, then `implementer-2`). Pass `--name` for a custom name
 (`[a-z][a-z0-9_-]{0,31}`). Use that name in `dispatch`, `collect`, and
 `release`; never pane IDs.
@@ -604,62 +613,90 @@ scraping an alternate-screen TUI.
 
 ## Fluxo paralelo
 
-Keep at most `panes` panes, counting this session. The orchestrator is the
-planner and does not spawn one. The other panes are lanes: one session that
-takes, in order, any role in its group. `reuse_workers` stays on. Before
-each `spawn`, the roster is already consulted:
+Keep at most `panes` panes, counting this session (plus the temporary one
+of flex mode, below). The orchestrator is the planner and does not spawn
+one. The other panes are lanes: sessions that take, in order, any role in
+their group. A lane may hold more than one worker (its capacity).
+`reuse_workers` stays on. Before each `spawn`, the roster is consulted:
 
-- lane worker idle or done, and its report exists or it never received a
-  brief → reuse it and switch the role (column 4 plus the roles history).
-  If `lane.<name>.kind` is empty and this role's kind, model, or effort
-  differs from the live session, `spawn` prints
+- an idle or done worker of the lane whose report exists (or that never
+  received a brief) → reuse it and switch the role (column 4 plus the roles
+  history). If `lane.<name>.kind` is empty and this role's kind, model, or
+  effort differs from the live session, `spawn` prints
   `{"status":"kind-mismatch","lane":…,"name":…,"session_kind":…,"requested_kind":…}`
   (plus model and effort) and exits 13. When `lane.<name>.kind` is set,
   that kind is the CLI for every role in the lane: a live session on that
-  kind is reused, and a session still running another CLI (opened before the
-  key existed) also exits 13, because the key does not retarget a running
-  process. Either way: `release <name> --close`, set `lane.<name>.kind` if
-  it is missing, then spawn again;
-- lane worker `working` or `blocked` → `spawn` prints
-  `{"status":"busy","lane":…,"name":…}` and exits 10. Run `wait <name>`,
-  then dispatch. Do not open a second pane;
-- lane worker `gone` → drop the roster row and open a new pane;
-- no worker for that lane → open one, under `max_workers`.
+  kind is reused, and a session still running another CLI (opened before
+  the key existed) also exits 13, because the key does not retarget a
+  running process. Either way: `release <name> --close`, set
+  `lane.<name>.kind` if it is missing, then spawn again;
+- no idle worker and fewer live workers than the lane's capacity → open a
+  new one (`build`, then `build-2`);
+- the lane is full (every worker `working`, `blocked` or with a report
+  pending) → `spawn` prints `{"status":"busy","lane":…,"name":…}` and exits
+  10, naming all of them. Run `wait <name>`, then dispatch. Do not open
+  another pane — except the temporary one of flex mode;
+- a `gone` worker → its roster row is dropped and it does not count;
+- a worker of the lane cannot be queried (`unavailable`) and none is idle →
+  exit 4 before any new pane: the worker may still be live; restore access
+  and retry, never spawn a replacement for it;
+- every live worker of a full lane has edited and the role is a review role
+  (`locked`) → exit 5: a session never reviews code it wrote; use a review
+  lane, or release one of them.
 
-`panes=4` (recommended default): orchestrator+planner | `build`
-(implementer, designer, tasker) | `explore` (scouter, researcher) |
-`review` (reviewer, security-reviewer, ui-reviewer, inspector). Three
-stages stay busy at once: explore researches slice N+1, build implements
-N, review reviews N-1.
+Presets (no `lane.*.roles` set; resolved at run time from `panes` and
+`pane_mode`, never written into the config):
 
-`panes=3`: orchestrator+planner | `build` | `read` (scouter, researcher,
-reviewer, security-reviewer, ui-reviewer, inspector). `read` is read-only
-and alternates between reviewing the previous slice and researching the
-next. It never reviews code that session wrote. The edit→review lock still
-refuses that reuse (exit 5).
+| panes | lanes (capacity) | the orchestrator |
+|---|---|---|
+| 4 (default) | `build` (2): implementer, designer, tasker, scouter, researcher · `review` (1): reviewer, security-reviewer, ui-reviewer, inspector | orchestrates, plans, explores |
+| 3 | `build` (1) · `review` (1) | idem |
+| 2 | `build` (1) | also reviews, from another model family than the build lane (pick it by hand) |
+
+Research is build work: a free builder maps the code or reads another
+repository, or the orchestrator does it. `max_workers` defaults to the sum
+of the capacities (3, 2, 1) and `split_max_panes` to `panes`, unless the
+user, the project or the environment sets them. `lane.<name>.panes` changes
+one lane's capacity.
+
+**Strict or flex** (`pane_mode`, default `strict`). Strict opens no
+temporary worker: each lane stays within its capacity (a
+`lane.<name>.panes` you set raises it; `max_workers` is only the global
+cap and opens no slot in a lane), and documentation is build work (the
+`documenter` role sits in the build lane). Flex may open up to `flex_extra` (1) **temporary** workers
+above `panes`, only for the roles in `flex_roles` (`reviewer,documenter`):
+a second reviewer (one per builder, or `reviewer` and `security-reviewer`
+on the same slice in parallel — both from another family than the
+builders) or the documenter (lane `docs`). With one free slot, the review
+comes first: it unblocks the push; documentation waits. With 2 panels,
+flex's extra reviewer takes the review off the orchestrator. A temporary
+worker is marked `burst` in the roster; `release` closes its pane even
+without `--close`. In flex, `max_workers` and `split_max_panes` grow by
+`flex_extra`, so the extra pane stays in this tab.
+
+The **documenter** edits documentation only (README, guides, references,
+ADRs, CHANGELOG), never code, and works after a slice passed review, from
+the spec and the committed diff. Documentation that describes behavior
+(commands, flags, config) goes to a reviewer; the rest the orchestrator
+checks. A session that has only been the documenter does not count as an
+edit agent for the reviewer family check; one that edited code before (an
+earlier role in its history) still does.
 
 `sub-orchestrator` is outside the lanes unless the user adds it to one: a
 nested herd would open more panes and blow the cap. `lanes=off` keeps
-today's per-role names and `multi_role` reuse.
+per-role names and `multi_role` reuse.
 
 Decompose into small slices with disjoint files. Dispatch with `--no-wait`
-and collect with `wait --any`. While a lane works, plan the next slice and
-integrate the report that just landed. On `panes=3`, the read lane's queue
-is: a review that blocks push, then research. Do not leave a lane idle
-while its queue has work. A busy lane means `wait`, then dispatch — not a
-new pane.
-
-Preset when no `lane.*.roles` is set:
-
-| panes | lanes | why |
-|---|---|---|
-| 4 | build, explore, review | research, implementation and review overlap |
-| 3 | build, read | one read-only pane alternates review and research |
+and collect with `wait --any`. While the builders work, plan the next slice
+and integrate the report that just landed; the reviewer's queue is the
+slice that blocks the push first. Do not leave a builder idle while there
+is work. A full lane means `wait`, then dispatch — not a new pane.
 
 `spawn <role>` resolves the lane. A role with no lane is an error, except
-under `lanes=off`. `max_workers` defaults to the number of lanes (3 or 2)
-when the user, the project and the environment do not set it.
-`split_max_panes` defaults to `panes` the same way.
+under `lanes=off` (and, with `panes=2`, a review role says the orchestrator
+reviews). Two orchestrators spawning into the same lane at the same moment
+may pass its capacity by one: nothing reserves a slot before the agent
+starts.
 
 ## Orchestrator flow — `/herdr-agents <objective>`
 
@@ -690,7 +727,7 @@ see your own edits, so pick that reviewer's kind by hand.
    and an order. Shared resources (i18n catalogs, small stores, constants)
    are either delivered ready in the brief or owned by exactly one agent.
 3. **Pick roles.** The orchestrator plans. Do not `spawn planner`. Research
-   → `scouter`/`researcher` (explore, or read). UI → `designer`. Code →
+   → `scouter`/`researcher` (a builder). UI → `designer`. Code →
    `implementer`. Bulk mechanical → `tasker`. Every slice that changes
    code gets a `reviewer` from another model family; auth/secrets/input
    handling also gets `security-reviewer`; visible UI also gets `inspector`.
@@ -799,14 +836,15 @@ Steps, in order, in the user's language (never the words `lane`, `kind`, or
    it* (recommended — the work parallelizes this way), *More info before
    anything opens*, *No, do it without the team* + free text. A refusal
    stops the team.
-2. **How many agents at once.** Options: *4 panels* (recommended —
-   research, implementation, and review work at the same time), *3
-   panels* (lighter on quota: one read-only panel alternates research
-   and review), *decide later — the default (4 panels)* + free text.
-   Map the answer: 4 → `setup --panes 4`; 3 → `setup --panes 3`;
-   decide later → leave `panes` at its default (4). The two-panel mode
-   does not exist yet: if the user asks for it in the free text, say so
-   and offer 3 or 4.
+2. **How many agents at once.** Options: *4 panels* (recommended — two
+   write code in parallel and one reviews), *3 panels* (lighter on quota:
+   one writes, one reviews), *2 panels* (the lightest: one writes and the
+   review happens here) + free text. Map the answer: 4 → `setup --panes
+   4`; 3 → `setup --panes 3`; 2 → `setup --panes 2`. Then **an extra panel
+   when needed?** Options: *No, never more than that* (recommended — the
+   default, `pane_mode=strict`), *Yes, one temporary panel for a second
+   review or the documentation* (`pane_mode=flex`), *Decide later* + free
+   text.
 3. **Which assistant does each job.** Run `$S setup --detect` (writes
    nothing), then `$S setup --probe` — a minimal non-interactive prompt per
    kind/model with a short timeout, no panes; statuses `ready | no-auth |
@@ -855,7 +893,7 @@ Steps, in order, in the user's language (never the words `lane`, `kind`, or
    (recommended
    — it matches your answers), *Adjust* (the user says what changes; the
    plan is rebuilt and shown again), *Cancel* + free text.
-6. **Write.** `setup --panes 3|4 --lane name=kind[:model[:effort]]…`,
+6. **Write.** `setup --panes 2|3|4 --lane name=kind[:model[:effort]]…`,
    `config set <key> <value> [--user]`, `session set <key> <value>` — the
    same keys the plan showed — then `setup` (instruction block + hooks) and
    `doctor`; act on whatever still warns.
@@ -870,7 +908,7 @@ missing or silent CLI yields an empty list, not a failure), and
 `~/.pi/agent/models.json` (pi) and in `opencode.json` (project and user),
 as `provider/model`, with the highest declared reasoning level when there
 is one. Secrets stay in those files: only ids and levels are read. It also
-prints `panes`, `lanes`, the effective lanes, the presets for 3 and 4,
+prints `panes`, `lanes`, the effective lanes and the presets for 2, 3 and 4 (each lane with its capacity, `panes`),
 the effective value and source of `max_workers`, `multi_role`,
 `reuse_workers`, each `role.<role>.kind`, each `model.<kind>.worker`, and
 `recommended_reviewer` (installed kinds only; the probe refines it to the
@@ -905,9 +943,19 @@ files (`.agents/herdr-agents.conf`, the user file, `session.conf`) keep the
 Use it for the confirmation step and whenever the user asks "what would
 that change?".
 
-`doctor --fix --panes 3|4 [--user]` does the same normalization on a legacy
-file: preset lanes when missing, `max_workers` equal to the lane count,
-`split_max_panes` equal to `panes`, `reuse_workers=on`. For each lane it
+`doctor --fix --panes 2|3|4 [--user]` does the same normalization on a legacy
+file. A file whose lanes are a preset (none, a new one, or the old
+`build/explore/review` and `build/read`) keeps no lane roles, `max_workers`
+or `split_max_panes`: the preset is resolved at run time. A capacity you
+set on a lane the preset has (`lane.build.panes=3`) is kept.
+`lane.read.*` moves to `lane.review.*` when the new preset has a review lane
+and that key is not set yet; `lane.explore.*` and keys of lanes the preset
+does not have are removed, each with a line saying why. A file with custom
+lanes keeps them and gets `max_workers` equal to the sum of their
+capacities and `split_max_panes` equal to `panes` — each plus `flex_extra`
+in flex mode, so the temporary worker still fits. Both get `panes` and
+`reuse_workers=on`. `doctor` itself warns about the old presets and about
+lane keys for lanes that no longer exist. For each lane it
 resolves every role's kind and model (the value in that file, otherwise the
 role frontmatter). When they agree it writes `lane.<name>.kind` / `.model`
 and only then removes those `role.<role>.*` keys. When they disagree it
@@ -916,8 +964,8 @@ leaves the keys, lists `role=kind`, and tells you to ask and run
 removed either way. Comments stay. It prints the file it updated as a
 `diff -u` with `a/<file>` and `b/<file>` labels (`no changes in <file>`
 when nothing moved), like `setup --plan`. Without `--panes` and without `panes`
-in the file, `--fix` exits 2 and tells you to ask 3 or 4 — it does not
-choose. In that case, run steps 2–5 above (the 3-or-4 question, then the
+in the file, `--fix` exits 2 and tells you to ask 2, 3 or 4 — it does not
+choose. In that case, run steps 2–5 above (the panels question, then the
 plan and confirmation) and finish with `doctor --fix`.
 
 `multi_role=on` (the default, including when the key is unset): `spawn`

@@ -1,4 +1,4 @@
-// setup (slice 7a): unit tests for the pure text/merge layer
+// setup: unit tests for the pure text/merge layer
 // (lib/setuptext.mjs) and the file-level helpers of lib/commands/setup.mjs.
 // Each test file builds its own temp root (mkdtemp) used as HOME,
 // XDG_CONFIG_HOME, TMPDIR and HERDR_AGENTS_DIR, with a temporary git repo
@@ -30,7 +30,7 @@ fs.mkdirSync(REPO, { recursive: true });
 fs.mkdirSync(HOME, { recursive: true });
 fs.mkdirSync(CONF, { recursive: true });
 fs.mkdirSync(STATE, { recursive: true });
-spawnSync('git', ['init', '-q'], { cwd: REPO, stdio: 'ignore' });
+spawnSync('git', ['init', '-q'], { cwd: REPO, stdio: 'ignore', timeout: 30000 });
 fs.mkdirSync(path.join(ROOT, 'tmp'), { recursive: true });
 // The module points the process at the fixture; the originals come back
 // after the file's tests, because Bun runs every test file in one process
@@ -92,6 +92,7 @@ test('setupHookDoctor runs the first available launcher from the four candidates
     cwd: project,
     env: { ...process.env, HOME: home, CLAUDE_PROJECT_DIR: project, HERDR_ENV: '1' },
     encoding: 'utf8',
+    timeout: 30000,
   });
   for (const [index, candidate] of candidates.entries()) {
     const result = runHook();
@@ -275,7 +276,7 @@ test('setupWriteHooks: creates the directory and file; invalid settings is DieEr
   assert.equal(fs.readFileSync(bad, 'utf8'), '{invalid', 'file left untouched');
 });
 
-// Mutation captured: a rename over the unresolved AGENTS.md replaces the link with a plain file (backlog 12).
+// Mutation captured: a rename over the unresolved AGENTS.md replaces the link with a plain file.
 test('setup end to end: AGENTS.md -> CLAUDE.md keeps the link, CLAUDE.md gets the block exactly once', { timeout: 120000 }, () => {
   const dir = path.join(ROOT, 'symlink-e2e');
   const repo = path.join(dir, 'repo');
@@ -305,5 +306,39 @@ test('setup end to end: AGENTS.md -> CLAUDE.md keeps the link, CLAUDE.md gets th
     assert.equal(second.status, 0, `second setup failed: ${second.stderr}`);
     assert.ok(fs.lstatSync(agents).isSymbolicLink(), 'still a symlink after a second run');
     assert.equal(fs.readFileSync(claude, 'utf8'), once, 'second run replaces in place, same bytes');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Mutation captured: --panes 2 refused (the new preset) or 5 accepted,
+// or the preset file freezing roles/limits again, break the run below.
+test('setup --panes: 2 writes the 2-pane preset (no frozen roles/limits), 5 dies 2', { timeout: 120000 }, () => {
+  const dir = path.join(ROOT, 'panes-e2e');
+  const repo = path.join(dir, 'repo');
+  const home = path.join(dir, 'home');
+  const conf = path.join(dir, 'conf');
+  const state = path.join(dir, 'state');
+  const tmp = path.join(dir, 'tmp');
+  for (const d of [repo, home, conf, state, tmp]) fs.mkdirSync(d, { recursive: true });
+  spawnSync('git', ['init', '-q'], { cwd: repo, stdio: 'ignore', timeout: 30000 });
+  const env = fixtureEnv({ HOME: home, XDG_CONFIG_HOME: conf, HERDR_AGENTS_DIR: state, TMPDIR: tmp });
+  const run = (args) => spawnSync(nodeBin(), [JS_ENTRY, ...args], { cwd: repo, env, encoding: 'utf8', timeout: 60000 });
+  try {
+    const ok = run(['setup', '--panes', '2']);
+    assert.equal(ok.status, 0, `setup --panes 2 failed: ${ok.stderr}`);
+    assert.ok(ok.stdout.includes('set panes=2'), ok.stdout);
+    const confFile = path.join(repo, '.agents', 'herdr-agents.conf');
+    const text = fs.readFileSync(confFile, 'utf8');
+    assert.ok(text.split('\n').includes('panes=2'), text);
+    assert.ok(text.split('\n').includes('reuse_workers=on'), text);
+    assert.ok(!/^lane\..*\.roles=/m.test(text), text);
+    assert.ok(!/^max_workers=/m.test(text), text);
+    assert.ok(!/^split_max_panes=/m.test(text), text);
+    // The config-prompt warn names the new choices (2|3|4).
+    assert.ok(ok.stderr.includes('(4 recommended, 3, or 2)'), ok.stderr);
+    assert.ok(ok.stderr.includes('setup --panes 2|3|4'), ok.stderr);
+    const bad = run(['setup', '--panes', '5']);
+    assert.equal(bad.status, 2, `--panes 5 must die 2: ${bad.stderr}`);
+    assert.ok(bad.stderr.includes('setup: --panes must be 2, 3 or 4'), bad.stderr);
+    assert.ok(bad.stdout === '', 'nothing on stdout for the die');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

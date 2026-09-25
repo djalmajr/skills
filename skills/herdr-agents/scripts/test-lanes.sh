@@ -149,14 +149,14 @@ awk -F'\t' '$1=="build" && $4=="implementer" && $12=="build" { found=1 } END { e
 grep -q 'agent start' "$TEST_ROOT/herdr.log" || fail "fresh spawn did not start"
 
 reset_roster
-add_worker explore scouter explore
-printf '%s\n' '{"result":{"agents":[{"name":"explore","pane_id":"p-explore","agent_status":"idle"}]}}' > "$TEST_ROOT/live.json"
+add_worker build scouter build
+printf '%s\n' '{"result":{"agents":[{"name":"build","pane_id":"p-build","agent_status":"idle"}]}}' > "$TEST_ROOT/live.json"
 printf '%s\n' idle > "$MODE"
 run_cmd spawn researcher
 [ "$RUN_RC" = 0 ] || fail "reuse rc $RUN_RC err $RUN_ERR out $RUN_OUT"
-printf '%s\n' "$RUN_OUT" | jq -e '.name=="explore" and .role=="researcher" and .reused==true and .previous_role=="scouter" and .status!="kind-mismatch"' >/dev/null \
+printf '%s\n' "$RUN_OUT" | jq -e '.name=="build" and .role=="researcher" and .reused==true and .previous_role=="scouter" and .status!="kind-mismatch"' >/dev/null \
   || fail "reuse json: $RUN_OUT"
-awk -F'\t' '$1=="explore" && $4=="researcher" && $11 ~ /scouter/ && $11 ~ /researcher/ { found=1 } END { exit !found }' "$STATE/ws/agents.tsv" \
+awk -F'\t' '$1=="build" && $4=="researcher" && $11 ~ /scouter/ && $11 ~ /researcher/ { found=1 } END { exit !found }' "$STATE/ws/agents.tsv" \
   || fail "reuse roster: $(cat "$STATE/ws/agents.tsv")"
 grep -q 'agent start' "$TEST_ROOT/herdr.log" && fail "reuse started a pane"
 
@@ -212,9 +212,11 @@ printf '%s\n' "$RUN_OUT" | jq -e '.name=="build" and .role=="implementer" and .r
 grep -q 'agent start' "$TEST_ROOT/herdr.log" && fail "lane kind reuse started a pane"
 rm -f "$REPO/.agents/herdr-agents.conf"
 
+# The build lane holds two workers: one occupant leaves a slot, both fill it.
 reset_roster
 add_worker build implementer build
-printf '%s\n' '{"result":{"agents":[{"name":"build","pane_id":"p-build","agent_status":"working"}]}}' > "$TEST_ROOT/live.json"
+add_worker build-2 designer build
+printf '%s\n' '{"result":{"agents":[{"name":"build","pane_id":"p-build","agent_status":"working"},{"name":"build-2","pane_id":"p-build2","agent_status":"working"}]}}' > "$TEST_ROOT/live.json"
 printf '%s\n' working > "$MODE"
 run_cmd spawn tasker
 [ "$RUN_RC" = 10 ] || fail "busy rc $RUN_RC err $RUN_ERR out $RUN_OUT"
@@ -301,8 +303,8 @@ mkdir -p "$TEST_ROOT/config/herdr-agents" "$REPO/.agents"
 # 1) user lane.kind+model, project lane.kind only: the user model sits below
 # the project kind's layer and is ignored; resolution reaches model.codex.worker.
 reset_roster
-printf '%s\n' 'lane.explore.kind=grok' 'lane.explore.model=grok-4.7' > "$USER_CONF"
-printf '%s\n' 'lane.explore.kind=codex' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
+printf '%s\n' 'lane.build.kind=grok' 'lane.build.model=grok-4.7' > "$USER_CONF"
+printf '%s\n' 'lane.build.kind=codex' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
 printf '%s\n' '{"result":{"agents":[]}}' > "$TEST_ROOT/live.json"
 run_cmd spawn scouter
 [ "$RUN_RC" = 0 ] || fail "layered kind spawn rc $RUN_RC err $RUN_ERR out $RUN_OUT"
@@ -313,7 +315,7 @@ grep -F 'grok-4.7' "$TEST_ROOT/herdr.log" && fail "user lane model leaked into s
 
 # 2) project lane kind AND model: the project model (same layer as the kind)
 # wins over the user's.
-printf '%s\n' 'lane.explore.kind=codex' 'lane.explore.model=gpt-6-luna' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
+printf '%s\n' 'lane.build.kind=codex' 'lane.build.model=gpt-6-luna' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
 reset_roster
 printf '%s\n' '{"result":{"agents":[]}}' > "$TEST_ROOT/live.json"
 run_cmd spawn scouter
@@ -346,11 +348,11 @@ printf '%s\n' "$RUN_OUT" | jq -e '.kind=="pi" and .effort=="max"' >/dev/null \
   || fail "layered effort json: $RUN_OUT"
 
 # 5) doctor reports the dropped lane model as an ok decision line (scenario 1).
-printf '%s\n' 'lane.explore.kind=grok' 'lane.explore.model=grok-4.7' > "$USER_CONF"
-printf '%s\n' 'lane.explore.kind=codex' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
+printf '%s\n' 'lane.build.kind=grok' 'lane.build.model=grok-4.7' > "$USER_CONF"
+printf '%s\n' 'lane.build.kind=codex' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
 run_cmd doctor
 [ "$RUN_RC" = 0 ] || fail "doctor rc $RUN_RC err $RUN_ERR"
-okline="$(printf '%s\n' "$RUN_OUT" | grep -F "lanes: lane 'explore' kind codex (project); ignored lane model grok-4.7 from user (another kind)" | head -n1 || true)"
+okline="$(printf '%s\n' "$RUN_OUT" | grep -F "lanes: lane 'build' kind codex (project); ignored lane model grok-4.7 from user (another kind)" | head -n1 || true)"
 [ -n "$okline" ] || fail "doctor missed the layer decision: $RUN_OUT"
 case "$okline" in ok\ *) ;; *) fail "layer decision is not an ok line: $okline" ;; esac
 rm -f "$USER_CONF" "$PROJ_CONF"

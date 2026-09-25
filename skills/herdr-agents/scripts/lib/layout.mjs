@@ -20,15 +20,21 @@
 import fs from 'node:fs';
 import { die, runCli } from './platform.mjs';
 import { cfg } from './config.mjs';
-import { lanesEnabled, panesValue, configExplicit } from './lanes.mjs';
+import { lanesEnabled, panesValue, configExplicit, paneMode, flexExtra } from './lanes.mjs';
 import { stateDir, rosterRows } from './state.mjs';
 import { requireEnv, paneLayout, agentFocus, paneFocusBack, HERDR_TIMEOUT_MS } from './herdr.mjs';
 
 // split_cap() port: panes per tab, caller included. With lanes on and no
-// explicit split_max_panes it follows `panes`; a non-integer value falls
+// explicit split_max_panes it follows `panes` — plus flex_extra in the
+// flex mode, so the temporary panel fits the caller's tab (the extra
+// worker opens in a herd tab when it does not); a non-integer value falls
 // back to 4 (`doctor` warns about the bad value).
 export function splitCap(ctx, env = process.env) {
-  if (lanesEnabled(ctx, env) && !configExplicit(ctx, 'split_max_panes', env)) return Number(panesValue(ctx, env));
+  if (lanesEnabled(ctx, env) && !configExplicit(ctx, 'split_max_panes', env)) {
+    const p = Number(panesValue(ctx, env));
+    if (paneMode(ctx, env) === 'flex') return p + flexExtra(ctx, env);
+    return p;
+  }
   const v = cfg(ctx, 'split_max_panes', '4', env);
   return /^[0-9]+$/.test(v) ? Number(v) : 4;
 }

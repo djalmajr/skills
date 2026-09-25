@@ -7,10 +7,10 @@
 // [effort]`, `spawn <role> …`, `dispatch <agent> <brief.md> …`,
 // `run <role> <brief.md> …`, `status <agent>…`, `roster`, `friction`,
 // `tab-label`, `layout-plan`, `wait <agent>…`, `collect <agent>`,
-// `release <agent>`, `clean`, `doctor [--fix] [--panes 3|4] [--user]`,
+// `release <agent>`, `clean`, `doctor [--fix] [--panes 2|3|4] [--user]`,
 // `explain`, `init`, `title` (the orchestrator pane's current objective),
 // `setup [--target FILE] [--no-hooks]
-// [--dry-run] [--panes 3|4] [--lane name=kind[:model[:effort]]]` — its
+// [--dry-run] [--panes 2|3|4] [--lane name=kind[:model[:effort]]]` — its
 // `--probe [--kind K --model M --timeout S]` form runs the per-kind
 // probes, exclusive with `--plan` — plus `env` (the environment block for
 // a feedback issue) and the help (`help`, `-h`, `--help`, or no command:

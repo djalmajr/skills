@@ -1,4 +1,4 @@
-// Spawn (slice 5b): the `find_reusable` / `emit_reuse` units of
+// Spawn: the `find_reusable` / `emit_reuse` units of
 // test-multi-role.sh (cross-role reuse, approvals, edit history, old
 // 8-column lines, `unavailable` blocking only the same role, report
 // pending, cwd/kind mismatch, retarget + history), plus `uniqueName`,
@@ -280,6 +280,34 @@ test('findReusable: cross-role reuse requires the same recorded and requested mo
     fix.writeRoster('scout\tp-scout\tgrok\tscouter\txai\t1\t/tmp/work\tnow\t\tfull\tscouter');
     assert.equal(reuse(fix, 'tasker', 'grok', '', 'grok-4.7', 'full'), null, 'no recorded model');
     assert.equal(reuse(fix, 'tasker', 'grok', '', '', 'full'), null, 'neither side has a model');
+  } finally { fix.cleanup(); }
+});
+
+test('findReusable: the same role — the recorded model and approvals must line up', () => {
+  const fix = makeFix('ha-spawn-reuse-model-');
+  try {
+    // Another recorded model: not reused even for the same role.
+    fix.add('impl\tp-impl\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4\tfull\timplementer');
+    assert.equal(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full'), null, 'another model');
+    // The same model: reused.
+    fix.writeRoster('impl\tp-impl\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer');
+    assert.deepEqual(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full'), { name: 'impl' }, 'same model');
+    // '' only matches '': a blank recorded model never satisfies a model.
+    fix.writeRoster('impl\tp-impl\tgrok\timplementer\txai\t1\t/tmp/work\tnow\t\tfull\timplementer');
+    assert.equal(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full'), null, 'recorded "" vs requested model');
+    assert.deepEqual(reuse(fix, 'implementer', 'grok', '', '', 'ask'), { name: 'impl' }, '"" matches ""');
+    // Approvals rank ≥ the request ('ask' when the request is empty).
+    fix.writeRoster('impl\tp-impl\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\task\timplementer');
+    assert.equal(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full'), null, 'below');
+    assert.deepEqual(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'ask'), { name: 'impl' }, 'equal');
+    fix.writeRoster('impl\tp-impl\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer');
+    assert.deepEqual(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'ask'), { name: 'impl' }, 'above');
+    // Old 8-column rows: kind and cwd only, as before.
+    fix.writeRoster('impl\tp-impl\tgrok\timplementer\txai\t1\t/tmp/work\tnow');
+    assert.deepEqual(reuse(fix, 'implementer', 'grok', '', 'grok-4.7', 'full'), { name: 'impl' }, '8-column');
+    // Mutation captured: the model ignored for the same role (the first case
+    // would reuse), the approvals rank inverted (below would reuse), or the
+    // 8-column rows being checked against the model.
   } finally { fix.cleanup(); }
 });
 
@@ -731,7 +759,7 @@ test('spawn: a cursor model that already encodes the effort — silent; another 
     assert.equal(r2.status, 0, r2.stderr);
     assert.equal(JSON.parse(r2.stdout).model, 'grok-4.7-high');
     assert.ok(r2.stderr.includes("cursor model 'grok-4.7-high' already encodes effort 'high'; --effort xhigh ignored"), r2.stderr);
-    // Mutation captured: the redundant warning on a matching suffix (item 23)
+    // Mutation captured: the redundant warning on a matching suffix
     // or the old message without the encoded effort named.
   } finally { fix.cleanup(); }
 });
@@ -833,37 +861,222 @@ test('entry catch: empty-message DieError exits with the code only (herdr passth
   } finally { fix.cleanup(); }
 });
 
-test('spawn: the lane — busy 10, --fresh 10, reuse 0 with the retargeted roster', () => {
+test('spawn: the build lane — capacity 2: open build-2, busy 10 when full, --fresh, reuse', () => {
   const fix = makeFix('ha-spawn-cmd-8-');
   try {
-    // busy: the explore lane worker is working.
-    fix.writeRoster('explore\tp-explore\tgrok\tscouter\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\tscouter\texplore');
-    fix.live([{ name: 'explore', pane_id: 'p-explore', agent_status: 'working' }]);
-    let r = runSpawn(fix, ['researcher']);
+    // (a) panes=4: the build lane holds 2 workers. One occupied worker
+    // leaves room: the spawn opens build-2 instead of refusing.
+    fix.writeRoster('build\tp-build\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer\tbuild');
+    fix.live([{ name: 'build', pane_id: 'p-build', agent_status: 'working' }]);
+    let r = runSpawn(fix, ['tasker']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).name, 'build-2', 'the second worker of the lane');
+    assert.equal(fix.row('build-2').split('\t')[11], 'build', 'column 12 is the lane');
+    // Two occupied workers: the third spawn is busy 10 with the full message.
+    fix.live([
+      { name: 'build', pane_id: 'p-build', agent_status: 'working' },
+      { name: 'build-2', pane_id: 'p-build2', agent_status: 'blocked' },
+    ]);
+    r = runSpawn(fix, ['tasker']);
     assert.equal(r.status, 10, r.stderr);
-    assert.equal(r.stdout, JSON.stringify({ status: 'busy', lane: 'explore', name: 'explore' }) + '\n');
-    assert.match(r.stderr, /is busy \(working\). Run 'wait explore'/);
-    // reuse with --fresh is refused (10).
-    fix.live([{ name: 'explore', pane_id: 'p-explore', agent_status: 'idle' }]);
-    r = runSpawn(fix, ['researcher', '--fresh']);
-    assert.equal(r.status, 10, r.stderr);
-    assert.equal(r.stdout, JSON.stringify({ status: 'busy', lane: 'explore', name: 'explore' }) + '\n');
-    assert.match(r.stderr, /already has idle worker 'explore'. Release it before --fresh/);
-    // reuse: idle worker retargeted to researcher (same kind/model/effort).
+    assert.equal(r.stdout, JSON.stringify({ status: 'busy', lane: 'build', name: 'build' }) + '\n');
+    assert.match(r.stderr, /lane 'build' is full \(2 of 2: build build-2\). Run 'wait build'/);
+
+    // (b) one idle worker → reuse without opening a pane (retargeted roster).
+    fix.writeRoster('build\tp-build\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer\tbuild');
+    fix.live([{ name: 'build', pane_id: 'p-build', agent_status: 'idle' }]);
     fix.clearLog();
-    r = runSpawn(fix, ['researcher']);
+    r = runSpawn(fix, ['tasker']);
     assert.equal(r.status, 0, r.stderr);
     const j = JSON.parse(r.stdout);
-    assert.equal(j.name, 'explore');
+    assert.equal(j.name, 'build');
     assert.equal(j.reused, true);
-    assert.equal(j.role, 'researcher');
-    assert.equal(j.previous_role, 'scouter');
+    assert.equal(j.role, 'tasker');
+    assert.equal(j.previous_role, 'implementer');
     assert.equal(j.status, 'ready');
-    assert.match(r.stderr, /reusing idle lane 'explore' worker 'explore' as researcher/);
+    assert.match(r.stderr, /reusing idle lane 'build' worker 'build' as tasker/);
     assert.ok(!fix.logLines().some((l) => l.startsWith('agent start')), 'reuse starts no pane');
-    const f = fix.row('explore').split('\t');
-    assert.equal(f[3], 'researcher');
-    assert.equal(f[10], 'scouter,researcher');
+    const f = fix.row('build').split('\t');
+    assert.equal(f[3], 'tasker');
+    assert.equal(f[10], 'implementer,tasker');
+
+    // (d) --fresh with room → a new pane (build-2), not the idle worker.
+    fix.writeRoster('build\tp-build\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer\tbuild');
+    fix.live([{ name: 'build', pane_id: 'p-build', agent_status: 'idle' }]);
+    fix.clearLog();
+    r = runSpawn(fix, ['tasker', '--fresh']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).name, 'build-2');
+    assert.ok(fix.logLines().some((l) => l.startsWith('agent start build-2 ')), fix.logLines().join('\n'));
+    // --fresh with a full lane → today's busy (the idle worker named).
+    fix.writeRoster(
+      'build\tp-build\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer\tbuild',
+      'build-2\tp-build2\tgrok\ttasker\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\ttasker\tbuild',
+    );
+    fix.live([
+      { name: 'build', pane_id: 'p-build', agent_status: 'idle' },
+      { name: 'build-2', pane_id: 'p-build2', agent_status: 'working' },
+    ]);
+    r = runSpawn(fix, ['tasker', '--fresh']);
+    assert.equal(r.status, 10, r.stderr);
+    assert.equal(r.stdout, JSON.stringify({ status: 'busy', lane: 'build', name: 'build' }) + '\n');
+    assert.match(r.stderr, /already has idle worker 'build'. Release it before --fresh/);
+    // Mutation captured: the capacity ignored (the first spawn would be busy
+    // instead of opening build-2), or --fresh reusing the idle worker.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: a gone lane worker is removed and the lane opens a new pane', () => {
+  const fix = makeFix('ha-spawn-cmd-8b-');
+  try {
+    // The worker named 'gone' (herdr agent get → agent_not_found) holds the
+    // lane column: it is removed and never counts against the capacity.
+    fix.writeRoster('gone\tp-gone\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer\tbuild');
+    fix.live([]);
+    fix.clearLog();
+    const r = runSpawn(fix, ['implementer']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).name, 'build');
+    assert.match(r.stderr, /lane 'build' worker 'gone' is gone; opening a new pane/);
+    assert.equal(fix.row('gone'), '', 'the gone row was removed');
+    assert.equal(fix.row('build').split('\t')[11], 'build');
+    assert.ok(fix.logLines().some((l) => l.startsWith('agent start build ')), fix.logLines().join('\n'));
+    // Mutation captured: the gone row kept (or counted as live, capping the
+    // lane) instead of being removed and bypassed.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: the temporary (burst) worker — flex only, flex_roles, capped by flex_extra', () => {
+  const fix = makeFix('ha-spawn-burst-');
+  try {
+    fs.mkdirSync(path.join(fix.repo, '.agents'), { recursive: true });
+    const conf = path.join(fix.repo, '.agents', 'herdr-agents.conf');
+    // (a) flex, panes=4: the docs lane holds no resident worker (capacity
+    // 0). The documenter opens a temporary (burst) worker.
+    fs.writeFileSync(conf, 'pane_mode=flex\n');
+    fix.writeRoster();
+    fix.live([]);
+    fix.clearLog();
+    let r = runSpawn(fix, ['documenter']);
+    assert.equal(r.status, 0, r.stderr);
+    let j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'docs');
+    assert.equal(j.burst, true, 'the JSON marks the temporary worker');
+    let f = fix.row('docs').split('\t');
+    assert.equal(f[12], 'burst', 'roster column 13 is the burst marker');
+    assert.equal(f.length, 13, 'the burst row has 13 columns');
+    assert.equal(f[11], 'docs', 'the lane column is the docs lane');
+    // (b) the strict mode (the default) never opens a burst: the documenter
+    // sits in the build lane, and a full build lane is busy 10.
+    fs.writeFileSync(conf, '');
+    fix.writeRoster(
+      'build\tp-build\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer\tbuild',
+      'build-2\tp-build2\tgrok\ttasker\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\ttasker\tbuild',
+    );
+    fix.live([
+      { name: 'build', pane_id: 'p-build', agent_status: 'working' },
+      { name: 'build-2', pane_id: 'p-build2', agent_status: 'working' },
+    ]);
+    r = runSpawn(fix, ['documenter']);
+    assert.equal(r.status, 10, r.stderr);
+    assert.equal(r.stdout, JSON.stringify({ status: 'busy', lane: 'build', name: 'build' }) + '\n');
+    assert.match(r.stderr, /lane 'build' is full \(2 of 2: build build-2\)/);
+    // (c) flex: a full review lane (capacity 1, no idle) opens a temporary
+    // reviewer (the reviewer is a default flex role).
+    fs.writeFileSync(conf, 'pane_mode=flex\n');
+    fix.writeRoster('review\tp-review\tgrok\treviewer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\treviewer\treview');
+    fix.live([{ name: 'review', pane_id: 'p-review', agent_status: 'working' }]);
+    fix.clearLog();
+    r = runSpawn(fix, ['reviewer']);
+    assert.equal(r.status, 0, r.stderr);
+    j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'review-2');
+    assert.equal(j.burst, true);
+    f = fix.row('review-2').split('\t');
+    assert.equal(f[12], 'burst');
+    // (d) the cap: one temporary worker already live, flex_extra=1 (the
+    // default) — the burst slot is taken, the lane is busy 10.
+    fix.writeRoster('review\tp-review\tgrok\treviewer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\treviewer\treview',
+      'review-2\tp-review2\tgrok\treviewer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\treviewer\treview\tburst');
+    fix.live([
+      { name: 'review', pane_id: 'p-review', agent_status: 'working' },
+      { name: 'review-2', pane_id: 'p-review2', agent_status: 'working' },
+    ]);
+    r = runSpawn(fix, ['reviewer']);
+    assert.equal(r.status, 10, r.stderr);
+    assert.equal(r.stdout, JSON.stringify({ status: 'busy', lane: 'review', name: 'review' }) + '\n');
+    assert.match(r.stderr, /lane 'review' is full \(2 of 1: review review-2\)/);
+    // flex_extra=2 opens the second temporary worker.
+    fs.writeFileSync(conf, 'pane_mode=flex\nflex_extra=2\n');
+    fix.clearLog();
+    r = runSpawn(fix, ['reviewer']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).burst, true);
+    // (e) a role outside flex_roles may not use the temporary panel: the
+    // capacity-0 docs lane refuses it with the role message (busy 10).
+    fs.writeFileSync(conf, 'pane_mode=flex\nflex_roles=reviewer\n');
+    fix.writeRoster();
+    fix.live([]);
+    r = runSpawn(fix, ['documenter']);
+    assert.equal(r.status, 10, r.stderr);
+    assert.equal(r.stdout, JSON.stringify({ status: 'busy', lane: 'docs', name: '' }) + '\n');
+    assert.match(r.stderr, /role 'documenter' may not use the temporary panel \(flex_roles=reviewer\)/);
+    // (f) flex_extra=0: no temporary panel at all (the lane message with
+    // no live temporary workers).
+    fs.writeFileSync(conf, 'pane_mode=flex\nflex_extra=0\n');
+    r = runSpawn(fix, ['documenter']);
+    assert.equal(r.status, 10, r.stderr);
+    assert.match(r.stderr, /lane 'docs' only takes a temporary worker \(pane_mode=flex\) and none is free: flex_extra=0, live temporary workers: none\. Raise flex_extra\./);
+    // (f2) the burst slot is taken by a live temporary worker: the lane
+    // message lists them (all lanes) and names the first one for release.
+    fs.writeFileSync(conf, 'pane_mode=flex\n');
+    fix.writeRoster(
+      'docs\tp-docs\tgrok\tdocumenter\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\tdocumenter\tdocs\tburst',
+      'review-2\tp-review2\tgrok\treviewer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\treviewer\treview\tburst',
+    );
+    fix.live([
+      { name: 'docs', pane_id: 'p-docs', agent_status: 'working' },
+      { name: 'review-2', pane_id: 'p-review2', agent_status: 'working' },
+    ]);
+    r = runSpawn(fix, ['documenter']);
+    assert.equal(r.status, 10, r.stderr);
+    assert.equal(r.stdout, JSON.stringify({ status: 'busy', lane: 'docs', name: 'docs' }) + '\n');
+    assert.match(r.stderr, /lane 'docs' only takes a temporary worker \(pane_mode=flex\) and none is free: flex_extra=1, live temporary workers: docs, review-2\. Release one \(release docs\), or raise flex_extra\./);
+    // (g) an idle temporary worker is reused, not re-burst: the docs lane
+    // with an idle burst documenter reuses it (no new pane, no burst key).
+    fs.writeFileSync(conf, 'pane_mode=flex\n');
+    fix.writeRoster('docs\tp-docs\tgrok\tdocumenter\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\tdocumenter\tdocs\tburst');
+    fix.live([{ name: 'docs', pane_id: 'p-docs', agent_status: 'idle' }]);
+    fix.clearLog();
+    r = runSpawn(fix, ['documenter', '--kind', 'grok']);
+    assert.equal(r.status, 0, r.stderr);
+    j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'docs');
+    assert.equal(j.reused, true);
+    assert.ok(!('burst' in j), 'a reuse is not a burst');
+    assert.ok(!fix.logLines().some((l) => l.startsWith('agent start')), 'reuse starts no pane');
+    // (h) a custom lane whose max_workers was written as the capacity sum
+    // (the old lane-file write): the burst hits the global cap (exit 8);
+    // with the sum + flex_extra the lane file now writes, it opens.
+    fs.writeFileSync(conf, 'pane_mode=flex\nlane.ops.roles=implementer,tasker,documenter\nlane.ops.panes=1\nmax_workers=1\n');
+    fix.writeRoster('ops\tp-ops\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer\tops');
+    fix.live([{ name: 'ops', pane_id: 'p-ops', agent_status: 'working' }]);
+    r = runSpawn(fix, ['documenter']);
+    assert.equal(r.status, 8, r.stderr);
+    assert.match(r.stderr, /max_workers=1 reached \(1 live: ops\)/);
+    fs.writeFileSync(conf, 'pane_mode=flex\nlane.ops.roles=implementer,tasker,documenter\nlane.ops.panes=1\nmax_workers=2\n');
+    fix.clearLog();
+    r = runSpawn(fix, ['documenter']);
+    assert.equal(r.status, 0, r.stderr);
+    j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'ops-2');
+    assert.equal(j.burst, true);
+    // Mutation captured: a burst in the strict mode, the flex_roles or the
+    // live temporary workers ignored by the cap, the burst row missing the
+    // 13th column (or a plain row gaining it), the burst dying on the
+    // worker cap once the capacity sum fills (the lane file written
+    // max_workers without the flex_extra slot), or the idle burst worker
+    // opened instead of reused.
   } finally { fix.cleanup(); }
 });
 
@@ -932,11 +1145,67 @@ test('spawn: lanes=off reuses an idle worker of the same role (8-column row, --n
     assert.equal(j.reused, true);
     assert.match(r.stderr, /reusing idle worker 'implementer' \(grok, implementer\)/);
     assert.ok(!fix.logLines().some((l) => l.startsWith('agent start')));
-    // a live name is refused (die 3) when a new worker would be needed.
+    // A live --name is not refused anymore: it takes a unique suffix
+    // (a taken name gets a suffix) and the warning lands in the friction log; the JSON
+    // and the start args carry the real name.
     fix.writeRoster();
+    fix.clearLog();
     const r2 = runSpawn(fix, ['implementer', '--name', 'implementer'], { HERDR_AGENTS_LANES: 'off' });
-    assert.equal(r2.status, 3, r2.stderr);
-    assert.match(r2.stderr, /agent name 'implementer' is already live/);
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.equal(JSON.parse(r2.stdout).name, 'implementer-2', 'the suffixed name is real');
+    assert.match(r2.stderr, /agent name 'implementer' is taken by another pane or workspace; using 'implementer-2'/);
+    assert.ok(fix.logLines().some((l) => l.startsWith('agent start implementer-2 ')), fix.logLines().join('\n'));
+    // An invalid --name still dies 2.
+    const r3 = runSpawn(fix, ['implementer', '--name', 'Bad_Name'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r3.status, 2, r3.stderr);
+    assert.match(r3.stderr, /invalid agent name 'Bad_Name'/);
+    // Mutation captured: the live --name dying 3 instead of being suffixed,
+    // or the suffix missing from the JSON / the start args / the warning.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: panes=2 — the review roles have no lane (exit 3, the orchestrator reviews)', () => {
+  const fix = makeFix('ha-spawn-panes2-');
+  try {
+    fs.mkdirSync(path.join(fix.repo, '.agents'), { recursive: true });
+    fs.writeFileSync(path.join(fix.repo, '.agents', 'herdr-agents.conf'), 'panes=2\n');
+    let r = runSpawn(fix, ['reviewer']);
+    assert.equal(r.status, 3, r.stderr);
+    assert.equal(r.stderr,
+      "herdr-agents: spawn: with panes=2 the orchestrator reviews (pick its model family by hand); role 'reviewer' has no lane. Use panes=3 or 4, or pane_mode=flex for a temporary reviewer.\n");
+    // The other lane-less roles keep today's message.
+    r = runSpawn(fix, ['sub-orchestrator']);
+    assert.equal(r.status, 3, r.stderr);
+    assert.match(r.stderr, /not in any lane \(panes=2\)/);
+    // The build lane still spawns at panes=2 (scouter lives there now).
+    r = runSpawn(fix, ['scouter']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).name, 'build');
+    // Mutation captured: the panes=2 message on every lane-less role (the
+    // sub-orchestrator would get it too), or the build lane missing at
+    // panes=2.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: lanes=off — the same role on another recorded model spawns a new worker', () => {
+  const fix = makeFix('ha-spawn-cmd-13-');
+  try {
+    fix.writeRoster(`implementer\tp-impl\tgrok\timplementer\txai\t1\t${fix.repo}\tnow\tgrok-4\tfull\timplementer`);
+    fix.live([{ name: 'implementer', pane_id: 'p-impl', agent_status: 'idle' }]);
+    const r = runSpawn(fix, ['implementer'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).name, 'implementer-2', 'the other-model worker is not reused');
+    // The same recorded model is reused.
+    fix.writeRoster(`implementer\tp-impl\tgrok\timplementer\txai\t1\t${fix.repo}\tnow\tgrok-4.7\tfull\timplementer`);
+    fix.clearLog();
+    const r2 = runSpawn(fix, ['implementer'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r2.status, 0, r2.stderr);
+    const j = JSON.parse(r2.stdout);
+    assert.equal(j.name, 'implementer');
+    assert.equal(j.reused, true);
+    assert.ok(!fix.logLines().some((l) => l.startsWith('agent start')), 'reuse starts no pane');
+    // Mutation captured: the recorded model ignored (the first spawn would
+    // reuse the other-model worker).
   } finally { fix.cleanup(); }
 });
 

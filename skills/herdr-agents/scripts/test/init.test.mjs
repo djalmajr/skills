@@ -1,4 +1,4 @@
-// init (slice 8b): unit tests for lib/commands/init.mjs — the `doctor`
+// init: unit tests for lib/commands/init.mjs — the `doctor`
 // report goes to stderr only while the JSON context on stdout is
 // {orchestrator,pane_id,tab_id,workspace_id,layout,state_dir,first_run,
 // title}; the caller rename via a fake `herdr` (agent get/rename/list) and

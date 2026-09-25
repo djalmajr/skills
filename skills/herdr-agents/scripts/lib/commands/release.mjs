@@ -1,8 +1,10 @@
 // The `release` command (port slice 6a). Port of
 // the original bash implementation :4051-4083: refuses to release an unqueryable
-// worker without `--force` (rc 4), refuses `--close` on a still-working
-// worker with a pending report (rc 3), closes only panes this skill
-// created, clears the pane title when not closing, removes the roster row
+// worker without `--force` (rc 4), refuses to close a still-working
+// worker with a pending report (rc 3) — `--close`, or the pane of a
+// temporary (burst) worker, which closes without `--close` —, closes only panes this skill
+// created (a burst worker's pane closes on release, `closed pane <p>
+// (temporary)`), clears the pane title when not closing, removes the roster row
 // and the worker's last-report / task / wait files, then regrid (slice 8)
 // or the herd-tab relabel, and reports leftover `.worktrees/` worktrees.
 // The `${1:?agent}` parameter error is bash's builtin (exit 1, no
@@ -48,27 +50,32 @@ export function cmdRelease(argv, ctx, env = process.env, cwd = process.cwd()) {
   const pane = f[1] ?? '';
   const created = f[5] ?? '';
   const wdir = f[6] ?? '';
+  // A temporary (burst) worker's pane closes on release even without
+  // --close: the pane was opened for the burst (created_pane=1), and
+  // leaving it around would pin the extra panel.
+  const burst = (f[12] ?? '') === 'burst';
+  const closes = (close === 1 || (burst && created === '1')) ? 1 : 0;
   const r = lastReport(sd, agent);
   if (force !== 1 && reportEmpty(r)) {
     const st = agentState(agent, env);
     if (st.state === 'unavailable') {
       dieFriction(`agent '${agent}': herdr agent get failed (${st.cause}). Refusing to release; the worker may still be live. Retry when herdr answers, or pass --force.`, 4);
     }
-    if (close === 1 && r !== '' && st.state === 'working') {
+    if (closes === 1 && r !== '' && st.state === 'working') {
       dieFriction(`agent '${agent}' is still working and has not written ${r}; closing now discards its work. Run 'wait ${agent}' first, or release --close --force`, 3);
     }
   }
-  if (close === 1) {
+  if (closes === 1) {
     if (created === '1') {
       // `herdr pane close … >/dev/null && printf 'closed pane …'`: a
       // failed close just skips the line (set -e does not fire inside the
-      // && list).
-      if (paneClose(pane, env)) process.stdout.write(`closed pane ${pane}\n`);
+      // && list). The (temporary) suffix marks a burst worker's pane.
+      if (paneClose(pane, env)) process.stdout.write(`closed pane ${pane}${burst ? ' (temporary)' : ''}\n`);
     } else {
       warn(`pane ${pane} was not created by this skill; not closing it`);
     }
   }
-  if (close !== 1) paneTaskTitle(sd, agent, null, env);
+  if (closes === 0) paneTaskTitle(sd, agent, null, env);
   rosterRemove(sd, agent);
   fs.rmSync(lastReportPath(sd, agent), { force: true });
   fs.rmSync(path.join(sd, `task-${agent}`), { force: true });
@@ -76,7 +83,7 @@ export function cmdRelease(argv, ctx, env = process.env, cwd = process.cwd()) {
   for (const w of fs.readdirSync(waitDir)) {
     if (w.startsWith(`${agent}.`)) fs.rmSync(path.join(waitDir, w), { force: true });
   }
-  if (close === 1 && cfg(ctx, 'regrid', 'on', env) === 'on') {
+  if (closes === 1 && cfg(ctx, 'regrid', 'on', env) === 'on') {
     // `(cmd_regrid) >/dev/null 2>&1 || warn …` (:4076): the regrid output is
     // suppressed and a failure becomes the warning (the friction log holds
     // the detail); the release keeps its own exit code.

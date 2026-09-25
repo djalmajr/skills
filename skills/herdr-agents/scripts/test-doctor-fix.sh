@@ -96,13 +96,14 @@ legacy
 run_cmd "" doctor --fix --panes 3
 [ "$RUN_RC" = 0 ] || fail "fix 3 rc $RUN_RC err $RUN_ERR out $RUN_OUT"
 grep -qx 'panes=3' "$CONF" || fail "panes=3 missing: $(cat "$CONF")"
-grep -qx 'lane.build.roles=implementer,designer,tasker' "$CONF" || fail "build roles: $(cat "$CONF")"
-grep -qx 'lane.read.roles=scouter,researcher,reviewer,security-reviewer,ui-reviewer,inspector' "$CONF" || fail "read roles: $(cat "$CONF")"
-grep -qx 'max_workers=2' "$CONF" || fail "max_workers: $(cat "$CONF")"
-grep -qx 'split_max_panes=3' "$CONF" || fail "split: $(cat "$CONF")"
+# The presets are resolved on the fly: the preset file receives no lane
+# roles and no limits (max_workers / split_max_panes).
+grep -q '\.roles=' "$CONF" && fail "preset file froze the lane roles: $(cat "$CONF")"
+grep -q '^max_workers=' "$CONF" && fail "preset file keeps max_workers: $(cat "$CONF")"
+grep -q '^split_max_panes=' "$CONF" && fail "preset file keeps split_max_panes: $(cat "$CONF")"
 grep -qx 'reuse_workers=on' "$CONF" || fail "reuse: $(cat "$CONF")"
 grep -qx 'lane.build.kind=grok' "$CONF" || fail "unanimous build kind not copied: $(cat "$CONF")"
-grep -qx 'lane.read.kind=grok' "$CONF" || fail "unanimous read kind not copied: $(cat "$CONF")"
+grep -qx 'lane.review.kind=grok' "$CONF" || fail "unanimous review kind not copied: $(cat "$CONF")"
 grep -q 'role.implementer.kind' "$CONF" && fail "role kind kept: $(cat "$CONF")"
 grep -q 'role.designer.kind' "$CONF" && fail "designer kind kept: $(cat "$CONF")"
 grep -q 'role.planner.model' "$CONF" && fail "planner key kept: $(cat "$CONF")"
@@ -115,12 +116,11 @@ legacy
 run_cmd "" doctor --fix --panes 4
 [ "$RUN_RC" = 0 ] || fail "fix 4 rc $RUN_RC err $RUN_ERR"
 grep -qx 'panes=4' "$CONF" || fail "panes=4: $(cat "$CONF")"
-grep -qx 'lane.explore.roles=scouter,researcher' "$CONF" || fail "explore: $(cat "$CONF")"
-grep -qx 'lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector' "$CONF" || fail "review: $(cat "$CONF")"
-grep -qx 'max_workers=3' "$CONF" || fail "workers 4: $(cat "$CONF")"
-grep -qx 'split_max_panes=4' "$CONF" || fail "split 4: $(cat "$CONF")"
+grep -q '\.roles=' "$CONF" && fail "preset file froze the lane roles: $(cat "$CONF")"
+grep -q '^max_workers=' "$CONF" && fail "preset file keeps max_workers: $(cat "$CONF")"
+grep -q '^split_max_panes=' "$CONF" && fail "preset file keeps split_max_panes: $(cat "$CONF")"
 grep -qx 'lane.build.kind=grok' "$CONF" || fail "unanimous build kind missing on panes 4: $(cat "$CONF")"
-grep -qx 'lane.explore.kind=grok' "$CONF" || fail "unanimous explore kind missing: $(cat "$CONF")"
+grep -qx 'lane.review.kind=grok' "$CONF" || fail "unanimous review kind missing: $(cat "$CONF")"
 grep -qx 'lane.review.kind=grok' "$CONF" || fail "unanimous review kind missing: $(cat "$CONF")"
 grep -q 'role.implementer.kind' "$CONF" && fail "role kind kept on panes 4"
 grep -q 'role.reviewer.kind' "$CONF" && fail "reviewer kind kept on unanimous panes 4"
@@ -139,7 +139,7 @@ grep -q '^lane.build.kind=' "$CONF" && fail "divergent build lane kind was writt
 # become the model of a lane whose reviewer runs codex.
 grep -q '^lane.review.model=' "$CONF" && fail "lane model written for a lane with divergent kinds: $(cat "$CONF")"
 grep -q '^lane.build.model=' "$CONF" && fail "build lane model written with divergent kinds: $(cat "$CONF")"
-grep -qx 'lane.explore.kind=grok' "$CONF" || fail "explore frontmatter is unanimous grok: $(cat "$CONF")"
+grep -q '^lane.explore.' "$CONF" && fail "the old explore lane attrs survived: $(cat "$CONF")"
 grep -q 'role.planner.model' "$CONF" && fail "divergent fix kept planner: $(cat "$CONF")"
 case "$RUN_ERR" in
   *reviewer=codex*security-reviewer=claude*) ;;
@@ -205,14 +205,12 @@ rm -f "$CONF"
 run_cmd "$DETECT_PATH" setup --panes 4 --lane build=grok:grok-4.7:high --no-hooks
 [ "$RUN_RC" = 0 ] || fail "setup panes rc $RUN_RC err $RUN_ERR out $RUN_OUT"
 grep -qx 'panes=4' "$CONF" || fail "setup panes: $(cat "$CONF")"
-grep -qx 'lane.build.roles=implementer,designer,tasker' "$CONF" || fail "setup build roles: $(cat "$CONF")"
-grep -qx 'lane.explore.roles=scouter,researcher' "$CONF" || fail "setup explore: $(cat "$CONF")"
-grep -qx 'lane.review.roles=reviewer,security-reviewer,ui-reviewer,inspector' "$CONF" || fail "setup review: $(cat "$CONF")"
+grep -q '\.roles=' "$CONF" && fail "setup froze the lane roles: $(cat "$CONF")"
 grep -qx 'lane.build.kind=grok' "$CONF" || fail "setup kind: $(cat "$CONF")"
 grep -qx 'lane.build.model=grok-4.7' "$CONF" || fail "setup model: $(cat "$CONF")"
 grep -qx 'lane.build.effort=high' "$CONF" || fail "setup effort: $(cat "$CONF")"
-grep -qx 'max_workers=3' "$CONF" || fail "setup workers: $(cat "$CONF")"
-grep -qx 'split_max_panes=4' "$CONF" || fail "setup split: $(cat "$CONF")"
+grep -q '^max_workers=' "$CONF" && fail "setup keeps max_workers: $(cat "$CONF")"
+grep -q '^split_max_panes=' "$CONF" && fail "setup keeps split_max_panes: $(cat "$CONF")"
 grep -qx 'reuse_workers=on' "$CONF" || fail "setup reuse: $(cat "$CONF")"
 grep -q '<!-- herdr-agents:start -->' "$REPO/AGENTS.md" || fail "setup did not write the block"
 grep -q 'spawn planner' "$REPO/AGENTS.md" || fail "block does not mention planner"
@@ -224,9 +222,9 @@ printf '%s\n' "$RUN_OUT" | jq -e '
   .config.panes.value == "4"
   and (.config.effective_lanes | map(.name) | index("build")) != null
   and (.config.effective_lanes | map(select(.name=="build")) | .[0].kind) == "grok"
-  and (.config.effective_lanes | map(select(.name=="build")) | .[0].roles) == ["implementer","designer","tasker"]
-  and (.config.presets["3"] | map(.name) | sort) == ["build","read"]
-  and (.config.presets["4"] | map(.name) | sort) == ["build","explore","review"]
+  and (.config.effective_lanes | map(select(.name=="build")) | .[0].roles) == ["implementer","designer","tasker","scouter","researcher","documenter"]
+  and (.config.presets["3"] | map(.name) | sort) == ["build","review"]
+  and (.config.presets["4"] | map(.name) | sort) == ["build","review"]
   and (.config.presets["4"] | map(select(.name=="review")) | .[0].roles | index("ui-reviewer")) != null
 ' >/dev/null || fail "detect json: $RUN_OUT"
 
