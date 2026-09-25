@@ -36,13 +36,14 @@ to a file.
    `wait`, or `status`. Never hand-roll a loop over `herdr agent get`.
 2. **Never `release --close` a worker whose report is missing** while it is
    working. The script refuses; `--force` is for a worker you are abandoning.
-3. **Every brief has Goal, Expected result (or Acceptance criteria), Owned
-   files, Forbidden, Report and a no-commit line.** `dispatch` lints it
-   (`brief_lint=warn|strict`) and tells every worker that nobody watches its
-   terminal (no interactive questions) and never to invent names, endpoints,
-   flags, credentials, URLs or requirements. Credentials, URLs and seeds
-   named in a brief must be verified first (`git grep`, seed script), not
-   guessed.
+3. **Every brief has Goal, Expected result (or Acceptance criteria),
+   Forbidden, Report and a no-commit line — and Owned files when the role
+   can edit.** `dispatch` lints it (`brief_lint=warn|strict`; a read-only
+   role needs no `Owned files` section) and tells every worker that nobody
+   watches its terminal (no interactive questions) and never to invent
+   names, endpoints, flags, credentials, URLs or requirements. Credentials,
+   URLs and seeds named in a brief must be verified first (`git grep`, the
+   seed script), not guessed.
 4. **Reviewer from another model family** than the implementers, before push.
 5. **State never under `.agents/` or `.codex/`** (Codex sandbox denies them).
 6. **Nested orchestrators must not be sandboxed Codex**: its sandbox blocks
@@ -171,6 +172,7 @@ when one worker is reused across tasks.
 | `reviewer` | codex | high | read-only | Patch-anchored correctness findings before push |
 | `security-reviewer` | claude | high | read-only | Evidence-backed vulnerability findings |
 | `inspector` | agy | high | read-only | Screenshots in both themes, UX findings, no fixes |
+| `ui-reviewer` | agy | high | read-only | Light review of UI-only changes against the design contract |
 | `documenter` | codex | high | edit (docs only) | Documentation of what already landed, after review; never code |
 | `sub-orchestrator` | claude | medium | read-only | Runs this skill from another pane; never codex sandboxed (socket blocked) |
 
@@ -309,6 +311,13 @@ $S wait a b --any                    # or until the first one lands
 $S status a b                        # non-blocking: done | working | blocked | question | no-report-yet | gone | unavailable | quota | provider-error | capacity
 ```
 
+**Amending a brief in flight.** To change a worker's brief — while it is
+busy or already reported — write the amendment in a file and run
+`$S dispatch <agent> amend.md --amend`; never send `herdr agent prompt`
+by hand. The amendment gets a new report that `wait` watches, and the pane
+keeps its current task. For a busy worker the message arrives when the CLI
+delivers it (most queue it).
+
 `wait` prints one JSON line per agent (`done`, `blocked`, `question`,
 `settled-no-report`, `gone`, `unavailable`, `quota`, `provider-error`,
 `capacity`, `timeout`) and exits 0 only when all reports exist (7
@@ -376,7 +385,8 @@ at once, orchestrator not counted; default the sum of the lane capacities,
 leave, fraction of the tab; default 0.18), `regrid` (exact grids after every
 spawn/release), `herd_label` + `herd_label_max` (template and length of the
 automatic herd-tab labels; default `{roles}` → `impl+rev`, 16 characters;
-see "Herd tab labels"), `brief_lint` (`warn|strict|off`), `reuse_workers`
+see "Herd tab labels"), `brief_lint` (`warn|strict|off`; read-only roles
+need no `Owned files` section), `reuse_workers`
 (default `on`, also when no config sets it: `spawn` returns an idle
 worker of the same role, kind and cwd whose last report exists instead of
 opening a pane, and a reuse never counts against `max_workers`; `--reuse`/`--fresh`
@@ -419,7 +429,7 @@ $S session show | session clear [key]
 $S roles                                   # roles with the kind, model and effort in effect and where each comes from
 $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
-$S dispatch impl <brief.md> [--timeout 900000]   # role prompt + brief → agent, waits
+$S dispatch impl <brief.md> [--timeout 900000] [--amend]   # role prompt + brief → agent, waits; --amend amends the agent's current brief
 $S collect impl                             # prints the report file (or recent output)
 $S run scouter <brief.md>                    # spawn + dispatch + collect in one call
 $S wait a b [--any] [--timeout MS]         # block on report files

@@ -93,10 +93,17 @@ export function workspaceId(ctx, env = process.env, cwd = process.cwd()) {
 
 const ROSTER_HEADER = '# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\n';
 
+// state_dir_path() port: <state_root>/<workspace_id> without the side
+// effects of stateDir (no subdirs, no roster header). Commands that only
+// read the state (a lint may still die) use this.
+export function stateDirPath(ctx, env = process.env, cwd = process.cwd()) {
+  return path.join(stateRoot(ctx, env, cwd), workspaceId(ctx, env, cwd));
+}
+
 // state_dir() port: <state_root>/<workspace_id> with briefs/, reports/,
 // wait/ and the agents.tsv header (created only when the file is absent).
 export function stateDir(ctx, env = process.env, cwd = process.cwd()) {
-  const d = path.join(stateRoot(ctx, env, cwd), workspaceId(ctx, env, cwd));
+  const d = stateDirPath(ctx, env, cwd);
   fs.mkdirSync(path.join(d, 'briefs'), { recursive: true });
   fs.mkdirSync(path.join(d, 'reports'), { recursive: true });
   fs.mkdirSync(path.join(d, 'wait'), { recursive: true });

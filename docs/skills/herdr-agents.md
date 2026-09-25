@@ -130,6 +130,13 @@ $S clean --older-than 7              # drop gone agents, delete old briefs/repor
 The reviewer dispatch refuses a reviewer whose model family matches a live
 edit agent (exit 5) unless `--allow-same-family` is given.
 
+To change a brief a worker already has, busy or finished, write the
+amendment to a file and run `$S dispatch build amend.md --amend`. The
+amendment gets a new report that `wait` watches, and the pane keeps its
+task. A busy worker reads it when its CLI delivers a message sent
+mid-task (most queue it). Never send an amendment with `herdr agent
+prompt` by hand: `wait` would keep watching the old report.
+
 ## Good to know
 
 - The role prompt is the worker's first message; the project's
@@ -216,7 +223,7 @@ by default: a blocked worker is reported and a person decides.
 
 Lessons from real runs are enforced by the script, not just documented:
 `release --close` refuses to kill a worker mid-task, `dispatch` lints the
-brief structure, the reviewer family check is strict by default, and every
+brief structure (read-only roles need no `Owned files`), the reviewer family check is strict by default, and every
 error or warning lands in `herdr-agents friction` for review at the end of
 a run.
 
@@ -241,9 +248,10 @@ not landed:
   wait first sends the worker "continue" up to `provider_retries` times,
   `provider_retry_delay` seconds apart, and reports `capacity` only when
   that did not help.
-- `not-received` (exit 15, from `dispatch`): the prompt sat in the input
-  box and the screen never moved after one Enter and one resend. Read the
-  pane before sending anything else.
+- `not-received` (exit 15, from `dispatch`): the prompt never reached the
+  worker, neither after one Enter on text left in its input box nor after
+  one resend when the screen never moved. Read the pane before sending
+  anything else.
 
 The other outcomes: `quota` (exit 11, the account's quota is out),
 `settled-no-report` or `gone` (exit 6), `unavailable` (exit 4 — restore

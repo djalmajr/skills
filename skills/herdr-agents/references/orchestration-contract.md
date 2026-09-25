@@ -105,6 +105,11 @@ dispatching: any place where you would have to choose is a gap.
   lists the gap and the options, and continues. The orchestrator answers the
   gap as a decision in the next brief — never by leaving it to the worker
   again.
+- **An in-flight brief changes through an amendment, not a new prompt.** A
+  worker that is busy, or already reported, does not get a rewritten brief
+  or a hand-rolled `herdr agent prompt`: the amendment goes in its own file
+  and is sent with `dispatch <agent> amend.md --amend`, which gives it a new
+  report that the wait watches while the pane keeps the current task.
 
 ## Fragile resources
 

@@ -5,7 +5,8 @@ Role: <role> · Agent: <agent-name> · Run: <run-id> · Report language: <pt-BR|
 <!-- Before dispatching, reread this brief as the worker and run the
 checklist in references/orchestration-contract.md § Brief checklist: any
 place where the worker would have to choose is a gap. Two or three items
-per brief. -->
+per brief. A change to a brief already in flight is its own file, sent with
+`dispatch <agent> amend.md --amend` — never a hand-rolled prompt. -->
 
 ## Goal
 
@@ -36,6 +37,8 @@ endpoints, flags, credentials, URLs or requirements.
 
 ## Owned files
 
+<!-- read-only roles (the reviewers, the inspector) may omit this section;
+the dispatch lint skips it for them -->
 - `path/to/file.ts` — what changes here
 - `path/to/new-file.test.ts` — new
 

@@ -18,10 +18,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { writeFakeCli } from './fakes.mjs';
 import { nodeBin } from './parity.mjs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadConfig } from '../lib/config.mjs';
 import {
-  briefMissingSections, lintBrief, composePrompt, familyConflicts,
+  briefMissingSections, lintBrief, composePrompt, composeAmendment, dispatchPairSuffix, familyConflicts,
 } from '../lib/dispatch.mjs';
 import { splitRunArgs } from '../lib/commands/run.mjs';
 import { roleBody } from '../lib/roles.mjs';
@@ -996,4 +996,293 @@ test('run: --no-wait routes to dispatch and skips collect; --tab-label goes to s
   s = splitRunArgs(['--tab-label', 'paridade']);
   assert.deepEqual(s.spawnArgs, ['--tab-label', 'paridade'], '--tab-label is forwarded to spawn');
   assert.equal(s.noWait, 0);
+});
+
+// ---------- lint by role mode (read-only needs no Owned files) ----------
+
+test('lint: a read-only brief needs no Owned files; the other sections still hold', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-lint-ro-');
+  try {
+    const noOwned = FULL_BRIEF.replace('# Owned files\n\nscripts/x.mjs\n', '');
+    const f = fix.brief('brief.md', noOwned);
+    assert.equal(briefMissingSections(f), ' [Owned files]');
+    assert.equal(briefMissingSections(f, { readOnly: true }), '');
+    const noForbidden = noOwned.replace('# Forbidden\n', '');
+    const g = fix.brief('g.md', noForbidden);
+    assert.equal(briefMissingSections(g, { readOnly: true }), ' [Forbidden]');
+    const noGit = noOwned.replace('Do not commit or push.', 'Do nothing.');
+    const h = fix.brief('h.md', noGit);
+    assert.equal(briefMissingSections(h, { readOnly: true }), " [no-git line: say 'no commit/push']");
+    // Mutation captured: the readOnly flag not skipping the Owned files
+    // check (a read-only brief flagged) or skipping another section (a
+    // read-only brief without Forbidden or without the no-git line passed)
+    // fails one of the asserts above.
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch: warn mode — an edit role without Owned files warns, a read-only role does not', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-lint-ro-entry-');
+  try {
+    fix.writeRoster(undefined,
+      ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'),
+      ROW12('rev', 'p2', 'codex', 'reviewer', 'openai', fix.repo, 'gpt-5', 'build'));
+    const f = fix.brief('brief.md', FULL_BRIEF.replace('# Owned files\n\nscripts/x.mjs\n', ''));
+    const e1 = cmd(fix, ['dispatch', 'build', f, '--no-wait']);
+    assert.equal(e1.status, 0, e1.stderr);
+    assert.match(e1.stderr, /warning: brief .* is missing sections: \[Owned files\] — workers without owned\/forbidden files collide/);
+    const e2 = cmd(fix, ['dispatch', 'rev', f, '--no-wait']);
+    assert.equal(e2.status, 0, e2.stderr);
+    assert.ok(!e2.stderr.includes('missing sections'), 'a read-only role needs no Owned files section');
+    // Mutation captured: the lint not reading the role's mode (the
+    // reviewer warned too) or the edit role not warned fails the asserts.
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch: lint runs after the role (error order 2 → 3 → 3 → 2; read-only strict passes)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-lint-order-');
+  try {
+    const noOwned = FULL_BRIEF.replace('# Owned files\n\nscripts/x.mjs\n', '');
+    const strict = { HERDR_AGENTS_BRIEF_LINT: 'strict' };
+    // 1. a missing brief dies 2 before the roster, the role and the lint.
+    const r1 = cmd(fix, ['dispatch', 'build', path.join(fix.root, 'missing.md'), '--no-wait'], strict);
+    assert.equal(r1.status, 2, r1.stderr);
+    assert.match(r1.stderr, /brief not found: /);
+    // 2. an agent outside the roster dies 3 before the lint.
+    const r2 = cmd(fix, ['dispatch', 'ghost', fix.brief('a.md', noOwned), '--no-wait'], strict);
+    assert.equal(r2.status, 3, r2.stderr);
+    assert.match(r2.stderr, /agent 'ghost' is not in this skill's roster/);
+    // 3. an unknown role dies 3 before the lint.
+    fix.writeRoster(undefined, ROW12('odd', 'p1', 'grok', 'nosuchrole', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const r3 = cmd(fix, ['dispatch', 'odd', fix.brief('b.md', noOwned), '--no-wait'], strict);
+    assert.equal(r3.status, 3, r3.stderr);
+    assert.match(r3.stderr, /unknown role 'nosuchrole'/);
+    // 4. only then the strict lint dies 2 — for an edit role without
+    // Owned files.
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const cBrief = fix.brief('c.md', noOwned);
+    const r4 = cmd(fix, ['dispatch', 'build', cBrief, '--no-wait'], strict);
+    assert.equal(r4.status, 2, r4.stderr);
+    assert.ok(r4.stderr.includes(`brief ${cBrief} is missing sections: [Owned files] (brief_lint=strict)`), r4.stderr);
+    // 5. a read-only role without Owned files passes strict.
+    fix.writeRoster(undefined, ROW12('rev', 'p1', 'codex', 'reviewer', 'openai', fix.repo, 'gpt-5', 'build'));
+    const r5 = cmd(fix, ['dispatch', 'rev', fix.brief('d.md', noOwned), '--no-wait'], strict);
+    assert.equal(r5.status, 0, r5.stderr);
+    assert.ok(!r5.stderr.includes('missing sections'), 'read-only: no lint warning');
+    // Mutation captured: the lint running before the role resolution (a
+    // strict brief dying 2 before the roster/role 3) or the read-only
+    // exemption missing (the reviewer dying 2) fails the rc asserts.
+  } finally { fix.cleanup(); }
+});
+
+// ---------- --amend ----------
+
+test('dispatch --amend: new report, wait markers cleared, title keeps the task without the check mark, no lint', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-amend-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF.replace('# Goal\n', '# Brief — fix the config\n# Goal\n'));
+    const first = cmd(fix, ['dispatch', 'build', brief, '--no-wait']);
+    assert.equal(first.status, 0, first.stderr);
+    const j1 = parsePretty(first.stdout);
+    // The worker finished: the report exists and the pane title is marked.
+    fs.writeFileSync(j1.report, 'first report\n');
+    fs.writeFileSync(path.join(fix.ws, 'task-build'), 'implementer: fix the config ✓\n');
+    fs.writeFileSync(path.join(fix.ws, 'wait', 'build.size'), '12\n');
+    fs.writeFileSync(path.join(fix.ws, 'wait', 'build.question'), 'a question\n');
+    // The amendment is a delta: no contract sections of its own.
+    const amend = fix.brief('amend.md', '# Amend — use the right flag\n\nDo X with `--flag` instead.\n');
+    // No pause: the amendment goes out in the same second as the first
+    // dispatch, so the pair must be taken with a suffixed name.
+    const r = cmd(fix, ['dispatch', 'build', amend, '--amend', '--no-wait']);
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.deepEqual(Object.keys(j),
+      ['agent', 'role', 'kind', 'composed_prompt', 'report', 'wait_status', 'report_exists', 'amend', 'auto_approved'],
+      'the amend key sits right after report_exists');
+    assert.equal(j.amend, true);
+    assert.equal(j.report_exists, false, '--no-wait: the amendment report is not written yet');
+    assert.notEqual(j.report, j1.report, 'the amendment gets a new report, even in the same second');
+    assert.equal(fs.readFileSync(path.join(fix.ws, 'last-report-build'), 'utf8'), j.report + '\n',
+      'last-report points at the amendment report');
+    // The wait markers of the finished brief are cleared: the wait starts
+    // clean and watches the new report.
+    assert.ok(!fs.existsSync(path.join(fix.ws, 'wait', 'build.size')));
+    assert.ok(!fs.existsSync(path.join(fix.ws, 'wait', 'build.question')));
+    // The pane keeps the current task, without the check mark.
+    assert.equal(fs.readFileSync(path.join(fix.ws, 'task-build'), 'utf8'), 'implementer: fix the config\n');
+    const titleLine = 'pane report-metadata p1 --source herdr-agents --title implementer: fix the config';
+    assert.equal(fix.log().split('\n').filter((l) => l === titleLine).length, 2,
+      `the first dispatch + the amendment reapplying the task: ${fix.log()}`);
+    // No section lint: the amendment is a delta, not a brief.
+    assert.ok(!r.stderr.includes('missing sections'), 'no lint warning on the amendment');
+    // The sent text: the marker plus the amendment wording.
+    const promptLine = fix.log().split('\n').find((l) => l.startsWith(`agent prompt build Read the file ${j.composed_prompt} `));
+    assert.equal(promptLine,
+      `agent prompt build Read the file ${j.composed_prompt} in full and execute it. It amends the brief you are working on. When finished, write your report to ${j.report} and reply with exactly that path and nothing else.`);
+    // The composed amendment prompt, byte for byte.
+    const amendRaw = fs.readFileSync(amend, 'utf8');
+    const contract = [
+      '- This amendment overrides your current brief where they differ; the rest of that brief still holds.\n',
+      `- Write your report as Markdown to \`${j.report}\` (create parent directories if needed). If you have not written the report of your current brief yet, write one report there that covers the brief and this amendment; otherwise report only on the amendment.\n`,
+      '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
+      '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
+      '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
+      '- Do not commit, push, tag, or open pull requests.\n',
+      '- When finished, reply in the terminal with exactly the report path and nothing else.\n',
+    ].join('');
+    assert.equal(fs.readFileSync(j.composed_prompt, 'utf8'),
+      `# Amendment to your current brief\n\n${amendRaw}\n\n# Report contract\n\n${contract}`,
+      'the composed amendment prompt');
+    // Mutation captured: the wait markers not cleared (the wait kept the
+    // finished brief's state), last-report not updated (the wait kept
+    // watching the old report), the check mark not dropped from the task
+    // (the pane stayed "done" while the amendment is in flight), or a
+    // lint warning on the amendment, fails one of the asserts.
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch --amend: without a task file the title comes from the amendment file', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-amend-title-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    // An earlier dispatch happened (it recorded the report) but left no
+    // task file.
+    fs.writeFileSync(path.join(fix.ws, 'last-report-build'), '/some/report.md\n');
+    const amend = fix.brief('amend.md', '# Amend — retry with the right flag\n\nDo it.\n');
+    const r = cmd(fix, ['dispatch', 'build', amend, '--amend', '--no-wait']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(fs.readFileSync(path.join(fix.ws, 'task-build'), 'utf8'), 'implementer: Amend — retry with the right flag\n');
+    assert.ok(fix.log().split('\n').includes('pane report-metadata p1 --source herdr-agents --title implementer: Amend — retry with the right flag'),
+      `the title: ${fix.log()}`);
+    // Mutation captured: the amendment re-titling the pane from its own
+    // file (dropping the current task) or not writing the task file (the
+    // check mark could never land) fails the asserts.
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch --amend: without an earlier dispatch it exits 2 (exact text)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-amend-none-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const amend = fix.brief('amend.md', 'Fix the flag.\n');
+    const r = cmd(fix, ['dispatch', 'build', amend, '--amend', '--no-wait']);
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /dispatch: --amend needs an earlier dispatch to 'build' \(nothing to amend\)/);
+    assert.ok(!fix.log().includes('agent prompt'), 'nothing was sent');
+    assert.ok(!fs.existsSync(path.join(fix.ws, 'last-report-build')), 'nothing was recorded');
+    // Mutation captured: the precondition missing (or checked only after
+    // the send) fails the rc, the stderr text or the log asserts.
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch --amend: --role together with --amend exits 2 (exact text)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-amend-role-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const amend = fix.brief('amend.md', 'Fix the flag.\n');
+    const r = cmd(fix, ['dispatch', 'build', amend, '--amend', '--role', 'reviewer', '--no-wait']);
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /dispatch: --amend keeps the current role; drop --role/);
+    assert.ok(!fix.log().includes('agent prompt'), 'nothing was sent');
+    // Mutation captured: the conflict not detected (the role flag applied
+    // to the amendment, or no exit 2) fails the asserts.
+  } finally { fix.cleanup(); }
+});
+
+test('composeAmendment: the report_language line, in order, only when set', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-amend-lang-');
+  try {
+    const report = '/some/state/ws/reports/build-amend.md';
+    const amendRaw = '# Amend\n\nDo X.\n';
+    const expected = [
+      '# Amendment to your current brief\n\n',
+      amendRaw,
+      '\n\n# Report contract\n\n',
+      '- This amendment overrides your current brief where they differ; the rest of that brief still holds.\n',
+      `- Write your report as Markdown to \`${report}\` (create parent directories if needed). If you have not written the report of your current brief yet, write one report there that covers the brief and this amendment; otherwise report only on the amendment.\n`,
+      '- Write the report in pt-BR.\n',
+      '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
+      '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
+      '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
+      '- Do not commit, push, tag, or open pull requests.\n',
+      '- When finished, reply in the terminal with exactly the report path and nothing else.\n',
+    ].join('');
+    assert.equal(composeAmendment(amendRaw, report, fix.ctx, { ...fix.env, HERDR_AGENTS_REPORT_LANGUAGE: 'pt-BR' }), expected,
+      'the language line sits after the report path, before the one-go rule');
+    const plain = composeAmendment(amendRaw, report, fix.ctx, fix.env);
+    assert.ok(!plain.includes('Write the report in pt-BR'), 'no language line without report_language');
+    // Mutation captured: the language line in the wrong place (after the
+    // one-go rule) or present without report_language fails the asserts.
+  } finally { fix.cleanup(); }
+});
+
+test('run: --amend is not a run option (exit 2, nothing spawned)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-run-amend-');
+  try {
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    const r = cmd(fix, ['run', 'implementer', brief, '--amend']);
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /run: unknown option --amend/);
+    assert.ok(!fix.log().includes('agent start'), 'no agent was spawned');
+    // Mutation captured: --amend forwarded to the dispatch (or accepted by
+    // run) would spawn the agent or change the exit code above.
+  } finally { fix.cleanup(); }
+});
+
+// ---------- one dispatch, one pair of paths ----------
+
+test('dispatchPairSuffix: no collision keeps the plain name; each cause takes -2', { timeout: 30000 }, () => {
+  const composedAt = (suf) => `/s/briefs/build-20260101T000000${suf}.md`;
+  const reportAt = (suf) => `/s/reports/build-20260101T000000${suf}.md`;
+  const never = () => false;
+  assert.equal(dispatchPairSuffix(composedAt, reportAt, never, ''), '', 'no collision: the unsuffixed pair');
+  assert.equal(dispatchPairSuffix(composedAt, reportAt, (p) => p === composedAt(''), ''), '-2',
+    'the composed prompt of the same second already exists');
+  assert.equal(dispatchPairSuffix(composedAt, reportAt, (p) => p === reportAt(''), ''), '-2',
+    'the report of the same second already exists');
+  assert.equal(dispatchPairSuffix(composedAt, reportAt, never, reportAt('')), '-2',
+    'last-report already points at the report (the file may be absent)');
+  const takenUpTo2 = (p) => p === composedAt('') || p === composedAt('-2') || p === reportAt('') || p === reportAt('-2');
+  assert.equal(dispatchPairSuffix(composedAt, reportAt, takenUpTo2, ''), '-3', 'walks the suffixes until a free pair');
+  // Mutation captured: the collision check missing (any of the three
+  // causes) or the suffix sequence wrong (a taken suffix reused, the
+  // next one skipped) fails one of the asserts.
+});
+
+test('dispatch: a strict lint dies 2 without creating the state dirs', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-dispatch-nostate-');
+  try {
+    // A valid roster, and the state subdirs gone: nothing may be created
+    // before the lint dies. The lib runs in a child process, not through
+    // the entry (whose friction-log setup creates the state dir itself),
+    // so what the assert sees is what cmdDispatch did.
+    for (const d of ['briefs', 'reports', 'wait']) {
+      fs.rmSync(path.join(fix.ws, d), { recursive: true, force: true });
+    }
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const f = fix.brief('brief.md', FULL_BRIEF.replace('# Owned files\n\nscripts/x.mjs\n', ''));
+    const child = path.join(fix.root, 'dispatch-lib.mjs');
+    fs.writeFileSync(child, [
+      `import { cmdDispatch } from '${pathToFileURL(path.join(SCRIPTS, 'lib', 'dispatch.mjs')).href}';`,
+      `import { loadConfig } from '${pathToFileURL(path.join(SCRIPTS, 'lib', 'config.mjs')).href}';`,
+      'const env = process.env;',
+      'const ctx = loadConfig(env, process.cwd());',
+      `cmdDispatch(${JSON.stringify(['build', f, '--no-wait'])}, ctx, env, process.cwd());`,
+    ].join('\n'));
+    const r = spawnSync(nodeBin(), [child], {
+      cwd: fix.repo,
+      env: { ...fix.env, HERDR_AGENTS_BRIEF_LINT: 'strict' },
+      encoding: 'utf8',
+      timeout: 30_000,
+    });
+    assert.equal(r.status, 2, r.stderr);
+    assert.ok(r.stderr.includes('is missing sections: [Owned files] (brief_lint=strict)'), r.stderr);
+    // The state subdirs were not created before the lint died.
+    assert.ok(!fs.existsSync(path.join(fix.ws, 'briefs')), 'briefs/ is not created before the strict lint');
+    assert.ok(!fs.existsSync(path.join(fix.ws, 'reports')));
+    assert.ok(!fs.existsSync(path.join(fix.ws, 'wait')));
+    // Mutation captured: stateDir called before the lint (the original
+    // order) would recreate the subdirs and fail the existsSync asserts.
+  } finally { fix.cleanup(); }
 });

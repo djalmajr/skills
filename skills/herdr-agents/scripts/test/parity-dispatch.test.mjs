@@ -173,8 +173,15 @@ function seedRoster(fix, header, rows, files = {}) {
 
 // The dispatch brief timestamps (nowStamp) differ between runs by
 // construction; normalize them everywhere (stdout, stderr, logs, state
-// files, file names).
-const normTs = (s) => (s === null ? null : String(s).split(/\d{8}T\d{6}/).join('<TS>'));
+// files, file names). A second dispatch to the same agent within the same
+// second gets a `-2`, `-3`… suffix on its stamp; whether two steps share a
+// second depends on the clock, so the suffix is normalized away too.
+const normTs = (s) => (s === null ? null : String(s).split(/\d{8}T\d{6}(?:-\d+)?/).join('<TS>'));
+
+// Chronological order of two original names that normalize alike: the
+// stamp first, then the same-second suffix (none = 1).
+const stampOrder = (rel) => rel.replace(/(\d{8}T\d{6})(?:-(\d+))?/g,
+  (_, ts, n) => `${ts}.${String(n ?? 1).padStart(6, '0')}`);
 
 function readRel(root, rel) {
   try { return fs.readFileSync(path.join(root, rel), 'utf8'); } catch { return null; }
@@ -182,17 +189,16 @@ function readRel(root, rel) {
 
 // The fixture state: herdr.log + every file under <state>/ws and under
 // $TMPDIR/herdr-agents (the TMPDIR routing), wall-clock values normalized.
-// Two files that normalize to the same key (different dispatch timestamps
-// in the same scenario) resolve to the one with the newest original name —
-// the ts is zero-padded, so original-name order is chronological — never
-// to the (unstable) readdir order.
+// Two files that normalize to the same key (different dispatch timestamps,
+// or the same second with a suffix, in the same scenario) resolve to the
+// newest one by stampOrder — never to the (unstable) readdir order.
 function collectState(fix) {
   const out = {};
   const orig = {};
   const put = (rel, content) => {
     if (content === null) return;
     const normKey = normTs(rel);
-    if (orig[normKey] !== undefined && orig[normKey] > rel) return;
+    if (orig[normKey] !== undefined && stampOrder(orig[normKey]) > stampOrder(rel)) return;
     orig[normKey] = rel;
     const base = path.basename(rel);
     if (base.endsWith('.since')) { out[normKey] = 'EPOCH'; return; }
