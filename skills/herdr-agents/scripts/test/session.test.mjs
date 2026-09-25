@@ -69,8 +69,8 @@ test('config shows the session value with source `session`', (t) => {
     s.run('session', 'set', 'lane.build.kind', 'pi');
     const r = s.run('config');
     assert.equal(r.rc, 0, r.err);
-    const row = tableRow(r.out, 'lane_build_kind');
-    assert.ok(row, 'lane_build_kind row missing');
+    const row = tableRow(r.out, 'lane.build.kind');
+    assert.ok(row, 'lane.build.kind row missing');
     assert.equal(`${row.value} ${row.source}`, 'pi session', 'config session source');
     assert.match(r.out, /layers read:.*session/, 'config did not list the session layer');
     assert.ok(r.out.includes(s.sess), 'config did not name the session file');
@@ -84,13 +84,13 @@ test('precedence: session > project, env > session', (t) => {
     fs.writeFileSync(s.proj, 'lane.build.kind=codex\n');
     s.run('session', 'set', 'lane.build.kind', 'pi');
     let r = s.run('config');
-    let row = tableRow(r.out, 'lane_build_kind');
+    let row = tableRow(r.out, 'lane.build.kind');
     assert.equal(`${row.value} ${row.source}`, 'pi session', 'session must beat project');
     const envGrok = { ...s.env, HERDR_AGENTS_LANE_BUILD_KIND: 'grok' };
     s.useEnv(envGrok);
     r = s.run('config');
     s.useEnv(s.env);
-    row = tableRow(r.out, 'lane_build_kind');
+    row = tableRow(r.out, 'lane.build.kind');
     assert.equal(`${row.value} ${row.source}`, 'grok env', 'env must beat session');
   } finally { s.cleanup(); }
 });
@@ -140,7 +140,7 @@ test('session clear (no key) removes the layer; config falls back to project', (
     assert.equal(r.rc, 0, r.err);
     assert.ok(!fs.existsSync(s.sess), `clear left the session file: ${fs.existsSync(s.sess) ? fs.readFileSync(s.sess, 'utf8') : ''}`);
     const c = s.run('config');
-    const row = tableRow(c.out, 'lane_build_kind');
+    const row = tableRow(c.out, 'lane.build.kind');
     assert.equal(`${row.value} ${row.source}`, 'codex project', 'after clear, project value must win');
     const sh = s.run('session', 'show');
     assert.equal(sh.rc, 0, 'empty session show rc');

@@ -62,6 +62,9 @@ if (cmd === 'agent get') {
   process.stdout.write('{"result":{"agent":{"name":"' + t + '","agent_status":"' + m + '"' + seqJson + '}}}\\n');
 } else if (cmd === 'agent read') {
   process.stdout.write(screenOf(t));
+} else if (cmd === 'agent list') {
+  try { process.stdout.write(fs.readFileSync(process.env.HA_LIST, 'utf8')); }
+  catch { process.stdout.write('{"result":{"agents":[]}}\\n'); }
 } else {
   process.stderr.write('unexpected: ' + argv.join(' ') + '\\n');
   process.exit(1);
@@ -98,6 +101,7 @@ function makeFix(prefix) {
     FAKE_SCREEN_DIR: screenDir,
     FAKE_LOG: path.join(root, 'herdr.log'),
     FAKE_SEQ: path.join(root, 'seq'),
+    HA_LIST: path.join(root, 'list.json'),
     PATH: `${bin}${path.delimiter}${process.env.PATH}`,
   };
   fs.writeFileSync(env.FAKE_MODE, 'working\n');
@@ -107,6 +111,7 @@ function makeFix(prefix) {
     root, repo, state, ws, env, ctx: loadConfig(env, repo),
     mode(m) { fs.writeFileSync(env.FAKE_MODE, `${m}\n`); },
     modeOf(agent, m) { fs.writeFileSync(path.join(modeDir, `mode-${agent}`), `${m}\n`); },
+    liveList(agents) { fs.writeFileSync(env.HA_LIST, JSON.stringify({ result: { agents } }) + '\n'); },
     screen(s) { fs.writeFileSync(env.FAKE_SCREEN, s); },
     screenOf(agent, s) { fs.writeFileSync(path.join(screenDir, `screen-${agent}`), s); },
     writeRoster(...rows) { fs.writeFileSync(path.join(ws, 'agents.tsv'), H12 + rows.join('\n') + '\n'); },
@@ -366,5 +371,55 @@ test('status: the rc rank 11 > 15 > 7 across agents', { timeout: 30000 }, () => 
     assert.match(q.question, /enter to select/);
     const r7 = cmd(fix, ['status', 'quest1']);
     assert.equal(r7.status, 7, r7.stderr);
+  } finally { fix.cleanup(); }
+});
+
+// A roster line whose name is alive in ANOTHER pane: the line's own agent
+// (the pane it recorded) exited; the name query answers with the other
+// agent's state. Status and roster report the line as gone, not with the
+// other agent's state.
+const ROW_PANE = (name, pane, role = 'implementer') =>
+  `${name}\t${pane}\tgrok\t${role}\txai\t1\t/tmp/work\tnow\t\tfull\t${role}\t`;
+
+test('status: a line whose name is alive in another pane reports gone (and roster shows gone)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-status-stalepane-');
+  try {
+    // The line recorded pane p-old; the live agent 'w' is in p-new (the
+    // name query of `agent get w` answers with its idle state).
+    fix.writeRoster(ROW_PANE('w', 'p-old'));
+    fix.modeOf('w', 'idle');
+    fix.liveList([{ name: 'w', pane_id: 'p-new', agent_status: 'idle' }]);
+    const r = cmd(fix, ['status', 'w']);
+    assert.equal(r.status, 0, r.stderr);
+    // The plain state is the TSV line name<TAB>state<TAB>report.
+    const cols = r.stdout.trim().split('\t');
+    assert.equal(cols[0], 'w');
+    assert.equal(cols[1], 'gone', 'the stale line is gone, not the other agent\'s idle (no-report-yet)');
+    assert.equal(cols[2] ?? '', '', 'no report on the stale line');
+    // The roster table shows gone for the line's own pane.
+    const rt = cmd(fix, ['roster']);
+    assert.equal(rt.status, 0, rt.stderr);
+    const rowLine = rt.stdout.trim().split('\n').find((l) => l.startsWith('w '));
+    assert.ok(rowLine.includes('gone'), 'the roster line shows gone: ' + rowLine);
+    // Mutation captured: reporting the other agent's state (no-report-yet
+    // / idle) for the stale line, in the status or in the roster table.
+  } finally { fix.cleanup(); }
+});
+
+test('status: a line without a pane keeps the name query (any pane)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-status-nopane-');
+  try {
+    // The line has no recorded pane: the name query holds (the live agent
+    // is idle, no report) — not a stale override.
+    fix.writeRoster(ROW_PANE('w', ''));
+    fix.modeOf('w', 'idle');
+    fix.liveList([{ name: 'w', pane_id: 'p-new', agent_status: 'idle' }]);
+    const r = cmd(fix, ['status', 'w']);
+    assert.equal(r.status, 0, r.stderr);
+    const cols = r.stdout.trim().split('\t');
+    assert.equal(cols[0], 'w');
+    assert.equal(cols[1], 'no-report-yet', 'no pane on the line: the name state holds');
+    // Mutation captured: forcing gone for a pane-less line (the override
+    // requires a known line pane).
   } finally { fix.cleanup(); }
 });

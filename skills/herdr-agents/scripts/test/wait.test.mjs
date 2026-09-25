@@ -27,6 +27,7 @@ import { nodeBin } from './parity.mjs';
 import { loadConfig } from '../lib/config.mjs';
 import {
   waitRank, tryAutoApprove, probeAgent, waitFor, kindApproveKeys, cksumField, pollIntervalMs,
+  normalizeApproveScreen,
 } from '../lib/wait.mjs';
 import { briefTask, markTaskDone } from '../lib/tasks.mjs';
 
@@ -299,7 +300,7 @@ test('wait: two blocked probes before reporting blocked', { timeout: 30000 }, ()
     assert.equal(fix.waitRead('b', 'blocked'), '', '.blocked flag recorded');
     const r = waitCmd(fix, ['b', '--timeout', '1000']);
     assert.equal(r.status, 7, r.stderr);
-    assert.deepEqual(jsonLines(r.stdout), [{ agent: 'b', status: 'blocked', report: '' }]);
+    assert.deepEqual(jsonLines(r.stdout), [{ agent: 'b', status: 'blocked', report: '', dialog: '' }]);
     assert.ok(fs.existsSync(path.join(sd, 'wait', 'b.blocked')), 'flag stays for the next wait');
   } finally { fix.cleanup(); }
 });
@@ -915,7 +916,10 @@ test('wait: timeout 9 for a working agent', { timeout: 30000 }, () => {
 test('wait: --any returns on the first done; notify=on notifies', { timeout: 30000 }, () => {
   const fix = makeFix('ha-wait-any-');
   try {
-    fix.writeRoster(ROW('a1', 'implementer'), ROW('a2', 'reviewer'));
+    // Both edit roles: a reviewer's headerless report now also gets
+    // the no-header warn (its own test below), which would trip the
+    // 'no warn for the clean report' assert here.
+    fix.writeRoster(ROW('a1', 'implementer'), ROW('a2', 'implementer'));
     fix.mode('working');
     fix.screen('busy\n');
     const p1 = fix.report('a1', 'done\n');
@@ -1375,7 +1379,10 @@ test('wait: a clean done report keeps the exact line of today', { timeout: 30000
 test('wait: partial is per agent in a multi-agent wait', { timeout: 30000 }, () => {
   const fix = makeFix('ha-wait-partial-multi-');
   try {
-    fix.writeRoster(ROW('a1', 'implementer'), ROW('a2', 'reviewer'));
+    // Both edit roles: a reviewer's headerless report now also gets
+    // the no-header warn (its own test below), which would trip the
+    // 'no warn for the clean report' assert here.
+    fix.writeRoster(ROW('a1', 'implementer'), ROW('a2', 'implementer'));
     const p1 = fix.report('a1', '# Report\n\n| item | state |\n| --- | --- |\n| fact A | [partial] |\n');
     const p2 = fix.report('a2', '# Report\n\ndone.\n');
     // Mutation captured: a shared (not per-agent) count, or a warn for the
@@ -1388,5 +1395,255 @@ test('wait: partial is per agent in a multi-agent wait', { timeout: 30000 }, () 
     ]);
     assert.match(r.stderr, /report of 'a1' marks 1 item\(s\) partial: a partial item is not a pass; read them before commit, push or release/);
     assert.ok(!r.stderr.includes("report of 'a2'"), 'no warn for the clean report');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- the auto-approve dialog loop, the blocked dialog, the review header ----------
+
+// The same approval dialog is not re-sent forever: the normalized visible
+// screen (CRLF → LF, digits → '#', progress glyphs dropped) is hashed and
+// counted in wait/<agent>.approve-screen after each key sent. A digit that
+// changes between blocks is the SAME dialog; the third consecutive repeat
+// sends no key and the agent stays blocked.
+test('wait: the same auto-approve dialog is not sent a third time', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-approve-loop-');
+  try {
+    fix.writeRoster(ROW('a', 'implementer'));
+    fix.modeOf('a', 'blocked');
+    const sd = fix.ws;
+    const env = { ...fix.env, HERDR_AGENTS_AUTO_APPROVE: 'on' };
+    // The approved probe clears the .blocked flag, so the confirmations
+    // alternate with re-record probes: record, confirm (key), record,
+    // confirm, record, confirm.
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 'first blocked probe only records');
+    fix.screenOf('a', 'approve it? retry in 3\n');
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 'dialog #1 confirmed: the key goes out');
+    assert.ok(fix.logLines().includes('agent send-keys a enter'));
+    // Mutation captured: not normalizing digits (or CRLF / progress
+    // glyphs) makes the hashes differ between confirmations, the counter
+    // resets and the third confirmation sends a third key.
+    const h = cksumField(normalizeApproveScreen('approve it? retry in 3\n'));
+    assert.equal(fix.waitRead('a', 'approve-screen'), `1\t${h}\n`, 'the record is the count and the hash');
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 'the approval cleared the flag: re-record');
+    fix.screenOf('a', 'approve it? retry in 2\n');
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 'same dialog (digits normalized): count 2, key sent');
+    assert.equal(fix.waitRead('a', 'approve-screen'), `2\t${h}\n`, 'the equal hash increments the counter');
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 'the re-record probe (no key)');
+    // Mutation captured: the repetition limit ignored (or >= 3 off by
+    // one) sends a third key here and returns 'working'.
+    fix.screenOf('a', 'approve it? retry in 1\n');
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'blocked', 'third consecutive repeat: no key, blocked');
+    assert.equal(fix.logLines().filter((l) => l === 'agent send-keys a enter').length, 2, 'only two keys went out');
+    assert.equal(fix.waitRead('a', 'approvals'), '2\n', 'the approvals counter holds the two sent keys');
+  } finally { fix.cleanup(); }
+});
+
+// The same dialog rotating only its Braille/spinner glyphs between
+// confirmations is the SAME dialog: the shared screen normalization
+// (normalizeScreen, the stuck-worker one) drops them, so the repetition
+// counter keeps counting and the third repeat stops the key.
+test('wait: rotating glyphs in the same dialog do not reset the repeat counter', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-approve-glyphs-');
+  try {
+    fix.writeRoster(ROW('a', 'implementer'));
+    fix.modeOf('a', 'blocked');
+    const sd = fix.ws;
+    const env = { ...fix.env, HERDR_AGENTS_AUTO_APPROVE: 'on' };
+    // The confirmations alternate with re-record probes (the approved
+    // probe clears the .blocked flag), and the dialog rotates only its
+    // Braille and spinner glyphs — the SAME dialog.
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 'first blocked probe only records');
+    fix.screenOf('a', 'approve it? ⠋ retry in 3\n');
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 'dialog #1 confirmed: the key goes out');
+    const h = cksumField(normalizeApproveScreen('approve it? ⠋ retry in 3\n'));
+    assert.equal(fix.waitRead('a', 'approve-screen'), `1\t${h}\n`, 'the record is the count and the hash');
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 're-record');
+    fix.screenOf('a', 'approve it? ⠙ retry in 4\n');
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 'same dialog (glyphs normalized): count 2, key sent');
+    assert.equal(fix.waitRead('a', 'approve-screen'), `2\t${h}\n`, 'the equal hash increments the counter');
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'working', 're-record');
+    // Mutation captured: not normalizing the Braille/spinner glyphs (or
+    // duplicating a narrower normalization for the approve screen) makes
+    // the hashes differ between confirmations, the counter resets and the
+    // spinner keeps the key going past the third repeat.
+    fix.screenOf('a', 'approve it? ◐ retry in 5\n');
+    assert.equal(probeAgent(sd, 'a', '', fix.ctx, env), 'blocked', 'third consecutive repeat: no key, blocked');
+    assert.equal(fix.logLines().filter((l) => l === 'agent send-keys a enter').length, 2, 'only two keys went out');
+    assert.equal(fix.waitRead('a', 'approvals'), '2\n', 'the approvals counter holds the two sent keys');
+    // The stuck-worker detection shares the very same normalization:
+    // a screen that changes only in digits and glyphs hashes alike.
+    assert.equal(cksumField(normalizeApproveScreen('tool running… 42% ◐\n')),
+      cksumField(normalizeApproveScreen('tool running… 43% ⠹\n')), 'digits and glyphs normalize alike');
+  } finally { fix.cleanup(); }
+});
+
+// A different dialog resets the counter to 1 (no accumulation across
+// dialogs); max_auto_approvals stays the overall ceiling and still
+// blocks.
+test('wait: a different dialog resets the repeat counter; the ceiling still applies', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-approve-reset-');
+  try {
+    fix.writeRoster(ROW('d', 'implementer'));
+    fix.modeOf('d', 'blocked');
+    const sd = fix.ws;
+    const env = { ...fix.env, HERDR_AGENTS_AUTO_APPROVE: 'on' };
+    // confirmations alternate with re-record probes (the approval clears
+    // the .blocked flag).
+    assert.equal(probeAgent(sd, 'd', '', fix.ctx, env), 'working', 'first blocked probe only records');
+    const hA = cksumField(normalizeApproveScreen('dialog A\n'));
+    const hB = cksumField(normalizeApproveScreen('dialog B\n'));
+    fix.screenOf('d', 'dialog A\n');
+    assert.equal(probeAgent(sd, 'd', '', fix.ctx, env), 'working', 'A #1');
+    assert.equal(probeAgent(sd, 'd', '', fix.ctx, env), 'working', 're-record');
+    fix.screenOf('d', 'dialog A\n');
+    assert.equal(probeAgent(sd, 'd', '', fix.ctx, env), 'working', 'A #2');
+    assert.equal(fix.waitRead('d', 'approve-screen'), `2\t${hA}\n`);
+    assert.equal(probeAgent(sd, 'd', '', fix.ctx, env), 'working', 're-record');
+    fix.screenOf('d', 'dialog B\n');
+    assert.equal(probeAgent(sd, 'd', '', fix.ctx, env), 'working', 'B resets the counter to 1');
+    assert.equal(fix.waitRead('d', 'approve-screen'), `1\t${hB}\n`, 'the new dialog starts at 1');
+    assert.equal(probeAgent(sd, 'd', '', fix.ctx, env), 'working', 're-record');
+    fix.screenOf('d', 'dialog A\n');
+    assert.equal(probeAgent(sd, 'd', '', fix.ctx, env), 'working', 'A again resets (different from B)');
+    assert.equal(fix.waitRead('d', 'approve-screen'), `1\t${hA}\n`);
+    assert.equal(fix.logLines().filter((l) => l === 'agent send-keys d enter').length, 4, 'four keys for four different dialogs');
+    // The overall ceiling: with max_auto_approvals=1 the second approval
+    // of the SAME dialog is refused by the cap (not the loop rule).
+    fix.writeRoster(ROW('c', 'implementer'));
+    fix.modeOf('c', 'blocked');
+    const envCap = { ...env, HERDR_AGENTS_MAX_AUTO_APPROVALS: '1' };
+    assert.equal(probeAgent(sd, 'c', '', fix.ctx, envCap), 'working', 'first blocked probe only records');
+    fix.screenOf('c', 'cap dialog\n');
+    assert.equal(probeAgent(sd, 'c', '', fix.ctx, envCap), 'working', 'the first approval is sent');
+    assert.equal(probeAgent(sd, 'c', '', fix.ctx, envCap), 'working', 're-record');
+    assert.equal(probeAgent(sd, 'c', '', fix.ctx, envCap), 'blocked', 'the ceiling blocks the second one');
+    assert.equal(fix.waitRead('c', 'approvals'), '1\n', 'the counter holds the single sent key');
+  } finally { fix.cleanup(); }
+});
+
+// End to end: the blocked JSON line carries the dialog (the last 20
+// non-empty lines of the visible screen) and the exact stopping warn
+// lands on stderr and in the friction log.
+test('wait: the blocked line carries the dialog and the loop warn', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-dialog-');
+  try {
+    fix.writeRoster(ROW('b', 'implementer'));
+    const lines = [];
+    for (let i = 1; i <= 25; i += 1) lines.push(`line ${i}`);
+    lines.splice(12, 0, ''); // an empty line in the middle: skipped
+    fix.screen(lines.join('\n') + '\n');
+    fix.mode('blocked');
+    const env = { ...fix.env, HERDR_AGENTS_AUTO_APPROVE: 'on' };
+    // The dialog does not advance: three probes send keys #1 and #2, the
+    // third sees the repeat and stops.
+    const r = spawnSync(nodeBin(), [JS_ENTRY, 'wait', 'b', '--timeout', '10000'], {
+      cwd: fix.repo, env, encoding: 'utf8', timeout: 60_000,
+    });
+    assert.equal(r.status, 7, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report', 'dialog']);
+    assert.equal(line.dialog, lines.filter((l) => l !== '').slice(-20).join('\n'), 'the last 20 non-empty visible lines');
+    assert.equal(fix.logLines().filter((l) => l === 'agent send-keys b enter').length, 2, 'two keys, then the stop');
+    const warnLine = `auto_approve: the same dialog came back 3 times for 'b'; leaving it blocked`;
+    assert.equal(r.stderr.split(`herdr-agents: warning: ${warnLine}`).length - 1, 1, `the exact stopping warn once: ${r.stderr}`);
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.ok(friction.includes(`warning\twait\t${warnLine}`), 'the warn lands in the friction log as a wait entry');
+  } finally { fix.cleanup(); }
+});
+
+// The header fields and `partial` can coexist: the header keys sit right
+// after `report` and before `partial`, and the partial warn still fires.
+test('wait: the header and partial items coexist in the done line', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-header-partial-');
+  try {
+    fix.writeRoster(ROW('rev', 'reviewer'));
+    const p = fix.report('rev', 'findings: 1 (P0 1, P1 0, P2 0, P3 0) | verdict: fail\n\n# Report\n\n| item | state |\n| --- | --- |\n| fact A | [partial] |\n');
+    const r = waitCmd(fix, ['rev', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report', 'verdict', 'findings', 'severity', 'partial'],
+      'the header keys sit right after report and before partial');
+    assert.deepEqual(line, {
+      agent: 'rev', status: 'done', report: p,
+      verdict: 'fail', findings: 1, severity: { P0: 1, P1: 0, P2: 0, P3: 0 }, partial: 1,
+    });
+    assert.match(r.stderr, /report of 'rev' marks 1 item\(s\) partial/);
+    assert.ok(!r.stderr.includes('add up to'), 'the numbers add up: no mismatch warn');
+  } finally { fix.cleanup(); }
+});
+
+// The review report's header (the first non-empty line) populates the done
+// JSON line: verdict, findings and severity sit right after `report` and
+// before `partial`.
+test('wait: a review report header populates the done line', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-header-');
+  try {
+    fix.writeRoster(ROW('rev', 'reviewer'));
+    const p = fix.report('rev', 'findings: 3 (P0 0, P1 1, P2 2, P3 0) | verdict: pass\n\n# Report\n\nok\n');
+    // Mutation captured: the header parsed from a line other than the
+    // first non-empty one (or not at all) drops/changes these keys.
+    const r = waitCmd(fix, ['rev', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report', 'verdict', 'findings', 'severity']);
+    assert.deepEqual(line, {
+      agent: 'rev', status: 'done', report: p,
+      verdict: 'pass', findings: 3, severity: { P0: 0, P1: 1, P2: 2, P3: 0 },
+    });
+    assert.ok(!r.stderr.includes('findings 3 but'), 'no mismatch warn: the numbers add up');
+  } finally { fix.cleanup(); }
+});
+
+// findings ≠ P0..P3 sum: the numbers are kept as parsed in the line and
+// the mismatch is warned (the report is never fixed).
+test('wait: findings that do not add up keep the parsed numbers and warn', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-mismatch-');
+  try {
+    fix.writeRoster(ROW('rev', 'reviewer'));
+    const p = fix.report('rev', 'findings: 2 (P0 1, P1 2, P2 0, P3 0) | verdict: fail\n\n# Report\n');
+    const r = waitCmd(fix, ['rev', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(line, {
+      agent: 'rev', status: 'done', report: p,
+      verdict: 'fail', findings: 2, severity: { P0: 1, P1: 2, P2: 0, P3: 0 },
+    });
+    const warnLine = "report of 'rev': findings 2 but P0..P3 add up to 3";
+    assert.equal(r.stderr.split(`herdr-agents: warning: ${warnLine}`).length - 1, 1, `the exact mismatch warn once: ${r.stderr}`);
+  } finally { fix.cleanup(); }
+});
+
+// A review-role report WITHOUT the header warns the orchestrator to read
+// it before trusting the done — for the four review roles alike (reviewer,
+// security-reviewer, ui-reviewer and inspector now all carry the fixed
+// header line); an edit role does not.
+test('wait: a review report without the header warns for all four review roles', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-wait-noheader-');
+  try {
+    fix.writeRoster(ROW('rev', 'reviewer'), ROW('sec', 'security-reviewer'), ROW('ui', 'ui-reviewer'),
+      ROW('insp', 'inspector'), ROW('imp', 'implementer'));
+    const p1 = fix.report('rev', '# Report\n\nok\n');
+    const p2 = fix.report('sec', '# Report\n\nok\n');
+    const p3 = fix.report('ui', '# Report\n\nok\n');
+    const p4 = fix.report('insp', '# Report\n\nok\n');
+    const p5 = fix.report('imp', '# Report\n\nok\n');
+    const r = waitCmd(fix, ['rev', 'sec', 'ui', 'insp', 'imp', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(jsonLines(r.stdout), [
+      { agent: 'rev', status: 'done', report: p1 },
+      { agent: 'sec', status: 'done', report: p2 },
+      { agent: 'ui', status: 'done', report: p3 },
+      { agent: 'insp', status: 'done', report: p4 },
+      { agent: 'imp', status: 'done', report: p5 },
+    ]);
+    for (const a of ['rev', 'sec', 'ui', 'insp']) {
+      const warnLine = `report of '${a}' has no 'findings: N (P0 a, P1 b, P2 c, P3 d) | verdict: pass|fail' first line`;
+      assert.equal(r.stderr.split(`herdr-agents: warning: ${warnLine}`).length - 1, 1,
+        `the exact warn once for ${a}: ${r.stderr}`);
+    }
+    assert.ok(!r.stderr.includes("report of 'imp' has no"), 'no warn for the implementer');
+    // Mutation captured: the warn still limited to REVIEW_ROLES (the two
+    // code reviewers) leaves the ui-reviewer and inspector warns out; a
+    // warn for the edit role adds a line the last assert rejects.
   } finally { fix.cleanup(); }
 });

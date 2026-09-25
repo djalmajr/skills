@@ -18,7 +18,7 @@ import { sanitizeCause } from '../lib/text.mjs';
 import {
   stateDir, rosterRows, rosterLine, withRosterLock, rosterAppend,
   rosterRemove, rosterSetRole, rosterReplacePane, lastReport, lastReportPath,
-  warn, setFrictionLog, nowStamp, nowIso,
+  warn, setFrictionLog, nowStamp, nowIso, frictionSafe,
 } from '../lib/state.mjs';
 
 const STATE_MJS = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'lib', 'state.mjs');
@@ -299,6 +299,40 @@ test('friction: warn() appends a TSV line with the command name', () => {
     // No log configured: warn only writes stderr, never throws.
     setFrictionLog('', '');
     assert.doesNotThrow(() => warn('quiet'));
+  } finally {
+    setFrictionLog('', '');
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// A message (or command) with a newline, carriage return or tab must not
+// open lines missing the four TSV columns: \r, \n and \t are sanitized to
+// a single space before writing, so every line keeps date, level,
+// command and message.
+test('friction: warn() sanitizes \\r, \\n and \\t out of the message (four TSV columns)', () => {
+  const root = tmp('ha-friction-san-');
+  try {
+    const log = path.join(root, 'friction.log');
+    setFrictionLog(log, 'wait');
+    // Mutation captured: a message whose newline (or carriage return) is
+    // NOT sanitized before writing opens a second line without the date,
+    // level and command columns — the line count and the four-column
+    // asserts below break.
+    warn('agent \'a\': screen says\nthe dialog is stuck');
+    warn('tab\there and cr\rthere');
+    setFrictionLog('', '');
+    const lines = fs.readFileSync(log, 'utf8').trim().split('\n');
+    assert.equal(lines.length, 2, 'each warn is exactly one physical line');
+    for (const l of lines) {
+      const f = l.split('\t');
+      assert.equal(f.length, 4, `four TSV columns: ${l}`);
+      assert.match(f[0], /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/, 'the date column survives');
+      assert.equal(f[1], 'warning');
+      assert.equal(f[2], 'wait');
+    }
+    assert.equal(lines[0].split('\t')[3], 'agent \'a\': screen says the dialog is stuck');
+    assert.equal(lines[1].split('\t')[3], 'tab here and cr there');
+    assert.equal(frictionSafe('a\tb\r\nc'), 'a b c', 'frictionSafe replaces each of the three with a space');
   } finally {
     setFrictionLog('', '');
     fs.rmSync(root, { recursive: true, force: true });

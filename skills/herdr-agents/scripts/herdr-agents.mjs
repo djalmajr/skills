@@ -44,6 +44,7 @@ import { cmdWait } from './lib/wait.mjs';
 import { cmdDispatch } from './lib/dispatch.mjs';
 import { cmdRun } from './lib/commands/run.mjs';
 import { cmdCollect } from './lib/commands/collect.mjs';
+import { cmdStats } from './lib/commands/stats.mjs';
 import { cmdRelease } from './lib/commands/release.mjs';
 import { cmdClean } from './lib/commands/clean.mjs';
 import { cmdSetup } from './lib/commands/setup.mjs';
@@ -124,6 +125,11 @@ try {
       if (rc) process.exitCode = rc;
       break;
     }
+    case 'stats': {
+      const rc = cmdStats(argv.slice(1), ctx, env);
+      if (rc) process.exitCode = rc;
+      break;
+    }
     case 'release':
       cmdRelease(argv.slice(1), ctx, env);
       break;
@@ -152,7 +158,7 @@ try {
       cmdRoster(ctx, env);
       break;
     case 'friction':
-      cmdFriction(ctx, env);
+      cmdFriction(argv.slice(1), ctx, env);
       break;
     case 'tab-label':
       requireEnv(env);

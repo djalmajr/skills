@@ -24,11 +24,14 @@ import {
 } from '../config.mjs';
 import {
   applyLaneFile, cfgLayerRank, configExplicit, effectiveLaneSignature, flexExtra, laneAttr, laneCapacity,
-  laneCapacitySum, laneKey, laneNames, laneRolesCsv, lanesEnabled, legacyPresetSignature,
-  LEGACY_PRESETS, maxWorkers, paneMode, panesValue,
+  laneCapacitySum, laneKey, laneNames, laneOfRole, laneRolesCsv, lanesEnabled, legacyPresetSignature,
+  LEGACY_PRESETS, maxWorkers, paneMode, panesValue, splitRoles,
 } from '../lanes.mjs';
 import { findExecutable, homeDir, projectRoot, readTextFile, runCli } from '../platform.mjs';
 import { fmGet, isReviewRole, roleDirs, roleFile, roleIsEdit } from '../roles.mjs';
+import { resolveRoleSettings } from '../resolve.mjs';
+import { resolveModel } from '../models.mjs';
+import { sessionConfPath } from '../session.mjs';
 import { splitCap, splitMin } from '../layout.mjs';
 import { herdLabelMax } from '../herdtabs.mjs';
 import { setupHookDoctor } from '../setuptext.mjs';
@@ -133,11 +136,12 @@ export function doctorUsedKinds(ctx, env = process.env, cwd = process.cwd()) {
 // doctor_lane_warnings port (:1558): the lane/configuration warnings — the
 // explicit-panes prompt, unknown/duplicated roles, edit+review in one lane,
 // the planner in a lane, per-role kind/model under a lane kind, divergent
-// role kinds without lane.<name>.kind, the dropped lane model/effort (as an
-// ok line, so the orchestrator sees the resolution decision), the old
-// preset lanes, the orphan lane keys (a lane.<l>.<attr> whose
-// lane does not exist), the max_workers / split_max_panes alignment and
-// the role.planner.* leftovers.
+// role kinds without lane.<name>.kind, the dropped lane effort (as an ok
+// line, so the orchestrator sees the resolution decision; the dropped
+// model is a warn — doctorDiscardedModels), the old preset lanes, the
+// orphan lane keys (a lane.<l>.<attr> whose lane does not exist), the
+// max_workers / split_max_panes alignment and the role.planner.*
+// leftovers (a session layer counts like the user/project layers).
 export function doctorLaneWarnings(ctx, env = process.env, cwd = process.cwd(), say = new DoctorSay()) {
   const psrc = cfgSource(ctx, 'panes', env);
   const lanesVal = cfg(ctx, 'lanes', 'on', env);
@@ -184,18 +188,16 @@ export function doctorLaneWarnings(ctx, env = process.env, cwd = process.cwd(), 
     if (hasEdit === 1 && hasReview === 1) mixed += ` ${lane}`;
     const laneKind = laneAttr(ctx, lane, 'kind', undefined, env);
     if (laneKind !== '') {
-      // A lane model/effort sitting in a layer below the layer that set the
+      // A lane effort sitting in a layer below the layer that set the
       // lane kind was chosen for another kind: resolution drops it; report
-      // the decision as ok so the orchestrator can see it.
+      // the decision as ok so the orchestrator can see it. (The dropped
+      // lane model gets its own warn: doctorDiscardedModels.)
       const kkey = laneKey(lane, 'kind');
       const klayer = cfgLayerRank(ctx, kkey, env);
-      for (const a of ['model', 'effort']) {
-        const akey = laneKey(lane, a);
-        const avalue = cfg(ctx, akey, '', env);
-        if (avalue === '') continue;
-        if (cfgLayerRank(ctx, akey, env) < klayer) {
-          say.ok(`lanes: lane '${lane}' kind ${laneKind} (${cfgSource(ctx, kkey, env)}); ignored lane ${a} ${avalue} from ${cfgSource(ctx, akey, env)} (another kind)`);
-        }
+      const ekey = laneKey(lane, 'effort');
+      const evalue = cfg(ctx, ekey, '', env);
+      if (evalue !== '' && cfgLayerRank(ctx, ekey, env) < klayer) {
+        say.ok(`lanes: lane '${lane}' kind ${laneKind} (${cfgSource(ctx, kkey, env)}); ignored lane effort ${evalue} from ${cfgSource(ctx, ekey, env)} (another kind)`);
       }
       for (const part of roles.split(',')) {
         const r = part.trim();
@@ -297,11 +299,202 @@ export function doctorLaneWarnings(ctx, env = process.env, cwd = process.cwd(), 
     }
   }
   // compgen -v | grep '^CFG_role_planner_' port: every role.planner.* key
-  // the config layers set (compgen lists them sorted), by source.
+  // the config layers set (compgen lists them sorted), by source — the
+  // session layer counts like the user/project layers.
   for (const key of [...ctx.entries.keys()].filter((k) => k.startsWith('role_planner_')).sort()) {
     const src = cfgSource(ctx, key, env);
-    if (src === 'user' || src === 'project' || src === 'env') {
+    if (src === 'user' || src === 'project' || src === 'env' || src === 'session') {
       say.warn(`config: ${key} is set (${src}) but the planner is the orchestrator and opens no pane. Remove it (doctor --fix).`);
+    }
+  }
+}
+
+// The models the resolution drops because the kind they belong to comes
+// from a layer above their own — one warn per dropped model, the keys as
+// written in the files:
+//   config: role.<r>.model=<v> (<layer>) is ignored: role.<r>.kind=<k>
+//     comes from a higher layer (<layer>) without a model
+//   config: lane.<n>.model=<v> (<layer>) is ignored: lane.<n>.kind=<k>
+//     comes from a higher layer (<layer>) without a model
+// The frontmatter is the lowest layer: its model belongs to the
+// frontmatter's kind, and a kind from a config layer drops it (the spawn
+// falls through to model.<kind>.<position> / model.<kind> / the CLI
+// default):
+//   config: role file model '<spec>' of '<r>' is ignored: role.<r>.kind=
+//     <k> comes from a higher layer (<layer>)
+// The role check skips the planner (spawn never resolves its kind) and a
+// role that sits in a lane with its own kind: there the effective kind is
+// the lane kind and the per-lane "remove role.<r>.model" warn already
+// names the key (the frontmatter warn shares that skip — the brief text
+// names role.<r>.kind, which the lane kind does not decide).
+export function doctorDiscardedModels(ctx, env = process.env, cwd = process.cwd(), say = new DoctorSay()) {
+  if (lanesEnabled(ctx, env)) {
+    for (const lane of laneNames(ctx, env)) {
+      if (lane === '') continue;
+      const kkey = laneKey(lane, 'kind');
+      const mkey = laneKey(lane, 'model');
+      const k = cfg(ctx, kkey, '', env);
+      const m = cfg(ctx, mkey, '', env);
+      if (k === '' || m === '') continue;
+      if (cfgLayerRank(ctx, mkey, env) < cfgLayerRank(ctx, kkey, env)) {
+        say.warn(`config: lane.${lane}.model=${m} (${cfgSource(ctx, mkey, env)}) is ignored: lane.${lane}.kind=${k} comes from a higher layer (${cfgSource(ctx, kkey, env)}) without a model`);
+      }
+    }
+  }
+  const lanesOn = lanesEnabled(ctx, env);
+  const seen = new Set();
+  for (const d of roleDirs(env, cwd)) {
+    let entries;
+    try { entries = fs.readdirSync(d); } catch { continue; }
+    for (const name of entries.sort()) {
+      if (!name.endsWith('.md')) continue;
+      const r = name.slice(0, -3);
+      if (seen.has(r)) continue;
+      seen.add(r);
+      if (r === 'planner') continue;
+      const prefix = `role_${String(r).replace(/-/g, '_')}_`;
+      const kkey = `${prefix}kind`;
+      const mkey = `${prefix}model`;
+      const k = cfg(ctx, kkey, '', env);
+      const m = cfg(ctx, mkey, '', env);
+      // The effective kind is the lane kind when the role sits in a lane
+      // with its own kind; both warn forms name role.<r>.kind, so the
+      // lane-kind case stays to the per-lane warns.
+      let laneKindSet = false;
+      if (lanesOn) {
+        const lane = laneOfRole(ctx, r, env);
+        laneKindSet = lane !== '' && cfg(ctx, laneKey(lane, 'kind'), '', env) !== '';
+      }
+      if (k !== '' && m !== '' && !laneKindSet && cfgLayerRank(ctx, mkey, env) < cfgLayerRank(ctx, kkey, env)) {
+        say.warn(`config: role.${r}.model=${m} (${cfgSource(ctx, mkey, env)}) is ignored: role.${r}.kind=${k} comes from a higher layer (${cfgSource(ctx, kkey, env)}) without a model`);
+      }
+      // The frontmatter model (the lowest layer): dropped whenever the
+      // kind comes from a config layer — resolveRoleSettings discards it
+      // the same way.
+      if (k !== '' && !laneKindSet) {
+        const f = roleFile(r, env, cwd);
+        const fmModel = f ? fmGet(f, 'model') : '';
+        if (fmModel !== '') {
+          say.warn(`config: role file model '${fmModel}' of '${r}' is ignored: role.${r}.kind=${k} comes from a higher layer (${cfgSource(ctx, kkey, env)})`);
+        }
+      }
+      // The lane's own kind drops the frontmatter model the same way. A
+      // lane model would win anyway, so the warn only fires without one.
+      if (laneKindSet) {
+        const lane = laneOfRole(ctx, r, env);
+        const lkKey = laneKey(lane, 'kind');
+        const lk = cfg(ctx, lkKey, '', env);
+        const f = roleFile(r, env, cwd);
+        const fmModel = f ? fmGet(f, 'model') : '';
+        if (fmModel !== '' && cfg(ctx, laneKey(lane, 'model'), '', env) === '') {
+          say.warn(`config: role file model '${fmModel}' of '${r}' is ignored: lane.${lane}.kind=${lk} comes from a higher layer (${cfgSource(ctx, lkKey, env)})`);
+        }
+      }
+    }
+  }
+}
+
+// The layer of a resolution *From source: the trailing `(layer)` when the
+// step came from a config layer, the source text itself otherwise
+// (`role file`, `flag`).
+function sourceLayer(from) {
+  const m = String(from).match(/\(([^)]+)\)$/);
+  return m ? m[1] : String(from);
+}
+
+// modelSpecUnresolved: the spec matches no model of the kind, with the
+// same code a spawn uses (models.mjs resolveModel). resolveModel warns
+// exactly `no <kind> model matches '<spec>'; passing it through unchanged`
+// when the list is non-empty and no alternative matches; the empty-list
+// branch (CLI absent, cache absent) warns nothing and passes the spec
+// through, so an unavailable list is not a failure. A cursor spec without
+// a match dies 2 there (the strict CLI) — caught as unresolved.
+function modelSpecUnresolved(kind, spec, env) {
+  let unresolved = false;
+  const warn = (m) => {
+    if (m === `no ${kind} model matches '${spec}'; passing it through unchanged`) unresolved = true;
+  };
+  try {
+    resolveModel(kind, spec, '', env, warn);
+  } catch (e) {
+    if (e instanceof DieError) unresolved = true;
+    else throw e;
+  }
+  return unresolved;
+}
+
+// doctor_model_pairs: every effective kind+model pair is resolved against
+// the kind with the same code a spawn uses: lanes on → each lane with a
+// lane kind and a layer-effective lane model, plus — a lane with a model
+// but no lane kind → the pair the spawn assembles for each of its roles
+// (the effective lane model against the role's own effective kind, the
+// same resolution a flagless spawn runs); lanes off → each role with a
+// resolved kind and model spec. A spec that no model of the kind matches
+// warns:
+//   config: <role|lane> '<name>' model '<spec>' (<layer>) does not resolve
+//   for kind '<kind>' (<layer>)
+// (the no-lane-kind role pair adds "of role '<r>' (<layer>)"). A kind whose
+// model list is unavailable (CLI absent, cache absent) is skipped without
+// a warn; modelIds is only called for the kinds of the checked pairs, so
+// an unused kind never costs a CLI call.
+export function doctorModelPairs(ctx, env = process.env, cwd = process.cwd(), say = new DoctorSay()) {
+  const pairs = [];
+  if (lanesEnabled(ctx, env)) {
+    for (const lane of laneNames(ctx, env)) {
+      if (lane === '') continue;
+      const kind = laneAttr(ctx, lane, 'kind', null, env);
+      const spec = laneAttr(ctx, lane, 'model', null, env);
+      if (kind === '' && spec !== '') {
+        // No lane kind: the spawn applies the effective lane model to the
+        // effective kind of every role that resolves to this lane —
+        // validate each such role's pair (its own kind and the layer that
+        // decided it). A role that resolves to another lane, whose kind is
+        // unresolved, or whose resolution did not take the lane model,
+        // never gets this lane's model from a spawn.
+        const specLayer = cfgSource(ctx, laneKey(lane, 'model'), env);
+        const seen = new Set();
+        for (const r of splitRoles(laneRolesCsv(ctx, lane, env))) {
+          if (seen.has(r)) continue;
+          seen.add(r);
+          const res = resolveRoleSettings(r, ctx, env, cwd);
+          if (res.lane !== lane || res.kind === '') continue;
+          if (!(res.modelSpec === spec && res.modelFrom.startsWith(`lane ${lane} (`))) continue;
+          if (modelSpecUnresolved(res.kind, spec, env)) {
+            say.warn(`config: lane '${lane}' model '${spec}' (${specLayer}) does not resolve for kind '${res.kind}' of role '${r}' (${sourceLayer(res.kindFrom)})`);
+          }
+        }
+        continue;
+      }
+      if (kind === '' || spec === '') continue;
+      pairs.push({
+        unit: 'lane', name: lane, kind, spec,
+        specLayer: cfgSource(ctx, laneKey(lane, 'model'), env),
+        kindLayer: cfgSource(ctx, laneKey(lane, 'kind'), env),
+      });
+    }
+  } else {
+    const seen = new Set();
+    for (const d of roleDirs(env, cwd)) {
+      let entries;
+      try { entries = fs.readdirSync(d); } catch { continue; }
+      for (const name of entries.sort()) {
+        if (!name.endsWith('.md')) continue;
+        const r = name.slice(0, -3);
+        if (seen.has(r)) continue;
+        seen.add(r);
+        if (r === 'planner') continue;
+        const res = resolveRoleSettings(r, ctx, env, cwd);
+        if (res.kind === '' || res.modelSpec === '') continue;
+        pairs.push({
+          unit: 'role', name: r, kind: res.kind, spec: res.modelSpec,
+          specLayer: sourceLayer(res.modelFrom), kindLayer: sourceLayer(res.kindFrom),
+        });
+      }
+    }
+  }
+  for (const p of pairs) {
+    if (modelSpecUnresolved(p.kind, p.spec, env)) {
+      say.warn(`config: ${p.unit} '${p.name}' model '${p.spec}' (${p.specLayer}) does not resolve for kind '${p.kind}' (${p.kindLayer})`);
     }
   }
 }
@@ -377,9 +570,17 @@ export function projectIsFirstRun(ctx, env = process.env, cwd = process.cwd()) {
 // target file, apply the preset with applyLaneFile, and print the diff of
 // the simulated write (unifiedDiff; the bash diff header carries
 // a process-substitution path and a timestamp, which the JS replaces with
-// the a/<file> / b/<file> labels of the same diff format).
+// the a/<file> / b/<file> labels of the same diff format). --session
+// targets the workspace session.conf, the same way --user targets the
+// user file (and dies 2 outside a resolvable workspace).
 export function doctorFix(where, flag, ctx, env = process.env, cwd = process.cwd()) {
-  const dest = configFileFor(where, env, cwd);
+  let dest;
+  if (where === 'session') {
+    dest = sessionConfPath(ctx, env, cwd);
+    if (!dest) throw new DieError('doctor: --session needs a Herdr workspace', 2);
+  } else {
+    dest = configFileFor(where, env, cwd);
+  }
   let panes = '';
   if (flag === '' || flag === undefined) { /* panes from the file below */ }
   else if (flag === '2' || flag === '3' || flag === '4') panes = flag;
@@ -513,6 +714,8 @@ export function doctorCheck(ctx, env = process.env, cwd = process.cwd()) {
   else s.ok(`config: max_workers=${mw} (orchestrator + ${mw} workers)`);
   if (lanesEnabled(ctx, env)) doctorLaneWarnings(ctx, env, cwd, s);
   else s.ok('config: lanes=off (per-role reuse unchanged)');
+  doctorDiscardedModels(ctx, env, cwd, s);
+  doctorModelPairs(ctx, env, cwd, s);
   laneArgsIgnoredWarnings(ctx, env, cwd, s);
   const minRaw = cfg(ctx, 'split_min_pane', '0.18', env);
   if (!/^0?\.[0-9]+$/.test(minRaw)) s.warn(`config: split_min_pane='${minRaw}' must be a fraction like 0.18 (using 0.18)`);
@@ -541,9 +744,10 @@ function readTextFileSafe(file) {
   try { return readTextFile(file); } catch { return ''; }
 }
 
-// cmd_doctor port (:1755): `doctor --fix [--panes 2|3|4] [--user]` rewrites
-// the project (or user) file, then runs the check in the same process
-// (where the bash re-execs itself, unless HERDR_AGENTS_LIB=1).
+// cmd_doctor port (:1755): `doctor --fix [--panes 2|3|4] [--user|--session]`
+// rewrites the project (or user, or session) file, then runs the check in
+// the same process (where the bash re-execs itself, unless
+// HERDR_AGENTS_LIB=1).
 export function cmdDoctor(args, ctx, env = process.env, cwd = process.cwd()) {
   let doFix = 0;
   let fixPanes = '';
@@ -558,6 +762,7 @@ export function cmdDoctor(args, ctx, env = process.env, cwd = process.cwd()) {
       // JS keeps parsing and lets the file value / the die below decide).
       fixPanes = args[i] ?? '';
     } else if (a === '--user') fixWhere = 'user';
+    else if (a === '--session') fixWhere = 'session';
     else throw new DieError(`doctor: unknown option '${a}'`, 2);
   }
   if (doFix === 1) {

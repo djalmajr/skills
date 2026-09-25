@@ -25,6 +25,50 @@ refused in the mapping (opencode).
 Not bypassed by the skill (pass after `--` if you accept it): Codex
 `--dangerously-bypass-hook-trust`; first-visit workspace-trust dialogs.
 
+## Codex sandbox limits (`-s workspace-write`)
+
+Both `edits` (`-s workspace-write -a on-request`) and `full`
+(`-s workspace-write -a never`) run the Codex worker in the
+`workspace-write` sandbox, which allows the repo root, `/tmp` and
+`$TMPDIR` but:
+
+- **cannot write under `.git`** — `git mv` and `git checkout -- <file>`
+  fail on `.git/index.lock`;
+- **has no network** — binding a local port included: a test that starts
+  a local server fails with `Operation not permitted`.
+
+The composed prompt of a codex worker says so: two notes, absent when the
+opening args grant the access (`danger-full-access` or
+`--dangerously-bypass-approvals-and-sandbox` drop both; an arg ending in
+`network_access=true`, such as `-c sandbox_workspace_write.network_access=true`,
+drops the network note) — the worker must not run
+`git mv`, `git checkout`, `git add` or `git commit` (renames and restores
+go to the report; the orchestrator runs them), and it marks network tests
+`[partial]` (the orchestrator runs them). The Herdr control socket is a
+local port: from a sandboxed codex pane every `herdr` call fails with
+`Operation not permitted`, so a nested orchestrator must not be a
+sandboxed codex. Grant network only to the readers that need it:
+`role.<role>.args=-c sandbox_workspace_write.network_access=true` (with
+`lanes=off`) or `lane.<name>.args=-c …` (lanes on — a lane session is
+shared by every role in it); `args.codex=-c
+sandbox_workspace_write.network_access=true` applies it to every codex
+worker.
+
+## Cursor: the strict model list, with one pass-through
+
+The model spec of a cursor spawn is strict: `resolveModel` dies 2 before a
+pane is created when the spec matches no id of
+`cursor-agent --list-models` (the CLI rejects ids absent from the list,
+including unsupported parameterized ids). The step that appends the effort
+suffix (`<id>-<effort>`) is a second query of the list: when it does not
+confirm the resolved id, the model passes through **unchanged** with the
+warning `cursor model '<m>' not in --list-models; passing it through
+unchanged` instead of failing the spawn; the intermediate warning is
+`cursor has no '<m>-<effort>'; using '<m>' (effort = model default)`. A
+model that already ends in an effort suffix is used as-is; a different
+suffix is ignored with
+`cursor model '<m>' already encodes effort '<e>'; --effort <f> ignored`.
+
 Validated on 2026-09-20 with a read-only scouter brief on every kind above
 except `gemini` and `copilot` (not installed on the test machine). The
 generic kinds (`pi`, `opencode`) are verified from their `--help` output

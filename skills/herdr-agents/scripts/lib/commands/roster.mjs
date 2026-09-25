@@ -38,7 +38,13 @@ export function cmdRoster(ctx, env = process.env, cwd = process.cwd()) {
     const role = f[3] ?? '';
     const cwdCol = f[6] ?? '';
     const rolesHist = f.length >= 11 ? (f[10] ?? '') : '';
-    const la = live.find((x) => x && ((x.name ?? '') === name || x.pane_id === pane));
+    // The line's own agent: the same name in the same pane. A name alive
+    // in ANOTHER pane is a stale line (the recorded agent exited) and
+    // shows gone, not the other agent's state; a line without a known
+    // pane falls back to the name (any pane).
+    const la = pane === ''
+      ? live.find((x) => x && (x.name ?? '') === name)
+      : live.find((x) => x && (x.name ?? '') === name && x.pane_id === pane);
     const state = la && la.agent_status !== undefined && la.agent_status !== null ? String(la.agent_status) : 'gone';
     const repPath = lastReport(sd, name);
     let rep = 'none';

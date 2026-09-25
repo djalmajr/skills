@@ -16,7 +16,7 @@
 // so the cycles are safe under Node and Bun (like models<->kinds).
 import { cfg, cfgSource } from './config.mjs';
 import { fmGet, roleFile } from './roles.mjs';
-import { lanesEnabled, laneAttr, laneKey, laneOfRole, spawnKindLayer } from './lanes.mjs';
+import { lanesEnabled, laneAttr, laneKey, laneOfRole, spawnKindLayer, cfgLayerRank } from './lanes.mjs';
 
 // resolveRoleSettings <role> [flags]: the settings a spawn uses for `role`.
 // flags = { kind, model, effort, approvals } — empty strings when the flag
@@ -24,7 +24,9 @@ import { lanesEnabled, laneAttr, laneKey, laneOfRole, spawnKindLayer } from './l
 // Returns { lane, kind, kindFrom, modelSpec, modelFrom, effort, effortFrom,
 // approvals, approvalsFrom, kindLayer }; modelSpec is the configured spec
 // (never resolved against a CLI), and kindLayer is the reference rank for
-// the lane model/effort rule (5 = the --kind flag).
+// the model/effort layer rules (5 = the --kind flag): a lane or role
+// model from a layer below the effective kind's layer is dropped (the
+// chain continues with the next source).
 export function resolveRoleSettings(role, ctx, env = process.env, cwd = process.cwd(), flags = {}) {
   const flagKind = flags.kind ?? '';
   const flagModel = flags.model ?? '';
@@ -89,13 +91,26 @@ export function resolveRoleSettings(role, ctx, env = process.env, cwd = process.
     const v = laneAttr(ctx, lane, 'model', kindLayer, env);
     if (v !== '') { modelSpec = v; modelFrom = `lane ${lane} (${cfgSource(ctx, laneKey(lane, 'model'), env)})`; }
   }
+  // Layer rule (like the lane model): a role model only counts from the
+  // effective kind's layer up — kindLayer is 5 for --kind (a flag kind
+  // discards every configured role/lane model), the layer of the lane or
+  // role kind, or 0 when the kind sits in the frontmatter or is absent
+  // (the role model applies then, as before).
   if (modelSpec === '') {
     const v = cfg(ctx, `role_${rk}_model`, '', env);
-    if (v !== '') { modelSpec = v; modelFrom = `role config (${cfgSource(ctx, `role_${rk}_model`, env)})`; }
+    if (v !== '' && cfgLayerRank(ctx, `role_${rk}_model`, env) >= kindLayer) {
+      modelSpec = v; modelFrom = `role config (${cfgSource(ctx, `role_${rk}_model`, env)})`;
+    }
   }
+  // The frontmatter is the lowest layer: its model belongs to the
+  // frontmatter's kind. When the effective kind comes from a higher layer
+  // (config or the --kind flag), the model is dropped and the chain
+  // continues with model.<kind>.<position> / model.<kind> / the CLI
+  // default. When the kind also sits in the frontmatter (or nowhere),
+  // kindLayer is 0 and the model applies, as before.
   if (modelSpec === '') {
     const v = front('model');
-    if (v !== '') { modelSpec = v; modelFrom = 'role file'; }
+    if (v !== '' && kindLayer === 0) { modelSpec = v; modelFrom = 'role file'; }
   }
   if (modelSpec === '') {
     const v = cfg(ctx, `model_${kind}_${position}`, '', env);

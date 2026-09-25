@@ -69,7 +69,7 @@ case "$RUN_OUT" in *session*) ;; *) fail "session set did not say it is a sessio
 # --- config shows the value with source `session` --------------------------
 run_rc config
 [ "$RUN_RC" -eq 0 ] || fail "config rc $RUN_RC err $RUN_ERR"
-line="$(printf '%s\n' "$RUN_OUT" | awk '$1=="lane_build_kind" { print $2, $3 }')"
+line="$(printf '%s\n' "$RUN_OUT" | awk '$1=="lane.build.kind" { print $2, $3 }')"
 [ "$line" = "pi session" ] || fail "config session source: $line"
 printf '%s\n' "$RUN_OUT" | grep -q 'layers read:.*session' || fail "config did not list the session layer: $RUN_OUT"
 printf '%s\n' "$RUN_OUT" | grep -q "$SESSF" || fail "config did not name the session file: $RUN_OUT"
@@ -77,7 +77,7 @@ printf '%s\n' "$RUN_OUT" | grep -q "$SESSF" || fail "config did not name the ses
 # --- precedence: session > project; env > session --------------------------
 printf 'lane.build.kind=codex\n' > "$PROJ"
 run_rc config
-line="$(printf '%s\n' "$RUN_OUT" | awk '$1=="lane_build_kind" { print $2, $3 }')"
+line="$(printf '%s\n' "$RUN_OUT" | awk '$1=="lane.build.kind" { print $2, $3 }')"
 [ "$line" = "pi session" ] || fail "session must beat project: $line"
 set +e
 RUN_OUT="$(
@@ -88,7 +88,7 @@ RUN_OUT="$(
     sh "$SKILL_SCRIPT" config 2>"$TEST_ROOT/err"
 )"
 set -e
-line="$(printf '%s\n' "$RUN_OUT" | awk '$1=="lane_build_kind" { print $2, $3 }')"
+line="$(printf '%s\n' "$RUN_OUT" | awk '$1=="lane.build.kind" { print $2, $3 }')"
 [ "$line" = "grok env" ] || fail "env must beat session: $line"
 
 # --- validation: unknown key / bad value refuse and leave the file ---------
@@ -116,7 +116,7 @@ run_rc session clear
 [ "$RUN_RC" -eq 0 ] || fail "session clear rc $RUN_RC err $RUN_ERR"
 [ -f "$SESSF" ] && fail "clear left the session file: $(cat "$SESSF")"
 run_rc config
-line="$(printf '%s\n' "$RUN_OUT" | awk '$1=="lane_build_kind" { print $2, $3 }')"
+line="$(printf '%s\n' "$RUN_OUT" | awk '$1=="lane.build.kind" { print $2, $3 }')"
 [ "$line" = "codex project" ] || fail "after clear, project value must win: $line"
 run_rc session show
 [ "$RUN_RC" -eq 0 ] || fail "session show on empty rc $RUN_RC err $RUN_ERR"

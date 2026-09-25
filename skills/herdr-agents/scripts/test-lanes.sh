@@ -50,7 +50,7 @@ case "\$1 \$2" in
     case "\$mode" in
       working) printf '{"result":{"agent":{"name":"%s","agent_status":"working"}}}\n' "\$target" ;;
       blocked) printf '{"result":{"agent":{"name":"%s","agent_status":"blocked"}}}\n' "\$target" ;;
-      gone)
+      gone|gone-until-start)
         printf '%s\n' '{"error":{"code":"agent_not_found","message":"gone"}}' >&2
         exit 1 ;;
       *) printf '{"result":{"agent":{"name":"%s","agent_status":"idle"}}}\n' "\$target" ;;
@@ -58,7 +58,10 @@ case "\$1 \$2" in
   "agent list")
     if [ -f "$TEST_ROOT/live.json" ]; then cat "$TEST_ROOT/live.json"
     else printf '%s\n' '{"result":{"agents":[]}}'; fi ;;
-  "agent start") printf '%s\n' '{"result":{"started":true}}' ;;
+  "agent start")
+    # gone-until-start: the old worker is gone; the one this start opens lives.
+    [ "\$mode" = gone-until-start ] && printf '%s\n' idle > "$MODE"
+    printf '%s\n' '{"result":{"started":true}}' ;;
   "agent prompt") printf '%s\n' '{"result":{"submitted":true}}' ;;
   "agent read") cat "$SCREEN" ;;
   "pane list") printf '%s\n' '{"result":{"panes":[]}}' ;;
@@ -228,7 +231,7 @@ grep -q 'agent start' "$TEST_ROOT/herdr.log" && fail "busy started a pane"
 reset_roster
 add_worker build implementer build
 printf '%s\n' '{"result":{"agents":[]}}' > "$TEST_ROOT/live.json"
-printf '%s\n' gone > "$MODE"
+printf '%s\n' gone-until-start > "$MODE"
 run_cmd spawn implementer
 [ "$RUN_RC" = 0 ] || fail "gone rc $RUN_RC err $RUN_ERR out $RUN_OUT"
 grep -q 'agent start' "$TEST_ROOT/herdr.log" || fail "gone did not start"
@@ -347,14 +350,15 @@ run_cmd spawn implementer
 printf '%s\n' "$RUN_OUT" | jq -e '.kind=="pi" and .effort=="max"' >/dev/null \
   || fail "layered effort json: $RUN_OUT"
 
-# 5) doctor reports the dropped lane model as an ok decision line (scenario 1).
+# 5) doctor warns about the dropped lane model (scenario 1): the model comes
+#    from a lower layer (user) than the lane kind (project).
 printf '%s\n' 'lane.build.kind=grok' 'lane.build.model=grok-4.7' > "$USER_CONF"
 printf '%s\n' 'lane.build.kind=codex' 'model.codex.worker=gpt-6-luna' > "$PROJ_CONF"
 run_cmd doctor
 [ "$RUN_RC" = 0 ] || fail "doctor rc $RUN_RC err $RUN_ERR"
-okline="$(printf '%s\n' "$RUN_OUT" | grep -F "lanes: lane 'build' kind codex (project); ignored lane model grok-4.7 from user (another kind)" | head -n1 || true)"
-[ -n "$okline" ] || fail "doctor missed the layer decision: $RUN_OUT"
-case "$okline" in ok\ *) ;; *) fail "layer decision is not an ok line: $okline" ;; esac
+warnline="$(printf '%s\n' "$RUN_OUT" | grep -F "config: lane.build.model=grok-4.7 (user) is ignored: lane.build.kind=codex comes from a higher layer (project) without a model" | head -n1 || true)"
+[ -n "$warnline" ] || fail "doctor missed the layer decision: $RUN_OUT"
+case "$warnline" in warn\ *) ;; *) fail "layer decision is not a warn line: $warnline" ;; esac
 rm -f "$USER_CONF" "$PROJ_CONF"
 
 # 6) --kind is the top layer for the rule in the reuse check too: a second

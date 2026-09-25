@@ -262,6 +262,67 @@ test('roles: lane.<l>.kind/model/effort decide for the roles of the lane', (t) =
   } finally { s.cleanup(); }
 });
 
+test('roles: a role model from a layer below the effective kind shows the model that is left', (t) => {
+  const s = setup();
+  try {
+    const user = path.join(s.env.XDG_CONFIG_HOME, 'herdr-agents', 'config');
+    const userConf = (text) => {
+      fs.mkdirSync(path.dirname(user), { recursive: true });
+      fs.writeFileSync(user, text);
+    };
+    // The kind sits in a higher layer (project) than the model (user): the
+    // table shows what a flagless spawn would use — nothing for pi, so the
+    // model column is empty (the CLI decides).
+    userConf('role.implementer.model=user-model\n');
+    const { row } = rolesTable(s, 'role.implementer.kind=pi\n');
+    let x = row('implementer');
+    assert.deepEqual([x.kind, x.model], ['pi', '-'], 'the user model under the project kind is dropped');
+    assert.equal(x.from,
+      `kind: role config (project); model: default; effort: role file; file: ${path.join(skillDir(), 'roles', 'implementer.md')}`);
+    // The other direction: the model at a higher layer than the kind
+    // applies.
+    userConf('role.implementer.kind=pi\n');
+    const { row: row2 } = rolesTable(s, 'role.implementer.model=project-model\n');
+    x = row2('implementer');
+    assert.deepEqual([x.kind, x.model], ['pi', 'project-model']);
+    assert.equal(x.from,
+      `kind: role config (user); model: role config (project); effort: role file; file: ${path.join(skillDir(), 'roles', 'implementer.md')}`);
+    // A lane model below the lane kind is dropped the same way (the table
+    // shows the model that is left: nothing here, so the CLI decides).
+    userConf('lane.build.model=lane-user-model\n');
+    const { row: row3 } = rolesTable(s, 'lane.build.kind=pi\n');
+    x = row3('implementer');
+    assert.deepEqual([x.kind, x.model], ['pi', '-'], 'the user lane model under the project lane kind is dropped');
+    assert.equal(x.from,
+      `kind: lane build (project); model: default; effort: role file; file: ${path.join(skillDir(), 'roles', 'implementer.md')}`);
+    // Mutation captured: the table showing the dropped model (the old
+    // resolution) instead of the one that is left, or a FROM that names
+    // the dropped source.
+  } finally { s.cleanup(); }
+});
+
+test('roles: the frontmatter model is dropped when the kind comes from a config layer', { timeout: 60000 }, (t) => {
+  const s = setup();
+  try {
+    // ui-reviewer: the frontmatter holds kind agy and model gemini|sonnet.
+    // A project role kind drops the frontmatter model — the table shows
+    // what a flagless spawn would use (model.grok.worker from the
+    // defaults).
+    const { row } = rolesTable(s, 'role.ui-reviewer.kind=grok\n');
+    const x = row('ui-reviewer');
+    assert.deepEqual([x.kind, x.model], ['grok', 'grok'], 'the frontmatter model is dropped');
+    assert.equal(x.from,
+      `kind: role config (project); model: model.grok.worker (defaults); effort: effort.grok (defaults); file: ${path.join(skillDir(), 'roles', 'ui-reviewer.md')}`);
+    // No config kind: the kind and the model both come from the
+    // frontmatter (layer 0) and the model applies.
+    const { row: row2 } = rolesTable(s, '');
+    assert.deepEqual([row2('ui-reviewer').kind, row2('ui-reviewer').model], ['agy', 'gemini|sonnet']);
+    // Mutation captured: the frontmatter model kept under a config kind
+    // (the first row would show gemini|sonnet) or dropped when the kind
+    // also sits in the frontmatter (the second would show the default).
+  } finally { s.cleanup(); }
+});
+
 test('roles: effort.<kind> and empty values (dashes, default sources)', (t) => {
   const s = setup();
   try {

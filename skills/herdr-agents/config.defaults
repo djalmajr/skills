@@ -115,6 +115,15 @@ multi_role=on
 # Owned files, Forbidden, Report, a no-commit line): warn | strict | off.
 brief_lint=warn
 
+# Alternate headings for the brief section lint: comma-separated items
+# Section=Heading|Heading (Section one of Goal, Expected result, Owned
+# files, Forbidden, Report — the no-commit line has no heading to alias).
+# A level 1-3 header that starts with one of a section's headings,
+# case-insensitive, satisfies the section. A malformed item is ignored
+# with a warning; the valid items still apply. Empty = standard headings
+# only. Example: brief_lint_aliases=Goal=Objective|Purpose
+brief_lint_aliases=
+
 # Default approvals for roles that do not set one: ask | edits | full.
 approvals=ask
 

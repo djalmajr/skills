@@ -129,7 +129,9 @@ $S title "slice 2"                   # this pane: `orchestrator: slice 2`
 $S roles
 $S spawn implementer                 # the agent is named after its lane (`build`)
 $S dispatch build brief.md           # waits for the report file
-$S collect build                     # prints the report
+$S collect build [--verify]          # prints the report; --verify re-checks its sha256 lines (exit 16 on changed/missing, 4 if unreadable)
+$S stats [--since <date>] [--json]   # tasks, times and review findings per role (the four review roles); <date> is YYYY-MM-DD or ISO 8601
+$S friction add "<text>" [--brief P] # record one friction note (level note, command friction)
 $S run scouter brief.md               # spawn + dispatch + collect
 $S wait build review                 # block until every report exists
 $S roster
@@ -156,16 +158,37 @@ prompt` by hand: `wait` would keep watching the old report.
   the chosen model's own ceiling on top for codex; cursor and grok
   `xhigh`; agy and gemini `high`). Without it the agent keeps its own
   configured default. Cursor encodes effort in the model id, so pass
-  `--model` too.
+  `--model` too: the spec is strict (spawn dies 2 before a pane when it
+  matches no id of `cursor-agent --list-models`), but the step that
+  appends the effort suffix passes the model through unchanged with a
+  warning (`cursor model '<m>' not in --list-models; passing it through
+  unchanged`) when the list does not confirm the resolved id.
 - `--approvals full` removes tool and MCP prompts (each CLI's own flags,
   inside its sandbox). Hook-trust and first-visit trust dialogs are left
   to you; pass the native flag after `--` if you want them gone.
 - State lives in `<repo>/.herdr-agents/` (gitignored) so sandboxed workers
   can write their reports. Codex denies writes under `.agents/` and
   `.codex/`, so the state deliberately avoids those. `clean` removes old
-  briefs and reports.
+  briefs and reports. The codex `workspace-write` sandbox is narrower than
+  that: it cannot write under `.git` (`git mv`, `git checkout -- <file>`
+  fail on `.git/index.lock`) and has no network, local ports included. The
+  worker's prompt says so; the orchestrator runs the git operations and
+  the network tests, or grants network with
+  `role.<role>.args`/`lane.<name>.args=-c
+  sandbox_workspace_write.network_access=true`.
 - Herdr reports lifecycle state, not turns; `dispatch` waits for the
   report file, not just for `idle`.
+- A CLI that updates itself at start and exits (the Codex auto-update) is
+  relaunched once by `spawn`, in the same pane with the same args; an exit
+  without the update marker makes `spawn` exit 4 with the last screen
+  lines. A roster line whose name is alive in another pane shows `gone`
+  (it is stale: the recorded agent died); `max_workers` counts a line only
+  when a live agent with the same name sits in the line's pane, and a
+  spawn reusing a name removes the stale line.
+- A Claude Code orchestrator's Bash caps each call at 10 minutes: run
+  `wait` (or a waiting `dispatch`) in the background with the harness's
+  own notification, not `timeout` in front; `wait --any` exits 0 as soon
+  as one report lands, so run it again for the rest.
 - One agent name is one growing session. Spawn a new agent when slices
   must not share context.
 - `release --close` ends the agent; without `--close` it keeps running.
@@ -176,7 +199,19 @@ prompt` by hand: `wait` would keep watching the old report.
 (user) → `<repo>/.agents/herdr-agents.conf` (project) →
 `<state>/session.conf` (this Herdr workspace, via `session set`, never
 versioned) → `HERDR_AGENTS_<KEY>` → flags. `herdr-agents config` shows the
-effective values and where each came from. The team shape lives in the
+effective values and where each came from (scalar keys, then the dotted
+`args.*`/`role.*`/`model.*`/`effort.*`/`lane.*` keys in the file's own
+spelling). `brief_lint_aliases` sets alternate brief section headings.
+Kind and model travel together per layer: a lane or role model from a
+layer below the layer that set the effective kind is discarded, and
+`--kind` without `--model` discards every configured lane/role model;
+the role file's own `model` is discarded too when the kind comes from a
+config layer or a flag. `doctor` warns about a discarded model and about
+a kind+model pair that does not resolve against the kind's model list;
+a lane with a model but no kind is checked against the kind of each of
+its roles. `doctor --fix
+[--panes 2|3|4] [--user|--session]` normalizes the project, user or
+session file (`--session` exits 2 outside a resolvable workspace). The team shape lives in the
 same place: `panes` (2|3|4), `lanes` (on|off), `pane_mode` (`strict|flex`)
 and per-lane keys
 (`lane.<name>.roles|kind|model|effort|approvals|panes|args`). Two more keys
@@ -233,7 +268,10 @@ there is headroom (shipped: `effort.grok=xhigh`, `effort.cursor=xhigh`).
 `--approvals full` maps to each CLI's non-interactive flags. When a dialog
 still appears, `auto_approve=on` in the config answers it with the CLI's
 default "yes" and keeps waiting (bounded by `max_auto_approvals`, every
-answer logged). A **question** — a decision prompt — is never answered for
+answer logged). The same dialog a third time in a row is left blocked
+(`auto_approve: the same dialog came back 3 times for '<agent>'; leaving it
+blocked`) and the `blocked` JSON line carries the dialog in `dialog`. A
+**question** — a decision prompt — is never answered for
 the worker: the wait reports `question` (exit 7) and a person decides. Off
 by default: a blocked worker is reported and a person decides.
 
@@ -244,6 +282,17 @@ Lessons from real runs are enforced by the script, not just documented:
 brief structure (read-only roles need no `Owned files`), the reviewer family check is strict by default, and every
 error or warning lands in `herdr-agents friction` for review at the end of
 a run.
+The brief lint names the reason of every missing section in the warning
+(`Goal` — the worker does not know what the slice is for; `Expected
+result` — nothing says when the slice is done; `Owned files` — workers
+without owned files collide; `Forbidden` — nothing keeps the worker out of
+other files; `Report` — the worker may never write one; the no-commit line
+— the worker may commit or push) and flags the empty-inline-code symptom
+(`brief_lint=warn|strict`; `off` silences it). `brief_lint_aliases`
+(`Section=Heading|Heading` items) lets an alternate heading prefix satisfy
+a section. `friction add "<text>" [--brief <path>]` records an observed
+friction the tools do not log themselves; every line of the log keeps its
+four columns (date, level, command, message).
 
 ## Waiting for workers
 
@@ -293,6 +342,28 @@ a pass; read them before commit, push or release`. The `dispatch` JSON
 carries the same `partial: N` right after `report_exists` (after `amend`,
 when present).
 
+Review reports open with the fixed first line
+`findings: N (P0 a, P1 b, P2 c, P3 d) | verdict: pass|fail` (English
+whatever the report language; `fail` when a P0 or P1 remains): a `done`
+JSON line of such a report gains `verdict`, `findings` and `severity`
+(after `report`, before `partial`), and the `dispatch` JSON carries the
+same fields right after `report_exists`. The wait warns on a review report
+without the header and on a header whose P0..P3 sum differs from
+`findings` (the numbers are kept as parsed, never recomputed). The review
+roles tell the worker to run a test before calling it wrong, and to say so
+when it cannot run it — reading the code is not proof that a test fails.
+
+The `dispatch` JSON is one line with `wait_status` first (`dispatch … |
+tail -1` returns the whole JSON). Before the send, `dispatch` warns when
+the new brief owns files another worker is still editing (advisory, up to
+five paths). A codex worker's composed prompt carries the sandbox notes —
+no writing under `.git`, no network (local ports included) — unless its
+opening args grant the access. An `unavailable` that is a `herdr agent
+get` killed by a signal (exit ≥ 128, e.g. 137 under load) is retried
+(after 1 s, then 2 s) before counting; the cause then names the signal
+(`herdr agent get was killed (exit <rc>, <signal>: memory pressure or an
+external kill)`).
+
 ## Reusing workers
 
 `reuse_workers=on` (the default, or `spawn --reuse`) hands back an idle
@@ -323,8 +394,10 @@ was proved. The full contract is in
 ## When something goes wrong
 
 `skills/herdr-agents/references/troubleshooting.md` lists every failure
-seen while validating the skill (sandbox denials, premature `done`, Cursor
-model syntax, startup dialogs, focus, command guards) with the fix and the
+seen while validating the skill (sandbox denials — including `.git` and
+network — premature `done`, Cursor model syntax, startup dialogs, a codex
+CLI that updates itself at start, focus, command guards, stale roster
+lines, an `auto_approve` dialog that loops) with the fix and the
 validation procedure for a new kind.
 
 ## Requirements

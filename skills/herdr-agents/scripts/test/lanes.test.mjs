@@ -1011,3 +1011,140 @@ test('liveBurstWorkers: only the temporary (burst) workers that are live', () =>
     // a live burst worker that is gone.
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+// A roster row without a pane (column 2 empty): the live rule then
+// matches by name alone.
+const rowNoPane = (name, role, lane) =>
+  [name, '', 'grok', role, 'xai', '1', '/repo', 'now', 'grok-4.7', 'full', role, lane].slice(0, 12);
+
+test('liveWorkerNames: a row counts only when its name is live in the same pane', { timeout: 60000 }, () => {
+  const root = tmp('ha-lanes-livepane-');
+  try {
+    const env = isoEnv(root);
+    const bin = path.join(root, 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    writeFakeCli(bin, 'herdr', FAKE_LIVE);
+    const live = path.join(root, 'live.json');
+    const full = { ...env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}`, HA_LIVE: live };
+    const sd = path.join(root, 'state', 'ws-test');
+    fs.mkdirSync(sd, { recursive: true });
+    // Rows:
+    //  w1  — live in the SAME pane (counts)
+    //  w2  — live in ANOTHER pane (an orphan line of a renamed/moved agent:
+    //        does not count)
+    //  w3  — not live at all (does not count)
+    //  w4  — a second line for the name w1 (a stale duplicate): deduped to
+    //        one count
+    //  w5  — no pane on the line: counts when the name is live anywhere
+    const mkRow = (name, pane, role = 'implementer') =>
+      [name, pane, 'grok', role, 'xai', '1', '/repo', 'now', 'grok-4.7', 'full', role, ''].slice(0, 12);
+    fs.writeFileSync(path.join(sd, 'agents.tsv'),
+      ROSTER + [
+        mkRow('w1', 'p-w1'),
+        mkRow('w2', 'p-w2old'),
+        mkRow('w3', 'p-w3'),
+        mkRow('w1', 'p-w1dup'),
+        rowNoPane('w5', 'implementer', ''),
+      ].map((r) => r.join('\t')).join('\n') + '\n');
+    fs.writeFileSync(live, JSON.stringify({ result: { agents: [
+      { name: 'w1', pane_id: 'p-w1' },
+      { name: 'w2', pane_id: 'p-elsewhere' },
+      { name: 'w5', pane_id: 'p-w5' },
+    ] } }) + '\n');
+    assert.deepEqual(liveWorkerNames(sd, full), ['w1', 'w5'],
+      'same-pane live + name-only (no pane on the line); other-pane and dead lines dropped');
+    // The same name alive in the line's pane counts once, even with a
+    // second stale line for it.
+    fs.writeFileSync(live, JSON.stringify({ result: { agents: [
+      { name: 'w1', pane_id: 'p-w1' },
+    ] } }) + '\n');
+    assert.deepEqual(liveWorkerNames(sd, full), ['w1'], 'no duplicate count for the name');
+    // Mutation captured: counting by name only (w2 would count while alive
+    // in another pane), counting the duplicate line twice, or requiring a
+    // pane on the line (w5 would drop).
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('enforceWorkerCap: a name alive in another pane does not count toward the cap', { timeout: 60000 }, () => {
+  const root = tmp('ha-lanes-cappane-');
+  try {
+    const env = isoEnv(root);
+    const bin = path.join(root, 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    writeFakeCli(bin, 'herdr', FAKE_LIVE);
+    const live = path.join(root, 'live.json');
+    const full = { ...env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}`, HA_LIVE: live };
+    const sd = path.join(root, 'state', 'ws-test');
+    fs.mkdirSync(sd, { recursive: true });
+    const mkRow = (name, pane, role = 'implementer') =>
+      [name, pane, 'grok', role, 'xai', '1', '/repo', 'now', 'grok-4.7', 'full', role, 'build'].slice(0, 12);
+    // Two live agents: one in the line's pane (w1) and one of a name with
+    // a line in ANOTHER pane (w2). Only w1 counts, so the cap of 2 is not
+    // reached with these two lines.
+    fs.writeFileSync(path.join(sd, 'agents.tsv'),
+      ROSTER + [mkRow('w1', 'p-w1'), mkRow('w2', 'p-w2old')].map((r) => r.join('\t')).join('\n') + '\n');
+    fs.writeFileSync(live, JSON.stringify({ result: { agents: [
+      { name: 'w1', pane_id: 'p-w1' },
+      { name: 'w2', pane_id: 'p-elsewhere' },
+    ] } }) + '\n');
+    fs.writeFileSync(projectConf(root), 'max_workers=2\n');
+    const c = loadConfig(full, repoCwd(root));
+    assert.doesNotThrow(() => enforceWorkerCap(c, full, repoCwd(root)), 'only the same-pane live worker counts');
+    // With the live agent back in the line's pane, both lines count and
+    // the cap of 2 is reached: the message lists exactly the two.
+    fs.writeFileSync(live, JSON.stringify({ result: { agents: [
+      { name: 'w1', pane_id: 'p-w1' },
+      { name: 'w2', pane_id: 'p-w2old' },
+    ] } }) + '\n');
+    assert.throws(() => enforceWorkerCap(c, full, repoCwd(root)), (e) =>
+      e instanceof DieError && e.code === 8 && e.message.includes('2 live: w1 w2'),
+      'both same-pane live lines count');
+    // Three lines, all same-pane live, cap raised to 3: at the cap, the
+    // message lists only the counted ones.
+    fs.writeFileSync(projectConf(root), 'max_workers=3\n');
+    const c3 = loadConfig(full, repoCwd(root));
+    fs.writeFileSync(path.join(sd, 'agents.tsv'),
+      ROSTER + [mkRow('w1', 'p-w1'), mkRow('w2', 'p-w2old'), mkRow('w3', 'p-w3')].map((r) => r.join('\t')).join('\n') + '\n');
+    fs.writeFileSync(live, JSON.stringify({ result: { agents: [
+      { name: 'w1', pane_id: 'p-w1' }, { name: 'w2', pane_id: 'p-w2old' }, { name: 'w3', pane_id: 'p-w3' },
+    ] } }) + '\n');
+    assert.throws(() => enforceWorkerCap(c3, full, repoCwd(root)), (e) =>
+      e instanceof DieError && e.code === 8 && e.message.includes('3 live: w1 w2 w3'),
+      'at the cap with three same-pane live workers');
+    // Mutation captured: counting the other-pane line toward the cap (the
+    // two-line case would throw), or the cap message listing a worker that
+    // is not same-pane live.
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('liveBurstWorkers: the same name-and-pane live rule as liveWorkerNames', { timeout: 60000 }, () => {
+  const root = tmp('ha-lanes-burstpane-');
+  try {
+    const env = isoEnv(root);
+    const bin = path.join(root, 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    writeFakeCli(bin, 'herdr', FAKE_LIVE);
+    const live = path.join(root, 'live.json');
+    const full = { ...env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}`, HA_LIVE: live };
+    const sd = path.join(root, 'state', 'ws-test');
+    fs.mkdirSync(sd, { recursive: true });
+    // b1 is live in its pane (counts); b2 is live in ANOTHER pane (an
+    // orphan burst line: does not count).
+    const burstAt = (name, pane, role = 'documenter') =>
+      [name, pane, 'grok', role, 'xai', '1', '/repo', 'now', 'grok-4.7', 'full', role, 'docs', 'burst'];
+    fs.writeFileSync(path.join(sd, 'agents.tsv'),
+      ROSTER + [burstAt('b1', 'p-b1'), burstAt('b2', 'p-b2old')].map((r) => r.join('\t')).join('\n') + '\n');
+    fs.writeFileSync(live, JSON.stringify({ result: { agents: [
+      { name: 'b1', pane_id: 'p-b1' },
+      { name: 'b2', pane_id: 'p-elsewhere' },
+    ] } }) + '\n');
+    assert.deepEqual(liveBurstWorkers(sd, full), ['b1'], 'the other-pane burst line does not count');
+    fs.writeFileSync(live, JSON.stringify({ result: { agents: [
+      { name: 'b1', pane_id: 'p-b1' },
+      { name: 'b2', pane_id: 'p-b2old' },
+    ] } }) + '\n');
+    assert.deepEqual(liveBurstWorkers(sd, full), ['b1', 'b2'], 'same-pane burst lines count');
+    // Mutation captured: counting a burst line by name only (b2 would
+    // count while alive in another pane).
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

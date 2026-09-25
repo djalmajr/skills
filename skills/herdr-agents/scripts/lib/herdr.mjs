@@ -172,6 +172,25 @@ export function agentState(target, env = process.env, timeoutMs = HERDR_TIMEOUT_
     const cause = sanitizeCause(`${code}: ${msg}`);
     return { state: 'unavailable', cause: cause || `herdr agent get failed (exit ${rc})`, seq };
   }
+  // A `herdr agent get` killed by a signal after the transient retries are
+  // spent (the spawn's signal, or an exit 128+N): name the signal and the
+  // likely cause instead of the bare exit code — a SIGKILL here is memory
+  // pressure or an external kill, and acting on the wrong assumption is
+  // worse than the bare code.
+  const sigNameOf = (n) => {
+    if (!Number.isInteger(n) || n < 1) return '';
+    const hit = Object.entries(os.constants.signals).find(([, num]) => num === n);
+    return hit ? hit[0] : '';
+  };
+  const signal = (typeof r.signal === 'string' && r.signal !== '' ? r.signal : '')
+    || (rc > 128 ? sigNameOf(rc - 128) : '');
+  if (signal) {
+    return {
+      state: 'unavailable',
+      cause: `herdr agent get was killed (exit ${rc}, ${signal}: memory pressure or an external kill)`,
+      seq,
+    };
+  }
   if (!raw) raw = `herdr agent get failed (exit ${rc})`;
   const cause = sanitizeCause(raw);
   return { state: 'unavailable', cause: cause || `herdr agent get failed (exit ${rc})`, seq };

@@ -9,14 +9,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { die, readTextFile, projectRoot, userConfigPath, atomicWrite } from './platform.mjs';
-import { roleFile } from './roles.mjs';
+import { roleFile, roleDirs } from './roles.mjs';
 import { sessionConfPath } from './session.mjs';
+// Function-level use only (dottedKeyName), so the config<->lanes cycle is
+// safe under Node and Bun (like roles<->resolve).
+import { laneNames } from './lanes.mjs';
 
 export const CONFIG_SCALAR_KEYS = [
   'orchestrator_name', 'layout', 'regrid', 'max_workers', 'split_max_panes',
   'split_min_pane', 'herd_label', 'herd_label_max', 'reuse_workers',
   'multi_role', 'panes', 'lanes', 'pane_mode', 'flex_extra', 'flex_roles',
-  'worker_context', 'brief_lint', 'approvals',
+  'worker_context', 'brief_lint', 'brief_lint_aliases', 'approvals',
   'auto_approve', 'max_auto_approvals', 'max_effort', 'family_check',
   'settled_grace', 'spawn_timeout', 'dispatch_timeout', 'provider_retries',
   'provider_retry_delay', 'prompt_check_seconds', 'stuck_warn_minutes', 'state_dir',
@@ -65,11 +68,14 @@ function loadConfigFile(file, label, ctx) {
     if (!line) continue;
     const eq = line.indexOf('=');
     if (eq === -1) continue;
-    const key = normalizeKey(line.slice(0, eq));
+    const rawKey = line.slice(0, eq).trim();
+    const key = normalizeKey(rawKey);
     let val = line.slice(eq + 1).trim();
     if (val.length >= 2 && val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
     if (!key) continue;
-    ctx.entries.set(key, { value: val, source: label });
+    // original: the key as written in the file (dotted, unnormalized) —
+    // the `config` table shows the names the files and `session set` use.
+    ctx.entries.set(key, { value: val, source: label, original: rawKey });
   }
 }
 
@@ -297,17 +303,92 @@ function pad(s, n) {
   return s.length >= n ? s : s + ' '.repeat(n - s.length);
 }
 
+// dottedKeyName: the dotted spelling of a normalized dotted key for the
+// `config` table, for a key that only exists in the environment
+// (HERDR_AGENTS_* — the files do not hold an original spelling then):
+// args.<kind> / effort.<kind> join with dots; model.<kind>[.worker|
+// orchestrator] keeps its position; the role and lane middles are restored
+// to a known role name (a role file) or lane name (the effective lanes) —
+// the known spelling when the NORMALIZED names agree ('-' and '_' as the
+// same character: a file lane.build-ui_v2.roles makes build-ui_v2 known),
+// the underscored middle otherwise.
+export function dottedKeyName(key, ctx, env = process.env, cwd = process.cwd()) {
+  const parts = String(key).split('_');
+  const head = parts[0] ?? '';
+  if (head === 'args' || head === 'effort') return parts.join('.');
+  if (head === 'model') {
+    const position = parts[parts.length - 1];
+    if (parts.length >= 3 && (position === 'worker' || position === 'orchestrator')) {
+      return `model.${parts.slice(1, -1).join('.')}.${position}`;
+    }
+    return parts.join('.');
+  }
+  if ((head === 'role' || head === 'lane') && parts.length >= 3) {
+    const attr = parts[parts.length - 1];
+    const middle = parts.slice(1, -1).join('_');
+    // The known spellings, by normalized name ('-' and '_' as the same
+    // character) — the files' own spellings first (what the user wrote),
+    // the effective lane names then (all underscores: file middles are
+    // normalized, shell names cannot carry a hyphen).
+    const norm = (s) => s.replace(/-/g, '_');
+    const known = new Map();
+    if (head === 'role') {
+      for (const d of roleDirs(env, cwd)) {
+        let entries;
+        try { entries = fs.readdirSync(d); } catch { continue; }
+        for (const name of entries) {
+          if (!name.endsWith('.md')) continue;
+          const r = name.slice(0, -3);
+          if (!known.has(norm(r))) known.set(norm(r), r);
+        }
+      }
+    } else {
+      for (const k of ctx.entries.keys()) {
+        if (!k.startsWith('lane_')) continue;
+        const e = ctx.entries.get(k);
+        if (!e || e.original === undefined) continue;
+        const om = String(e.original).match(/^lane\.([A-Za-z0-9_-]+)\./);
+        if (!om) continue;
+        const spelling = om[1];
+        if (!known.has(norm(spelling))) known.set(norm(spelling), spelling);
+      }
+      for (const l of laneNames(ctx, env)) {
+        if (!known.has(norm(l))) known.set(norm(l), l);
+      }
+    }
+    const spelling = known.get(norm(middle));
+    if (spelling !== undefined) return `${head}.${spelling}.${attr}`;
+    return `${head}.${middle}.${attr}`;
+  }
+  return parts.join('.');
+}
+
 // cmd_config() port: KEY VALUE SOURCE table for the scalar keys (in order),
-// then the dotted keys (args/role/model/effort/lane, sorted), then the layers
-// and the layer file paths.
+// then the dotted keys (args/role/model/effort/lane, sorted) — the file's
+// own spelling when a layer holds the key, the rebuilt dotted name for a
+// key that only exists in the environment — then the layers and the layer
+// file paths.
 export function cmdConfig(ctx, env = process.env, cwd = process.cwd()) {
   const row = (k, v, s) => `${pad(k, 18)} ${pad(v, 30)} ${s}`;
   const lines = [row('KEY', 'VALUE', 'SOURCE')];
   for (const k of CONFIG_SCALAR_KEYS) lines.push(row(k, cfg(ctx, k, '', env), cfgSource(ctx, k, env)));
-  const dotted = [...ctx.entries.keys()]
-    .filter((k) => /^(args|role|model|effort|lane)_/.test(k))
-    .sort();
-  for (const k of dotted) lines.push(row(k, cfg(ctx, k, '', env), cfgSource(ctx, k, env)));
+  const dotted = new Set();
+  for (const k of ctx.entries.keys()) {
+    if (/^(args|role|model|effort|lane)_/.test(k)) dotted.add(k);
+  }
+  // A dotted key that only the environment defines (HERDR_AGENTS_<KEY>):
+  // cfg() never sees it through a file layer, so list it from the env itself
+  // (empty env values count as unset, like the rest of cfg).
+  for (const [name, value] of Object.entries(env)) {
+    if (!name.startsWith('HERDR_AGENTS_') || value === '') continue;
+    const k = normalizeKey(name.slice('HERDR_AGENTS_'.length)).toLowerCase();
+    if (/^(args|role|model|effort|lane)_/.test(k)) dotted.add(k);
+  }
+  for (const k of [...dotted].sort()) {
+    const e = ctx.entries.get(k);
+    const name = e && e.original !== undefined ? e.original : dottedKeyName(k, ctx, env, cwd);
+    lines.push(row(name, cfg(ctx, k, '', env), cfgSource(ctx, k, env)));
+  }
   lines.push(`\nlayers read:${ctx.sources.length ? ' ' + ctx.sources.join(' ') : ' (none)'}`);
   lines.push(`user file:    ${userConfigPath(process.platform, env)}`);
   lines.push(`project file: ${path.join(projectRoot(env, cwd), '.agents', 'herdr-agents.conf')}`);

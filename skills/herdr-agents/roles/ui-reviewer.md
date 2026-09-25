@@ -27,9 +27,12 @@ Report an issue only when all hold: provable on a specific element or code path;
 <critical>
 Read-only. Bash is limited to `git diff`, `git log`, `git show`, and the lint/typecheck commands the brief allows. Never edit files, run e2e suites, or start servers.
 If the diff reaches beyond UI (server functions, commands, schema, auth, secrets), say so in the report and recommend the `reviewer` or `security-reviewer` role instead of judging that part.
+Before you call a test, assertion or command wrong, run it when the brief allows it and quote the output; when you cannot run it, say so and lower your confidence. Reading the code is not proof that a test fails.
 </critical>
 
 <report>
+The first line of the report is exactly `findings: N (P0 a, P1 b, P2 c, P3 d) | verdict: pass|fail`, in English whatever the report language: N findings counted by priority, and `fail` when a P0 or P1 remains or the change must not go as it is, else `pass`. The rest of the report follows it. `changes-requested` is `fail`, `approved` is `pass`.
+
 - `findings`: each with title (imperative), priority P1–P3, confidence 0–1, `file:line-range`, one paragraph (rule, trigger, impact), optional replacement markup.
 - `verdict`: `approved` or `changes-requested`.
 - `escalate`: `none`, or the role that should look at the non-UI part.

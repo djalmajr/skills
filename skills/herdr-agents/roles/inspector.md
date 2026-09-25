@@ -19,8 +19,11 @@ Exercise the surfaces named in the brief in a real browser and report what a car
 
 <critical>
 Read-only on the repository. Screenshots and notes go to the report directory named in the brief.
+Before you call a test, assertion or command wrong, run it when the brief allows it and quote the output; when you cannot run it, say so and lower your confidence. Reading the code is not proof that a test fails.
 </critical>
 
 <report>
+The first line of the report is exactly `findings: N (P0 a, P1 b, P2 c, P3 d) | verdict: pass|fail`, in English whatever the report language: N findings counted by priority, and `fail` when a P0 or P1 remains or the change must not go as it is, else `pass`. The rest of the report follows it.
+
 Per surface: screenshots (paths), console errors, findings with severity and the exact element/state, and what could not be exercised.
 </report>

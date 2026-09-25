@@ -18,8 +18,8 @@ import { spawnSync } from 'node:child_process';
 import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
 import { writeFakeCli } from './fakes.mjs';
 import {
-  cmdDoctor, doctorCheck, doctorFix, doctorLaneWarnings, doctorRoleKind,
-  doctorUsedKinds, laneArgsIgnoredWarnings, projectIsFirstRun, ENTRY_SCRIPT,
+  cmdDoctor, doctorCheck, doctorDiscardedModels, doctorFix, doctorLaneWarnings, doctorModelPairs,
+  doctorRoleKind, doctorUsedKinds, laneArgsIgnoredWarnings, projectIsFirstRun, ENTRY_SCRIPT,
 } from '../lib/commands/doctor.mjs';
 import { explainActivity, explainIdleParagraph, explainPrintRunning, explainRecommendation, explainStateDir } from '../lib/commands/explain.mjs';
 import { loadConfig } from '../lib/config.mjs';
@@ -64,6 +64,11 @@ const writeProj = (text) => {
 const writeUser = (text) => {
   fs.mkdirSync(path.dirname(USER_CONF), { recursive: true });
   fs.writeFileSync(USER_CONF, text);
+};
+const SESSION_CONF = path.join(STATE, 'ws', 'session.conf');
+const writeSession = (text) => {
+  fs.mkdirSync(path.dirname(SESSION_CONF), { recursive: true });
+  fs.writeFileSync(SESSION_CONF, text);
 };
 const cleanLayers = () => {
   fs.rmSync(PROJ_CONF, { force: true });
@@ -212,7 +217,7 @@ test('doctorLaneWarnings: the planner in a solo lane is the only role: no used k
   cleanLayers();
 });
 
-test('doctorLaneWarnings: a lane model/effort from a lower layer than the lane kind is reported as ok', () => {
+test('doctorLaneWarnings: a lane effort from a lower layer than the lane kind is reported as ok', () => {
   cleanLayers();
   // panes=3 so the preset lanes are build and review (the old read lane
   // is gone from the presets and its keys are not the lane keys).
@@ -220,15 +225,220 @@ test('doctorLaneWarnings: a lane model/effort from a lower layer than the lane k
   writeProj('panes=3\nlane.build.kind=grok\nlane.review.kind=codex\n');
   const s = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s);
-  assert.ok(s.lines.includes('ok: lanes: lane \'build\' kind grok (project); ignored lane model claude-opus from user (another kind)'), s.lines.join('\n'));
-  assert.ok(s.lines.includes('ok: lanes: lane \'review\' kind codex (project); ignored lane effort low from user (another kind)'), s.lines.join('\n'));
+  // The dropped lane effort stays an ok line (the resolution decision);
+  // the dropped lane model gets its own warn (doctorDiscardedModels).
+  assert.ok(s.lines.includes("ok: lanes: lane 'review' kind codex (project); ignored lane effort low from user (another kind)"), s.lines.join('\n'));
+  assert.ok(!s.lines.some((l) => l.includes('ignored lane model')), 'the model warn left the ok lines: ' + s.lines.join('\n'));
+  const s1 = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s1);
+  assert.ok(s1.lines.includes('warn: config: lane.build.model=claude-opus (user) is ignored: lane.build.kind=grok comes from a higher layer (project) without a model'), s1.lines.join('\n'));
   // A model from the same layer as the kind is kept, not reported.
   writeProj('panes=3\nlane.build.kind=grok\nlane.build.model=grok-4.7\nlane.review.kind=codex\n');
   writeUser('lane.review.effort=low\n');
   const s2 = capture();
   doctorLaneWarnings(ctxOf(), ENV, REPO, s2);
   assert.ok(!s2.lines.some((l) => l.includes('ignored lane model')), s2.lines.join('\n'));
-  assert.ok(s2.lines.includes('ok: lanes: lane \'review\' kind codex (project); ignored lane effort low from user (another kind)'), s2.lines.join('\n'));
+  assert.ok(s2.lines.includes("ok: lanes: lane 'review' kind codex (project); ignored lane effort low from user (another kind)"), s2.lines.join('\n'));
+  const s3 = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s3);
+  // The same-layer lane model is kept: no warn names it. (The review lane's
+  // own kind still drops the frontmatter models of its roles; those warns
+  // are about the role files, not about lane.build.model.)
+  assert.ok(!s3.lines.some((l) => l.includes('lane.build.model')), 'the same-layer model is kept: ' + s3.lines.join('\n'));
+  assert.ok(s3.lines.every((l) => l.includes('role file model') && l.includes('lane.review.kind=codex')), s3.lines.join('\n'));
+  cleanLayers();
+});
+
+test('doctorDiscardedModels: a role model from a layer below the role kind warns (exact text, both directions)', () => {
+  cleanLayers();
+  // lanes off: the role model under the role kind's layer warns; the model
+  // at a higher layer than the kind does not.
+  writeUser('role.reviewer.model=opus\nrole.designer.kind=claude\n');
+  writeProj('lanes=off\nrole.reviewer.kind=codex\nrole.designer.model=sonnet\n');
+  let s = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes('warn: config: role.reviewer.model=opus (user) is ignored: role.reviewer.kind=codex comes from a higher layer (project) without a model'), s.lines.join('\n'));
+  assert.ok(!s.lines.some((l) => l.includes('role.designer.model')), 'a model at a higher layer than the kind is not dropped: ' + s.lines.join('\n'));
+  // The planner never resolves a kind: its model is not judged.
+  writeProj('lanes=off\nrole.planner.kind=codex\n');
+  writeUser('role.planner.model=fable\n');
+  s = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s);
+  assert.equal(s.lines.length, 0, 'the planner is skipped: ' + s.lines.join('\n'));
+  cleanLayers();
+  // lanes on: a role outside every lane (sub-orchestrator) is judged
+  // against the role kind; a role inside a lane that has its own kind is
+  // not duplicated (the per-lane warn already names its role model).
+  writeUser('role.sub-orchestrator.model=opus\nrole.implementer.model=opus\n');
+  writeProj('role.sub-orchestrator.kind=codex\nlane.build.kind=grok\n');
+  s = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes('warn: config: role.sub-orchestrator.model=opus (user) is ignored: role.sub-orchestrator.kind=codex comes from a higher layer (project) without a model'), s.lines.join('\n'));
+  assert.ok(!s.lines.some((l) => l.includes('role.implementer.model is ignored')), 'the laned role is judged against the lane kind: ' + s.lines.join('\n'));
+  cleanLayers();
+  // Mutation captured: the layer comparison reversed (the kept models
+  // would warn and the dropped one would not), the planner not skipped,
+  // the role inside a lane kind duplicated against the role kind, or a
+  // text without the layer of the deciding kind.
+  cleanLayers();
+});
+
+test('doctor: the session layer gets the same key checks as the user and project files', () => {
+  cleanLayers();
+  rmOwnFiles();
+  // The session layer (above project and user) carries a planner key, an
+  // orphan lane key and a lane kind that drops the user lane model.
+  writeUser('lane.review.model=opus\n');
+  writeProj('panes=4\n');
+  writeSession('role.planner.model=fable\nlane.ops.kind=codex\nlane.review.kind=codex\n');
+  const out = doctorOut({ HERDR_WORKSPACE_ID: 'ws' });
+  // The planner key from the session layer warns like the other layers.
+  assert.ok(out.split('\n').includes('warn   config: role_planner_model is set (session) but the planner is the orchestrator and opens no pane. Remove it (doctor --fix).'), out);
+  // The orphan lane key from the session layer warns with the session source.
+  assert.ok(out.split('\n').includes('warn   config: lane.ops.kind=codex (session) sets a lane that does not exist (lanes: build review). doctor --fix removes it.'), out);
+  // The dropped lane model names the session kind layer.
+  assert.ok(out.split('\n').includes('warn   config: lane.review.model=opus (user) is ignored: lane.review.kind=codex comes from a higher layer (session) without a model'), out);
+  // Mutation captured: the session source filtered out of the planner
+  // warn, an orphan key from the session layer not checked, or the
+  // dropped-model warn naming the model's layer instead of the kind's.
+  cleanLayers();
+  rmOwnFiles();
+});
+
+test('doctorModelPairs: an unresolvable kind+model pair warns; an unavailable list skips', () => {
+  cleanLayers();
+  rmOwnFiles();
+  // A grok listing fake (the same shape modelIds/spawn use).
+  writeFakeCli(FAKES, 'grok', `if (process.argv[2] === 'models') process.stdout.write('grok-4.7\\ngrok-4\\ngrok-3\\n');\n`);
+  const env = { ...ENV, PATH: FAKES };
+  const lines = [];
+  const say = { ok: () => {}, warn: (m) => lines.push(m) };
+  // lanes on: the lane pair (kind and model from the project layer).
+  writeProj('panes=4\nlane.review.kind=grok\nlane.review.model=not-a-model\n');
+  doctorModelPairs(loadConfig(env, REPO), env, REPO, say);
+  assert.ok(lines.includes("config: lane 'review' model 'not-a-model' (project) does not resolve for kind 'grok' (project)"), lines.join('\n'));
+  // A spec that resolves against the list: no warn.
+  lines.length = 0;
+  writeProj('panes=4\nlane.review.kind=grok\nlane.review.model=grok-4\n');
+  doctorModelPairs(loadConfig(env, REPO), env, REPO, say);
+  assert.equal(lines.length, 0, 'a resolving spec is silent: ' + lines.join('\n'));
+  // lanes off: the role pair (config kind and model).
+  lines.length = 0;
+  writeProj('panes=4\nlanes=off\nrole.reviewer.kind=grok\nrole.reviewer.model=not-a-model\n');
+  doctorModelPairs(loadConfig(env, REPO), env, REPO, say);
+  assert.ok(lines.includes("config: role 'reviewer' model 'not-a-model' (project) does not resolve for kind 'grok' (project)"), lines.join('\n'));
+  // A kind whose model list is unavailable (no grok on PATH, no cache in a
+  // fresh TMPDIR): the pair is skipped without a warn.
+  fs.rmSync(path.join(FAKES, 'grok'), { force: true });
+  const tmp2 = path.join(ROOT, 'tmp2');
+  fs.mkdirSync(tmp2, { recursive: true });
+  const env2 = { ...env, TMPDIR: tmp2 };
+  lines.length = 0;
+  doctorModelPairs(loadConfig(env2, REPO), env2, REPO, say);
+  assert.equal(lines.length, 0, 'an unavailable list is not a failure: ' + lines.join('\n'));
+  // A codex model without the models cache: the same silent skip.
+  lines.length = 0;
+  writeProj('panes=4\nlanes=off\nrole.reviewer.kind=codex\nrole.reviewer.model=not-a-model\n');
+  doctorModelPairs(loadConfig(env, REPO), env, REPO, say);
+  assert.equal(lines.length, 0, 'no codex cache, no warn: ' + lines.join('\n'));
+  // A kind nobody uses is never listed: the grok fake records its calls
+  // and none happens when the only pair is a claude kind (no list there).
+  const mark = path.join(ROOT, 'grok-called');
+  writeFakeCli(FAKES, 'grok', `require('node:fs').appendFileSync(${JSON.stringify(mark)}, 'called\\n');\nif (process.argv[2] === 'models') process.stdout.write('grok-4.7\\n');\n`);
+  writeProj('panes=4\nlane.build.kind=claude\nlane.build.model=any\n');
+  lines.length = 0;
+  doctorModelPairs(loadConfig(env, REPO), env, REPO, say);
+  assert.equal(lines.length, 0, lines.join('\n'));
+  assert.ok(!fs.existsSync(mark), 'the unused kind was listed: a CLI call leaked');
+  // Mutation captured: the pair resolved with a different code than the
+  // spawn (a matching spec would warn, or a failing one would not), a CLI
+  // call for an unused kind, or a warn for an unavailable list.
+  cleanLayers();
+  rmOwnFiles();
+  fs.rmSync(mark, { force: true });
+});
+
+test('doctorModelPairs: a lane model without a lane kind is judged against each role kind', () => {
+  cleanLayers();
+  rmOwnFiles();
+  // A grok listing fake (the same shape modelIds/spawn use).
+  writeFakeCli(FAKES, 'grok', `if (process.argv[2] === 'models') process.stdout.write('grok-4.7\\ngrok-4\\ngrok-3\\n');\n`);
+  const env = { ...ENV, PATH: FAKES };
+  const lines = [];
+  const say = { ok: () => {}, warn: (m) => lines.push(m) };
+  // The review lane holds an effective model and no lane kind: the spawn
+  // applies it to the effective kind of every role that resolves to the
+  // lane. The reviewer's grok kind (role config) gets a spec the grok
+  // list does not match: one warn per such role, naming lane, model, kind
+  // and the layers. The other review roles resolve frontmatter kinds
+  // (claude/agy) whose model lists are unavailable: skipped.
+  writeProj('panes=4\nlane.review.model=not-a-model\nrole.reviewer.kind=grok\n');
+  doctorModelPairs(loadConfig(env, REPO), env, REPO, say);
+  assert.ok(lines.includes("config: lane 'review' model 'not-a-model' (project) does not resolve for kind 'grok' of role 'reviewer' (project)"), lines.join('\n'));
+  assert.equal(lines.length, 1, 'unavailable lists skip; one warn per unresolvable role pair: ' + lines.join('\n'));
+  // The same lane model resolving for the reviewer's kind: silent.
+  lines.length = 0;
+  writeProj('panes=4\nlane.review.model=grok-4\nrole.reviewer.kind=grok\n');
+  doctorModelPairs(loadConfig(env, REPO), env, REPO, say);
+  assert.equal(lines.length, 0, 'a resolving spec is silent: ' + lines.join('\n'));
+  // A lane with its own kind keeps today's single lane pair (unchanged).
+  lines.length = 0;
+  writeProj('panes=4\nlane.build.kind=grok\nlane.build.model=not-a-model\n');
+  doctorModelPairs(loadConfig(env, REPO), env, REPO, say);
+  assert.ok(lines.includes("config: lane 'build' model 'not-a-model' (project) does not resolve for kind 'grok' (project)"), lines.join('\n'));
+  assert.equal(lines.length, 1, 'the lane-kind pair warns once, as before: ' + lines.join('\n'));
+  // Mutation captured: the lane without a kind skipped (the first and
+  // third asserts would find no warn), the role resolved with a different
+  // code than the spawn (the warn would name the frontmatter kind/layer),
+  // or the lane model judged for a role that resolves to another lane.
+  cleanLayers();
+  rmOwnFiles();
+});
+
+test('doctorDiscardedModels: the frontmatter model is dropped when the kind comes from a config layer', () => {
+  cleanLayers();
+  // ui-reviewer: the frontmatter holds kind agy and model gemini|sonnet.
+  // role.<r>.kind from the project: the frontmatter model is ignored.
+  writeProj('lanes=off\nrole.ui-reviewer.kind=grok\n');
+  let s = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes("warn: config: role file model 'gemini|sonnet' of 'ui-reviewer' is ignored: role.ui-reviewer.kind=grok comes from a higher layer (project)"), s.lines.join('\n'));
+  assert.equal(s.lines.length, 1, 'one warn, nothing else: ' + s.lines.join('\n'));
+  // The kind also sits in the frontmatter (no config kind): the model
+  // applies — no warn.
+  writeProj('lanes=off\n');
+  s = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s);
+  assert.equal(s.lines.length, 0, 'frontmatter kind keeps the frontmatter model: ' + s.lines.join('\n'));
+  // Lanes on with the lane's own kind and no lane model: the lane kind
+  // drops the frontmatter model, and the warn names the lane key.
+  writeProj('lane.review.kind=codex\n');
+  s = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes("warn: config: role file model 'gemini|sonnet' of 'ui-reviewer' is ignored: lane.review.kind=codex comes from a higher layer (project)"), s.lines.join('\n'));
+  // With a lane model the lane model wins anyway: no frontmatter warn.
+  writeProj('lane.review.kind=codex\nlane.review.model=gpt-5\n');
+  s = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s);
+  assert.ok(!s.lines.some((l) => l.includes("role file model 'gemini|sonnet'")), 'a lane model makes the frontmatter model moot: ' + s.lines.join('\n'));
+  // Mutation captured: dropping the lane-kind branch loses the first
+  // assert; firing it without checking the lane model breaks the second.
+  // Lanes on without a lane kind: the role kind still drops the model.
+  writeProj('role.ui-reviewer.kind=grok\n');
+  s = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes("warn: config: role file model 'gemini|sonnet' of 'ui-reviewer' is ignored: role.ui-reviewer.kind=grok comes from a higher layer (project)"), s.lines.join('\n'));
+  // A configured role model under the kind's layer too: both warns fire.
+  writeUser('role.ui-reviewer.model=opus\n');
+  s = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s);
+  assert.ok(s.lines.includes('warn: config: role.ui-reviewer.model=opus (user) is ignored: role.ui-reviewer.kind=grok comes from a higher layer (project) without a model'), s.lines.join('\n'));
+  assert.ok(s.lines.some((l) => l.includes("role file model 'gemini|sonnet' of 'ui-reviewer'")), s.lines.join('\n'));
+  assert.equal(s.lines.length, 2, 'one warn per dropped model: ' + s.lines.join('\n'));
+  // Mutation captured: the frontmatter model kept when the kind comes
+  // from a config layer (no warn in the first and fourth cases), the
+  // frontmatter warn emitted under a lane kind (the third case), or a
+  // frontmatter warn without the kind's layer.
   cleanLayers();
 });
 
@@ -668,6 +878,75 @@ test('doctorFix: --user targets the user file', () => {
   cleanLayers();
 });
 
+test('doctorFix: --session normalizes the workspace session.conf like the other files', () => {
+  cleanLayers();
+  // Outside a resolvable workspace: the die 2, nothing written.
+  writeProj('panes=4\n');
+  let r = runFix(['session', '4']);
+  assert.ok(r.threw instanceof DieError && r.threw.code === 2, String(r.threw));
+  assert.equal(r.threw.message, 'doctor: --session needs a Herdr workspace');
+  assert.ok(!fs.existsSync(SESSION_CONF), 'no session file outside a workspace');
+  // Inside the fixture workspace: the session.conf is normalized the same
+  // way as the project file (orphan lane removed, preset lane kept, the
+  // panes value read from the file when the flag is absent).
+  writeSession('panes=3\nlane.ops.kind=codex\nlane.build.kind=grok\n');
+  const envWs = { ...ENV, HERDR_WORKSPACE_ID: 'ws' };
+  const ctxWs = loadConfig(envWs, REPO);
+  let kept = process.stdout.write.bind(process.stdout);
+  let out = '';
+  process.stdout.write = (s) => { out += s; return true; };
+  let threw = null;
+  try { doctorFix('session', '', ctxWs, envWs, REPO); } catch (e) { threw = e; }
+  finally { process.stdout.write = kept; }
+  assert.equal(threw, null, String(threw));
+  assert.ok(out.includes("removed lane.ops.kind=codex (no lane 'ops' in the panes=3 preset)"), out);
+  let sess = fs.readFileSync(SESSION_CONF, 'utf8');
+  assert.ok(!/^lane\.ops\./m.test(sess), sess);
+  assert.ok(sess.split('\n').includes('panes=3'), sess);
+  assert.ok(sess.split('\n').includes('lane.build.kind=grok'), 'the preset lane keeps its attrs: ' + sess);
+  // --fix --session with a missing session.conf dies 2 citing the file
+  // (like the project file without panes).
+  fs.rmSync(SESSION_CONF, { force: true });
+  kept = process.stdout.write.bind(process.stdout);
+  threw = null;
+  try { doctorFix('session', '', ctxWs, envWs, REPO); } catch (e) { threw = e; }
+  finally { process.stdout.write = kept; }
+  assert.ok(threw instanceof DieError && threw.code === 2, String(threw));
+  assert.ok(threw.message.startsWith(`doctor --fix: panes is not set in ${SESSION_CONF}`), threw.message);
+  // Mutation captured: the session target resolved to the project file
+  // (the project file would change and the session.conf would not), the
+  // die outside a workspace with the wrong code or text, or the panes
+  // value not read from the session file.
+  cleanLayers();
+});
+
+test('cmdDoctor: --fix --session rewrites the session.conf and re-runs the check', () => {
+  cleanLayers();
+  fs.writeFileSync(path.join(REPO, 'AGENTS.md'), '# Agent instructions\n');
+  writeSession('panes=4\nlane.ops.kind=codex\n');
+  writeFakeCli(FAKES, 'herdr', 'process.exit(0);\n'); // no host herdr may be called
+  const r = spawnSync(nodeBin(), [JS_ENTRY, 'doctor', '--fix', '--session', '--panes', '4'],
+    { cwd: REPO, env: { ...ENV, HERDR_WORKSPACE_ID: 'ws', PATH: FAKES }, encoding: 'utf8', timeout: 60000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(r.stdout.includes("removed lane.ops.kind=codex (no lane 'ops' in the panes=4 preset)"), r.stdout);
+  assert.ok(r.stdout.includes(`doctor --fix: updated ${SESSION_CONF}`), r.stdout);
+  assert.ok(r.stdout.includes('first_run:'), 'the check re-runs after the fix');
+  const sess = fs.readFileSync(SESSION_CONF, 'utf8');
+  assert.ok(!/^lane\.ops\./m.test(sess), sess);
+  assert.ok(sess.split('\n').includes('panes=4'), sess);
+  // The project file is untouched by --session.
+  assert.ok(!fs.existsSync(PROJ_CONF), 'the project file must not be created by --session');
+  // Outside a workspace the entry dies 2 with the session message.
+  const r2 = spawnSync(nodeBin(), [JS_ENTRY, 'doctor', '--fix', '--session', '--panes', '4'],
+    { cwd: REPO, env: ENV, encoding: 'utf8', timeout: 60000 });
+  assert.equal(r2.status, 2, r2.stderr);
+  assert.ok(r2.stderr.includes('doctor: --session needs a Herdr workspace'), r2.stderr);
+  // Mutation captured: the fix rewriting the project file instead of the
+  // session.conf, the re-run check skipped (no first_run line), or the
+  // die outside a workspace with a code other than 2.
+  cleanLayers();
+});
+
 // ---------- cmdDoctor (in-process + the entry) ----------
 
 test('cmdDoctor: unknown option dies 2; doctor --fix --user re-runs the check in-process', () => {
@@ -837,9 +1116,10 @@ const rmOwnFiles = () => {
 
 // doctorCheck in-process with captured stdout, on a controlled PATH (a
 // fake herdr, no agent CLI) so no host binary can leak into the output.
-function doctorOut() {
+// `over` extends the env (e.g. a Herdr workspace for the session layer).
+function doctorOut(over = {}) {
   writeFakeCli(FAKES, 'herdr', 'process.exit(0);\n'); // no host herdr may be called
-  const env = { ...ENV, PATH: FAKES };
+  const env = { ...ENV, PATH: FAKES, ...over };
   const keep = process.stdout.write.bind(process.stdout);
   let out = '';
   process.stdout.write = (s) => { out += s; return true; };

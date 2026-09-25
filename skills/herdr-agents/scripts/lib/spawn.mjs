@@ -31,6 +31,7 @@ import { resolveRoleSettings } from './resolve.mjs';
 import {
   agentRead, agentState, callerAgentName, HERDR_TIMEOUT_MS, liveAgents, paneSplit,
 } from './herdr.mjs';
+import { pollIntervalMs } from './wait.mjs';
 import {
   dieFriction, lastReport, nowStamp, rosterAppend, rosterLine, rosterRemove,
   rosterSetRole, rosterRows, stateDir, warn,
@@ -280,6 +281,118 @@ function agentStart(name, kind, pane, timeout, nativeArgs, env) {
   const to = Number(timeout);
   const r = runCli('herdr', args, { env, timeoutMs: Number.isFinite(to) ? to + 30_000 : 30_000 });
   return { ok: !r.notFound && r.status === 0, out: (r.stdout ?? '') + (r.stderr ?? '') };
+}
+
+// ---------- the post-start check ----------
+
+// The update markers per kind: the screen lines a CLI prints while it
+// updates itself at start and then exits (the codex auto-update is the
+// only evidence so far). The table is ready for the other kinds.
+const START_UPDATE_MARKERS = {
+  codex: /Updating Codex via|Please restart Codex/,
+};
+
+// Poll interval of the check windows: 500 ms; the test env override
+// (HERDR_AGENTS_WAIT_POLL_MS, the wait's own variable) shortens it.
+function checkPollMs(env) {
+  return Math.min(500, pollIntervalMs(env));
+}
+
+// One check window: up to 5 s, probing the agent's state and the visible
+// screen at the poll interval. Verdicts:
+//   'ok'      — the agent is alive without the kind's update marker; the
+//               window ends the instant that is observed, not after the
+//               full 5 s;
+//   'updated' — the kind's update marker is on the screen: the caller
+//               waits for the agent to go gone and relaunches it once;
+//   'exited'  — the agent went gone without the marker (or after the
+//               relaunch, when canRelaunch is false): die 4 with the last
+//               screen lines. `lastScreen` is the last non-empty screen
+//               the window read.
+function checkWindow(name, kind, pollMs, env, canRelaunch) {
+  const marker = START_UPDATE_MARKERS[kind];
+  let lastScreen = '';
+  let seenMarker = 0;
+  const end = Date.now() + 5000;
+  for (;;) {
+    const st = agentState(name, env);
+    const screen = agentRead(env, name, { source: 'visible', lines: 40 });
+    if (screen !== '') lastScreen = screen;
+    if (marker !== undefined && marker.test(screen)) seenMarker = 1;
+    if (st.state === 'gone') {
+      if (canRelaunch && seenMarker === 1) return { verdict: 'updated', lastScreen };
+      return { verdict: 'exited', lastScreen };
+    }
+    if (seenMarker === 1 && canRelaunch) return { verdict: 'updated', lastScreen };
+    if (seenMarker === 0 || Date.now() >= end) return { verdict: 'ok', lastScreen };
+    sleepSync(pollMs);
+  }
+}
+
+// The window's exit: the agent exited right after start (no update marker,
+// or the relaunch exited too). Up to 5 non-empty last screen lines joined
+// by ' / '; the pane stays open for inspection (the start failure does
+// the same) and no roster line is written (the spawn dies before it).
+function dieExitedAfterStart(name, kind, lastScreen, env) {
+  let lines = lastScreen.split('\n').map((l) => l.trim()).filter((l) => l !== '');
+  if (lines.length === 0) {
+    // the pane is open and may still hold the text: one best-effort read
+    lines = agentRead(env, name, { source: 'visible', lines: 40 }).split('\n').map((l) => l.trim()).filter((l) => l !== '');
+  }
+  dieFriction(`agent '${name}' (${kind}) exited right after start; last screen lines: ${lines.slice(-5).join(' / ')}`, 4);
+}
+
+// The post-start check: the window, and when the agent's screen shows the
+// kind updating itself at start, the wait for the agent to go gone (until
+// the spawn timeout), a single relaunch in the same pane with the same
+// args, and a second window without another relaunch. Returns the blocked
+// flag of the (re)start (the blocked path registers the worker and exits
+// 7, as today); dies 4 when the agent exited right after start.
+function checkStartWindow(name, kind, pane, timeout, agentArgs, env, startAgent) {
+  const poll = checkPollMs(env);
+  let canRelaunch = true;
+  let blocked = 0;
+  for (;;) {
+    const w = checkWindow(name, kind, poll, env, canRelaunch);
+    if (w.verdict === 'ok') return blocked;
+    if (w.verdict === 'exited') dieExitedAfterStart(name, kind, w.lastScreen, env);
+    // The update is on the screen: wait for the agent to go gone, until
+    // the spawn timeout; if it is still alive when the timeout passes,
+    // proceed as today (a live agent is not killed here).
+    const to = Number(timeout);
+    const end = Date.now() + (Number.isFinite(to) && to > 0 ? to : 60000);
+    let st = agentState(name, env);
+    while (st.state !== 'gone' && Date.now() < end) {
+      sleepSync(poll);
+      st = agentState(name, env);
+    }
+    if (st.state !== 'gone') return blocked;
+    const r = startAgent(); // the shared retry loop; dies 4 on a hard failure
+    blocked = r.blocked;
+    warn(`'${name}' (${kind}) updated itself at start and exited; started it again`);
+    canRelaunch = false;
+  }
+}
+
+// The roster lines the new worker replaces: the same name (a name is only
+// free for a spawn when no live agent uses it, so the lines belong to an
+// agent that exited) or the same pane (a freed pane is reused). Deduped by
+// the line's name: rosterRemove drops every line of that name.
+function staleRosterLines(sd, newName, newPane) {
+  const out = [];
+  const seen = new Set();
+  for (const l of rosterRows(sd)) {
+    if (l === '') continue;
+    const f = l.split('\t');
+    const nm = f[0] ?? '';
+    const pn = f[1] ?? '';
+    if (nm === '' || seen.has(nm)) continue;
+    if (nm === newName || (newPane !== '' && pn === newPane)) {
+      seen.add(nm);
+      out.push([nm, pn]);
+    }
+  }
+  return out;
 }
 
 // cmd_spawn() port (:3377-3607). argv is everything after the role.
@@ -605,19 +718,36 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
     }
   }
   // A freshly split pane may not have reached its shell prompt yet
-  // (agent_pane_busy); retry for a few seconds before giving up.
-  let blocked = 0;
-  let tries = 0;
-  for (;;) {
-    const r = agentStart(name, kind, pane, timeout, agentArgs, env);
-    if (r.ok) break;
-    if (r.out.includes('agent_not_ready')) { blocked = 1; break; }
-    if (r.out.includes('agent_pane_busy') && tries < 15) { tries += 1; sleepSync(1000); continue; }
-    process.stderr.write(`${r.out.replace(/\n+$/, '')}\n`);
-    dieFriction(`agent start failed for ${name} (${kind}) in pane ${pane}; pane left open for inspection`, 4);
-  }
+  // (agent_pane_busy); retry for a few seconds before giving up. The
+  // closure is shared with the post-start relaunch (same pane, same args).
+  let startTries = 0;
+  const startAgent = () => {
+    startTries = 0;
+    for (;;) {
+      const r = agentStart(name, kind, pane, timeout, agentArgs, env);
+      if (r.ok) return { blocked: 0 };
+      if (r.out.includes('agent_not_ready')) return { blocked: 1 };
+      if (r.out.includes('agent_pane_busy') && startTries < 15) { startTries += 1; sleepSync(1000); continue; }
+      process.stderr.write(`${r.out.replace(/\n+$/, '')}\n`);
+      dieFriction(`agent start failed for ${name} (${kind}) in pane ${pane}; pane left open for inspection`, 4);
+    }
+  };
+  let blocked = startAgent().blocked;
   restoreFocusIfStolen(focusBefore, pane, direction, env);
   const family = agentFamily(kind, model);
+  // The post-start check (a successful start only: the blocked path
+  // never started an agent): a CLI that updates itself at start exits
+  // right after the start — the window catches it (one relaunch), and an
+  // agent that exits without that marker makes the spawn die 4 before
+  // the roster line is written.
+  if (blocked === 0) blocked = checkStartWindow(name, kind, pane, timeout, agentArgs, env, startAgent);
+  // A name is only free for a spawn when no live agent uses it, so a
+  // roster line left with that name — or with the pane the new worker now
+  // hosts — belongs to an agent that exited: replace the stale lines.
+  for (const [staleName, stalePane] of staleRosterLines(sd, name, pane)) {
+    rosterRemove(sd, staleName);
+    warn(`replaced the stale roster line of '${staleName}' (pane ${stalePane})`);
+  }
   // Roster line: the 12 base columns, then column 13 (the `burst` marker
   // for temporary workers — present even when empty, since writing column
   // 14 requires it) and column 14 (the native args the worker opened with,

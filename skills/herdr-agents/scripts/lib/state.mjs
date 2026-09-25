@@ -40,10 +40,20 @@ export function setFrictionLog(file, cmd) {
 }
 
 // log_friction port: append TSV, never fail (bash `2>/dev/null || true`).
+// A friction log line is TSV (date \t level \t command \t message): a
+// message or command carrying \n, \r or \t would open lines missing the
+// four columns (breaking `awk -F'\t'` and the sort on column 1). Sanitize
+// before writing — the log is the only place the text is kept verbatim.
+export function frictionSafe(text) {
+  return String(text).replace(/[\r\n\t]+/g, ' ');
+}
+
 function logFriction(level, message) {
   if (!frictionLog) return;
   try {
-    fs.appendFileSync(frictionLog, `${nowIso()}\t${level}\t${frictionCmd || '?'}\t${message}\n`);
+    const cmd = frictionSafe(frictionCmd || '?');
+    const msg = frictionSafe(message);
+    fs.appendFileSync(frictionLog, `${nowIso()}\t${level}\t${cmd}\t${msg}\n`);
   } catch { /* best effort */ }
 }
 

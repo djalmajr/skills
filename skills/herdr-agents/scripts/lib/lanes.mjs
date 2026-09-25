@@ -489,34 +489,40 @@ export function maxWorkers(ctx, env = process.env) {
   return /^[0-9]+$/.test(v) ? v : '3';
 }
 
-// live_worker_names: roster workers whose agent (by name or pane) is
-// still live in `herdr agent list`.
+// live_worker_names: the distinct live agents the roster holds. A line
+// counts when a live agent with the same name sits in the SAME pane; a
+// line without a known pane falls back to the name (counted once): the
+// same live agent is never counted twice, and a stale line (the name
+// alive in another pane) counts nothing.
 export function liveWorkerNames(sd, env = process.env) {
   const live = liveAgents(env);
   const out = [];
+  const seen = new Set();
   for (const line of rosterRows(sd)) {
     const f = line.split('\t');
     const name = f[0] ?? '';
-    if (!name) continue;
+    if (!name || seen.has(name)) continue;
     const pane = f[1] ?? '';
-    if (live.some((a) => a && ((a.name ?? '') === name || a.pane_id === pane))) out.push(name);
+    const hit = live.find((a) => a && (a.name ?? '') === name && (pane === '' || a.pane_id === pane));
+    if (hit) { seen.add(name); out.push(name); }
   }
   return out;
 }
 
 // live_burst_workers: roster workers marked temporary (roster column 13
-// `burst`) whose agent (by name or pane) is still live — the temporary
-// workers that already sit in the extra panels (rows without the column
-// are not temporary).
+// `burst`) with the same name-and-pane live rule as liveWorkerNames (rows
+// without the column are not temporary).
 export function liveBurstWorkers(sd, env = process.env) {
   const live = liveAgents(env);
   const out = [];
+  const seen = new Set();
   for (const line of rosterRows(sd)) {
     const f = line.split('\t');
     const name = f[0] ?? '';
-    if (!name || (f[12] ?? '') !== 'burst') continue;
+    if (!name || (f[12] ?? '') !== 'burst' || seen.has(name)) continue;
     const pane = f[1] ?? '';
-    if (live.some((a) => a && ((a.name ?? '') === name || a.pane_id === pane))) out.push(name);
+    const hit = live.find((a) => a && (a.name ?? '') === name && (pane === '' || a.pane_id === pane));
+    if (hit) { seen.add(name); out.push(name); }
   }
   return out;
 }

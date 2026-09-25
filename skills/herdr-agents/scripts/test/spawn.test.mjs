@@ -49,8 +49,30 @@ const live = () => {
   try { return (JSON.parse(fs.readFileSync(process.env.FAKE_LIVE, 'utf8')).agents) ?? []; } catch { return []; }
 };
 const cmd = (argv[0] ?? '') + ' ' + (argv[1] ?? '');
+// The check-window sequence (FAKE_SEQ): one element per agent get of the
+// FAKE_SEQ_TARGET agent (update/plain = alive, gone = agent_not_found);
+// the FAKE_SEQ_STATE file holds the number of calls. agent read of the
+// target answers the current element's screen (gone answers the retained
+// screen of FAKE_READ_GONE when set, else fails).
+const seqElement = (advance) => {
+  let i = 0;
+  try { i = parseInt(fs.readFileSync(process.env.FAKE_SEQ_STATE, 'utf8'), 10); } catch {}
+  if (advance) { i += 1; fs.writeFileSync(process.env.FAKE_SEQ_STATE, String(i)); }
+  const seq = process.env.FAKE_SEQ.split(',');
+  return seq[Math.max(0, Math.min(i - 1, seq.length - 1))];
+};
 if (cmd === 'agent get') {
   const t = argv[2] ?? '';
+  if (process.env.FAKE_SEQ !== undefined && t === process.env.FAKE_SEQ_TARGET) {
+    if (seqElement(true) === 'gone') {
+      process.stderr.write('{"error":{"code":"agent_not_found","message":"gone"}}\\n');
+      process.exit(1);
+    }
+    const a0 = live().find((x) => x && ((x.name ?? '') === t || x.pane_id === t));
+    const dbgOut = JSON.stringify({ result: { agent: a0 ? { name: a0.name, agent_status: a0.agent_status ?? 'idle' } : { name: t, agent_status: 'idle' } } }) + '\\n';
+    process.stdout.write(dbgOut);
+    process.exit(0);
+  }
   if (t === 'stuck') {
     process.stderr.write('Error: Os { code: 13, kind: PermissionDenied, message: "Permission denied" }\\n');
     process.exit(1);
@@ -82,7 +104,21 @@ if (cmd === 'agent get') {
   if (m === 'notready') { process.stderr.write('agent_not_ready: login prompt\\n'); process.exit(1); }
   process.stdout.write('{"result":{"started":true}}\\n');
 } else if (cmd === 'agent read') {
-  process.stdout.write('screen line 1\\nscreen line 2\\n');
+  const t = argv[2] ?? '';
+  if (process.env.FAKE_SEQ !== undefined && t === process.env.FAKE_SEQ_TARGET) {
+    const el = seqElement(false);
+    if (el === 'update') {
+      process.stdout.write('❯ codex -s workspace-write\\nUpdating Codex via \`npm install -g @openai/codex\`...\\nchanged 2 packages in 14s\\n🎉 Update ran successfully! Please restart Codex.\\n');
+    } else if (el === 'gone' && process.env.FAKE_READ_GONE) {
+      process.stdout.write(fs.readFileSync(process.env.FAKE_READ_GONE, 'utf8'));
+    } else if (el === 'gone') {
+      process.exit(1);
+    } else {
+      process.stdout.write('screen line 1\\nscreen line 2\\n');
+    }
+  } else {
+    process.stdout.write('screen line 1\\nscreen line 2\\n');
+  }
 } else if (cmd === 'agent rename') {
   if (process.env.FAKE_RENAME_FAIL) { process.stderr.write('rename failed\\n'); process.exit(1); }
   process.stdout.write('{"result":{}}\\n');
@@ -659,6 +695,129 @@ test('resolveRoleSettings: flags, config layers and lane layers decide, with the
   } finally { fix.cleanup(); }
 });
 
+test('resolveRoleSettings: a role model from a layer below the effective kind is dropped', () => {
+  const { fix, proj } = confFix('ha-spawn-role-model-layer-');
+  try {
+    const user = path.join(fix.env.XDG_CONFIG_HOME, 'herdr-agents', 'config');
+    const userConf = (text) => {
+      fs.mkdirSync(path.dirname(user), { recursive: true });
+      fs.writeFileSync(user, text);
+      fix.ctx = loadConfig(fix.env, fix.repo);
+    };
+    // 1) The kind sits in a higher layer (project) than the model (user):
+    // the model is dropped and the chain continues (nothing for pi here,
+    // so the CLI decides).
+    userConf('role.implementer.model=my-provider/my-model\n');
+    proj('role.implementer.kind=pi\n');
+    let res = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res.kind, 'pi');
+    assert.equal(res.kindLayer, 2);
+    assert.equal(res.modelSpec, '', 'the user model under the project kind is dropped');
+    assert.equal(res.modelFrom, 'default');
+    // 2) The effective kind is the LANE kind: the role model is judged
+    // against the lane kind's layer too.
+    userConf('role.implementer.model=my-provider/my-model\n');
+    proj('lane.build.kind=pi\n');
+    res = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res.kind, 'pi');
+    assert.equal(res.kindFrom, 'lane build (project)');
+    assert.equal(res.kindLayer, 2);
+    assert.equal(res.modelSpec, '', 'the user role model under the project lane kind is dropped');
+    // 3) The model sits at a higher layer than the kind (user kind,
+    // project model): the model applies.
+    userConf('role.implementer.kind=pi\n');
+    proj('role.implementer.model=my-provider/my-model\n');
+    res = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res.kindLayer, 1);
+    assert.equal(res.modelSpec, 'my-provider/my-model');
+    assert.equal(res.modelFrom, 'role config (project)');
+    // 4) Same layer as the kind: the model applies.
+    userConf('');
+    proj('role.implementer.kind=pi\nrole.implementer.model=my-provider/my-model\n');
+    res = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res.modelSpec, 'my-provider/my-model');
+    assert.equal(res.modelFrom, 'role config (project)');
+    // 5) The kind comes from the frontmatter (no layer): the model applies
+    // as before.
+    userConf('role.implementer.model=my-provider/my-model\n');
+    proj('');
+    res = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res.kind, 'grok', 'the frontmatter kind');
+    assert.equal(res.kindLayer, 0);
+    assert.equal(res.modelSpec, 'my-provider/my-model');
+    assert.equal(res.modelFrom, 'role config (user)');
+    // 6) The --kind flag (no --model) is the top layer: the configured role
+    // model is dropped (the chain continues with model.<kind>.<position>);
+    // a flag model still wins.
+    proj('role.implementer.model=my-provider/my-model\n');
+    res = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo, { kind: 'cursor' });
+    assert.equal(res.kind, 'cursor');
+    assert.equal(res.kindLayer, 5);
+    assert.equal(res.modelSpec, 'grok|muse', 'a flag kind drops the configured role model (the cursor default applies)');
+    assert.equal(res.modelFrom, 'model.cursor.worker (defaults)');
+    res = resolveRoleSettings('implementer', fix.ctx, fix.env, fix.repo, { kind: 'cursor', model: 'm1' });
+    assert.equal(res.modelSpec, 'm1');
+    assert.equal(res.modelFrom, 'flag');
+    // 7) The expected shape: a lane kind above the lane model — the codex
+    // default spec applies, not the user lane model.
+    userConf('lane.review.model=opus\n');
+    proj('lane.review.kind=codex\n');
+    res = resolveRoleSettings('reviewer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res.lane, 'review');
+    assert.equal(res.kind, 'codex');
+    assert.equal(res.modelSpec, 'sol|gpt-5', 'the codex default spec, not the user lane model');
+    assert.equal(res.modelFrom, 'model.codex.worker (defaults)');
+    // Mutation captured: the role model layer check disabled (cases 1, 2
+    // and 6 would keep the user/project model), the check comparing
+    // against the role kind only (case 2 would keep the user model), or a
+    // frontmatter kind ranked above a configured model (case 5 would drop
+    // it).
+  } finally { fix.cleanup(); }
+});
+
+test('resolveRoleSettings: the frontmatter model follows the kind layer rule', () => {
+  const { fix, proj } = confFix('ha-spawn-fm-model-layer-');
+  try {
+    // ui-reviewer: the frontmatter holds kind agy and model gemini|sonnet.
+    // Kind only in the frontmatter (layer 0): the frontmatter model
+    // applies, as before.
+    let res = resolveRoleSettings('ui-reviewer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res.kind, 'agy');
+    assert.equal(res.kindFrom, 'role file');
+    assert.equal(res.kindLayer, 0);
+    assert.equal(res.modelSpec, 'gemini|sonnet');
+    assert.equal(res.modelFrom, 'role file');
+    // The kind comes from a config layer (project): the frontmatter model
+    // is dropped and the chain continues with model.<kind>.<position>.
+    proj('role.ui-reviewer.kind=grok\n');
+    res = resolveRoleSettings('ui-reviewer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res.kind, 'grok');
+    assert.equal(res.kindFrom, 'role config (project)');
+    assert.equal(res.kindLayer, 2);
+    assert.equal(res.modelSpec, 'grok', 'model.grok.worker (defaults) takes over');
+    assert.equal(res.modelFrom, 'model.grok.worker (defaults)');
+    // A model.<kind> layer fills the dropped frontmatter model.
+    proj('role.ui-reviewer.kind=pi\nmodel.pi=pi-model\n');
+    res = resolveRoleSettings('ui-reviewer', fix.ctx, fix.env, fix.repo);
+    assert.equal(res.kind, 'pi');
+    assert.equal(res.modelSpec, 'pi-model');
+    assert.equal(res.modelFrom, 'model.pi (project)');
+    // The --kind flag (the top layer): the frontmatter model is dropped
+    // the same way (nothing configured for pi, so the CLI decides).
+    proj('role.ui-reviewer.kind=grok\n');
+    res = resolveRoleSettings('ui-reviewer', fix.ctx, fix.env, fix.repo, { kind: 'pi' });
+    assert.equal(res.kind, 'pi');
+    assert.equal(res.kindFrom, 'flag');
+    assert.equal(res.kindLayer, 5);
+    assert.equal(res.modelSpec, '');
+    assert.equal(res.modelFrom, 'default');
+    // Mutation captured: the frontmatter model kept when the kind comes
+    // from a higher layer (cases 2 and 3 would show gemini|sonnet) or
+    // dropped when the kind also sits in the frontmatter (case 1 would
+    // show the default).
+  } finally { fix.cleanup(); }
+});
+
 // Codex models advertise their own levels in ~/.codex/models_cache.json.
 function seedCodexCache(fix) {
   fs.mkdirSync(path.join(fix.env.HOME, '.codex'), { recursive: true });
@@ -882,6 +1041,146 @@ test('spawn: agent_pane_busy twice, then success (15×1s retry budget)', { timeo
     assert.equal(JSON.parse(r.stdout).status, 'ready');
     const starts = fix.logLines().filter((l) => l.startsWith('agent start '));
     assert.equal(starts.length, 3, `three tries: ${fix.logLines().join('\n')}`);
+  } finally { fix.cleanup(); }
+});
+
+// ---------- the post-start check (self-update and early exit) ----------
+
+// A spawn whose agent is driven by the check-window sequence: FAKE_SEQ
+// (update/plain = alive, gone = agent_not_found), one element per
+// `agent get` of the spawned name; the poll interval is the test env
+// override (50 ms), so the windows run in milliseconds.
+function runSpawnSeq(fix, name, seq, over = {}) {
+  const seqState = path.join(fix.root, 'seq-state');
+  fs.rmSync(seqState, { force: true });
+  // The update markers are per kind (the codex auto-update is the only
+  // evidence so far): the spawned agent is a codex. Codex models come from
+  // ~/.codex/models_cache.json (no CLI call), so the fixture home gets a
+  // cache with the worker's model.
+  const codexHome = path.join(fix.root, 'home', '.codex');
+  fs.mkdirSync(codexHome, { recursive: true });
+  fs.writeFileSync(path.join(codexHome, 'models_cache.json'), JSON.stringify({ models: [{ slug: 'sol' }, { slug: 'gpt-5' }] }));
+  return runSpawn(fix, ['implementer', '--name', name, '--pane', 'p-q'], {
+    HERDR_AGENTS_LANES: 'off',
+    HERDR_AGENTS_WAIT_POLL_MS: '50',
+    HERDR_AGENTS_ROLE_IMPLEMENTER_KIND: 'codex',
+    FAKE_SEQ: seq,
+    FAKE_SEQ_TARGET: name,
+    FAKE_SEQ_STATE: seqState,
+    ...over,
+  });
+}
+
+test('spawn: a CLI that updates itself at start is relaunched once, then ready', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-selfupdate-');
+  try {
+    fix.clearLog();
+    const r = runSpawnSeq(fix, 'upd', 'update,gone,plain');
+    assert.equal(r.status, 0, r.stderr);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'upd');
+    assert.equal(j.status, 'ready');
+    assert.ok(r.stderr.includes("warning: 'upd' (codex) updated itself at start and exited; started it again"), r.stderr);
+    // One relaunch in the SAME pane with the SAME args: two starts, the
+    // second identical to the first.
+    const starts = fix.logLines().filter((l) => l.startsWith('agent start upd '));
+    assert.equal(starts.length, 2, fix.logLines().join('\n'));
+    assert.equal(starts[1], starts[0], 'the relaunch reuses the pane and the args');
+    // The roster line is written (once), in the new pane.
+    assert.equal(fix.row('upd').split('\t')[1], 'p-q');
+    assert.equal(fix.roster().split('\n').filter((l) => l.startsWith('upd\t')).length, 1, 'one line for the name');
+    // Mutation captured: no relaunch (the spawn would die 4 instead of
+    // ready), a second relaunch (three starts), or a relaunch with another
+    // pane/args.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: an agent that exits right after start without the marker dies 4, no roster line', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-earlyexit-');
+  try {
+    // The pane still holds the screen the agent left (FAKE_READ_GONE): 7
+    // lines, the message keeps the last 5.
+    const crash = path.join(fix.root, 'crash');
+    fs.writeFileSync(crash, 'Error: the CLI crashed at startup\nat main (cli.js:1:1)\nframe two\nframe three\nframe four\nframe five\nframe six\n');
+    fix.clearLog();
+    const r = runSpawnSeq(fix, 'dead1', 'gone', { FAKE_READ_GONE: crash });
+    assert.equal(r.status, 4, r.stderr);
+    assert.equal(r.stderr,
+      "herdr-agents: agent 'dead1' (codex) exited right after start; last screen lines: frame two / frame three / frame four / frame five / frame six\n",
+      r.stderr);
+    // The exit is logged in the friction log (the pane is left open, as
+    // the start failure does).
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.ok(friction.includes('error(exit 4)'), friction);
+    // No relaunch: the agent start happened once.
+    assert.equal(fix.logLines().filter((l) => l.startsWith('agent start dead1 ')).length, 1, fix.logLines().join('\n'));
+    assert.equal(fix.row('dead1'), '', 'no roster line for the dead agent');
+    // Mutation captured: a relaunch without the marker (a second start),
+    // the roster line written, another exit code, or the wrong screen
+    // tail (more/less than the last 5 non-empty lines).
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: the relaunch that exits again dies 4 (no second relaunch)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-relaunch-exit-');
+  try {
+    fix.clearLog();
+    const r = runSpawnSeq(fix, 'dead2', 'update,gone,update,gone');
+    assert.equal(r.status, 4, r.stderr);
+    // The relaunch happened once (the warning names it) — and only once.
+    assert.equal(r.stderr.split('updated itself at start and exited; started it again').length - 1, 1, r.stderr);
+    const starts = fix.logLines().filter((l) => l.startsWith('agent start dead2 '));
+    assert.equal(starts.length, 2, 'one relaunch only: ' + fix.logLines().join('\n'));
+    // The exit message carries the last screen the window read (the
+    // update screen of the relaunched agent).
+    assert.ok(r.stderr.includes("agent 'dead2' (codex) exited right after start; last screen lines: ❯ codex -s workspace-write / Updating Codex via"), r.stderr);
+    assert.equal(fix.row('dead2'), '', 'no roster line');
+    // Mutation captured: a second relaunch (three starts), the relaunch
+    // warning missing, or the roster line written on the exit.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: an alive agent without the marker proceeds after the first probe', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-window-ok-');
+  try {
+    fix.clearLog();
+    const r = runSpawnSeq(fix, 'ok1', 'plain');
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).status, 'ready');
+    // The window ends the instant it sees alive-without-marker: exactly
+    // one probe (agent get + agent read) of the new agent — not the full
+    // 5 s window.
+    assert.equal(fix.logLines().filter((l) => l === 'agent get ok1').length, 1, fix.logLines().join('\n'));
+    assert.equal(fix.logLines().filter((l) => l.startsWith('agent read ok1 ')).length, 1, fix.logLines().join('\n'));
+    assert.ok(!r.stderr.includes('updated itself'), r.stderr);
+    // Mutation captured: the full window waited (several probes) or the
+    // check window missing entirely (no probe of the new agent).
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: a reused name replaces the stale roster lines (name and pane) with a warning', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-stalename-');
+  try {
+    // Two stale lines: one with the name the spawn will take (the agent
+    // exited, so the name is free) and one with the pane the spawn will
+    // use (a freed pane is reused); both belong to agents that exited.
+    fix.writeRoster(
+      'oldw\tp-old\tgrok\timplementer\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\timplementer',
+      'other\tp-q\tgrok\tscouter\txai\t1\t/tmp/work\tnow\tgrok-4.7\tfull\tscouter',
+    );
+    fix.live([]);
+    fix.clearLog();
+    const r = runSpawn(fix, ['implementer', '--name', 'oldw', '--pane', 'p-q'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).name, 'oldw');
+    assert.ok(r.stderr.includes("warning: replaced the stale roster line of 'oldw' (pane p-old)"), r.stderr);
+    assert.ok(r.stderr.includes("warning: replaced the stale roster line of 'other' (pane p-q)"), r.stderr);
+    // One line per name: the new line only, in the new worker's pane.
+    assert.equal(fix.row('oldw').split('\t')[1], 'p-q');
+    assert.equal(fix.roster().split('\n').filter((l) => l.startsWith('oldw\t')).length, 1, 'no orphan line for the name');
+    assert.equal(fix.row('other'), '', 'the same-pane stale line is removed too');
+    // Mutation captured: the stale lines kept (two lines for the name),
+    // the same-pane line kept, or the warning missing.
   } finally { fix.cleanup(); }
 });
 
@@ -1415,10 +1714,10 @@ test('spawn: the roster records the native args (column 14) the spawn used', () 
   } finally { fix.cleanup(); }
 });
 
-test('spawn: a session set after the spawn blocks the reuse', (t) => {
+test('spawn: a session set after the spawn blocks the reuse', { timeout: 60000 }, (t) => {
   // Same role: the worker opened without args; a session-layer role arg
   // afterwards makes the requested args differ → no reuse.
-  t.test('same role', () => {
+  t.test('same role', { timeout: 60000 }, () => {
     const { fix, proj } = confFix('ha-spawn-session-after-1-');
     try {
       proj('lanes=off\n');
@@ -1444,7 +1743,7 @@ test('spawn: a session set after the spawn blocks the reuse', (t) => {
   });
   // Cross-role: the idle worker opened without args; a session-layer arg
   // for the requested role → no cross-role reuse.
-  t.test('cross-role', () => {
+  t.test('cross-role', { timeout: 60000 }, () => {
     const { fix, proj } = confFix('ha-spawn-session-after-2-');
     try {
       proj('lanes=off\n');
@@ -1467,7 +1766,7 @@ test('spawn: a session set after the spawn blocks the reuse', (t) => {
   });
   // Lane: the idle lane worker opened without args; a session-layer lane
   // arg afterwards → kind-mismatch 13 on the next spawn of the lane.
-  t.test('lane', () => {
+  t.test('lane', { timeout: 60000 }, () => {
     const { fix, proj } = confFix('ha-spawn-session-after-3-');
     try {
       proj('lane.build.roles=implementer\nlane.build.kind=grok\n');

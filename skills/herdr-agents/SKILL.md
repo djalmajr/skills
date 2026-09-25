@@ -207,7 +207,15 @@ highest first: flag → `lane.<name>.*` (every role in a lane shares one
 kind and model, because it is one session) → config `role.<role>.<knob>` →
 config `effort.<kind>` (effort only) → role frontmatter → config
 `model.<kind>.<position>` → config `model.<kind>` → the CLI's own
-default. Shipped: `effort.grok=xhigh`, `effort.cursor=xhigh` (grok 4.7
+default. Kind and model travel together per layer: a lane or role model
+from a layer below the layer that set the effective kind is discarded
+(the chain continues with the next source), and `--kind` without
+`--model` discards every configured lane/role model — a kind picked by
+flag is assumed to come with the CLI's default model. The role file's own
+`model` belongs to the role file's `kind`: when the effective kind comes
+from a config layer or a flag, that model is discarded too. When a lane
+sets a model but no kind, each role in it keeps its own kind, and `doctor`
+checks the lane model against the kind of every role of the lane. Shipped: `effort.grok=xhigh`, `effort.cursor=xhigh` (grok 4.7
 accepts `--reasoning-effort xhigh|high|medium|low`), because those plans
 are rarely exhausted; spend budget where there is headroom. A project overrides any of it in `.agents/herdr-agents.conf`
 without copying role files.
@@ -266,8 +274,13 @@ the chosen model's advertised reasoning levels, not from the kind.
   --list-models` lists it, otherwise the plain model with a warning. Cursor
   model ids are strict: a spec that cannot resolve to an id in
   `cursor-agent --list-models` fails before a pane is created, because the
-  CLI rejects unknown and unsupported parameterized ids instead of forwarding
-  them. Verify the effective context window in the Cursor TUI; a model's
+  CLI rejects unknown and unsupported parameterized ids instead of
+  forwarding them. The strictness is on the spec resolution: the step that
+  appends the effort suffix re-queries the list and, when it does not
+  confirm the resolved id, passes the model through unchanged with the
+  warning `cursor model '<m>' not in --list-models; passing it through
+  unchanged` instead of failing the spawn. Verify the effective context
+  window in the Cursor TUI; a model's
   native harness may expose a different window than Cursor does.
 - **`approvals`** decides how much a worker may do without a human:
   `ask` (default, the CLI's normal prompts), `edits` (auto-accept file
@@ -292,7 +305,12 @@ a full mapping, a dialog `full` does not cover, or `ask` on purpose),
 and keep waiting, up to `max_auto_approvals` per dispatch. Each answer is
 counted in the dispatch JSON (`auto_approved`) and logged under
 `<state>/wait/<agent>.approvals.log`. It approves whatever the worker asks,
-so pair it with sandboxed kinds or narrow `approvals`. With it off, a
+so pair it with sandboxed kinds or narrow `approvals`. The same dialog
+three times in a row is left blocked —
+`auto_approve: the same dialog came back 3 times for '<agent>'; leaving it
+blocked` (a different dialog resets the count) — and the `blocked` JSON
+line carries the dialog in `dialog` (the last 20 non-empty visible lines).
+With it off, a
 blocked worker is reported (`blocked`, exit 7) and a human decides.
 A **question** is never answered for the worker, with or without
 `auto_approve`: when the blocked screen is a decision prompt (Codex's answer
@@ -339,8 +357,44 @@ N > 0, after `report`) when N lines of the report outside code blocks
 carry `[partial]`, and the wait warns:
 `report of '<agent>' marks N item(s) partial: a partial item is not a
 pass; read them before commit, push or release` (an unreadable report
-counts 0 and the line is unchanged). The `dispatch` JSON carries the same
-`partial: N` right after `report_exists` (after `amend`, when present).
+counts 0 and the line is unchanged). The four review roles
+(`reviewer`, `security-reviewer`, `ui-reviewer`, `inspector`) open the
+report with the exact first line
+`findings: N (P0 a, P1 b, P2 c, P3 d) | verdict: pass|fail`, in English
+whatever the report language (`fail` when a P0 or P1 remains or the
+change must not go as it is). When a `done` report carries it, the JSON
+line gains `verdict`, `findings` and `severity` (right after `report`,
+before `partial`); the numbers are kept as parsed — a header whose P0..P3
+sum differs from `findings` gets the warning
+`report of '<agent>': findings <N> but P0..P3 add up to <sum>`, and a
+done report of a review role without the header gets
+`report of '<agent>' has no 'findings: N (P0 a, P1 b, P2 c, P3 d) | verdict:
+pass|fail' first line`. The review roles also tell the worker: before
+calling a test, assertion or command wrong, run it when the brief allows
+it and quote the output; when it cannot run it, say so and lower its
+confidence — reading the code is not proof that a test fails. The
+`dispatch` JSON carries the same `partial: N` right after `report_exists`
+(after `amend`, when present), and the review fields (`verdict`,
+`findings`, `severity`) right after `report_exists` (after `amend`, when
+present). The JSON is one line with `wait_status` first, so
+`dispatch … | tail -1` returns the whole JSON. Before the send,
+`dispatch` also warns when the new brief owns files another roster agent
+is still editing (its report still pending): `brief <path> owns files that
+'<agent>' is still editing: <paths>` (up to five paths; for a read-only
+role: `reviewing files that '<agent>' is still editing: <paths>`) —
+advisory, it never blocks. Paths are compared as files, directories
+and globs (`src/**/*.ts` crosses `src/a/b.ts`; `roles/reviewer*.md`
+crosses `roles/reviewer.md`). A codex worker's composed prompt (brief and
+amendment) carries the sandbox notes when its opening args do not grant
+the access (`danger-full-access` or
+`--dangerously-bypass-approvals-and-sandbox` drop both): `Your sandbox cannot write under .git: do not run git mv, git
+checkout, git add or git commit. Describe renames and restores in the
+report; the orchestrator runs them.`, and — unless an arg ends in
+`network_access=true`, as `-c sandbox_workspace_write.network_access=true`
+does — `Your sandbox has no network, local ports
+included: tests that start a local server fail with "Operation not
+permitted". Mark them [partial] and say so; the orchestrator runs them.`
+Args carrying `danger-full-access` get neither note.
 `provider-error` is an idle worker whose last error line shows its model
 provider down (for example `Request timed out`, `Connection error`, `Retry
 failed after N attempts`, `503: {…}`); the JSON `cause` is that line.
@@ -375,7 +429,12 @@ key sent), and a moved seq clears the report there too. `gone` is only
 `agent_not_found`. `unavailable` is a permission or transport failure of
 `herdr agent get` (cause on stderr and in JSON `error`): retry or restore
 access; do not spawn a replacement, and do not `release` or `release --close`
-without `--force` while the query is unavailable. A report counts as done
+without `--force` while the query is unavailable. A `herdr agent get`
+killed by a signal (exit ≥ 128, e.g. 137 under load) without a structured
+error is transient: one more try after 1 s, then 2 s, before counting; if
+it persists, the cause is
+`herdr agent get was killed (exit <rc>, <signal>: memory pressure or an
+external kill)`. A report counts as done
 once its size stops changing between two polls. `notify=on` in the config raises a Herdr toast
 per finished worker. `roster` shows a `REPORT` column (`none | pending |
 ready`) for a quick glance.
@@ -403,7 +462,11 @@ my-provider/my-model`). `session show` prints the entries; `session clear
 the source `session`. Outside Herdr (no resolvable workspace) the layer
 does not exist.
 
-`$S config` prints every effective value with its source. Keys:
+`$S config` prints every effective value with its source: the scalar keys
+in order, then the dotted keys (`args.*`, `role.*`, `model.*`, `effort.*`,
+`lane.*`, sorted) — the file's own spelling when a layer holds the key,
+the rebuilt dotted name for a key that only exists in the environment.
+Keys:
 `orchestrator_name`, `layout` (`split`: panes in the caller's tab until it is
 full, then herd tabs; `tab`: herd tabs only), `max_workers` (live workers
 at once, orchestrator not counted; default the sum of the lane capacities,
@@ -413,7 +476,10 @@ leave, fraction of the tab; default 0.18), `regrid` (exact grids after every
 spawn/release), `herd_label` + `herd_label_max` (template and length of the
 automatic herd-tab labels; default `{roles}` → `impl+rev`, 16 characters;
 see "Herd tab labels"), `brief_lint` (`warn|strict|off`; read-only roles
-need no `Owned files` section), `reuse_workers`
+need no `Owned files` section), `brief_lint_aliases` (alternate brief
+section headings, `Section=Heading|Heading` items; a heading prefix that
+starts a level 1–3 header satisfies the section — see "Briefs are
+contracts"), `reuse_workers`
 (default `on`, also when no config sets it: `spawn` returns an idle
 worker of the same role, kind and cwd whose last report exists instead of
 opening a pane, and a reuse never counts against `max_workers`; `--reuse`/`--fresh`
@@ -454,7 +520,7 @@ S=<path-to-this-skill>/scripts/herdr-agents      # POSIX; Windows: <path-to-this
 $S init                                    # doctor + name yourself `orchestrator`, title an untitled pane, print context (`first_run`)
 $S title "<objective>"                     # this pane's title: `orchestrator: <objective>`
 $S title --clear                           # clear this pane's title
-$S doctor                                  # advisory environment check (`first_run: true|false`)
+$S doctor [--fix --panes 2|3|4] [--user|--session]   # advisory check (`first_run: true|false`); --fix normalizes the project, user or session file
 $S explain                                 # plain text: what is running, or how to start
 $S setup [--target FILE] [--no-hooks]      # AGENTS.md block + Claude hooks (idempotent)
 $S setup --detect                          # JSON: installed kinds, summaries, models (incl. custom providers), recommended reviewer; writes nothing
@@ -466,10 +532,12 @@ $S roles                                   # roles with the kind, model and effo
 $S role reviewer                           # resolved file + frontmatter
 $S spawn implementer [--name impl] [--kind codex] [--direction right|down]
 $S dispatch impl <brief.md> [--timeout 900000] [--amend]   # role prompt + brief → agent, waits; --amend amends the agent's current brief
-$S collect impl                             # prints the report file (or recent output)
+$S collect impl [--lines N] [--verify]      # prints the report file (or recent output); --verify re-checks the report's sha256 lines (exit 16 on changed/missing, 4 when the report cannot be read)
 $S run scouter <brief.md>                    # spawn + dispatch + collect in one call
 $S wait a b [--any] [--timeout MS]         # block on report files
+$S stats [--since <date>] [--json]          # tasks, times and review findings per role, from the state dir; <date> is YYYY-MM-DD or ISO 8601 (other formats exit 2); the review table covers reviewer, security-reviewer, ui-reviewer and inspector
 $S friction                                # errors/warnings of this workspace (review at end)
+$S friction add "<text>" [--brief <path>]  # record one friction note (level note, command friction; --brief appends ` (brief: <path>)`)
 $S regrid                                  # exact grids: caller's tab (split) + every herd tab
 $S tab-label                               # herd tabs: id, label, auto|manual
 $S tab-label "onda 2" [--tab ID]           # pin a label (newest herd tab, or --tab); --auto goes back
@@ -536,13 +604,29 @@ herd tabs, first tab first pane, until caller + workers reach
 a temporary `herd-park` tab during a caller-tab regrid because Herdr
 refuses to move a pane inside its own tab; agents keep running. There is
 a cap on workers overall: at most `max_workers` (default **3**, four panes
-with the orchestrator) live at once. `spawn` past the cap exits 8 and names
+with the orchestrator) live at once, the orchestrator not counted — the
+cap counts live agents by name and pane: a roster line counts only when a
+live agent with the same name sits in the line's pane (a line without a
+known pane falls back to the name, counted once); a stale line — the name
+alive in another pane — counts nothing. `spawn` past the cap exits 8 and
+names
 the live workers: `release --close` the ones whose reports you already
 collected, or let `reuse_workers` hand back an idle worker
 (`multi_role=on` may hand back another role; see "Setup: guided configuration").
 Plan waves of up to three slices instead of fanning out wider. `spawn` retries
 for a few seconds while the new shell reaches its prompt, starts the agent
-with `--no-focus`. `herdr agent start` still focuses that new pane; spawn puts focus back on the pane that had it only while focus is still there, and leaves a pane you moved to alone. `regrid` does not switch to the caller's tab. Explicit
+with `--no-focus`. Right after the start, `spawn` watches a 5 s window:
+a CLI that updates itself at start and exits (the Codex auto-update is the
+only one observed) is relaunched once, in the same pane with the same args
+(`'<name>' (<kind>) updated itself at start and exited; started it again`);
+an agent that exits right after start without that marker — or on the
+relaunch — makes `spawn` exit 4 with the last screen lines (up to 5,
+` / `-joined); the pane stays open for inspection and no roster line is
+written. A name is only free when no live agent uses it, so a roster line
+left with a name (or the pane a spawn reuses) belongs to an agent that
+exited: `spawn` removes it (`replaced the stale roster line of '<name>'
+(pane <pane>)`), and `roster`/`status` show a line whose name is alive in
+another pane as `gone`, not the other agent's state. `herdr agent start` still focuses that new pane; spawn puts focus back on the pane that had it only while focus is still there, and leaves a pane you moved to alone. `regrid` does not switch to the caller's tab. Explicit
 `--direction`/`--ratio` split the chosen (or, when the tab is full, the
 caller's) pane as asked and skip the automatic regrid for that call.
 Anything after `--` goes to the agent CLI (`herdr agent start … -- <args>`).
@@ -571,7 +655,9 @@ report, 7 agent blocked (startup or approval), 8 `max_workers` reached,
 orchestrator plans), 13 lane `kind-mismatch` (the live session runs another
 CLI: `release` the lane, and set `lane.<name>.kind` so it cannot recur),
 14 provider error or capacity, 15 prompt not received (`dispatch` and
-`wait`). 7 also
+`wait`), 16 `collect --verify`: a reported file changed or is missing
+(a report that exists but cannot be read exits 4).
+7 also
 covers a worker that asked a `question`. A multi-agent `wait` keeps the most severe
 of 4, 11, 14, 15, 7 and 6. Every error
 and warning is also appended to `<state>/friction.log` (`$S friction`).
@@ -618,6 +704,24 @@ and warning is also appended to `<state>/friction.log` (`$S friction`).
 - **Timeouts.** `spawn` waits 60 s for readiness (`--timeout`). `dispatch`
   uses the role's `timeout` frontmatter (ms), else 15 min. The report file
   is the source of truth, whatever `wait_status` says.
+- **A Claude Code orchestrator's Bash caps each call at 10 minutes**,
+  shorter than a long review: run `wait` (or a `dispatch` that waits) in
+  the background, with the harness's own notification waking you — not
+  `timeout` in front of it. `wait --any` wakes you per report: it exits 0
+  as soon as one report lands (the JSON line for it is printed), so run it
+  again for the remaining agents; the wait's own timeout
+  (`dispatch_timeout`, 900000 ms) still applies.
+- **A codex worker's sandbox is narrower than it believes.** A codex
+  worker (`-s workspace-write`) cannot write under `.git` (`git mv` and
+  `git checkout -- <file>` fail on `.git/index.lock`) and has no network,
+  local ports included. Its composed prompt says so (the sandbox notes in
+  "Detecting completion"): the worker describes renames and restores in
+  the report and the orchestrator runs them, and network tests are marked
+  `[partial]` and run by the orchestrator. A role or lane that needs
+  network: `role.<role>.args=-c
+  sandbox_workspace_write.network_access=true` (with `lanes=off`) or
+  `lane.<name>.args=-c …` (lanes on); the Herdr control socket is blocked
+  the same way, so a nested orchestrator must not be a sandboxed codex.
 - **`release` without `--close` leaves the agent running.** `--close` ends
   it by closing the pane. Panes passed with `--pane` are never closed.
   `run` does not release.
@@ -823,6 +927,35 @@ tests to run while iterating, oversized writes, first-run dialogs in new
 folders. When a worker reports a gap, answer it as a decision in the next
 brief.
 
+**The lint explains why each missing section costs the worker.**
+`dispatch` lints the brief structure (`brief_lint`, default `warn`; a
+read-only role needs no `Owned files` section). The warning names the
+reason of every missing section, in the section order: `brief <path> is
+missing sections: [Goal] [Expected result] — <reason>; <reason>` (strict
+appends `(brief_lint=strict)` and exits 2). The reasons: `Goal` — the
+worker does not know what the slice is for; `Expected result` — nothing
+says when the slice is done; `Owned files` — workers without owned files
+collide; `Forbidden` — nothing keeps the worker out of other files;
+`Report` — without a report section the worker may never write one; the
+no-commit line — the worker may commit or push. A separate check flags the
+empty-inline-code symptom in `warn` and `strict` alike — at most three
+per-line warnings, then one for the rest; only `brief_lint=off` silences
+it:
+
+```text
+brief <path> line <n> has empty inline code (``): a shell heredoc without
+quotes may have run the backticks
+```
+
+`brief_lint_aliases`
+(comma-separated `Section=Heading|Heading` items) lets a level 1–3 header
+that starts with one of a section's headings, case-insensitive, satisfy
+the section: the aliasable sections are `Goal`, `Expected result`,
+`Owned files`, `Forbidden` and `Report` (the no-commit line has no heading
+to alias); a malformed item is ignored with
+`brief_lint_aliases: ignored '<item>' (use Section=Heading|Heading)` and
+the valid items still apply.
+
 ## Making the rule stick
 
 The trigger above is only read when a prompt looks like a delegation
@@ -862,8 +995,11 @@ the guard.
 machine has. On a first run — and whenever `doctor` reports a missing or
 legacy config (`panes` missing, an empty `lane.<name>.kind` whose roles
 resolve to different kinds, `split_max_panes` above `panes`, a per-role kind
-on a lane that has its own kind, `role.planner.*`), or a quota stop (exit
-11) — the orchestrator walks the user through the choices. **Every step uses
+on a lane that has its own kind, `role.planner.*`, a role or lane model
+discarded because the effective kind comes from a higher layer without a
+model, a kind+model pair that does not resolve against the kind's model
+list), or a quota stop (exit 11) — the orchestrator walks the user through
+the choices. **Every step uses
 the harness's structured-question tool** (Claude Code: `AskUserQuestion`,
 Codex: `ask_user_question`, OpenCode: `question`) with **three options — the
 first marked as the recommendation, with a one-line reason — plus a
@@ -990,8 +1126,9 @@ files (`.agents/herdr-agents.conf`, the user file, `session.conf`) keep the
 Use it for the confirmation step and whenever the user asks "what would
 that change?".
 
-`doctor --fix --panes 2|3|4 [--user]` does the same normalization on a legacy
-file. A file whose lanes are a preset (none, a new one, or the old
+`doctor --fix --panes 2|3|4 [--user|--session]` does the same normalization
+on a legacy file (`--session` targets the workspace's `session.conf` and
+exits 2 outside a resolvable Herdr workspace). A file whose lanes are a preset (none, a new one, or the old
 `build/explore/review` and `build/read`) keeps no lane roles, `max_workers`
 or `split_max_panes`: the preset is resolved at run time. A capacity you
 set on a lane the preset has (`lane.build.panes=3`) is kept.
@@ -1094,7 +1231,11 @@ issue on the skill's repo so the maintainer can improve it incrementally.
   script produced in this workspace; review it at the end of the run. One
   issue per distinct problem; check
   `gh issue list --repo <feedback_repo> --search "<keywords>" --label herdr-agents`
-  first to avoid duplicates.
+  first to avoid duplicates. Every line of the log keeps the four columns
+  (date, level, command, message; newlines are sanitized out of the
+  message), and `friction add "<text>" [--brief <path>]` records a friction
+  the tools do not log themselves (level `note`, command `friction`;
+  `--brief` appends ` (brief: <path>)`).
 - **Policy** is the `feedback` config key: `ask` (default) — tell the user
   what you would file and file it only after they agree; `on` — file it
   directly and mention it in your final message; `off` — never file, just

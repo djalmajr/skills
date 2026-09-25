@@ -36,9 +36,10 @@ import { cfg, DieError } from './config.mjs';
 import { stateDir, rosterLine, lastReport, warn, dieFriction, nowStamp, sleepSync } from './state.mjs';
 import { agentState, agentRead, agentSendKeys, notificationShow, agentPrompt } from './herdr.mjs';
 import { promptSitsInInput, markerSeqChanged } from './arrival.mjs';
-import { sanitizeCause } from './text.mjs';
+import { sanitizeCause, hasWord } from './text.mjs';
 import { dialogKind, questionText } from './dialog.mjs';
-import { partialCountFile } from './reportscan.mjs';
+import { partialCount, reviewHeader } from './reportscan.mjs';
+import { REVIEW_ROLES_ALL } from './roles.mjs';
 import { quotaDetect } from './quota.mjs';
 import { providerDetect } from './provider.mjs';
 import { laneOfRole } from './lanes.mjs';
@@ -129,6 +130,57 @@ export function wcSize(size) {
 
 function readWaitFile(sd, agent, name) {
   try { return readTextFile(path.join(sd, 'wait', name)).replace(/\n+$/, ''); } catch { return null; }
+}
+
+// The screen normalization shared by the stuck-worker detection and the
+// auto-approve dialog repetition: CRLF → LF, digit runs → '#', and the
+// Braille and spinner/progress glyphs (\u2800-\u28ff, \u25d0-\u25d3,
+// \u2588\u258c\u2590\u2591) → '*' — they rotate between polls of the same
+// screen, so leaving them in would reset the repetition counter.
+export function normalizeScreen(text) {
+  return String(text)
+    .replace(/\r\n/g, '\n')
+    .replace(/[0-9]+/g, '#')
+    .replace(/[\u2800-\u28ff\u25d0-\u25d3\u2588\u258c\u2590\u2591]/g, '*');
+}
+
+// The same auto-approve dialog is not re-sent forever. After each key
+// sent, the hash of the visible screen normalized like the stuck-worker
+// detection (normalizeScreen: CRLF → LF, digit runs → '#', Braille and
+// spinner/progress glyphs → '*') and a repetition count are kept in
+// wait/<agent>.approve-screen ("<count>\t<hash>"): an equal hash
+// increments the counter on the next block, a different one resets it to
+// 1, and from the third consecutive repetition the key is not sent — the
+// dialog is not advancing and the agent stays blocked. The record is
+// written only after a key was actually sent (a failed keypress leaves it
+// behind, like the .approvals counter), so max_auto_approvals stays the
+// overall ceiling.
+export const normalizeApproveScreen = normalizeScreen;
+
+// The repetition count the next block would record for `hash`: count+1
+// when the screen normalized to the same value as the previous record,
+// else 1 (a different dialog resets the counter; no record is 1).
+function approveRepeatOf(sd, agent, hash) {
+  const raw = readWaitFile(sd, agent, `${agent}.approve-screen`);
+  if (raw === null) return 1;
+  const parts = raw.split('\t');
+  const prevHash = parts[1] ?? '';
+  const count = Number.parseInt(parts[0] ?? '', 10);
+  if (prevHash === '' || prevHash !== String(hash)) return 1;
+  return (Number.isFinite(count) && count > 0 ? count : 0) + 1;
+}
+
+function approveRepeatSet(sd, agent, count, hash) {
+  fs.writeFileSync(path.join(sd, 'wait', `${agent}.approve-screen`), `${count}\t${hash}\n`);
+}
+
+// The last 20 non-empty lines of the agent's visible screen, joined with
+// newlines; '' when the screen cannot be read. (The blocked JSON's
+// `dialog` field — the dialog the agent is sitting on.)
+function visibleDialog(env, agent) {
+  const screen = agentRead(env, agent, { source: 'visible' });
+  const lines = String(screen).split('\n').map((l) => l.trim()).filter((l) => l !== '');
+  return lines.slice(-20).join('\n');
 }
 
 // The wait retries the Enter at most this many times (one per
@@ -239,7 +291,15 @@ export function probeAgent(sd, agent, report, ctx, env = process.env) {
         fs.writeFileSync(path.join(sd, 'wait', `${agent}.question`), `${questionText(visible)}\n`);
         return 'question';
       }
-      return tryAutoApprove(sd, agent, ctx, env) ? 'working' : 'blocked';
+      const h = cksumField(normalizeApproveScreen(visible));
+      const n = approveRepeatOf(sd, agent, h);
+      if (n >= 3) {
+        warn(`auto_approve: the same dialog came back 3 times for '${agent}'; leaving it blocked`);
+        return 'blocked';
+      }
+      if (!tryAutoApprove(sd, agent, ctx, env)) return 'blocked';
+      approveRepeatSet(sd, agent, n, h);
+      return 'working';
     }
     fs.writeFileSync(bfile, '');
     return 'working';
@@ -265,11 +325,7 @@ export function probeAgent(sd, agent, report, ctx, env = process.env) {
   // stays working. 0 disables the check.
   const limitMin = Number(cfg(ctx, 'stuck_warn_minutes', '20', env));
   if (st.state === 'working' && limitMin > 0) {
-    const norm = String(visibleScreen())
-      .replace(/\r\n/g, '\n')
-      .replace(/[0-9]+/g, '#')
-      .replace(/[\u2800-\u28ff◐◑◒◓]/g, '*');
-    const h = String(cksumField(norm));
+    const h = String(cksumField(normalizeScreen(visibleScreen())));
     const nowS = Math.floor(Date.now() / 1000);
     if (readWaitFile(sd, agent, `${agent}.stuck-hash`) !== h) {
       fs.writeFileSync(path.join(sd, 'wait', `${agent}.stuck-hash`), `${h}\n`);
@@ -452,15 +508,43 @@ export function waitFor(agents, opts) {
       const tag = st.split('\t')[0];
       switch (tag) {
         case 'done': {
-          // A done report that still marks `partial` items is not a pass:
-          // the JSON line carries the count (key present only when it is
-          // > 0, after `report`) and one warn tells the orchestrator to
-          // read the partial items before commit, push or release. An
-          // unreadable report counts 0 and the line is unchanged.
-          const partial = partialCountFile(r);
+          // The report is read once for the two markers: the review
+          // header (findings/severity/verdict — right after `report`) and
+          // the `partial` item count (after the header fields). A done
+          // report that still marks `partial` items is not a pass: the
+          // JSON line carries the count (key present only when it is > 0)
+          // and one warn tells the orchestrator to read the partial items
+          // before commit, push or release. An unreadable report reads ''
+          // (count 0, no header) and the line is unchanged.
+          let reportText = '';
+          try { reportText = readTextFile(r); } catch { reportText = ''; }
+          const partial = partialCount(reportText);
+          const header = reviewHeader(reportText);
           const done = { agent: a, status: 'done', report: r };
+          if (header) {
+            done.verdict = header.verdict;
+            done.findings = header.findings;
+            done.severity = header.severity;
+          }
           if (partial > 0) done.partial = partial;
           jsonLine(done, sink);
+          if (header) {
+            // The numbers are kept as parsed; a mismatch with the P0..P3
+            // sum is warned, never recomputed.
+            const sum = header.severity.P0 + header.severity.P1 + header.severity.P2 + header.severity.P3;
+            if (sum !== header.findings) {
+              warn(`report of '${a}': findings ${header.findings} but P0..P3 add up to ${sum}`);
+            }
+          } else {
+            // A review report without the header is suspicious: the
+            // orchestrator should read the report before trusting the done
+            // (the current role comes from roster column 4). The four
+            // review roles all carry the fixed header line now.
+            const roleNow = rosterLine(sd, a).split('\t')[3] ?? '';
+            if (roleNow !== '' && hasWord(REVIEW_ROLES_ALL, roleNow)) {
+              warn(`report of '${a}' has no 'findings: N (P0 a, P1 b, P2 c, P3 d) | verdict: pass|fail' first line`);
+            }
+          }
           if (partial > 0) {
             warn(`report of '${a}' marks ${partial} item(s) partial: a partial item is not a pass; read them before commit, push or release`);
           }
@@ -469,10 +553,11 @@ export function waitFor(agents, opts) {
           if (any) return 0;
           break;
         }
-        case 'blocked':
-          jsonLine({ agent: a, status: 'blocked', report: r }, sink);
+        case 'blocked': {
+          jsonLine({ agent: a, status: 'blocked', report: r, dialog: visibleDialog(env, a) }, sink);
           rc = waitRaise(rc, 7);
           break;
+        }
         case 'question': {
           const q = readWaitFile(sd, a, `${a}.question`) ?? '';
           jsonLine({ agent: a, status: 'question', report: r, question: q }, sink);

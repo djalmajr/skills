@@ -275,15 +275,18 @@ test('agentState: a kill by a signal (exit 137) is retried before unavailable', 
     // Two kills, then the answer: the third try reports the real state.
     assert.deepEqual(agentState('flaky', fake.env, undefined, [10, 10]), { state: 'working', cause: '', seq: '' });
     assert.equal(gets(), 3, 'three agent get calls');
-    // Killed every time: unavailable after the retries, with the exit code.
+    // Killed every time: unavailable after the retries, with the signal
+    // and the likely cause named (not the bare exit code).
+    // Mutation captured: the signal-kill cause reverted to the bare
+    // `herdr agent get failed (exit 137)` breaks the exact strings below.
     fs.writeFileSync(fake.log, '');
     assert.deepEqual(agentState('killed', fake.env, undefined, [10, 10]),
-      { state: 'unavailable', cause: 'herdr agent get failed (exit 137)', seq: '' });
+      { state: 'unavailable', cause: 'herdr agent get was killed (exit 137, SIGKILL: memory pressure or an external kill)', seq: '' });
     assert.equal(gets(), 3, 'three agent get calls');
-    // An external SIGTERM is retried too, and reported like bash (exit 143).
+    // An external SIGTERM is retried too, and named like the SIGKILL case.
     fs.writeFileSync(fake.log, '');
     assert.deepEqual(agentState('termed', fake.env, undefined, [10, 10]),
-      { state: 'unavailable', cause: 'herdr agent get failed (exit 143)', seq: '' });
+      { state: 'unavailable', cause: 'herdr agent get was killed (exit 143, SIGTERM: memory pressure or an external kill)', seq: '' });
     assert.equal(gets(), 3, 'three agent get calls');
     // Our own timeout is not retried.
     fs.writeFileSync(fake.log, '');

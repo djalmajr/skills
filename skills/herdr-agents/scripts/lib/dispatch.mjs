@@ -19,8 +19,11 @@
 // ends 7.
 //
 // Faithful-port notes:
-//   - the dispatch JSON keeps the bash `jq -n` key order (agent, role, kind,
-//     composed_prompt, report, wait_status, report_exists, auto_approved,
+//   - the dispatch JSON is one line (never pretty-printed) with
+//     `wait_status` as the first key, so `dispatch … | tail -1` returns the
+//     whole JSON and callers filtering a field never lose the status; the
+//     other keys keep the bash `jq -n` order (agent, role, kind,
+//     composed_prompt, report, report_exists, auto_approved,
 //     and lane/model/match/renewal only on a quota, and lane/model/cause —
 //     plus retries on a capacity — only on a provider-error/capacity);
 //     `amend: true` sits right after report_exists on an amendment, and
@@ -47,7 +50,6 @@ import { projectRoot } from './platform.mjs';
 import { fmGet, roleBody, roleFile, roleIsEdit, historyHasEdit, REVIEW_ROLES } from './roles.mjs';
 import { agentPrompt, agentState, agentRead, agentSendKeys } from './herdr.mjs';
 import { briefTask, paneTaskTitle } from './tasks.mjs';
-import { jqPretty } from './herdtabs.mjs';
 import { waitFor, pollIntervalMs, cksumField } from './wait.mjs';
 import { PROMPT_MARKER, lastNonEmptyLines, promptSitsInInput, markerSeq, markerSeqChanged } from './arrival.mjs';
 // Re-exported so the names that were exported here before the move to
@@ -91,38 +93,365 @@ export function familyConflicts(sd, fam, env = process.env, cwd = process.cwd())
 // rules 3, 5, 6 and the expected result): a level 1-3 header (any case) for
 // each of the accepted spellings, plus a line that says no commit/push.
 // Returns the missing list — ` [Goal] [Expected result] …`, leading space
-// and all, as the bash message embeds it — or '' when the brief passes.
+// and all, as the message embeds it — or '' when the brief passes.
 // Each check mirrors one `grep -qiE` (a line in the file must match).
 // A read-only role (opts.readOnly) owns nothing, so the `Owned files`
-// section is not asked of it; the other sections still hold.
+// section is not asked of it; the other sections still hold. opts.aliases
+// (from parseBriefLintAliases) maps a section name to alternate heading
+// prefixes: a level 1-3 header that starts with one of them, case-
+// insensitive, satisfies the section.
 export function briefMissingSections(brief, opts = {}) {
   let text;
   try { text = fs.readFileSync(brief, 'utf8'); } catch { text = ''; }
+  const aliases = opts.aliases ?? {};
+  const aliasHit = (name) => {
+    const alts = aliases[name];
+    if (!Array.isArray(alts)) return false;
+    return alts.some((h) => {
+      const esc = String(h).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`^#{1,3} +${esc}`, 'im').test(text);
+    });
+  };
   const checks = [
-    [/^#{1,3} +goal/im, 'Goal'],
-    [/^#{1,3} +(expected result|acceptance|definition of done)/im, 'Expected result'],
-    ...(opts.readOnly === true ? [] : [[/^#{1,3} +(owned files|owned|scope)/im, 'Owned files']]),
-    [/^#{1,3} +(forbidden|non-goals|constraints)/im, 'Forbidden'],
-    [/^#{1,3} +report/im, 'Report'],
-    [/(commit|push)/i, "no-git line: say 'no commit/push'"],
+    [[/^#{1,3} +goal/im], 'Goal'],
+    [[/^#{1,3} +(expected result|acceptance|definition of done)/im], 'Expected result'],
+    ...(opts.readOnly === true ? [] : [[[/^#{1,3} +(owned files|owned|scope)/im], 'Owned files']]),
+    [[/^#{1,3} +(forbidden|non-goals|constraints)/im], 'Forbidden'],
+    [[/^#{1,3} +report/im], 'Report'],
+    [[/(commit|push)/i], "no-git line: say 'no commit/push'"],
   ];
   let missing = '';
-  for (const [re, label] of checks) if (!re.test(text)) missing += ` [${label}]`;
+  for (const [res, label] of checks) if (!res.some((re) => re.test(text)) && !aliasHit(label)) missing += ` [${label}]`;
   return missing;
+}
+
+// The reason each missing section costs the worker, keyed by the missing
+// label, in the checks' order. The warning names the reason of every
+// missing section (in the same order) so the message always explains the
+// section it flags.
+const SECTION_REASONS = {
+  'Goal': 'the worker does not know what the slice is for',
+  'Expected result': 'nothing says when the slice is done',
+  'Owned files': 'workers without owned files collide',
+  'Forbidden': 'nothing keeps the worker out of other files',
+  'Report': 'without a report section the worker may never write one',
+  "no-git line: say 'no commit/push'": 'the worker may commit or push',
+};
+
+// The reasons of the labels in a missing list, in the same order, joined
+// by '; '.
+export function missingSectionsReasons(missing) {
+  const labels = String(missing).match(/\[([^\]]+)\]/g) ?? [];
+  return labels.map((l) => SECTION_REASONS[l.slice(1, -1)] ?? '').join('; ');
+}
+
+// The aliasable sections (the no-commit/push line has no heading to
+// alias). Section names must match the table above exactly.
+const ALIAS_SECTIONS = ['Goal', 'Expected result', 'Owned files', 'Forbidden', 'Report'];
+
+// Parse `brief_lint_aliases` (`Section=Heading1|Heading2,Section2=Heading`):
+// returns the section → alternate-headings map and the malformed items that
+// were ignored (no `=`, empty section or heading list, unknown section);
+// the valid items still apply. Items split on commas, the section name ends
+// at the first `=`, the headings split on `|`; empty items are skipped
+// silently.
+export function parseBriefLintAliases(value) {
+  const sections = {};
+  const ignored = [];
+  for (const item of String(value ?? '').split(',')) {
+    if (item === '') continue;
+    const eq = item.indexOf('=');
+    const name = eq === -1 ? '' : item.slice(0, eq);
+    const heads = eq === -1 ? [] : item.slice(eq + 1).split('|').filter((h) => h !== '');
+    if (eq === -1 || !ALIAS_SECTIONS.includes(name) || heads.length === 0) { ignored.push(item); continue; }
+    sections[name] = heads;
+  }
+  return { sections, ignored };
+}
+
+// Lines (1-based) of the text that carry the empty-inline-code symptom: a
+// run of exactly two backticks outside fenced code blocks — a run of three
+// or more is a fence marker (or a longer inline delimiter) and does not
+// count. A shell heredoc without quotes runs the backticks of a code span
+// and leaves `` where the code was.
+export function emptyCodeLines(text) {
+  const out = [];
+  let inFence = false;
+  let fenceChar = '';
+  let fenceLen = 0;
+  for (const [i, line] of String(text ?? '').split('\n').entries()) {
+    const open = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (!inFence && open) {
+      inFence = true;
+      fenceChar = open[1][0];
+      fenceLen = open[1].length;
+      continue;
+    }
+    if (inFence) {
+      const close = line.match(/^ {0,3}(`{3,}|~{3,}) *$/);
+      if (close && close[1][0] === fenceChar && close[1].length >= fenceLen) inFence = false;
+      continue;
+    }
+    for (const m of line.matchAll(/`+/g)) {
+      if (m[0].length === 2) { out.push(i + 1); break; }
+    }
+  }
+  return out;
 }
 
 // lint_brief <file>: brief_lint=warn|strict|off (default warn). strict dies
 // 2 (with a friction entry for the living command); warn prints the warning
 // and continues. `off` never checks. A read-only role (opts.readOnly) skips
 // the `Owned files` check (see briefMissingSections).
+// The warning names the reason of every missing section: `brief <path> is
+// missing sections: [A] [B] — <reason A>; <reason B>`; strict appends
+// ` (brief_lint=strict)` to the same text.
+// A separate check flags the empty-inline-code symptom (``): it runs in
+// warn and strict alike (only brief_lint=off silences it), at most three
+// per-line warnings, then one for the rest.
 export function lintBrief(brief, ctx, env = process.env, opts = {}) {
   const mode = cfg(ctx, 'brief_lint', 'warn', env);
   if (mode === 'off') return;
-  const missing = briefMissingSections(brief, opts);
+  const { sections: aliases, ignored } = parseBriefLintAliases(cfg(ctx, 'brief_lint_aliases', '', env));
+  for (const item of ignored) warn(`brief_lint_aliases: ignored '${item}' (use Section=Heading|Heading)`);
+  let body = '';
+  try { body = fs.readFileSync(brief, 'utf8'); } catch { body = ''; }
+  const bad = emptyCodeLines(body);
+  for (const n of bad.slice(0, 3)) {
+    warn(`brief ${brief} line ${n} has empty inline code (\`\`): a shell heredoc without quotes may have run the backticks`);
+  }
+  if (bad.length > 3) warn(`… and ${bad.length - 3} more line(s)`);
+  const missing = briefMissingSections(brief, { ...opts, aliases });
   if (missing === '') return;
-  if (mode === 'strict') dieFriction(`brief ${brief} is missing sections:${missing} (brief_lint=strict)`, 2);
-  warn(`brief ${brief} is missing sections:${missing} — workers without owned/forbidden files collide, without a report section never finish`);
+  const message = `brief ${brief} is missing sections:${missing} — ${missingSectionsReasons(missing)}`;
+  if (mode === 'strict') dieFriction(`${message} (brief_lint=strict)`, 2);
+  warn(message);
 }
+
+// ---------- owned files of a brief ----------
+
+// The accepted `Owned files` headers (the same spellings the lint asks
+// for) and the lone words that are not paths (any case).
+const OWNED_HEADER_RES = [/^#{1,3} +owned files/i, /^#{1,3} +owned/i, /^#{1,3} +scope/i];
+const PATH_STOPWORDS = new Set(['nenhum', 'none']);
+
+// The `Owned files` section (or its lint alias) of a brief text: from the
+// header to the next header of the same or a higher level. '' when absent.
+function ownedSection(text, aliases = {}) {
+  const lines = String(text ?? '').split('\n');
+  const alt = aliases['Owned files'];
+  let start = -1;
+  let level = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    const m = lines[i].match(/^(#{1,3}) +(.+)$/);
+    if (!m) continue;
+    const title = m[2];
+    const aliased = Array.isArray(alt) && alt.some((h) => new RegExp(`^${String(h).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i').test(title));
+    if (OWNED_HEADER_RES.some((re) => re.test(lines[i])) || aliased) { start = i; level = m[1].length; break; }
+  }
+  if (start === -1) return '';
+  const out = [lines[start]];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const h = lines[i].match(/^(#{1,6}) /);
+    if (h && h[1].length <= level) break;
+    out.push(lines[i]);
+  }
+  return out.join('\n');
+}
+
+// A token that looks like a path: a single token with a "/" or a ".",
+// not a lone stopword (trailing punctuation ignored).
+function pathLike(token) {
+  const t = String(token ?? '').trim();
+  if (t === '' || t.includes(' ')) return false;
+  if (PATH_STOPWORDS.has(t.replace(/[.,;:]+$/, '').toLowerCase())) return false;
+  return /[/.]/.test(t);
+}
+
+// The paths a brief owns: the code spans and the path-like list items of
+// its `Owned files` section (or lint alias). Normalized: a leading `./` and
+// a trailing "/" are dropped, "Nenhum"/"none" ignored, deduplicated in
+// first-seen order.
+export function ownedPaths(text, aliases = {}) {
+  const section = ownedSection(text, aliases);
+  if (section === '') return [];
+  const out = [];
+  const push = (raw) => {
+    let p = String(raw ?? '').trim();
+    while (p.startsWith('./')) p = p.slice(2);
+    if (p.endsWith('/')) p = p.slice(0, -1);
+    if (!pathLike(p) || out.includes(p)) return;
+    out.push(p);
+  };
+  for (const line of section.split('\n')) {
+    for (const m of line.matchAll(/`([^`]+)`/g)) push(m[1]);
+    const li = line.match(/^\s*([-*+]|\d+[.)])\s+([^`].*)$/);
+    if (li) push(li[2]);
+  }
+  return out;
+}
+
+// The `# Brief` section of a composed brief file: from its level-1 header
+// to the `# Report contract` header (or end of file) — the embedded brief
+// is verbatim and carries its own level-1 headers, so only the report
+// contract closes the block. '' when absent (an amendment's composed file
+// has no `# Brief` section).
+export function composedBriefSection(text) {
+  const lines = String(text ?? '').split('\n');
+  const start = lines.indexOf('# Brief');
+  if (start === -1) return '';
+  const out = [lines[start]];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (lines[i] === '# Report contract') break;
+    out.push(lines[i]);
+  }
+  return out.join('\n');
+}
+
+// The composed brief a pending report was dispatched with: the same
+// timestamp pair under briefs/ (state routing) or, with the $TMPDIR
+// routing, alongside the report as `<name>.brief.md`. '' when neither
+// candidate is a file.
+export function pendingBriefPath(report) {
+  const name = path.basename(String(report ?? ''));
+  if (!name.endsWith('.md')) return '';
+  const base = name.slice(0, -3);
+  const dir = path.dirname(String(report));
+  for (const c of [path.join(dir, '..', 'briefs', `${base}.md`), path.join(dir, `${base}.brief.md`)]) {
+    try { if (fs.statSync(c).isFile()) return c; } catch { /* next */ }
+  }
+  return '';
+}
+
+// A glob matches a path: `*` and `?` stay inside one segment (they never
+// cross a `/`), `**` crosses segments (a `**/` also matches zero
+// segments, so `dir/**/x` reaches `dir/x`), and `[...]` is a character
+// class (a leading `!` or `^` negates; a `]` as the first member is
+// literal; an unclosed class is a literal `[`).
+export function globMatches(glob, str) {
+  let re = '';
+  let i = 0;
+  while (i < glob.length) {
+    const c = glob[i];
+    if (c === '*') {
+      if (glob[i + 1] === '*') {
+        i += 2;
+        if (glob[i] === '/') { re += '(?:.*/)?'; i += 1; continue; }
+        re += '.*';
+        continue;
+      }
+      re += '[^/]*';
+      i += 1;
+      continue;
+    }
+    if (c === '?') { re += '[^/]'; i += 1; continue; }
+    if (c === '[') {
+      let j = i + 1;
+      if (glob[j] === '!' || glob[j] === '^') j += 1;
+      let start = j;
+      if (glob[j] === ']') j += 1; // a leading ] is a literal member
+      let closed = -1;
+      while (j < glob.length) { if (glob[j] === ']') { closed = j; break; } j += 1; }
+      if (closed !== -1 && closed > start) {
+        re += '[' + glob.slice(i + 1, closed).replace(/^[-^!]/, (m) => (m === '-' ? m : '^')) + ']';
+        i = closed + 1;
+        continue;
+      }
+      re += '\\[';
+      i += 1;
+      continue;
+    }
+    re += c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    i += 1;
+  }
+  return new RegExp(`^${re}$`).test(str);
+}
+
+// The literal part of a glob: the prefix before the first `*`, `?` or `[`
+// (trailing slashes dropped); the whole string when it carries no wildcard.
+function literalPrefix(p) {
+  const i = p.search(/[*?[]/);
+  return i === -1 ? p : p.slice(0, i).replace(/\/+$/, '');
+}
+
+// Two owned paths cross when they are equal, when one is a directory the
+// other is inside (a segment boundary, either way), or — when either side
+// carries a wildcard — when the glob matches the other path, when the
+// glob's literal prefix and the path hold a directory relation (the prefix
+// inside the path, or the path inside the prefix; an empty prefix crosses
+// every relative path), or — glob against glob — when one literal prefix
+// starts with the other, as text (`roles/reviewer*.md` and
+// `roles/review*.md` both match `roles/reviewer.md`).
+export function pathsCross(a, b) {
+  const x = String(a ?? '');
+  const y = String(b ?? '');
+  if (x === y) return true;
+  const inside = (p, q) => p === q || p.startsWith(q + '/') || q.startsWith(p + '/');
+  const hasGlob = (p) => /[*?[]/.test(p);
+  if (!hasGlob(x) && !hasGlob(y)) return inside(x, y);
+  const crossPlain = (g, t) => {
+    if (globMatches(g, t)) return true;
+    const p = literalPrefix(g);
+    if (p === '') return true;
+    return inside(p, t);
+  };
+  if (hasGlob(x) && !hasGlob(y)) return crossPlain(x, y);
+  if (hasGlob(y) && !hasGlob(x)) return crossPlain(y, x);
+  const px = literalPrefix(x);
+  const py = literalPrefix(y);
+  if (px === '' || py === '') return true;
+  // Glob against glob: compare the raw text before the first wildcard, the
+  // trailing `/` kept, so `roles/reviewer*` and `roles/review*` cross
+  // (both match `roles/reviewer.md`) while `scripts/*` and `scripts2/*`
+  // do not (the `/` is a segment boundary).
+  const rx = rawPrefix(x);
+  const ry = rawPrefix(y);
+  return rx.startsWith(ry) || ry.startsWith(rx);
+}
+
+// The text before the first wildcard, as written (no trailing-`/` trim).
+function rawPrefix(p) {
+  const i = p.search(/[*?[]/);
+  return i === -1 ? p : p.slice(0, i);
+}
+
+// The `# Brief` section a pending composed prompt still commits its worker
+// to: the prompt's own `# Brief`; when the prompt is an amendment (no
+// `# Brief`), the `# Brief` of the same agent's newest EARLIER composed
+// prompt in the same directory (same file kind) that has one — the
+// amendment amends that brief, so its owned files are still the worker's.
+// '' when the file is unreadable or no earlier base brief exists.
+export function pendingBriefSection(pb) {
+  let body = '';
+  try { body = fs.readFileSync(pb, 'utf8'); } catch { return ''; }
+  const own = composedBriefSection(body);
+  if (own !== '') return own;
+  const baseName = path.basename(pb).replace(/\.brief\.md$/, '.md');
+  const m = /^(.+)-(\d{8}T\d{6})(?:-(\d+))?\.md$/.exec(baseName);
+  if (m === null) return '';
+  const agent = m[1];
+  const ts = m[2];
+  const suf = m[3] === undefined ? 1 : Number(m[3]);
+  const isBriefKind = path.basename(pb).endsWith('.brief.md');
+  const dir = path.dirname(pb);
+  let entries = [];
+  try { entries = fs.readdirSync(dir); } catch { return ''; }
+  let best = null;
+  for (const f of entries) {
+    if (isBriefKind ? !f.endsWith('.brief.md') : f.endsWith('.brief.md')) continue;
+    const mm = /^(.+)-(\d{8}T\d{6})(?:-(\d+))?\.md$/.exec(f.replace(/\.brief\.md$/, '.md'));
+    if (mm === null || mm[1] !== agent) continue;
+    if (mm[2] > ts || (mm[2] === ts && (mm[3] === undefined ? 1 : Number(mm[3])) >= suf)) continue;
+    let content = '';
+    try { content = fs.readFileSync(path.join(dir, f), 'utf8'); } catch { continue; }
+    const sec = composedBriefSection(content);
+    if (sec === '') continue;
+    const s2 = mm[3] === undefined ? 1 : Number(mm[3]);
+    if (best === null || mm[2] > best.ts || (mm[2] === best.ts && s2 > best.suf)) best = { ts: mm[2], suf: s2, sec };
+  }
+  return best === null ? '' : best.sec;
+}
+
 
 // ---------- the composed prompt (:3930-3958) ----------
 // The standing worker rules at the end of every composed prompt (the brief
@@ -137,6 +466,29 @@ function standingRules() {
   ].join('');
 }
 
+// The sandbox notes of a codex worker: its sandbox cannot write under .git
+// and has no network (local ports included) unless the opening args grant
+// it. Both notes sit right before the standing rules, in the brief and the
+// amendment prompts; a roster line without the opening-args column counts
+// as empty args, and any other kind gets no note.
+const SANDBOX_GIT_NOTE = '- Your sandbox cannot write under .git: do not run git mv, git checkout, git add or git commit. Describe renames and restores in the report; the orchestrator runs them.\n';
+const SANDBOX_NET_NOTE = '- Your sandbox has no network, local ports included: tests that start a local server fail with "Operation not permitted". Mark them [partial] and say so; the orchestrator runs them.\n';
+
+export function sandboxNotes(kind, agentArgs) {
+  if (kind !== 'codex') return [];
+  const args = String(agentArgs ?? '').split(/\s+/).filter((a) => a !== '');
+  // danger-full-access and the bypass flag both lift every limit; a token
+  // that ENDS in network_access=true releases the network (the real token
+  // is sandbox_workspace_write.network_access=true, passed via -c).
+  const full = args.includes('danger-full-access')
+    || args.includes('--dangerously-bypass-approvals-and-sandbox');
+  const net = args.some((a) => a.endsWith('network_access=true'));
+  const notes = [];
+  if (!full) notes.push(SANDBOX_GIT_NOTE);
+  if (!full && !net) notes.push(SANDBOX_NET_NOTE);
+  return notes;
+}
+
 // The composed prompt file: `# Role: <name>`, the role line, the role body,
 // `# Brief` with the brief verbatim (`cat` — no CRLF normalization), and
 // `# Report contract` with the report path, the report language when
@@ -144,7 +496,7 @@ function standingRules() {
 // and the standing worker rules (only the worker writes the report,
 // nobody watches the terminal, never invent, no git, reply with the report
 // path). Same lines, same order, as bash.
-export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env = process.env) {
+export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env = process.env, kind = '', agentArgs = '') {
   const out = [];
   out.push(`# Role: ${fmGet(roleFile, 'name')}\n\n`);
   out.push(`You are running as the \`${role}\` role, agent name \`${agent}\`, inside a multi-agent run coordinated by an orchestrator that cannot see your terminal.\n\n`);
@@ -159,6 +511,7 @@ export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env 
   if (cfg(ctx, 'worker_context', 'full', env) === 'lean') {
     out.push(`- This brief is self-contained. Do NOT read CLAUDE.md, AGENTS.md, ai-memory rules, wiki pages or other project instruction files unless the brief names them explicitly; the rules that apply are quoted in the brief. Start on the task immediately.\n`);
   }
+  for (const n of sandboxNotes(kind, agentArgs)) out.push(n);
   out.push(standingRules());
   return out.join('');
 }
@@ -170,7 +523,7 @@ export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env 
 // `report_language` is set, the one-go rule and the standing worker rules.
 // The worker already has the role and the current brief in context, so the
 // amendment carries neither.
-export function composeAmendment(amendRaw, report, ctx, env = process.env) {
+export function composeAmendment(amendRaw, report, ctx, env = process.env, kind = '', agentArgs = '') {
   const out = [];
   out.push(`# Amendment to your current brief\n\n`);
   out.push(amendRaw);
@@ -181,6 +534,7 @@ export function composeAmendment(amendRaw, report, ctx, env = process.env) {
   const lang = cfg(ctx, 'report_language', '', env);
   if (lang !== '') out.push(`- Write the report in ${lang}.\n`);
   out.push(`- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n`);
+  for (const n of sandboxNotes(kind, agentArgs)) out.push(n);
   out.push(standingRules());
   return out.join('');
 }
@@ -304,6 +658,42 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
     }
   }
 
+  // Owned-files overlap: every other roster agent whose report is still
+  // pending (last-report-<agent> exists and the recorded report is absent
+  // or empty) is still working the files of its composed brief. When the
+  // new brief owns any of those paths (equal, inside a directory, or a
+  // glob prefix), warn once per agent with at most five paths. Advisory
+  // only — never blocks; skipped on --amend (the worker keeps its own
+  // brief) and when the new brief has no `Owned files` section.
+  if (amend !== 1) {
+    const ownedAliases = parseBriefLintAliases(cfg(ctx, 'brief_lint_aliases', '', env)).sections;
+    let newBody = '';
+    try { newBody = fs.readFileSync(brief, 'utf8'); } catch { newBody = ''; }
+    const mine = ownedPaths(newBody, ownedAliases);
+    const isEdit = roleIsEdit(role, env, cwd);
+    for (const row of rosterRows(sd)) {
+      const other = row.split('\t')[0];
+      if (other === '' || other === agent) continue;
+      const rep = lastReport(sd, other);
+      if (rep === '') continue;
+      let pending = true;
+      try { pending = fs.statSync(rep).size === 0; } catch { pending = true; }
+      if (!pending) continue;
+      const pb = pendingBriefPath(rep);
+      if (pb === '') continue;
+      // An amendment prompt has no `# Brief` of its own: the overlap check
+      // uses the `# Brief` of the agent's newest earlier base brief — the
+      // amendment amends that brief, so its files are still the worker's.
+      const theirs = ownedPaths(pendingBriefSection(pb), ownedAliases);
+      const hits = mine.filter((p) => theirs.some((q) => pathsCross(p, q)));
+      if (hits.length === 0) continue;
+      const shown = hits.slice(0, 5).join(', ');
+      warn(isEdit
+        ? `brief ${brief} owns files that '${other}' is still editing: ${shown}`
+        : `reviewing files that '${other}' is still editing: ${shown}`);
+    }
+  }
+
   // Report and composed prompt under the state dir — or under the shared
   // tmp when the worker's cwd is not this repo root (worktree, other
   // checkout): its sandbox may not reach the repo root, while every known
@@ -333,13 +723,13 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   if (tmpReports !== null) fs.mkdirSync(tmpReports, { recursive: true });
   fs.mkdirSync(path.dirname(composed), { recursive: true });
   fs.writeFileSync(composed, amend === 1
-    ? composeAmendment(fs.readFileSync(brief, 'utf8'), report, ctx, env)
-    : composePrompt(rf, role, agent, fs.readFileSync(brief, 'utf8'), report, ctx, env));
+    ? composeAmendment(fs.readFileSync(brief, 'utf8'), report, ctx, env, kind, cols[13] ?? '')
+    : composePrompt(rf, role, agent, fs.readFileSync(brief, 'utf8'), report, ctx, env, kind, cols[13] ?? ''));
   fs.writeFileSync(path.join(sd, `last-report-${agent}`), `${report}\n`);
   for (const suf of ['size', 'screen', 'since', 'blocked', 'approvals', 'quota',
     'provider', 'provider-cause', 'capacity-retries', 'capacity-at',
     'question', 'stuck-hash', 'stuck-since', 'stuck-warned',
-    'not-received', 'enter-retry']) {
+    'not-received', 'enter-retry', 'approve-screen']) {
     fs.rmSync(path.join(sd, 'wait', `${agent}.${suf}`), { force: true });
   }
 
@@ -376,7 +766,7 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   const p = agentPrompt(agent, text, env);
   if (!p.ok) {
     status = 'error';
-    process.stdout.write(jqPretty({ agent, role, kind, composed_prompt: composed, report, wait_status: 'error', report_exists: false, raw: p.raw }));
+    process.stdout.write(JSON.stringify({ wait_status: 'error', agent, role, kind, composed_prompt: composed, report, report_exists: false, raw: p.raw }) + '\n');
     warn(`prompt submission failed; inspect with: herdr agent get ${agent} && herdr agent read ${agent}. Do not resend blindly.`);
     return 4;
   }
@@ -413,8 +803,7 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
       const seq = agentState(agent, env).seq;
       fs.writeFileSync(path.join(sd, 'wait', `${agent}.not-received`),
         `${Math.floor(Date.now() / 1000)}${seq !== '' ? ` ${seq}` : ''}\n`);
-      process.stdout.write(jqPretty({ agent, role, kind, composed_prompt: composed, report,
-        wait_status: 'not-received', report_exists: reportNow }));
+      process.stdout.write(JSON.stringify({ wait_status: 'not-received', agent, role, kind, composed_prompt: composed, report, report_exists: reportNow }) + '\n');
       warn(`prompt to '${agent}' was not received after ${what}; read the pane (herdr agent read ${agent} --source visible) before sending anything else`);
       return 15;
     };
@@ -478,6 +867,10 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   let preties = 0;
   let qtext = '';
   let wpartial = 0;
+  let wverdict = '';
+  let wfindings;
+  let wseverity;
+  let wdialog;
   if (wait === 1) {
     const lines = [];
     try {
@@ -493,6 +886,18 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
     // item(s) partial; it lands in the final JSON (the warn already came
     // from the wait).
     if (last.status === 'done' && Number.isInteger(last.partial)) wpartial = last.partial;
+    // The done wait line carries the review header (verdict, findings,
+    // severity) when the report starts with it; they land in the final
+    // JSON the same way (the wait already warns on a bad header).
+    if (last.status === 'done') {
+      if (last.verdict !== undefined) wverdict = last.verdict;
+      if (last.findings !== undefined) wfindings = last.findings;
+      if (last.severity !== undefined) wseverity = last.severity;
+    }
+    // The blocked wait line carries the dialog (the last 20 non-empty
+    // visible lines): the final JSON carries it the same way, so a block
+    // inside a dispatch keeps the screen context the wait line provides.
+    if (last.status === 'blocked' && last.dialog !== undefined) wdialog = last.dialog;
     if (last.status === 'quota') {
       qmatch = last.match ?? '';
       qrenew = last.renewal ?? '';
@@ -516,13 +921,24 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
     approvals = Number.isFinite(v) ? v : 0;
   } catch { approvals = 0; }
   const out = {
+    wait_status: status,
     agent, role, kind, composed_prompt: composed, report,
-    wait_status: status, report_exists: reportExists,
+    report_exists: reportExists,
   };
   // amend: true marks this JSON as the one of an amendment (not a fresh
   // brief). It sits right after report_exists because it qualifies the
   // report named by `report` — the new one the wait now watches.
   if (amend === 1) out.amend = true;
+  // dialog: the screen the agent is sitting on (the blocked wait line's
+  // field). It sits right after report_exists (and amend, when present),
+  // before the review header fields, mirroring the wait line.
+  if (wdialog !== undefined) out.dialog = wdialog;
+  // The review header fields sit right after report_exists (and amend,
+  // when present), before partial: only when the done wait line carried
+  // them.
+  if (wverdict !== '') out.verdict = wverdict;
+  if (wfindings !== undefined) out.findings = wfindings;
+  if (wseverity !== undefined) out.severity = wseverity;
   // partial: N sits right after report_exists (and amend, when present):
   // it qualifies the same report. The warn already came from waitFor.
   if (wpartial > 0) out.partial = wpartial;
@@ -535,7 +951,9 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
     Object.assign(out, { lane: qlane, model: qmodel, cause: pcause });
     if (status === 'capacity') out.retries = preties;
   }
-  process.stdout.write(jqPretty(out));
+  // One line, wait_status first: `dispatch … | tail -1` returns the whole
+  // JSON and a filter on any field keeps the status.
+  process.stdout.write(JSON.stringify(out) + '\n');
 
   switch (status) {
     case 'question':

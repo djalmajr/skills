@@ -18,7 +18,7 @@ commits, pushes, or closes panes it did not create.
 Usage:
   herdr-agents init                          # doctor + name the caller \`orchestrator\`, print context
   herdr-agents title "<objective>" | title --clear   # this pane's title: orchestrator: <objective>
-  herdr-agents doctor [--fix] [--panes 2|3|4] [--user]
+  herdr-agents doctor [--fix] [--panes 2|3|4] [--user|--session]
                                              # advisory check; --fix normalizes lanes in the project file
   herdr-agents explain                       # plain text for a person: what is running, or how to start
   herdr-agents setup [--target FILE] [--no-hooks] [--dry-run]
@@ -50,12 +50,15 @@ Usage:
                                              # --amend sends <file> as an amendment to the agent's current brief, with a new report that wait watches
   herdr-agents wait <agent>... [--timeout MS] [--any]
   herdr-agents status <agent>...             # gone = agent_not_found; unavailable = agent get failed (exit 4)
-  herdr-agents collect <agent> [--lines N]
+  herdr-agents collect <agent> [--lines N] [--verify]
+                                             # --verify checks the sha256 lines of the last report (exit 16 on changed/missing)
+  herdr-agents stats [--since <date>] [--json]  # tasks, times and review findings per role, from the state dir
   herdr-agents run <role> <brief.md> [spawn/dispatch options] [-- <agent args>]
   herdr-agents roster
   herdr-agents release <agent> [--close] [--force]
   herdr-agents clean [--older-than DAYS]
   herdr-agents friction                     # every error/warning of this workspace
+  herdr-agents friction add "<text>" [--brief <path>]  # record one friction note (level note, command friction)
 
 Completion contract: a worker is finished when its report file exists. Use
 \`dispatch\` (waits by default), \`wait\` (one or many agents), or \`status\`
@@ -74,7 +77,8 @@ Exit codes: 2 usage/env · 3 unknown role/agent · 4 Herdr failure (includes
 7 agent blocked (startup or approval) or asked a question · 8 max_workers reached ·
 9 wait timeout · 10 lane busy · 11 quota exhausted · 12 planner is the orchestrator ·
 13 lane kind-mismatch (set lane.<name>.kind, or release the lane) ·
-14 provider error or capacity · 15 prompt not received.
+14 provider error or capacity · 15 prompt not received ·
+16 collect --verify: a reported file changed or is missing.
 `;
 
 // Print the help text to stdout (bash `usage`; exit 0, no Herdr needed).

@@ -164,7 +164,7 @@ printf '%s\n' killed > "$MODE"
 run_cmd status worker
 expect 'killed exit' "$RUN_RC" 4
 expect 'killed state' "$(field worker 2)" unavailable
-expect 'killed cause' "$(field worker 4)" 'herdr agent get failed (exit 137)'
+expect 'killed cause' "$(field worker 4)" 'herdr agent get was killed (exit 137, SIGKILL: memory pressure or an external kill)'
 expect 'killed calls' "$(grep -c '^agent get worker' "$LOG")" 3
 
 reset_roster

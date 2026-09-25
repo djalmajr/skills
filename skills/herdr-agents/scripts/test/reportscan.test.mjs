@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { partialCount, partialCountFile } from '../lib/reportscan.mjs';
+import { partialCount, partialCountFile, reviewHeader } from '../lib/reportscan.mjs';
 
 test('partialCount: a table, a list and a header count their [partial] lines', () => {
   const table = [
@@ -50,12 +50,13 @@ test('partialCount: the marker is case-insensitive', () => {
 });
 
 test('partialCount: a line with two markers counts once', () => {
-  const oneLine = 'fact A and fact B are both [partial] here\n';
+  const oneLine = '**Estado:** [partial] — e o segundo: [partial]\n';
   assert.equal(partialCount(oneLine), 1, 'one marked line, no matter the markers');
   const mixed = 'a [partial] item: [partial] again\none more\n';
   assert.equal(partialCount(mixed), 1);
   // Mutation captured: counting markers instead of lines returns 2 and 2
-  // on the two inputs above.
+  // on the two inputs above. (The marker is in a state position — table
+  // cell, then a colon — a mention mid-sentence would not count.)
 });
 
 test('partialCount: bare-word prose does not count (the P1 regression)', () => {
@@ -72,7 +73,7 @@ test('partialCount: bare-word prose does not count (the P1 regression)', () => {
     '## Items',
     '',
     '- read the brief [done]',
-    '- the external fact [partial] — could not verify it',
+    '- the external fact: [partial] — could not verify it',
     '- re-run the checks [skipped] — not in scope',
   ].join('\n');
   // Mutation captured: matching the bare word `partial` instead of the
@@ -148,6 +149,38 @@ test('partialCount: a suffixed fence line inside a block does not close it (the 
   assert.equal(partialCount(unclosed), 0, 'unclosed fence: the rest is inside');
 });
 
+test('partialCount: the marker counts only in a state position, not when mentioned', () => {
+  // A mention mid-sentence names the marker without stating an item's
+  // state — it does not count. The state positions: line start (after
+  // optional spaces and one block marker: list/heading/quote/task box),
+  // a table cell edge, or a colon/dash with a space before the marker.
+  // Mutation captured: accepting the marker in ANY position (the rule
+  // before the state-position fix) counts the mentions below.
+  assert.equal(partialCount('soma de `[partial]` (via `partialCount` de reportscan)\n'), 0,
+    'a backticked mention mid-sentence (the report line that over-counted)');
+  assert.equal(partialCount('a mention of [partial] in prose\n'), 0, 'a bare mention in prose');
+  assert.equal(partialCount('- [partial] item\n'), 1, 'a list item at the line start');
+  assert.equal(partialCount('| 2 | fact | [partial] | …\n'), 1, 'a table cell');
+  assert.equal(partialCount('| 3 | `[partial]` | …\n'), 1, 'a backticked table cell');
+  assert.equal(partialCount('**Estado:** [partial] — …\n'), 1, 'after a colon');
+  assert.equal(partialCount('### B.3 — **[partial]**\n'), 1, 'after an em dash, bold-wrapped');
+  assert.equal(partialCount('1. [partial] …\n'), 1, 'a numbered list item');
+  assert.equal(partialCount('> [partial] …\n'), 1, 'a quote');
+  // Block markers the state position accepts at the line start.
+  assert.equal(partialCount('* [partial] star list\n'), 1, 'a `*` list item');
+  assert.equal(partialCount('+ [partial] plus list\n'), 1, 'a `+` list item');
+  assert.equal(partialCount('[ ] [partial] task box\n'), 1, 'a task box');
+  assert.equal(partialCount('# [partial] heading\n'), 1, 'a heading');
+  // Dashes: en dash and hyphen-with-spaces are state positions too.
+  assert.equal(partialCount('### B.4 – [partial]\n'), 1, 'after an en dash');
+  assert.equal(partialCount('item - [partial] fallback\n'), 1, 'after a space-hyphen-space');
+  // A mention and a state marker on the same line count once.
+  assert.equal(partialCount('menção a `[partial]` no texto; o estado real: [partial]\n'), 1, 'the state marker wins, once');
+  // The rules that stay: the state-list quote and the fences.
+  assert.equal(partialCount('`[done]`, `[partial]` or `[skipped]`\n'), 0, 'the quoted state list still never counts');
+  assert.equal(partialCount('```\n`[partial]` inside a fence does not count\n```\n[partial]\n'), 1, 'the fence still delimits');
+});
+
 test('partialCount: empty text counts 0', () => {
   assert.equal(partialCount(''), 0);
   assert.equal(partialCount('\n\n  \n'), 0, 'blank lines count nothing');
@@ -168,4 +201,35 @@ test('partialCountFile: a readable file counts, a missing or unreadable file cou
     assert.equal(partialCountFile(path.join(root, 'absent.md')), 0, 'missing file');
     assert.equal(partialCountFile(root), 0, 'a directory is not a readable report');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+// ---------- reviewHeader (the review report's first line) ----------
+
+// The header is accepted ONLY on the first non-empty line, case-
+// insensitive, leading/trailing whitespace of the line ignored. A header
+// deeper in the report does not count (null), and the numbers are kept as
+// parsed (findings is never re-derived from the P0..P3 sum).
+test('reviewHeader: the first non-empty line only, tolerant of case and whitespace', () => {
+  assert.equal(reviewHeader(''), null, 'empty report');
+  assert.equal(reviewHeader('   \n\n  \n'), null, 'only blank lines');
+  assert.equal(reviewHeader('# Report\n\ndone.\n'), null, 'a plain report has no header');
+  // Mutation captured: accepting the header on ANY line (scanning past a
+  // non-matching first non-empty line) returns an object here; the header
+  // must be the first non-empty line of the file.
+  assert.equal(reviewHeader('# Report\n\ndone.\nfindings: 1 (P0 1, P1 0, P2 0, P3 0) | verdict: fail\n'),
+    null, 'a header after other content is not the report header');
+  assert.deepEqual(reviewHeader('findings: 1 (P0 1, P1 0, P2 0, P3 0) | verdict: fail\n# Report\n'),
+    { findings: 1, severity: { P0: 1, P1: 0, P2: 0, P3: 0 }, verdict: 'fail' },
+    'the header first, the report after it');
+  assert.deepEqual(reviewHeader('findings: 0 (P0 0, P1 0, P2 0, P3 0) | verdict: pass\n'),
+    { findings: 0, severity: { P0: 0, P1: 0, P2: 0, P3: 0 }, verdict: 'pass' });
+  assert.deepEqual(reviewHeader('  Findings: 3 (P0 0, P1 1, P2 2, P3 0) | Verdict: FAIL  \n\nrest of the report\n'),
+    { findings: 3, severity: { P0: 0, P1: 1, P2: 2, P3: 0 }, verdict: 'fail' },
+    'case-insensitive, leading/trailing whitespace ignored');
+  assert.equal(reviewHeader('findings: 2  (P0 1, P1 1, P2 0, P3 0) | verdict: pass\n'),
+    null, 'extra internal spaces are not the format');
+  assert.equal(reviewHeader('findings: 2 (P0 1, P1 1, P2 0, P3 0) | verdict: blocked\n'),
+    null, 'only pass|fail verdicts');
+  assert.equal(reviewHeader('findings: 2 (P0 1, P1 1) | verdict: pass\n'),
+    null, 'all four severities are required');
 });

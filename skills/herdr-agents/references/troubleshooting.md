@@ -47,6 +47,24 @@ you should do. Read this before changing the script or adding a kind.
   `herdr agent wait <name>`. The roster entry is valid; `dispatch` works
   after the dialog is cleared.
 
+## Codex CLI updates itself at start; the pane exits right after `spawn`
+
+- **Symptom:** the pane exits right after `spawn`; the screen shows the
+  update lines (`Updating Codex via …`, `Please restart Codex`).
+- **Cause:** the codex CLI can update itself at start and then exit — the
+  process that Herdr started is not the one that runs the session.
+- **Now:** right after a successful start, `spawn` watches a 5 s window.
+  When the kind's update marker is on the screen it waits for the agent to
+  go gone (until the spawn timeout) and relaunches it once, in the same
+  pane with the same args (`'<name>' (<kind>) updated itself at start and
+  exited; started it again`). An agent that exits right after start
+  **without** the marker — or on the relaunch — makes `spawn` exit 4 with
+  the last screen lines (up to 5, ` / `-joined); the pane stays open for
+  inspection and no roster line is written.
+- **Do:** on the second exit, read the screen — usually an interrupted
+  update or a login prompt; verify the codex CLI by hand before spawning
+  the team.
+
 ## Focus jumps while you are typing
 
 - **Cause:** `herdr agent start` focuses the pane it starts, even after a
@@ -200,6 +218,24 @@ you should do. Read this before changing the script or adding a kind.
 - **Now:** two consecutive probes (≈6 s) are required. With
   `auto_approve=on` the default option is sent and the wait continues.
 
+## `auto_approve` loops on the same dialog
+
+- **Symptom:** with `auto_approve=on` the worker keeps re-asking the same
+  dialog (a prompt the default "yes" does not resolve).
+- **Cause:** the dialog is not an approval the default option answers;
+sending the key again brings it back unchanged.
+- **Now:** after each auto-approve, the visible screen (digits and
+  progress glyphs normalized) is hashed with a repetition count
+  (`<state>/wait/<agent>.approve-screen`): the same dialog a **third**
+  time in a row stops the auto-approval —
+  `auto_approve: the same dialog came back 3 times for '<agent>'; leaving
+  it blocked` — and the wait ends `blocked` (exit 7) with the dialog in
+  the JSON `dialog` (the last 20 non-empty visible lines). A different
+  dialog resets the counter; `max_auto_approvals` still bounds the total
+  answers per dispatch.
+- **Do:** read the pane and answer by hand (`herdr agent send-keys`), or
+  `release --close` the worker if the dialog is hopeless.
+
 ## Nested orchestrator on Codex: `Operation not permitted`
 
 - **Cause:** the Codex `workspace-write` sandbox blocks the Herdr control
@@ -225,6 +261,23 @@ you should do. Read this before changing the script or adding a kind.
   a lane, and the `doctor` warns about a scoped key in a config file that
   the current lane mode cannot apply). `args.codex=-c sandbox_workspace_write.network_access=true`
   stays the option that applies to every worker of the kind.
+
+## Codex worker: `git mv` and `git checkout -- <file>` fail on `.git/index.lock`
+
+- **Symptom:** a codex worker's git commands that rewrite the index fail
+  on `.git/index.lock` (`operation not permitted`) although the repo root
+  is writable.
+- **Cause:** the `workspace-write` sandbox allows the repo root but
+  **cannot write under `.git`**; `git mv` and `git checkout -- <file>`
+  both write the index.
+- **Now:** the composed prompt of a codex worker carries the note
+  `Your sandbox cannot write under .git: do not run git mv, git checkout,
+  git add or git commit. Describe renames and restores in the report; the
+  orchestrator runs them.` (absent when the opening args carry
+  `danger-full-access`).
+- **Do:** the worker describes renames and restores in the report; the
+  orchestrator runs them. The same sandbox denies network — see
+  "Codex worker: `listen EPERM` on 127.0.0.1".
 
 ## QA worker stopped at sign-in
 
@@ -252,6 +305,23 @@ you should do. Read this before changing the script or adding a kind.
   `reviewer`, `security-reviewer`, `ui-reviewer` or `inspector`. The
   reviewer family check still treats that `roles` history as an edit agent
   after the current role changes.
+
+## Orphan lines in the roster (a line of an agent that died)
+
+- **Symptom:** `roster` shows a line whose pane is dead or whose name is
+  used by another live agent; the worker count seems off.
+- **Cause:** a worker exited without `release`; its roster line stayed.
+- **Now:** a name is only free for a spawn when no live agent uses it, so
+  a line left with a name (or with the pane a new spawn reuses) belongs to
+  an agent that exited: `spawn` removes it (`replaced the stale roster
+  line of '<name>' (pane <pane>)`) — a reused name does not accumulate
+  lines. A line whose name is alive in **another** pane shows `gone` in
+  `roster` and `status`, not the other agent's state. `max_workers`
+  counts a line only when a live agent with the same name sits in the
+  line's pane (a line without a known pane falls back to the name, counted
+  once); a stale line counts nothing.
+- **Do:** `release <name> --close` a dead worker when you see it; the next
+  spawn of the same name cleans up by itself.
 
 ## `regrid` produced a full-width bottom row instead of a grid
 

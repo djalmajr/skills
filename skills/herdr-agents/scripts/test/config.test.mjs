@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
-import { loadConfig, cfg, cfgSource, normalizeKey, configKeyOk, configValueOk, configFileFor, stateRoot, gitignoreAfter } from '../lib/config.mjs';
+import { loadConfig, cfg, cfgSource, normalizeKey, configKeyOk, configValueOk, configFileFor, stateRoot, gitignoreAfter, CONFIG_SCALAR_KEYS } from '../lib/config.mjs';
 
 function setup() {
   let root = fs.mkdtempSync(path.join(os.tmpdir(), 'ha-config-'));
@@ -56,6 +56,111 @@ test('config shows defaults for unset keys (multi_role on defaults)', (t) => {
     assert.ok(line, 'multi_role row missing');
     const fields = line.split(/\s+/).filter(Boolean);
     assert.deepEqual(fields.slice(1), ['on', 'defaults'], `multi_role default: ${fields.slice(1).join(' ')}`);
+  } finally { s.cleanup(); }
+});
+
+test('config prints the dotted keys as written in the files, rebuilt for env-only keys', { timeout: 60000 }, (t) => {
+  const s = setup();
+  try {
+    fs.mkdirSync(path.dirname(s.proj), { recursive: true });
+    fs.writeFileSync(s.proj, 'role.security-reviewer.model=opus\nlane.build.kind=codex\n');
+    const r = s.run('config');
+    assert.equal(r.rc, 0, r.err);
+    const row = (out, name) => {
+      const line = out.split('\n').find((l) => l.startsWith(name));
+      assert.ok(line, `row ${name} missing:\n${out}`);
+      return line.split(/\s+/).filter(Boolean);
+    };
+    // The dotted keys show the spelling the files (and `session set`) use,
+    // not the normalized underscored name.
+    assert.deepEqual(row(r.out, 'role.security-reviewer.model').slice(1), ['opus', 'project']);
+    assert.deepEqual(row(r.out, 'lane.build.kind').slice(1), ['codex', 'project']);
+    // The dotted defaults keep their file spelling too.
+    assert.deepEqual(row(r.out, 'effort.grok').slice(1), ['xhigh', 'defaults']);
+    assert.deepEqual(row(r.out, 'model.claude.worker').slice(1), ['opus', 'defaults']);
+    // No underscored spelling of the same key remains in the table.
+    assert.ok(!r.out.split('\n').some((l) => l.startsWith('role_security_reviewer_model')),
+      `underscored key still shown:\n${r.out}`);
+    // A key that only the environment defines gets a rebuilt dotted name
+    // from the known roles and lanes (the hyphenated role name is known;
+    // an unknown role falls back to the underscored middle).
+    const env2 = {
+      ...s.env,
+      HERDR_AGENTS_ROLE_UI_REVIEWER_MODEL: 'env-model',
+      HERDR_AGENTS_ROLE_NOSUCH_MODEL: 'env-other',
+      HERDR_AGENTS_LANE_REVIEW_MODEL: 'env-lane-model',
+      HERDR_AGENTS_MODEL_PI_WORKER: 'my-provider/my-model',
+      HERDR_AGENTS_EFFORT_GROK: 'low',
+    };
+    const r2 = spawnSync(nodeBin(), [JS_ENTRY, 'config'], { cwd: s.repo, env: env2, encoding: 'utf8', timeout: 30000 });
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.deepEqual(row(r2.stdout, 'role.ui-reviewer.model').slice(1), ['env-model', 'env'], 'rebuilt from the known role name');
+    assert.deepEqual(row(r2.stdout, 'role.nosuch.model').slice(1), ['env-other', 'env'], 'unknown role keeps the underscored middle');
+    assert.deepEqual(row(r2.stdout, 'lane.review.model').slice(1), ['env-lane-model', 'env'], 'rebuilt from the known lane name');
+    assert.deepEqual(row(r2.stdout, 'model.pi.worker').slice(1), ['my-provider/my-model', 'env']);
+    // effort.grok exists in the defaults file: the original spelling wins
+    // over the rebuild, the env value and source are shown.
+    assert.deepEqual(row(r2.stdout, 'effort.grok').slice(1), ['low', 'env']);
+    // A lane known only by a mixed spelling in the file (build-ui_v2):
+    // an env-only key rebuilds the KNOWN spelling, not the underscored
+    // middle ('-' and '_' compared as the same character).
+    fs.writeFileSync(s.proj, 'role.security-reviewer.model=opus\nlane.build.kind=codex\nlane.build-ui_v2.roles=reviewer\n');
+    const env3 = { ...s.env, HERDR_AGENTS_LANE_BUILD_UI_V2_MODEL: 'env-mixed-model' };
+    const r3 = spawnSync(nodeBin(), [JS_ENTRY, 'config'], { cwd: s.repo, env: env3, encoding: 'utf8', timeout: 30000 });
+    assert.equal(r3.status, 0, r3.stderr);
+    assert.deepEqual(row(r3.stdout, 'lane.build-ui_v2.model').slice(1), ['env-mixed-model', 'env'], 'the known mixed spelling wins');
+    assert.ok(!r3.stdout.split('\n').some((l) => l.startsWith('lane.build_ui_v2.')),
+      `the underscored spelling of the same lane leaks:\n${r3.stdout}`);
+    // The file line of the same lane keeps its own spelling too.
+    assert.deepEqual(row(r3.stdout, 'lane.build-ui_v2.roles').slice(1), ['reviewer', 'project']);
+    // A mixed-spelling role name (a role file) reconstructs the same way.
+    const rolesDir = path.join(s.root, 'roles');
+    fs.mkdirSync(rolesDir, { recursive: true });
+    fs.writeFileSync(path.join(rolesDir, 'build-ui_v2.md'), '---\nname: build-ui_v2\nkind: pi\n---\n\nBody.\n');
+    const env4 = { ...s.env, HERDR_AGENTS_ROLES: rolesDir, HERDR_AGENTS_ROLE_BUILD_UI_V2_EFFORT: 'low' };
+    const r4 = spawnSync(nodeBin(), [JS_ENTRY, 'config'], { cwd: s.repo, env: env4, encoding: 'utf8', timeout: 30000 });
+    assert.equal(r4.status, 0, r4.stderr);
+    assert.deepEqual(row(r4.stdout, 'role.build-ui_v2.effort').slice(1), ['low', 'env'], 'a mixed role name rebuilt to the known spelling');
+    // Mutation captured: the name compared by exact / all-hyphen forms
+    // only (the mixed middle would print underscored) or the known file
+    // spelling lost to the normalized one.
+    // Mutation captured: the normalized (underscored) name shown instead
+    // of the file spelling, an env-only dotted key missing from the table,
+    // or the role/lane middle not rebuilt to the known hyphenated name.
+  } finally { s.cleanup(); }
+});
+
+test('brief_lint_aliases: a scalar key with free one-line text (empty default)', (t) => {
+  const s = setup();
+  try {
+    // Registered right after brief_lint in the scalar key list.
+    assert.equal(CONFIG_SCALAR_KEYS.indexOf('brief_lint_aliases'), CONFIG_SCALAR_KEYS.indexOf('brief_lint') + 1, 'after brief_lint');
+    assert.ok(configKeyOk('brief_lint_aliases'), 'the key is known');
+    // Free one-line text like the args.<kind> values; a # starts a comment.
+    assert.ok(configValueOk('brief_lint_aliases', 'Goal, Expected result'));
+    assert.ok(configValueOk('brief_lint_aliases', '-c a=b'));
+    assert.ok(!configValueOk('brief_lint_aliases', 'a#b'));
+    assert.ok(!configValueOk('brief_lint_aliases', 'a\nb'));
+    assert.ok(!configValueOk('brief_lint_aliases', 'a\tb'));
+    // The default is empty.
+    let r = s.run('config');
+    assert.equal(r.rc, 0, r.err);
+    let line = r.out.split('\n').find((l) => l.startsWith('brief_lint_aliases'));
+    assert.ok(line, 'brief_lint_aliases row missing');
+    assert.ok(line.split(/\s+/).filter(Boolean).length === 2, `the value is empty: ${line}`);
+    // set writes it like the other scalar keys.
+    r = s.run('config', 'set', 'brief_lint_aliases', 'Goal, Acceptance');
+    assert.equal(r.rc, 0, r.err);
+    assert.match(fs.readFileSync(s.proj, 'utf8'), /^brief_lint_aliases=Goal, Acceptance$/m);
+    r = s.run('config');
+    line = r.out.split('\n').find((l) => l.startsWith('brief_lint_aliases'));
+    assert.ok(line && line.includes('Goal, Acceptance') && line.trimEnd().endsWith('project'), `config row: ${line}`);
+    // A value with a # is refused and the file is untouched.
+    const before = fs.readFileSync(s.proj, 'utf8');
+    assert.equal(s.run('config', 'set', 'brief_lint_aliases', 'a#b').rc, 2);
+    assert.equal(fs.readFileSync(s.proj, 'utf8'), before, 'the refused value rewrote the file');
+    // Mutation captured: the key missing from the scalar list (the set
+    // would die 2 as unknown) or a value with # accepted by the validation.
   } finally { s.cleanup(); }
 });
 
@@ -145,10 +250,11 @@ test('config set writes the role/lane/args keys with dash-led values', (t) => {
     assert.match(content, /^args\.codex=-c a=b$/m, 'kind args were not written');
     assert.match(content, /^lane\.review\.args=-c a=b$/m, 'the split key=value was not written');
     assert.match(content, /^# keep this comment$/m, 'comment lost after args set');
-    // The config table lists the new keys like the other dotted keys.
+    // The config table lists the new keys with the file's dotted spelling
+    // (the args value splits across the columns: name, value, source).
     const c = s.run('config');
     assert.equal(c.rc, 0, c.err);
-    const row = c.out.split('\n').find((l) => l.startsWith('role_reviewer_args'));
+    const row = c.out.split('\n').find((l) => l.startsWith('role.reviewer.args'));
     assert.ok(row && row.includes('-c a=b') && row.trimEnd().endsWith('project'), `config row: ${row}`);
     // A value without a dash still refuses a third argument.
     const bad = s.run('config', 'set', 'args.codex', 'a', 'b');

@@ -52,7 +52,7 @@ case "$1 $2" in
     case "$mode" in
       working) echo "{\"result\":{\"agent\":{\"name\":\"$target\",\"agent_status\":\"working\"}}}" ;;
       blocked) echo "{\"result\":{\"agent\":{\"name\":\"$target\",\"agent_status\":\"blocked\"}}}" ;;
-      gone) echo '{"error":{"code":"agent_not_found","message":"gone"}}' >&2; exit 1 ;;
+      gone|gone-until-start) echo '{"error":{"code":"agent_not_found","message":"gone"}}' >&2; exit 1 ;;
       *) echo "{\"result\":{\"agent\":{\"name\":\"$target\",\"agent_status\":\"idle\"}}}" ;;
     esac ;;
   "agent list")
@@ -67,6 +67,7 @@ case "$1 $2" in
           exit 1
         fi ;;
       notready) echo 'agent_not_ready: login prompt' >&2; exit 1 ;;
+      gone-until-start) echo idle > "$HA_MODE" ;; # the old worker is gone; the new one lives
     esac
     echo '{"result":{"started":true}}' ;;
   "agent read") cat "$HA_SCREEN" ;;
@@ -281,7 +282,7 @@ test('parity spawn: busy 10, gone recreated, worker cap 8, locked 5, lane kind, 
   const script = [
     { fs: (f) => { addWorkers(f, ['build', 'implementer', 'build']); live(f, [{ name: 'build', pane_id: 'p-build', agent_status: 'working' }]); mode(f, 'working'); } },
     { args: ['spawn', 'tasker'] },
-    { fs: (f) => { addWorkers(f, ['build', 'implementer', 'build']); live(f, []); mode(f, 'gone'); } },
+    { fs: (f) => { addWorkers(f, ['build', 'implementer', 'build']); live(f, []); mode(f, 'gone-until-start'); } },
     { args: ['spawn', 'implementer'] },
     { fs: (f) => {
       addWorkers(f, ['explore', 'scouter', 'explore'], ['review', 'reviewer', 'review', 'codex'], ['extra', 'researcher', 'extra']);

@@ -15,13 +15,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { stateDir, rosterLine, lastReport, warn, dieFriction } from '../state.mjs';
-import { agentState, agentRead } from '../herdr.mjs';
+import { agentState, agentRead, liveAgents } from '../herdr.mjs';
 import { laneOfRole } from '../lanes.mjs';
 import { quotaDetect } from '../quota.mjs';
 import { providerDetect } from '../provider.mjs';
 import { dialogKind, questionText } from '../dialog.mjs';
 import { waitRank } from '../wait.mjs';
 import { markerSeqChanged } from '../arrival.mjs';
+
+// True when a live agent with this name exists and none of them sits in
+// `pane` (a herdr failure keeps the direct query: false).
+function nameAliveInOtherPane(name, pane, env) {
+  let agents;
+  try { agents = liveAgents(env); } catch { return false; }
+  const ps = agents.filter((x) => x && (x.name ?? '') === name)
+    .map((x) => (x.pane_id !== undefined && x.pane_id !== null ? String(x.pane_id) : ''));
+  return ps.length > 0 && !ps.includes(pane);
+}
 
 // `done` requires the recorded report file to exist and be non-empty
 // (bash `[ -s "$r" ]`), not just the path to be recorded.
@@ -57,15 +67,23 @@ export function cmdStatus(argv, ctx, env = process.env, cwd = process.cwd()) {
     } else if (!rosterLine(sd, a)) {
       state = 'unknown-agent';
     } else {
+      const linePane = rosterLine(sd, a).split('\t')[1] ?? '';
       const st = agentState(a, env);
       state = st.state;
       cause = st.cause;
       const orig = state;
+      // A line whose name is alive in ANOTHER pane is stale: the agent it
+      // recorded (the line's pane) is gone — report gone, not the other
+      // agent's state (a line without a known pane keeps the name query,
+      // any pane).
+      const stale = linePane !== '' && state !== 'gone' && state !== 'unavailable'
+        && nameAliveInOtherPane(a, linePane, env);
+      if (stale) { state = 'gone'; cause = ''; }
       if (state === 'idle' || state === 'done') state = 'no-report-yet';
       if (state === 'unavailable') {
         if (rc !== 11) rc = 4;
         warn(`agent '${a}': herdr agent get failed: ${cause}`);
-      } else if (fs.existsSync(path.join(sd, 'wait', `${a}.not-received`))
+      } else if (!stale && fs.existsSync(path.join(sd, 'wait', `${a}.not-received`))
         && orig !== 'working' && orig !== 'blocked'
         && !markerSeqChanged(readMarker(path.join(sd, 'wait', `${a}.not-received`)), st.seq)) {
         // A dispatch that ended not-received recorded the moment and the
@@ -77,7 +95,7 @@ export function cmdStatus(argv, ctx, env = process.env, cwd = process.cwd()) {
         // rc 15 sits below 4, 11 and 14 and above 7 and 6 (the global
         // wait rank).
         if (waitRank(15) > waitRank(rc)) rc = 15;
-      } else if (orig === 'blocked') {
+      } else if (!stale && orig === 'blocked') {
         // A blocked worker whose visible screen is a decision question is
         // reported as `question` (rc 7) with the text, not blocked (one
         // probe only, like the provider stop).
@@ -88,7 +106,7 @@ export function cmdStatus(argv, ctx, env = process.env, cwd = process.cwd()) {
           // rc 7 sits below 11 and 14 and above 0 (the global wait rank).
           if (waitRank(7) > waitRank(rc)) rc = 7;
         }
-      } else if (orig !== 'working' && orig !== 'gone' && orig !== 'blocked' && orig !== 'unavailable') {
+      } else if (!stale && orig !== 'working' && orig !== 'gone' && orig !== 'blocked' && orig !== 'unavailable') {
         const qtext = agentRead(env, a, { source: 'visible', lines: 20 });
         const q = quotaDetect(orig, qtext);
         if (q) {

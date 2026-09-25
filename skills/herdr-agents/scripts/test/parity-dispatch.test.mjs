@@ -377,7 +377,7 @@ test('parity dispatch: the reviewer family check and the strict lint (test-multi
   assert.match(r.steps[0].err, /reviewer 'rev' \(codex, openai\) shares a model family with edit agents: ex \(codex\)\./);
   assert.ok(r.steps[1].rc === 0 && /shares model family 'openai' with: ex \(codex\)/.test(r.steps[1].err));
   assert.equal(r.steps[2].rc, 2, r.steps[2].err);
-  assert.match(r.steps[2].err, /is missing sections: \[Expected result\] \(brief_lint=strict\)/);
+  assert.match(r.steps[2].err, /is missing sections: \[Expected result\] — nothing says when the slice is done \(brief_lint=strict\)/);
   assert.ok(r.steps[3].rc === 0 && /shares model family/.test(r.steps[3].err), 'the full contract brief passes the strict lint, the allow warning remains');
 });
 
@@ -412,12 +412,14 @@ test('parity run: --no-wait (spawn + dispatch)', { timeout: 180000, skip: SKIP }
   });
   assert.equal(r.steps[0].rc, 0, r.steps[0].err);
   const out = r.steps[0].out;
-  const at = out.indexOf('{\n  "agent":');
+  // The spawn JSON is indented; the dispatch JSON is one line starting with
+  // its wait_status.
+  const at = out.indexOf('{"wait_status":');
   assert.ok(at > 0, 'the dispatch JSON follows the spawn JSON');
   const spawnJson = JSON.parse(out.slice(0, out.indexOf('\n}\n') + 2));
   assert.equal(spawnJson.name, 'build');
   assert.equal(spawnJson.placement, 'herd');
-  const dispatchJson = JSON.parse(out.slice(out.indexOf('{\n  "agent":')));
+  const dispatchJson = JSON.parse(out.slice(at, out.indexOf('\n', at)));
   assert.equal(dispatchJson.agent, 'build');
   assert.equal(dispatchJson.role, 'implementer');
   assert.equal(dispatchJson.wait_status, 'submitted');
@@ -444,8 +446,8 @@ test('parity run: with the wait, the report settles and collect prints it', { ti
   });
   assert.equal(r.steps[0].rc, 0, r.steps[0].err);
   const out = r.steps[0].out;
-  const di = out.indexOf('{\n  "agent":');
-  const dispatchJson = JSON.parse(out.slice(di, out.indexOf('\n}\n', di) + 2));
+  const di = out.indexOf('{"wait_status":');
+  const dispatchJson = JSON.parse(out.slice(di, out.indexOf('\n', di)));
   assert.equal(dispatchJson.wait_status, 'done');
   assert.equal(dispatchJson.report_exists, true);
   assert.ok(out.includes('<!-- report: '), 'collect printed the report marker');
