@@ -143,7 +143,11 @@ $S clean --older-than 7              # drop gone agents, delete old briefs/repor
 ```
 
 The reviewer dispatch refuses a reviewer whose model family matches a live
-edit agent (exit 5) unless `--allow-same-family` is given.
+edit agent (exit 5) unless `--allow-same-family` is given. `--for <author>`
+(an agent, a family, or a kind with a fixed family such as `codex`)
+compares only with whoever wrote the slice; an author whose family is
+unknown falls back to the whole-roster check. That keeps the check when an editor of the reviewer's
+family works on another slice, and it covers code the orchestrator wrote.
 
 To change a brief a worker already has, busy or finished, write the
 amendment to a file and run `$S dispatch build amend.md --amend`. The
@@ -259,8 +263,8 @@ per role (`role.reviewer.model=…`, `role.reviewer.effort=…`,
 
 The one rule that does not move: the reviewer of a slice comes from
 **another model family** than its implementer (`dispatch` enforces it for
-workers, exit 5; code the orchestrator wrote is invisible to the check, so
-pick that reviewer's family by hand). For `cursor`, `pi` and `opencode`
+workers, exit 5; for code the orchestrator wrote, pass `--for <its family>`
+so the check compares with it). For `cursor`, `pi` and `opencode`
 the family comes from the model id. The generic kinds (`pi`, `opencode`)
 ship no default model: set a `provider/id` yourself in the user or project
 file; with none set, the CLI uses its own default

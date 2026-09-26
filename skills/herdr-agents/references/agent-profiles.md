@@ -219,6 +219,10 @@ project's reviews):
 - **Weak:**
   - passed a change that dropped a flag when a later poll omitted it: a
     state change across requests, missed with confidence 1.0;
+  - in another review, reported a passing dynamic check that cited a
+    runtime version other than the installed one and test names that did
+    not exist in the checkout (verdict `pass`, confidence 0.98); an
+    amendment asking for the real commands corrected it;
   - hit its individual quota once and resumed after the reset.
 
 ## Validation on the target machine
@@ -255,7 +259,8 @@ it should say so instead of guessing.
     (`xhigh` for security and large slices);
   - `agy` at `high` for privacy and access-control reviews, with a check
     for a state change across requests; `agy` at `medium` for bounded UI.
-    When its quota is spent, use another family;
+    Ask it for the exact command and pasted output of every check it says
+    it ran. When its quota is spent, use another family;
   - for platform behaviour, a run on the target machine.
 - **security-reviewer:** `cursor`/`grok` or `codex`, both precise when
   they could execute their probes.

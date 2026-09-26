@@ -188,7 +188,9 @@ and model build, which review, at what effort. The one rule that does not
 move: the reviewer of a slice comes from **another model family** than its
 implementer (cursor running a grok model is the xai family, like `grok`).
 The family check enforces it for workers; for code the orchestrator wrote,
-pick the reviewer's family by hand. **Before choosing or changing a team,
+pass `--for <your family>` to the reviewer's dispatch (`anthropic`,
+`openai`, `xai` or `google`; a kind with a fixed family such as `claude`
+or `codex` works too). **Before choosing or changing a team,
 read [references/agent-profiles.md](references/agent-profiles.md):** what
 each assistant did well and badly in each role in real use, and a
 recommendation per role. Examples:
@@ -205,8 +207,12 @@ families (`references/kinds.md`; for `cursor` the family comes from the
 resolved model id — `grok-4.7-xhigh` is xai); a reviewer must come from a
 **different family** than the implementer of the same slice. The script refuses to
 dispatch a reviewer whose family matches a live edit agent unless
-`--allow-same-family` is passed. It cannot see code the orchestrator wrote
-itself: in that case pick a reviewer kind from another family by hand.
+`--allow-same-family` is passed. Pass `--for <author>` to compare only with
+whoever wrote the slice: an agent in the roster, a kind with a fixed family
+(`codex`, `claude`, …) or a family. Use it when another family's editor is
+alive, such as a cursor designer while a cursor reviewer checks codex code,
+and for code the orchestrator wrote itself (`--for anthropic` when it runs
+on claude).
 The role bodies also carry worker-side rules the orchestrator does not
 repeat in every brief: the `implementer` runs a mutation check in a
 throwaway copy of the project outside the repository whenever other
@@ -623,9 +629,23 @@ compares its model family with every edit agent this skill spawned.
 An edit agent is `implementer`, `designer`, `tasker`, any role whose
 frontmatter `mode` is `edit`, or a worker whose `roles` history includes
 one of those — a worker that edited and was later reused as `scouter`
-still counts. Same family → exit 5 unless `--allow-same-family`. Code
-written by the orchestrator itself is invisible to this check; choose the
-reviewer kind by hand then.
+still counts. Same family → exit 5 unless `--allow-same-family`.
+
+`--for <author>[,…]` narrows the check to the slice's author, and the rest
+of the roster is not scanned. Each author is one of:
+- an agent in the roster (its family column);
+- a family: `anthropic`, `openai`, `xai` or `google`;
+- a kind with a fixed family (`claude`, `codex`, `grok`, `agy`, `gemini`).
+  `cursor`, `pi` and `opencode` have a family per model: name the family.
+
+An agent whose family is unknown cannot narrow the check. The family is
+first derived from its kind and model; when it is still unknown, the
+whole roster is checked, as without `--for`, and a warning says so.
+
+This is the way to check code the orchestrator wrote itself (`--for
+<your family>`), and to review one slice while an editor of the reviewer's
+family works on another one. `--allow-same-family` switches the protection
+off; `--for` keeps it for the slice under review.
 
 `spawn` in `layout=split` keeps workers in the caller's tab **without
 cramming it**: the candidate (caller + this skill's workers in the tab)
@@ -927,8 +947,9 @@ than a handful of files, another repository, or several tools' conventions
 to inform a decision is `scouter` work; the orchestrator asks for a report
 with a recommendation and decides on it, instead of doing the survey
 itself and burning its own context. Product code you write yourself still gets a
-`reviewer` from another model family before push; the family check cannot
-see your own edits, so pick that reviewer's kind by hand.
+`reviewer` from another model family before push. The family check cannot
+see your own edits by itself: dispatch that reviewer with `--for <your
+family>`.
 
 1. **Direction first.** If the objective hides a product decision, ask a
    one-line question before planning. Never write a long plan before

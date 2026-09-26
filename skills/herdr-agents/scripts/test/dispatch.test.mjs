@@ -21,7 +21,7 @@ import { nodeBin } from './parity.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadConfig } from '../lib/config.mjs';
 import {
-  briefMissingSections, lintBrief, composePrompt, composeAmendment, dispatchPairSuffix, familyConflicts,
+  briefMissingSections, lintBrief, composePrompt, composeAmendment, dispatchPairSuffix, familyConflicts, forSpecFamily,
   parseBriefLintAliases, missingSectionsReasons, emptyCodeLines, ownedPaths, pathsCross,
   pendingBriefPath, composedBriefSection, sandboxNotes, pendingBriefSection, globMatches,
   sharedTreeEditor,
@@ -671,7 +671,7 @@ test('dispatch: the family check (strict 5, warn and --allow-same-family continu
     const brief = fix.brief('brief.md', FULL_BRIEF);
     const strict = cmd(fix, ['dispatch', 'rev', brief, '--no-wait']);
     assert.equal(strict.status, 5, strict.stderr);
-    assert.match(strict.stderr, /reviewer 'rev' \(codex, openai\) shares a model family with edit agents: ex \(codex\)\. Spawn the reviewer with another --kind, pass --allow-same-family, or set family_check=warn\./);
+    assert.match(strict.stderr, /reviewer 'rev' \(codex, openai\) shares a model family with edit agents: ex \(codex\)\. Pass --for <author> when the slice was written by another family, spawn the reviewer with another --kind, pass --allow-same-family, or set family_check=warn\./);
     const allowed = cmd(fix, ['dispatch', 'rev', brief, '--allow-same-family', '--no-wait']);
     assert.equal(allowed.status, 0, allowed.stderr);
     assert.match(allowed.stderr, /reviewer 'rev' shares model family 'openai' with: ex \(codex\)/);
@@ -681,6 +681,156 @@ test('dispatch: the family check (strict 5, warn and --allow-same-family continu
     const off = cmd(fix, ['dispatch', 'rev', brief, '--no-wait'], { HERDR_AGENTS_FAMILY_CHECK: 'off' });
     assert.equal(off.status, 0, off.stderr);
     assert.ok(!/shares model family/.test(off.stderr), 'off: no family warning');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- --for: the family check against the slice's author(s) ----------
+
+test('forSpecFamily: roster agent (col 5, derived when unknown), family name, fixed kind, unresolved', () => {
+  const fix = makeFix('ha-dispatch-for-resolve-');
+  try {
+    fix.writeRoster(undefined,
+      ROW12('build', 'p1', 'codex', 'implementer', 'openai', fix.repo, 'gpt-5', 'build'),
+      ROW12('mystery', 'p2', 'cursor', 'designer', 'unknown', fix.repo, '', 'build'),
+      ROW12('derived', 'p3', 'cursor', 'designer', 'unknown', fix.repo, 'grok-4.7', 'build'));
+    // (1) A roster agent's name: the family of column 5 of its row.
+    assert.equal(forSpecFamily('build', fix.ws, fix.env, fix.repo), 'openai');
+    // A roster agent with an unknown family and no model to derive from:
+    // stays 'unknown' (accepted, but the caller falls back to the scan).
+    assert.equal(forSpecFamily('mystery', fix.ws, fix.env, fix.repo), 'unknown');
+    // An unknown family is derived from the row's kind (col 3) and model
+    // (col 9): cursor on grok-4.7 is xai.
+    assert.equal(forSpecFamily('derived', fix.ws, fix.env, fix.repo), 'xai');
+    // (2) A family name.
+    for (const fam of ['anthropic', 'openai', 'xai', 'google']) {
+      assert.equal(forSpecFamily(fam, fix.ws, fix.env, fix.repo), fam);
+    }
+    // (3) A kind with a fixed family.
+    assert.equal(forSpecFamily('claude', fix.ws, fix.env, fix.repo), 'anthropic');
+    assert.equal(forSpecFamily('codex', fix.ws, fix.env, fix.repo), 'openai');
+    assert.equal(forSpecFamily('grok', fix.ws, fix.env, fix.repo), 'xai');
+    assert.equal(forSpecFamily('gemini', fix.ws, fix.env, fix.repo), 'google');
+    // By-model kinds and garbage: a DieError 2 with the exact message.
+    for (const spec of ['cursor', 'pi', 'bogus', '']) {
+      assert.throws(() => forSpecFamily(spec, fix.ws, fix.env, fix.repo),
+        (e) => e.code === 2 && e.message === `dispatch: --for '${spec}': not an agent in the roster, a family (anthropic|openai|xai|google) or a kind with a fixed family`);
+    }
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch: --for compares the reviewer with the slice author(s) (pass, strict 5, warn, the dies 2)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-for-');
+  try {
+    // The brief case: a designer cursor (xai) edits the UI and a build
+    // codex (openai) wrote the slice; a cursor reviewer (xai) is blocked
+    // by the global scan, but --for codex (the author) lets it pass.
+    fix.writeRoster(undefined,
+      ROW11('rev', 'p9', 'cursor', 'reviewer', 'xai', '/tmp/work', 'grok-4.7', 'reviewer'),
+      ROW11('ui', 'p1', 'cursor', 'designer', 'xai', '/tmp/work', 'grok-4.7', 'designer'),
+      ROW11('build', 'p2', 'codex', 'implementer', 'openai', '/tmp/work', 'gpt-5', 'implementer'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    // --for codex: the reviewer's family (xai) is not among the author's
+    // (openai): the global scan does not run, the dispatch passes.
+    const ok = cmd(fix, ['dispatch', 'rev', brief, '--no-wait', '--for', 'codex']);
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.ok(!/shares model family/.test(ok.stderr), 'no family complaint');
+    // The same without --for: the global scan blocks with the new hint.
+    const strict = cmd(fix, ['dispatch', 'rev', brief, '--no-wait']);
+    assert.equal(strict.status, 5, strict.stderr);
+    assert.match(strict.stderr, /shares a model family with edit agents: ui \(cursor\)\. Pass --for <author> when the slice was written by another family, spawn the reviewer with another --kind, pass --allow-same-family, or set family_check=warn\./);
+    // --for a roster agent of the same family: exit 5 with the author(s);
+    // the message does not suggest --for (it was already passed).
+    const sameAgent = cmd(fix, ['dispatch', 'rev', brief, '--no-wait', '--for', 'ui']);
+    assert.equal(sameAgent.status, 5, sameAgent.stderr);
+    assert.match(sameAgent.stderr, /shares a model family with the slice's author\(s\): ui \(xai\)\. Spawn the reviewer with another --kind, pass --allow-same-family, or set family_check=warn\./);
+    assert.ok(!/Pass --for <author>/.test(sameAgent.stderr), 'no --for suggestion in the --for branch');
+    // --for openai,xai with a reviewer xai: exit 5, both author(s) listed.
+    const multi = cmd(fix, ['dispatch', 'rev', brief, '--no-wait', '--for', 'openai,xai']);
+    assert.equal(multi.status, 5, multi.stderr);
+    assert.match(multi.stderr, /the slice's author\(s\): openai \(openai\), xai \(xai\)\. Spawn the reviewer with another --kind/);
+    // A spec that does not resolve: exit 2.
+    const bad = cmd(fix, ['dispatch', 'rev', brief, '--no-wait', '--for', 'bogus']);
+    assert.equal(bad.status, 2, bad.stderr);
+    assert.match(bad.stderr, /dispatch: --for 'bogus': not an agent in the roster, a family \(anthropic\|openai\|xai\|google\) or a kind with a fixed family/);
+    // --for with --amend: exit 2 (the amendment already skips the check).
+    fs.writeFileSync(path.join(fix.ws, 'last-report-rev'), brief + '\n');
+    const amended = cmd(fix, ['dispatch', 'rev', brief, '--amend', '--for', 'codex']);
+    assert.equal(amended.status, 2, amended.stderr);
+    assert.match(amended.stderr, /dispatch: --for needs a plain dispatch; drop it with --amend/);
+    // --for on a role that is not a review role: exit 2.
+    const notReview = cmd(fix, ['dispatch', 'build', brief, '--no-wait', '--for', 'codex']);
+    assert.equal(notReview.status, 2, notReview.stderr);
+    assert.match(notReview.stderr, /dispatch: --for applies to a reviewer dispatch/);
+    // family_check=warn with a --for of the same family: only a warn.
+    const warnMode = cmd(fix, ['dispatch', 'rev', brief, '--no-wait', '--for', 'ui'], { HERDR_AGENTS_FAMILY_CHECK: 'warn' });
+    assert.equal(warnMode.status, 0, warnMode.stderr);
+    assert.match(warnMode.stderr, /reviewer 'rev' shares model family 'xai' with: ui \(xai\)/);
+    // --for claude with a codex reviewer: passes (the slice was written
+    // by the orchestrator, a family the reviewer does not share), even
+    // though an edit agent of the reviewer's own family is live.
+    fix.writeRoster(undefined,
+      ROW11('rev2', 'p9', 'codex', 'reviewer', 'openai', '/tmp/work', 'gpt-5', 'reviewer'),
+      ROW11('ui', 'p1', 'codex', 'designer', 'openai', '/tmp/work', 'gpt-5', 'designer'));
+    const claude = cmd(fix, ['dispatch', 'rev2', brief, '--no-wait', '--for', 'claude']);
+    assert.equal(claude.status, 0, claude.stderr);
+    assert.ok(!/shares model family/.test(claude.stderr), 'a claude author never conflicts with a codex reviewer');
+  } finally { fix.cleanup(); }
+});
+
+// P1: a --for author whose family stays unknown (even derived from the
+// row's kind and model) cannot switch off the protection: the check runs
+// the global scan on top of the known-family author comparison, with a
+// warn per unknown spec.
+test('dispatch: --for with an unknown-family author falls back to the global scan (never accepts more)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-for-unknown-');
+  try {
+    // mystery: family column unknown, kind cursor, no model — the family
+    // stays unknown even derived (agentFamily(cursor, '') = unknown).
+    fix.writeRoster(undefined,
+      ROW11('rev', 'p9', 'cursor', 'reviewer', 'xai', '/tmp/work', 'grok-4.7', 'reviewer'),
+      ROW11('ui', 'p1', 'cursor', 'designer', 'xai', '/tmp/work', 'grok-4.7', 'designer'),
+      ROW11('mystery', 'p2', 'cursor', 'implementer', 'unknown', '/tmp/work', '', 'implementer'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    // The review case: without --for the live xai editor blocks the xai
+    // reviewer; --for mystery (unknown family) must not open a hole.
+    const noFor = cmd(fix, ['dispatch', 'rev', brief, '--no-wait']);
+    assert.equal(noFor.status, 5, noFor.stderr);
+    const unknown = cmd(fix, ['dispatch', 'rev', brief, '--no-wait', '--for', 'mystery']);
+    assert.equal(unknown.status, 5, unknown.stderr);
+    assert.match(unknown.stderr, /dispatch: --for 'mystery': the author's family is unknown; checked against every edit agent instead/);
+    // The conflict came from the scan: the scan message, asking for the
+    // author's family (the --for was given but could not narrow the check).
+    assert.match(unknown.stderr, /shares a model family with edit agents: ui \(cursor\)\. Name the author's family with --for <family> \(anthropic\|openai\|xai\|google\) to narrow the check/);
+    assert.ok(!unknown.stderr.includes('Pass --for <author>'), 'no --for <author> hint after a --for: ' + unknown.stderr);
+    // A cursor row with model grok-4.7 derives xai: the derived author
+    // family is used (no scan, no warn) — exit 5 with the author(s),
+    // without the --for suggestion.
+    fix.writeRoster(undefined,
+      ROW11('rev', 'p9', 'cursor', 'reviewer', 'xai', '/tmp/work', 'grok-4.7', 'reviewer'),
+      ROW11('ui', 'p1', 'cursor', 'designer', 'xai', '/tmp/work', 'grok-4.7', 'designer'),
+      ROW11('mystery', 'p2', 'cursor', 'implementer', 'unknown', '/tmp/work', 'grok-4.7', 'implementer'));
+    const derived = cmd(fix, ['dispatch', 'rev', brief, '--no-wait', '--for', 'mystery']);
+    assert.equal(derived.status, 5, derived.stderr);
+    assert.match(derived.stderr, /shares a model family with the slice's author\(s\): mystery \(xai\)\. Spawn the reviewer with another --kind/);
+    assert.ok(!/the author's family is unknown/.test(derived.stderr), 'a derived family is known: no fallback warn');
+    // The same derived author against a codex reviewer: passes even with
+    // a live openai editor (the scan does not run: the family is known).
+    fix.writeRoster(undefined,
+      ROW11('rev2', 'p9', 'codex', 'reviewer', 'openai', '/tmp/work', 'gpt-5', 'reviewer'),
+      ROW11('ui', 'p1', 'codex', 'designer', 'openai', '/tmp/work', 'gpt-5', 'designer'),
+      ROW11('mystery', 'p2', 'cursor', 'implementer', 'unknown', '/tmp/work', 'grok-4.7', 'implementer'));
+    const derivedOk = cmd(fix, ['dispatch', 'rev2', brief, '--no-wait', '--for', 'mystery']);
+    assert.equal(derivedOk.status, 0, derivedOk.stderr);
+    assert.ok(!/shares model family|the author's family is unknown/.test(derivedOk.stderr), 'openai reviewer vs a xai author: free');
+    // Unknown author, no editor of the reviewer's family live: passes,
+    // with the warn (the scan ran and found nothing).
+    fix.writeRoster(undefined,
+      ROW11('rev', 'p9', 'cursor', 'reviewer', 'xai', '/tmp/work', 'grok-4.7', 'reviewer'),
+      ROW11('mystery', 'p2', 'cursor', 'implementer', 'unknown', '/tmp/work', '', 'implementer'));
+    const free = cmd(fix, ['dispatch', 'rev', brief, '--no-wait', '--for', 'mystery']);
+    assert.equal(free.status, 0, free.stderr);
+    assert.match(free.stderr, /dispatch: --for 'mystery': the author's family is unknown; checked against every edit agent instead/);
+    assert.ok(!/shares model family 'xai' with/.test(free.stderr), 'no conflict: the scan found nothing');
   } finally { fix.cleanup(); }
 });
 

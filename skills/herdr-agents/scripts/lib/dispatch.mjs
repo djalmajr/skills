@@ -52,6 +52,7 @@ import { hasWord } from './text.mjs';
 import { projectRoot } from './platform.mjs';
 import { fmGet, roleBody, roleFile, roleIsEdit, historyHasEdit, REVIEW_ROLES } from './roles.mjs';
 import { agentPrompt, agentState, agentRead, agentSendKeys, liveAgents } from './herdr.mjs';
+import { agentFamily, kindFamily } from './kinds.mjs';
 import { briefTask, paneTaskTitle } from './tasks.mjs';
 import { waitFor, pollIntervalMs, cksumField } from './wait.mjs';
 import { roleTimeoutMs } from './resolve.mjs';
@@ -89,6 +90,32 @@ export function familyConflicts(sd, fam, env = process.env, cwd = process.cwd())
     }
   }
   return out;
+}
+
+// ---------- for_spec_family (--for) ----------
+
+// One `--for <spec>` → family, or a DieError (usage, exit 2), in this
+// order: (1) a roster agent's name — the family of column 5 of its row;
+// an empty or `unknown` column is derived from the row's kind (column 3)
+// and model (column 9) via agentFamily, and stays `unknown` when that
+// cannot map either (the caller then runs the global roster scan, so a
+// --for never accepts more than a plain dispatch); (2) a family name
+// (anthropic|openai|xai|google); (3) a kind with a fixed family
+// (kindFamily !== 'unknown': claude, codex, grok, agy, gemini). Anything
+// else does not resolve.
+const FOR_FAMILY_NAMES = ['anthropic', 'openai', 'xai', 'google'];
+export function forSpecFamily(spec, sd, env = process.env, cwd = process.cwd()) {
+  for (const line of rosterRows(sd)) {
+    const f = line.split('\t');
+    if ((f[0] ?? '') !== spec) continue;
+    const fam = f[4] ?? '';
+    if (fam !== '' && fam !== 'unknown') return fam;
+    return agentFamily(f[2] ?? '', f[8] ?? '');
+  }
+  if (FOR_FAMILY_NAMES.includes(spec)) return spec;
+  const kfam = kindFamily(spec);
+  if (kfam !== 'unknown') return kfam;
+  throw new DieError(`dispatch: --for '${spec}': not an agent in the roster, a family (anthropic|openai|xai|google) or a kind with a fixed family`, 2);
 }
 
 // ---------- lint_brief (:3887) ----------
@@ -626,13 +653,15 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   let wait = 1;
   let allow = 0;
   let amend = 0;
+  let forSpecs; // the --for value; undefined when the flag is absent
   for (let i = 2; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === '--role' || a === '--timeout') {
+    if (a === '--role' || a === '--timeout' || a === '--for') {
       const v = argv[i + 1];
       if (v === undefined) dieFriction(`dispatch: ${a} expects a value`, 2);
       if (a === '--role') role = v;
-      else timeout = v;
+      else if (a === '--timeout') timeout = v;
+      else forSpecs = String(v);
       i += 1;
     } else if (a === '--no-wait') {
       wait = 0;
@@ -671,6 +700,33 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   const family = cols[4] ?? '';
   const rf = roleFile(role, env, cwd);
   if (rf === null) dieFriction(`unknown role '${role}' (run: herdr-agents roles)`, 3);
+  // --for: the family check below compares the reviewer with the slice's
+  // author(s) instead of the global roster scan. The usage errors (a spec
+  // that does not resolve, a non-reviewer role, --amend — the amendment
+  // already skips the check) die 2 before the check, whatever family_check
+  // is. A roster agent whose family stays unknown even after the row
+  // derivation is remembered in forUnknown: the check then also runs the
+  // global scan (a --for must never accept more than a plain dispatch).
+  let forAuthors = null;
+  let forUnknown = null;
+  if (forSpecs !== undefined) {
+    const authors = [];
+    const unknowns = [];
+    for (const spec of forSpecs.split(',').map((s) => s.trim())) {
+      let fam;
+      try { fam = forSpecFamily(spec, sd, env, cwd); }
+      catch (e) {
+        if (e instanceof DieError) dieFriction(e.message, e.code);
+        throw e;
+      }
+      if (fam !== '' && fam !== 'unknown') authors.push({ spec, family: fam });
+      else unknowns.push(spec);
+    }
+    if (!hasWord(REVIEW_ROLES, role)) dieFriction('dispatch: --for applies to a reviewer dispatch', 2);
+    if (amend === 1) dieFriction('dispatch: --for needs a plain dispatch; drop it with --amend', 2);
+    forAuthors = authors;
+    forUnknown = unknowns;
+  }
   // The section lint runs after the role is resolved: a read-only role
   // (mode != edit) needs no `Owned files` section. An amendment is a
   // delta, not a brief: no section lint.
@@ -680,18 +736,48 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   // `wait` without --timeout uses.
   if (timeout === '') timeout = String(roleTimeoutMs(role, ctx, env, cwd));
 
-  // Reviewer family check (REVIEW_ROLES, not REVIEW_ROLES_ALL): an edit
-  // agent of the same family — current role or roles history — blocks a
-  // strict check (5); warn mode and --allow-same-family only warn. An
-  // amendment reuses the original dispatch's role and worker: skipped.
+  // Reviewer family check (REVIEW_ROLES, not REVIEW_ROLES_ALL): without
+  // --for, an edit agent of the same family — current role or roles
+  // history — blocks a strict check (5); warn mode and
+  // --allow-same-family only warn. With --for, the conflict is only when
+  // the reviewer's family is among the slice author(s) resolved above;
+  // a spec whose family stays unknown (even derived from the row's kind
+  // and model) falls back to the global scan on top of the author
+  // comparison and says so, so a --for never accepts more than a plain
+  // dispatch. An amendment reuses the original dispatch's role and
+  // worker: skipped.
   const familyCheck = cfg(ctx, 'family_check', 'strict', env);
   if (amend !== 1 && hasWord(REVIEW_ROLES, role) && familyCheck !== 'off') {
-    const conflicts = familyConflicts(sd, family, env, cwd);
-    if (conflicts.length > 0) {
+    let authorHit = false;
+    let authorList = '';
+    let scan = null;
+    if (forAuthors !== null) {
+      authorList = forAuthors.map((a) => `${a.spec} (${a.family})`).join(', ');
+      authorHit = forAuthors.some((a) => a.family === family);
+      if (forUnknown.length > 0) {
+        // The --for cannot narrow the check for these specs: run the
+        // global scan too, and say so (one warn per spec).
+        for (const spec of forUnknown) warn(`dispatch: --for '${spec}': the author's family is unknown; checked against every edit agent instead`);
+        scan = familyConflicts(sd, family, env, cwd);
+      }
+    } else {
+      scan = familyConflicts(sd, family, env, cwd);
+    }
+    const scanHit = scan !== null && scan.length > 0;
+    if (authorHit || scanHit) {
       if (allow === 1 || familyCheck === 'warn') {
-        warn(`reviewer '${agent}' shares model family '${family}' with: ${conflicts.join(' ')}`);
+        warn(`reviewer '${agent}' shares model family '${family}' with: ${authorHit ? authorList : scan.join(' ')}`);
+      } else if (authorHit) {
+        // --for was already passed: repeating the option would not help,
+        // so the hint drops it (the scan messages keep it).
+        dieFriction(`reviewer '${agent}' (${kind}, ${family}) shares a model family with the slice's author(s): ${authorList}. Spawn the reviewer with another --kind, pass --allow-same-family, or set family_check=warn.`, 5);
       } else {
-        dieFriction(`reviewer '${agent}' (${kind}, ${family}) shares a model family with edit agents: ${conflicts.join(' ')}. Spawn the reviewer with another --kind, pass --allow-same-family, or set family_check=warn.`, 5);
+        // Without --for the hint offers it; after a --for whose author's
+        // family is unknown (the scan fallback), it asks for the family.
+        const hint = forAuthors !== null
+          ? 'Name the author\'s family with --for <family> (anthropic|openai|xai|google) to narrow the check'
+          : 'Pass --for <author> when the slice was written by another family';
+        dieFriction(`reviewer '${agent}' (${kind}, ${family}) shares a model family with edit agents: ${scan.join(' ')}. ${hint}, spawn the reviewer with another --kind, pass --allow-same-family, or set family_check=warn.`, 5);
       }
     }
   }

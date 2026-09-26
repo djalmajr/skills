@@ -46,7 +46,7 @@ Usage:
                       [--tab-label TEXT] [-- <native agent args>]
   herdr-agents env                          # environment block for a feedback issue
   herdr-agents dispatch <agent> <brief.md> [--role R] [--timeout MS]
-                      [--no-wait] [--allow-same-family] [--amend]
+                      [--no-wait] [--allow-same-family] [--amend] [--for <author>[,…]]
                                              # --amend sends <file> as an amendment to the agent's current brief, with a new report that wait watches
   herdr-agents wait <agent>... [--timeout MS] [--any]
   herdr-agents status <agent>...             # gone = agent_not_found; unavailable = agent get failed (exit 4)
