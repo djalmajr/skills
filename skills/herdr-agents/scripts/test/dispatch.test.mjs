@@ -21,7 +21,7 @@ import { nodeBin } from './parity.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadConfig } from '../lib/config.mjs';
 import {
-  briefMissingSections, lintBrief, composePrompt, composeAmendment, dispatchPairSuffix, familyConflicts, forSpecFamily,
+  briefMissingSections, lintBrief, composePrompt, composeAmendment, cmdDispatch, dispatchPairSuffix, familyConflicts, forSpecFamily,
   parseBriefLintAliases, missingSectionsReasons, emptyCodeLines, ownedPaths, pathsCross,
   pendingBriefPath, composedBriefSection, sandboxNotes, pendingBriefSection, globMatches,
   sharedTreeEditor,
@@ -659,6 +659,337 @@ test('dispatch: a prompt failure prints the error JSON and exits 4', { timeout: 
     // bash `"$(… 2>&1)"` drops the trailing newline.
     assert.equal(j.raw, 'prompt failed: the fake refused');
     assert.match(r.stderr, /prompt submission failed; inspect with: herdr agent get build && herdr agent read build\. Do not resend blindly\./);
+  } finally { fix.cleanup(); }
+});
+
+// R3/R7/R17: one .dispatch.json per attempt, next to the composed prompt
+// with the same stem (briefs/<agent>-<ts>[-N].dispatch.json in the state
+// dir, <agent>-<ts>[-N].dispatch.json under the $TMPDIR reports dir):
+// version, the roster's kind and model at the dispatch, the effort the
+// session opened with (roster column 15, '' when the line has no column),
+// and the submission — attempted before the `agent prompt` call, accepted
+// when the transport accepts the prompt, failed on an error (the exit 4
+// and the error JSON stand). The file identifies an attempt: a crash stuck
+// in `attempted` is not a lost task, and a future `stats` counts only
+// `accepted` as a task.
+test('dispatch: the attempt sidecar records the roster metadata and the accepted submission', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-sidecar-');
+  try {
+    // 15-column line: kind grok, model grok-4.7, effort high (column 15).
+    fix.writeRoster(undefined, `${ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build')}\t\t\thigh`);
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait']);
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.equal(sidecar, path.join(fix.ws, 'briefs', path.basename(j.composed_prompt).slice(0, -3) + '.dispatch.json'), 'the sidecar sits next to the composed prompt');
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: 'high', submission: 'accepted' }, 'the accepted sidecar');
+    // A 12-column line (no effort column): the sidecar's effort is the
+    // empty string, never a value pulled from the current configuration.
+    fix.writeRoster(undefined, ROW12('scout', 'p2', 'grok', 'scouter', 'xai', fix.repo, 'grok-4.7', ''));
+    const r2 = cmd(fix, ['dispatch', 'scout', brief, '--no-wait']);
+    assert.equal(r2.status, 0, r2.stderr);
+    const j2 = parsePretty(r2.stdout);
+    assert.deepEqual(JSON.parse(fs.readFileSync(`${j2.composed_prompt.slice(0, -3)}.dispatch.json`, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' }, 'no column 15 → empty effort');
+    // $TMPDIR routing (a worker whose cwd is not the repo root): the
+    // sidecar sits next to the prompt under the tmp reports dir, same
+    // stem, and nothing lands in the state briefs.
+    fix.writeRoster(undefined, `${ROW12('worker', 'p3', 'grok', 'implementer', 'xai', '/tmp/work', 'grok-4.7', 'build')}\t\t\thigh`);
+    const r3 = cmd(fix, ['dispatch', 'worker', brief, '--no-wait']);
+    assert.equal(r3.status, 0, r3.stderr);
+    const j3 = parsePretty(r3.stdout);
+    assert.ok(j3.composed_prompt.startsWith(fix.tmpReports() + path.sep) && j3.composed_prompt.endsWith('.brief.md'), 'the prompt routes through the tmp dir');
+    const tmpSidecar = path.join(path.dirname(j3.composed_prompt), path.basename(j3.composed_prompt).slice(0, -'.brief.md'.length) + '.dispatch.json');
+    assert.deepEqual(JSON.parse(fs.readFileSync(tmpSidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: 'high', submission: 'accepted' }, 'the sidecar next to the tmp prompt');
+    assert.ok(!fs.readdirSync(path.join(fix.ws, 'briefs')).some((f) => f.endsWith('.dispatch.json') && f.startsWith('worker-')), 'no sidecar in the state briefs for the tmp pair');
+    // Mutation captured: a sidecar missing, in the wrong dir (reports
+    // instead of next to the prompt), with the configuration's effort
+    // instead of the roster's, or with `accepted` written before the
+    // send, fails the asserts above.
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch: a refused prompt leaves the sidecar at failed and keeps the exit 4', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-sidecar-fail-');
+  try {
+    fix.writeRoster(undefined, `${ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build')}\t\t\txhigh`);
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.promptFail();
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait']);
+    assert.equal(r.status, 4, r.stdout);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'error', 'the error JSON stands');
+    assert.deepEqual(JSON.parse(fs.readFileSync(`${j.composed_prompt.slice(0, -3)}.dispatch.json`, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: 'xhigh', submission: 'failed' }, 'the failed sidecar');
+    // Mutation captured: the sidecar never written (the refusal leaves no
+    // attempt record) or left at `attempted` after the refusal fails the
+    // assert above.
+  } finally { fix.cleanup(); }
+});
+
+// Sidecar write failures (in-process seam: cmdDispatch in the same
+// process, fs.writeFileSync patched — no real disk error needed). The
+// fake herdr and the previous-run state files stand in for a live worker
+// and an earlier dispatch.
+
+// The first sidecar write (`attempted`) is atomic and happens BEFORE the
+// composed prompt, the last-report pointer and the wait markers: an
+// injected failure dies here (exit 4, the error JSON with the sanitized
+// cause) with no dispatch state left behind and no `agent prompt` call —
+// no orphan prompt a future stats could count as legacy.
+test('dispatch: a first sidecar write failure dies 4 before any dispatch state', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-sidecar-firstfail-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    // An earlier dispatch's state that must stand untouched.
+    const oldPair = 'build-20260101T000000';
+    fs.writeFileSync(path.join(fix.ws, 'briefs', `${oldPair}.md`), 'old prompt\n');
+    const oldReport = path.join(fix.root, 'old-report.md');
+    fs.writeFileSync(oldReport, 'old report\n');
+    fs.writeFileSync(path.join(fix.ws, 'last-report-build'), oldReport + '\n');
+    fs.writeFileSync(path.join(fix.ws, 'wait', 'build.size'), '12\n');
+    // The injected failure hits the first sidecar write only (atomicWrite
+    // writes a temp file whose name carries the sidecar stem, then renames
+    // it — Node's fs.writeFileSync is bound, so the wrapper forwards
+    // as-is).
+    const realWrite = fs.writeFileSync;
+    let injected = false;
+    fs.writeFileSync = (...args) => {
+      if (String(args[0]).includes('.dispatch.json') && !injected) {
+        injected = true;
+        const err = new Error('write failed: simulated EIO');
+        err.code = 'EIO';
+        throw err;
+      }
+      return realWrite(...args);
+    };
+    let out = '';
+    let errOut = '';
+    const realOut = process.stdout.write;
+    const realErrW = process.stderr.write;
+    process.stdout.write = (c, ...r) => { out += String(c); return true; };
+    process.stderr.write = (c, ...r) => { errOut += String(c); return true; };
+    let rc;
+    try {
+      rc = cmdDispatch(['build', brief, '--no-wait'], fix.ctx, fix.env, fix.repo);
+    } finally {
+      fs.writeFileSync = realWrite;
+      process.stdout.write = realOut;
+      process.stderr.write = realErrW;
+    }
+    assert.equal(injected, true, 'the injected failure hit the first sidecar write');
+    assert.equal(rc, 4, 'the controlled exit code');
+    const j = JSON.parse(out.trim());
+    assert.equal(j.wait_status, 'error', 'the error JSON line');
+    assert.equal(j.report_exists, false);
+    assert.match(j.raw, /couldn't write the attempt sidecar: write failed: simulated EIO/, 'the sanitized cause');
+    assert.match(errOut, /could not write the attempt sidecar .*: write failed: simulated EIO/);
+    // No orphan composed prompt (only the pre-existing old pair's), no
+    // sidecar left behind.
+    assert.deepEqual(fs.readdirSync(path.join(fix.ws, 'briefs')).sort(), [`${oldPair}.md`], 'no orphan prompt');
+    // last-report still points at the earlier report, the wait marker
+    // still stands, and no agent prompt was called.
+    assert.equal(fs.readFileSync(path.join(fix.ws, 'last-report-build'), 'utf8'), oldReport + '\n', 'last-report untouched');
+    assert.equal(fs.readFileSync(path.join(fix.ws, 'wait', 'build.size'), 'utf8'), '12\n', 'the wait marker stands');
+    assert.ok(!fix.log().split('\n').some((l) => l.startsWith('agent prompt build ')), 'no agent prompt call');
+    // Mutation captured: a sidecar write after the composed prompt /
+    // last-report / marker cleanup (an orphan prompt or a re-pointed
+    // last-report), an unhandled throw (exit 1, no JSON), or a sidecar
+    // left behind, fails the asserts above.
+  } finally { fix.cleanup(); }
+});
+
+// The outcome update after a successful `agent prompt`: a failure only
+// warns — the dispatch result (the JSON and the code) stands, the sidecar
+// keeps the valid `attempted` (never truncated), and nothing is resent.
+// `accepted` means transport acceptance, not worker receipt.
+test('dispatch: an accepted prompt with a failed outcome write keeps the result and the attempted sidecar', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-sidecar-acceptfail-');
+  try {
+    fix.writeRoster(undefined, `${ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build')}\t\t\thigh`);
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    // The second sidecar write (the outcome) fails: atomicWrite's temp
+    // file name carries the sidecar stem, so the count hits it.
+    const realWrite = fs.writeFileSync;
+    let sidecarWrites = 0;
+    fs.writeFileSync = (...args) => {
+      if (String(args[0]).includes('.dispatch.json')) {
+        sidecarWrites += 1;
+        if (sidecarWrites >= 2) {
+          const err = new Error('write failed: simulated EIO');
+          err.code = 'EIO';
+          throw err;
+        }
+      }
+      return realWrite(...args);
+    };
+    let out = '';
+    let errOut = '';
+    const realOut = process.stdout.write;
+    const realErrW = process.stderr.write;
+    process.stdout.write = (c, ...r) => { out += String(c); return true; };
+    process.stderr.write = (c, ...r) => { errOut += String(c); return true; };
+    let rc;
+    try {
+      rc = cmdDispatch(['build', brief, '--no-wait'], fix.ctx, fix.env, fix.repo);
+    } finally {
+      fs.writeFileSync = realWrite;
+      process.stdout.write = realOut;
+      process.stderr.write = realErrW;
+    }
+    // The dispatch result stands: the normal code and the final JSON.
+    assert.equal(rc, 0, 'the normal dispatch code');
+    const lines = out.trim().split('\n').filter((l) => l !== '').map((l) => JSON.parse(l));
+    assert.equal(lines.length, 1, 'one JSON line');
+    const j = lines[0];
+    assert.equal(j.wait_status, 'submitted', 'the normal result');
+    assert.equal(j.agent, 'build');
+    assert.equal(j.report_exists, false);
+    // The sidecar keeps the valid `attempted` (the previous write is not
+    // truncated), and the warn says the transport accepted the prompt.
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: 'high', submission: 'attempted' }, 'the attempted sidecar stands');
+    assert.match(errOut, /could not record the accepted submission in the attempt sidecar .*: write failed: simulated EIO; the prompt went out/);
+    // No resend: exactly one agent prompt call.
+    assert.equal(fix.log().split('\n').filter((l) => l.startsWith('agent prompt build ')).length, 1, 'no resend');
+    // Mutation captured: an unhandled throw on the outcome write (exit 1,
+    // no JSON), a truncated sidecar, or a resend, fails the asserts above.
+  } finally { fix.cleanup(); }
+});
+
+// The outcome update after a transport error: a failure only warns — the
+// error JSON and the exit 4 stand, the sidecar keeps the valid
+// `attempted`, and the refused prompt is not resent.
+test('dispatch: a transport error with a failed outcome write keeps the error JSON, the exit 4 and the attempted sidecar', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-sidecar-failfail-');
+  try {
+    fix.writeRoster(undefined, `${ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build')}\t\t\txhigh`);
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.promptFail();
+    // The second sidecar write (the outcome) fails: atomicWrite's temp
+    // file name carries the sidecar stem, so the count hits it.
+    const realWrite = fs.writeFileSync;
+    let sidecarWrites = 0;
+    fs.writeFileSync = (...args) => {
+      if (String(args[0]).includes('.dispatch.json')) {
+        sidecarWrites += 1;
+        if (sidecarWrites >= 2) {
+          const err = new Error('write failed: simulated EIO');
+          err.code = 'EIO';
+          throw err;
+        }
+      }
+      return realWrite(...args);
+    };
+    let out = '';
+    let errOut = '';
+    const realOut = process.stdout.write;
+    const realErrW = process.stderr.write;
+    process.stdout.write = (c, ...r) => { out += String(c); return true; };
+    process.stderr.write = (c, ...r) => { errOut += String(c); return true; };
+    let rc;
+    try {
+      rc = cmdDispatch(['build', brief, '--no-wait'], fix.ctx, fix.env, fix.repo);
+    } finally {
+      fs.writeFileSync = realWrite;
+      process.stdout.write = realOut;
+      process.stderr.write = realErrW;
+    }
+    assert.equal(rc, 4, 'the transport error code stands');
+    const j = JSON.parse(out.trim());
+    assert.equal(j.wait_status, 'error', 'the error JSON stands');
+    assert.equal(j.raw, 'prompt failed: the fake refused');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: 'xhigh', submission: 'attempted' }, 'the attempted sidecar stands (not truncated)');
+    assert.match(errOut, /could not record the failed submission in the attempt sidecar .*: write failed: simulated EIO/);
+    // The one refused prompt is not resent.
+    assert.equal(fix.log().split('\n').filter((l) => l.startsWith('agent prompt build ')).length, 1, 'no resend');
+  } finally { fix.cleanup(); }
+});
+
+// The same-second collision, deterministic: the pair timestamp is a fixed
+// value injected through the test-only `opts.nowStamp` seam (the
+// production default stays the wall clock; no flag reads it). Both
+// dispatches share it in-process, so the collision never depends on the
+// clock, a process start or the machine load. An earlier dispatch of the
+// same agent took the unsuffixed pair of that second: the first of the two
+// below must take -2 and the second -3, each sidecar with its own stem.
+test('dispatch: a collision-suffixed pair takes the suffixed sidecar', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-sidecar-suf-');
+  try {
+    const ts = '20260101T000000';
+    fs.writeFileSync(path.join(fix.ws, 'briefs', `build-${ts}.md`), 'earlier prompt\n');
+    fix.writeRoster(undefined, `${ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build')}\t\t\thigh`);
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    // One dispatch, one captured stdout (the final JSON line is the only
+    // stdout of the no-wait path).
+    const capture = (fn) => {
+      let out = '';
+      const realOut = process.stdout.write;
+      process.stdout.write = (c, ...r) => { out += String(c); return true; };
+      let rc;
+      try { rc = fn(); } finally { process.stdout.write = realOut; }
+      return { rc, out };
+    };
+    const a = capture(() => cmdDispatch(['build', brief, '--no-wait'], fix.ctx, fix.env, fix.repo, { nowStamp: () => ts }));
+    assert.equal(a.rc, 0, a.out);
+    const b = capture(() => cmdDispatch(['build', brief, '--no-wait'], fix.ctx, fix.env, fix.repo, { nowStamp: () => ts }));
+    assert.equal(b.rc, 0, b.out);
+    const j1 = JSON.parse(a.out.trim());
+    const j2 = JSON.parse(b.out.trim());
+    assert.equal(j1.composed_prompt, path.join(fix.ws, 'briefs', `build-${ts}-2.md`), 'the first dispatch takes -2');
+    assert.equal(j2.composed_prompt, path.join(fix.ws, 'briefs', `build-${ts}-3.md`), 'the second dispatch takes -3');
+    // Each sidecar carries the suffixed stem of its own prompt.
+    const sc1 = JSON.parse(fs.readFileSync(`${j1.composed_prompt.slice(0, -3)}.dispatch.json`, 'utf8'));
+    const sc2 = JSON.parse(fs.readFileSync(`${j2.composed_prompt.slice(0, -3)}.dispatch.json`, 'utf8'));
+    assert.equal(sc1.submission, 'accepted', 'the sidecar of the -2 pair');
+    assert.equal(sc1.effort, 'high');
+    assert.equal(sc2.submission, 'accepted', 'the sidecar of the -3 pair');
+    assert.equal(sc2.effort, 'high');
+    const sidecars = fs.readdirSync(path.join(fix.ws, 'briefs')).filter((f) => f.endsWith('.dispatch.json'));
+    assert.deepEqual(sidecars.sort(), [
+      `build-${ts}-2.dispatch.json`,
+      `build-${ts}-3.dispatch.json`,
+    ].sort(), 'one sidecar per pair, suffixed like the prompt');
+    // Mutation captured: a pair that ignores the taken unsuffixed and -2
+    // pairs, a sidecar written without the suffix of its prompt (the old
+    // pair's sidecar would be read as the new attempt's), or an attempt
+    // with no sidecar, fails the asserts above.
+  } finally { fix.cleanup(); }
+});
+
+// --amend: the amendment attempt gets its own sidecar (next to the
+// amendment prompt), the earlier attempt's sidecar stands, and the
+// amendment's result and exit code are unchanged.
+test('dispatch --amend: the amendment attempt gets its own sidecar; the earlier one stands', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-sidecar-amend-');
+  try {
+    fix.writeRoster(undefined, `${ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build')}\t\t\thigh`);
+    const brief = fix.brief('brief.md', FULL_BRIEF.replace('# Goal\n', '# Brief — base\n# Goal\n'));
+    const first = cmd(fix, ['dispatch', 'build', brief, '--no-wait']);
+    assert.equal(first.status, 0, first.stderr);
+    const j1 = parsePretty(first.stdout);
+    assert.equal(JSON.parse(fs.readFileSync(`${j1.composed_prompt.slice(0, -3)}.dispatch.json`, 'utf8')).submission, 'accepted', 'the first attempt');
+    // The worker finished; the amendment goes out.
+    fs.writeFileSync(j1.report, 'first report\n');
+    const amend = fix.brief('amend.md', '# Amend — retry with the right flag\n\nDo it.\n');
+    const r = cmd(fix, ['dispatch', 'build', amend, '--amend', '--no-wait']);
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.amend, true);
+    assert.equal(j.wait_status, 'submitted', 'the amendment result stands');
+    assert.equal(j.report_exists, false, '--no-wait: the amendment report is not written yet');
+    assert.notEqual(j.composed_prompt, j1.composed_prompt, 'the amendment gets its own prompt pair');
+    assert.deepEqual(JSON.parse(fs.readFileSync(`${j.composed_prompt.slice(0, -3)}.dispatch.json`, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: 'high', submission: 'accepted' }, 'the amendment attempt');
+    // The first attempt's sidecar is not rewritten by the amendment.
+    assert.equal(JSON.parse(fs.readFileSync(`${j1.composed_prompt.slice(0, -3)}.dispatch.json`, 'utf8')).submission, 'accepted');
   } finally { fix.cleanup(); }
 });
 

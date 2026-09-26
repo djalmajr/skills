@@ -48,8 +48,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { dieFriction, lastReport, nowStamp, rosterLine, rosterRows, sleepSync, stateDir, stateDirPath, warn, workspaceId } from './state.mjs';
 import { cfg, DieError } from './config.mjs';
-import { hasWord } from './text.mjs';
-import { projectRoot } from './platform.mjs';
+import { hasWord, sanitizeCause } from './text.mjs';
+import { atomicWrite, projectRoot } from './platform.mjs';
 import { fmGet, roleBody, roleFile, roleIsEdit, historyHasEdit, REVIEW_ROLES } from './roles.mjs';
 import { agentPrompt, agentState, agentRead, agentSendKeys, liveAgents } from './herdr.mjs';
 import { agentFamily, kindFamily } from './kinds.mjs';
@@ -622,6 +622,19 @@ export function dispatchPairSuffix(composedAt, reportAt, exists, lastReport) {
   }
 }
 
+// The attempt sidecar of a dispatch pair: the same stem as the composed
+// prompt, extension .dispatch.json (briefs/<agent>-<ts>[-N].dispatch.json
+// in the state dir, <agent>-<ts>[-N].dispatch.json under the $TMPDIR
+// reports dir). One file per attempt (the brief and the amendment alike);
+// it identifies the attempt and its submission, for the future `stats`
+// that counts only an `accepted` submission as a task (a crash stuck in
+// `attempted` is not a lost one).
+function dispatchSidecarOf(composed) {
+  const b = path.basename(composed);
+  const stem = b.endsWith('.brief.md') ? b.slice(0, -'.brief.md'.length) : b.slice(0, -'.md'.length);
+  return path.join(path.dirname(composed), `${stem}.dispatch.json`);
+}
+
 // ---------- cmd_dispatch (:3900) ----------
 
 // `dispatch <agent> <brief.md> [--role R] [--timeout MS] [--no-wait]
@@ -637,7 +650,13 @@ export function dispatchPairSuffix(composedAt, reportAt, exists, lastReport) {
 // (the wait/<agent>.* markers are cleared, as on a plain dispatch, so the
 // wait watches the amendment's report). The pane keeps the current task
 // title, without the report mark (✓) while the amendment is in flight.
-export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
+//
+// `opts.nowStamp` is a test-only clock seam: a function returning the pair
+// timestamp (default: the wall clock `nowStamp`, as in production — no
+// flag or env variable reads it). Tests use it to pin the pairs of two
+// dispatches to one fixed second and exercise a real collision
+// deterministically, without a clock or a process start in the window.
+export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd(), opts = {}) {
   const agent = argv[0];
   const brief = argv[1];
   if (agent === undefined || agent === '') {
@@ -826,7 +845,7 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   // reports/, wait/, the roster header) only after the lint and the
   // family check; stateDir returns the same path as stateDirPath above.
   stateDir(ctx, env, cwd);
-  const ts = nowStamp();
+  const ts = (opts.nowStamp ?? nowStamp)();
   const wcwd = cols[6] ?? '';
   // D25: another live roster agent with an edit role in the same cwd
   // (column 7) edits this same tree: the composed prompt (brief and
@@ -855,6 +874,41 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   const report = reportAt(suf);
   if (tmpReports !== null) fs.mkdirSync(tmpReports, { recursive: true });
   fs.mkdirSync(path.dirname(composed), { recursive: true });
+  // One sidecar per attempt: version, the roster's kind and model at the
+  // dispatch, the effort the session opened with (column 15, '' when the
+  // line has no column), and the submission. The first write (`attempted`)
+  // is atomic and happens BEFORE the composed prompt, the last-report
+  // pointer and the wait markers: a failure dies here (exit 4, the error
+  // JSON with the sanitized cause) with no dispatch state left behind —
+  // no orphan prompt a future stats could count, no re-pointed
+  // last-report — and no `agent prompt` is called. The outcome then moves
+  // the sidecar to `accepted` (the transport accepted the prompt — receipt
+  // by the worker stays the separate arrival check) or `failed`; a failed
+  // outcome write only warns, because the dispatch result and its code
+  // stand (the sidecar keeps the valid `attempted`).
+  const sidecar = dispatchSidecarOf(composed);
+  const sidecarMeta = {
+    version: 1,
+    kind: cols[2] ?? '',
+    model: cols.length >= 9 ? (cols[8] ?? '') : '',
+    effort: cols.length >= 15 ? (cols[14] ?? '') : '',
+  };
+  const writeSidecar = (submission) => {
+    // atomicWrite: a failure never truncates the previous sidecar state
+    // (the temp file next to the target is renamed only on success).
+    atomicWrite(sidecar, `${JSON.stringify({ ...sidecarMeta, submission })}\n`);
+  };
+  let sidecarCause = '';
+  try {
+    writeSidecar('attempted');
+  } catch (e) {
+    sidecarCause = sanitizeCause(e && e.message ? e.message : e) || 'unknown error';
+  }
+  if (sidecarCause !== '') {
+    process.stdout.write(JSON.stringify({ wait_status: 'error', agent, role, kind, composed_prompt: composed, report, report_exists: false, raw: `couldn't write the attempt sidecar: ${sidecarCause}` }) + '\n');
+    warn(`could not write the attempt sidecar ${sidecar}: ${sidecarCause}`);
+    return 4;
+  }
   fs.writeFileSync(composed, amend === 1
     ? composeAmendment(fs.readFileSync(brief, 'utf8'), report, ctx, env, kind, cols[13] ?? '', sharedTree)
     : composePrompt(rf, role, agent, fs.readFileSync(brief, 'utf8'), report, ctx, env, kind, cols[13] ?? '', sharedTree));
@@ -898,10 +952,22 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd()) {
   let status = 'submitted';
   const p = agentPrompt(agent, text, env);
   if (!p.ok) {
+    try { writeSidecar('failed'); }
+    catch (e) {
+      warn(`could not record the failed submission in the attempt sidecar ${sidecar}: ${sanitizeCause(e && e.message ? e.message : e) || 'unknown error'}`);
+    }
     status = 'error';
     process.stdout.write(JSON.stringify({ wait_status: 'error', agent, role, kind, composed_prompt: composed, report, report_exists: false, raw: p.raw }) + '\n');
     warn(`prompt submission failed; inspect with: herdr agent get ${agent} && herdr agent read ${agent}. Do not resend blindly.`);
     return 4;
+  }
+  try { writeSidecar('accepted'); }
+  catch (e) {
+    // The transport accepted the prompt (the arrival check below is the
+    // separate proof of receipt by the worker): a failed outcome write
+    // only warns — the dispatch result and its code stand, and the
+    // sidecar keeps the valid `attempted`.
+    warn(`could not record the accepted submission in the attempt sidecar ${sidecar}: ${sanitizeCause(e && e.message ? e.message : e) || 'unknown error'}; the prompt went out`);
   }
   let resent = false;
   let enterSent = false;

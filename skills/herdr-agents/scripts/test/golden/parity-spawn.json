@@ -2,7 +2,7 @@
   "busy2": {
     "files": {
       "herdTab": "t-herd\therd\tmanual\n",
-      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp-new\tgrok\timplementer\txai\t1\t<ROOT>/repo\tT\tgrok-4.7\task\timplementer\tbuild\t\t\n"
+      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp-new\tgrok\timplementer\txai\t1\t<ROOT>/repo\tT\tgrok-4.7\task\timplementer\tbuild\t\t\txhigh\n"
     },
     "steps": [
       {
@@ -47,7 +47,7 @@
   "given-pane": {
     "files": {
       "herdTab": null,
-      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nsolo\tp-x\tgrok\timplementer\txai\t0\t<ROOT>/repo\tT\tgrok-4.7\task\timplementer\tbuild\t\t\nside\tp-y\tgrok\tscouter\txai\t0\t<ROOT>/repo\tT\tgrok-4.7\task\tscouter\tbuild\t\t\n"
+      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nsolo\tp-x\tgrok\timplementer\txai\t0\t<ROOT>/repo\tT\tgrok-4.7\task\timplementer\tbuild\t\t\txhigh\nside\tp-y\tgrok\tscouter\txai\t0\t<ROOT>/repo\tT\tgrok-4.7\task\tscouter\tbuild\t\t\txhigh\n"
     },
     "steps": [
       {
@@ -221,7 +221,7 @@
   "layers": {
     "files": {
       "herdTab": "t-herd\therd\tmanual\n",
-      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp-new\tgrok\timplementer\txai\t1\t<ROOT>/repo\tT\tgrok-4.7\task\timplementer\tbuild\t\t\n"
+      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp-new\tgrok\timplementer\txai\t1\t<ROOT>/repo\tT\tgrok-4.7\task\timplementer\tbuild\t\t\txhigh\n"
     },
     "steps": [
       {
@@ -313,7 +313,7 @@
   "notready": {
     "files": {
       "herdTab": "t-herd\therd\tmanual\n",
-      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp-new\tgrok\timplementer\txai\t1\t<ROOT>/repo\tT\tgrok-4.7\task\timplementer\tbuild\t\t\n"
+      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nbuild\tp-new\tgrok\timplementer\txai\t1\t<ROOT>/repo\tT\tgrok-4.7\task\timplementer\tbuild\t\t\txhigh\n"
     },
     "steps": [
       {
@@ -331,7 +331,7 @@
   "overflow": {
     "files": {
       "herdTab": "t-herd\therd\tmanual\n",
-      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nw1\tp-w1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tT\tfull\timplementer\tbuild\nw2\tp-w2\tgrok\tscouter\txai\t1\t<ROOT>/repo\tT\tfull\tscouter\texplore\nw3\tp-w3\tgrok\treviewer\txai\t1\t<ROOT>/repo\tT\tfull\treviewer\treview\ndesigner\tp-new\tagy\tdesigner\tgoogle\t1\t<ROOT>/repo\tT\tgemini-2.5\task\tdesigner\t\t\t\n"
+      "roster": "# name\tpane\tkind\trole\tfamily\tcreated_pane\tcwd\tstarted\tmodel\tapprovals\troles\tlane\nw1\tp-w1\tgrok\timplementer\txai\t1\t<ROOT>/repo\tT\tfull\timplementer\tbuild\nw2\tp-w2\tgrok\tscouter\txai\t1\t<ROOT>/repo\tT\tfull\tscouter\texplore\nw3\tp-w3\tgrok\treviewer\txai\t1\t<ROOT>/repo\tT\tfull\treviewer\treview\ndesigner\tp-new\tagy\tdesigner\tgoogle\t1\t<ROOT>/repo\tT\tgemini-2.5\task\tdesigner\t\t\t\thigh\n"
     },
     "steps": [
       {

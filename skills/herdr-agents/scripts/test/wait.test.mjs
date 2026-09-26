@@ -1857,6 +1857,78 @@ test('wait: the mirror keeps a different existing state file and warns', { timeo
   } finally { fix.cleanup(); }
 });
 
+// The dispatch attempt sidecar mirrors with the pair: to
+// <state>/briefs/<stem>.dispatch.json with the same conservative copyOnce
+// policy (a different existing file is kept with the kept-warn, an
+// identical one is not rewritten).
+test('wait: the mirror copies the dispatch sidecar (identical kept, different stands)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-mirror-sidecar-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    fix.mode('working');
+    const tmpReports = path.join(fix.env.TMPDIR, 'herdr-agents', 'ws', 'reports');
+    fs.mkdirSync(tmpReports, { recursive: true });
+    const report = path.join(tmpReports, 'w-20260925T100000.md');
+    const composed = path.join(tmpReports, 'w-20260925T100000.brief.md');
+    const sidecar = path.join(tmpReports, 'w-20260925T100000.dispatch.json');
+    const sidecarBody = '{"version":1,"kind":"grok","model":"grok-4.7","effort":"high","submission":"accepted"}\n';
+    fs.writeFileSync(report, '# Report\n\ndone.\n');
+    fs.writeFileSync(composed, '# Role: implementer\n\nprompt\n');
+    fs.writeFileSync(sidecar, sidecarBody);
+    fs.writeFileSync(path.join(fix.ws, 'last-report-w'), report + '\n');
+    const stateSidecar = path.join(fix.ws, 'briefs', 'w-20260925T100000.dispatch.json');
+    const r = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(jsonLines(r.stdout), [{ agent: 'w', status: 'done', report }], 'the done still points at the original');
+    assert.equal(fs.readFileSync(stateSidecar, 'utf8'), sidecarBody, 'the sidecar is mirrored to <state>/briefs with identical content');
+    // The identical copy is not rewritten (the mtime stands).
+    const m = fs.statSync(stateSidecar).mtimeMs;
+    const r2 = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r2.status, 0, r2.stderr);
+    assert.equal(fs.statSync(stateSidecar).mtimeMs, m, 'the identical sidecar is not rewritten');
+    // A different existing sidecar is kept, with the kept-warn naming
+    // destination and source.
+    fs.writeFileSync(stateSidecar, 'different content\n');
+    const r3 = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r3.status, 0, r3.stderr);
+    assert.equal(fs.readFileSync(stateSidecar, 'utf8'), 'different content\n', 'the different sidecar is kept');
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.match(friction, new RegExp(`kept ${stateSidecar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: it differs from ${sidecar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}, which was not copied over it`));
+    // Mutation captured: the sidecar not mirrored (absent or the source
+    // content), the identical copy rewritten (mtime bumped), or the
+    // different destination overwritten (the earlier content lost), fails
+    // the asserts above.
+  } finally { fix.cleanup(); }
+});
+
+// A pair predating the sidecar has none: the mirror skips it silently (no
+// invented file, no warn) and the old run stays green.
+test('wait: mirroring an old pair without a sidecar is silent', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-mirror-nosidecar-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer'));
+    fix.mode('working');
+    const tmpReports = path.join(fix.env.TMPDIR, 'herdr-agents', 'ws', 'reports');
+    fs.mkdirSync(tmpReports, { recursive: true });
+    const report = path.join(tmpReports, 'w-20260925T100000.md');
+    const composed = path.join(tmpReports, 'w-20260925T100000.brief.md');
+    fs.writeFileSync(report, '# Report\n\ndone.\n');
+    fs.writeFileSync(composed, '# Role: implementer\n\nprompt\n');
+    // No .dispatch.json: the pair predates the sidecar.
+    fs.writeFileSync(path.join(fix.ws, 'last-report-w'), report + '\n');
+    const r = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r.status, 0, r.stderr, 'the old run stays green');
+    assert.deepEqual(jsonLines(r.stdout), [{ agent: 'w', status: 'done', report }]);
+    assert.equal(fs.readFileSync(path.join(fix.ws, 'reports', 'w-20260925T100000.md'), 'utf8'), '# Report\n\ndone.\n', 'the report is still mirrored');
+    assert.ok(!fs.existsSync(path.join(fix.ws, 'briefs', 'w-20260925T100000.dispatch.json')), 'no sidecar is invented');
+    let friction = '';
+    try { friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8'); } catch { /* no warn at all */ }
+    assert.ok(!friction.includes('.dispatch.json'), 'an absent sidecar generates no warn');
+    // Mutation captured: a missing sidecar source warning (or a sidecar
+    // file invented in the state dir) fails the asserts above.
+  } finally { fix.cleanup(); }
+});
+
 // ---------- D40: the stuck age is never counted from epoch 0 ----------
 
 // A .stuck-since that is missing, empty or non-numeric is treated as now

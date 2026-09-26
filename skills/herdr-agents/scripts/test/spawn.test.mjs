@@ -1417,8 +1417,9 @@ test('spawn: the temporary (burst) worker — flex only, flex_roles, capped by f
     assert.equal(j.burst, true, 'the JSON marks the temporary worker');
     let f = fix.row('docs').split('\t');
     assert.equal(f[12], 'burst', 'roster column 13 is the burst marker');
-    assert.equal(f.length, 14, 'the burst row has 14 columns (13 present even when empty)');
+    assert.equal(f.length, 15, 'the burst row has 15 columns (13 present even when empty)');
     assert.equal(f[13], '', 'column 14 is the native args (none here)');
+    assert.equal(f[14], j.effort === 'default' ? '' : j.effort, 'column 15 is the JSON effort (CLI default recorded empty)');
     assert.equal(f[11], 'docs', 'the lane column is the docs lane');
     // (b) the strict mode (the default) never opens a burst: the documenter
     // sits in the build lane, and a full build lane is busy 10.
@@ -1793,7 +1794,7 @@ test('spawn: the roster records the native args (column 14) the spawn used', () 
     let r = runSpawn(fix, ['implementer'], { HERDR_AGENTS_LANES: 'off' });
     assert.equal(r.status, 0, r.stderr);
     let f = fix.row(JSON.parse(r.stdout).name).split('\t');
-    assert.equal(f.length, 14, 'the row has 14 columns');
+    assert.equal(f.length, 15, 'the row has 15 columns');
     assert.equal(f[12], '', 'column 13 is present (not a burst)');
     assert.equal(f[13], '--kind-extra -r impl', 'column 14 is args.<kind> then role args');
     // No args configured: column 14 is empty.
@@ -1801,7 +1802,7 @@ test('spawn: the roster records the native args (column 14) the spawn used', () 
     r = runSpawn(fix, ['scouter'], { HERDR_AGENTS_LANES: 'off' });
     assert.equal(r.status, 0, r.stderr);
     f = fix.row(JSON.parse(r.stdout).name).split('\t');
-    assert.equal(f.length, 14, 'the row has 14 columns');
+    assert.equal(f.length, 15, 'the row has 15 columns');
     assert.equal(f[13], '', 'no native args → empty column 14');
     // lanes on: lane args → column 14 for every worker of the lane.
     proj('lane.build.roles=implementer\nlane.build.kind=grok\nlane.build.args=-l build\n');
@@ -1811,6 +1812,72 @@ test('spawn: the roster records the native args (column 14) the spawn used', () 
     assert.equal(f[13], '-l build', 'column 14 is the lane args');
     // Mutation captured: the column not recorded (or column 13 missing
     // when empty) at the spawn.
+  } finally { fix.cleanup(); }
+});
+
+// Roster column 15 records the effective effort the session opened with:
+// the value this spawn resolved and clamped (the JSON reports the same
+// thing, shown as `default` when the CLI keeps its own default). Old
+// 12-14-column lines keep their length: nothing backfills a column 15 from
+// the current configuration after the fact.
+test('spawn: the roster records the effective effort (column 15) the session opened with', () => {
+  const { fix, proj } = confFix('ha-spawn-col15-');
+  try {
+    // A project role with kind grok and no effort anywhere; effort.grok=
+    // (empty = unset) keeps the default out of the chain: the flagless
+    // spawn resolves '' and the CLI keeps its own default.
+    const rolesDir = path.join(fix.repo, '.agents', 'herdr-roles');
+    fs.mkdirSync(rolesDir, { recursive: true });
+    fs.writeFileSync(path.join(rolesDir, 'noeffort.md'),
+      ['---', 'name: no effort', 'kind: grok', 'mode: read-only', '---', '', 'Body.', ''].join('\n'));
+    // Explicit effort: the resolved and clamped value lands in column 15.
+    // reuse_workers=off: every spawn opens a fresh worker (the reuse checks
+    // do not compare effort, so an idle earlier worker would be borrowed).
+    proj('lanes=off\neffort.grok=\nreuse_workers=off\n');
+    let r = runSpawn(fix, ['implementer', '--effort', 'high'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    let j = JSON.parse(r.stdout);
+    let f = fix.row(j.name).split('\t');
+    assert.equal(f.length, 15, 'the row has 15 columns');
+    assert.equal(f[13], '', 'column 14 is the (empty) native args');
+    assert.equal(f[14], 'high', 'column 15 is the resolved effort');
+    assert.equal(j.effort, 'high', 'the JSON carries the same value');
+    // Above the grok ceiling: the clamped value is what gets recorded.
+    r = runSpawn(fix, ['implementer', '--effort', 'max'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    j = JSON.parse(r.stdout);
+    f = fix.row(j.name).split('\t');
+    assert.equal(f[14], 'xhigh', 'the kind ceiling clamps before the record');
+    assert.equal(j.effort, 'xhigh', 'the JSON carries the clamped value');
+    // The CLI's own default: column 15 is the empty string, never a value
+    // pulled from the current configuration.
+    r = runSpawn(fix, ['noeffort'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    j = JSON.parse(r.stdout);
+    f = fix.row(j.name).split('\t');
+    assert.equal(f.length, 15, 'the row has 15 columns');
+    assert.equal(f[14], '', 'no effort resolved → empty column 15');
+    assert.equal(j.effort, 'default', 'the JSON shows the CLI default');
+    // An old 14-column line (12 + burst + args, no effort column) is still
+    // accepted and never backfilled: a cross-role reuse rewrites it and it
+    // keeps its 14 columns. Reuse is on again (it does not compare effort,
+    // which is exactly what keeps the old line reusable).
+    proj('lanes=off\neffort.grok=\n');
+    fix.writeRoster(`old\tp-old\tgrok\timplementer\txai\t1\t${fix.repo}\tnow\tgrok-4.7\tfull\timplementer\t\t\t`);
+    fix.live([{ name: 'old', pane_id: 'p-old', agent_status: 'idle' }]);
+    fix.clearLog();
+    r = runSpawn(fix, ['scouter'], { HERDR_AGENTS_LANES: 'off' });
+    assert.equal(r.status, 0, r.stderr);
+    j = JSON.parse(r.stdout);
+    assert.equal(j.name, 'old', 'the old line is accepted for reuse');
+    assert.equal(j.reused, true);
+    f = fix.row('old').split('\t');
+    assert.equal(f.length, 14, 'the rewrite keeps the old line at 14 columns (no invented effort)');
+    assert.equal(f[13], '', 'the args column is untouched');
+    assert.ok(!fix.logLines().some((l) => l.startsWith('agent start')), 'reuse starts no pane');
+    // Mutation captured: a row written without column 15 (or with the
+    // current configuration's effort backfilled into an old line) fails
+    // the length and value asserts above.
   } finally { fix.cleanup(); }
 });
 
@@ -1890,7 +1957,7 @@ test('spawn: a session set after the spawn blocks the reuse', { timeout: 60000 }
       assert.equal(r.status, 0, r.stderr);
       const first = JSON.parse(r.stdout).name;
       const f1 = fix.row(first).split('\t');
-      assert.equal(f1.length, 14);
+      assert.equal(f1.length, 15);
       assert.equal(f1[13], '', 'the worker opened without args');
       const s = runSession(fix, ['role.implementer.args', '-r x'], { HERDR_AGENTS_LANES: 'off' });
       assert.equal(s.status, 0, s.stderr);
