@@ -188,9 +188,14 @@ and model build, which review, at what effort. The one rule that does not
 move: the reviewer of a slice comes from **another model family** than its
 implementer (cursor running a grok model is the xai family, like `grok`).
 The family check enforces it for workers; for code the orchestrator wrote,
-pick the reviewer's family by hand. What each assistant did well and badly
-in each role, from real use, is in
-[references/agent-profiles.md](references/agent-profiles.md).
+pick the reviewer's family by hand. **Before choosing or changing a team,
+read [references/agent-profiles.md](references/agent-profiles.md):** what
+each assistant did well and badly in each role in real use, and a
+recommendation per role. Examples:
+- UI with e2e goes to a kind that can open a port, not a sandboxed `codex`;
+- untrusted-input slices do not go to a small model;
+- a `codex` reviewer at `high` found real P1s in 2 to 3 min, where
+  `xhigh` cost 2 to 4 times the slice.
 
 Definitions live in [roles/](roles/). Resolution order: project
 `.agents/herdr-roles/<role>.md` → this skill's `roles/<role>.md`. `--kind`
@@ -934,6 +939,14 @@ see your own edits, so pick that reviewer's kind by hand.
    `implementer`. Bulk mechanical → `tasker`. Every slice that changes
    code gets a `reviewer` from another model family; auth/secrets/input
    handling also gets `security-reviewer`; visible UI also gets `inspector`.
+   When a slice falls on a known weak spot of the configured kind, pick
+   another one for that slice with `spawn --kind`. The weak spots are in
+   [references/agent-profiles.md](references/agent-profiles.md), for
+   example:
+   - UI or e2e on a sandboxed `codex`;
+   - untrusted input on a small model;
+   - platform behaviour that only the target machine shows.
+
    Keep the pipeline in [Fluxo paralelo](#fluxo-paralelo) full.
 4. **Write one brief per slice** from [templates/brief.md](templates/brief.md):
    goal, owned files, forbidden files, local sources by path, project rules
@@ -1103,6 +1116,11 @@ Steps, in order, in the user's language (never the words `lane`, `kind`, or
    - **Research**: recommended is the fastest/cheapest ready assistant — a
      fast/flash model when the probe lists one, otherwise the cheapest
      ready family.
+   Among the ready assistants, let
+   [references/agent-profiles.md](references/agent-profiles.md) pick the
+   recommendation and give its reason. It says which assistant did well
+   in each job in real use, and which pairs of writer and reviewer found
+   real problems.
    Each option is the assistant name plus its one-line `summary`
    (translated); the recommendation carries the one-line reason.
    **Own provider on `pi` or `opencode`:** before offering such a

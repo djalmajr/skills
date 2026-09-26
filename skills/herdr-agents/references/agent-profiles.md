@@ -232,7 +232,7 @@ validations:
 Platform behaviour needs a run on the platform. A reviewer that cannot run
 it should say so instead of guessing.
 
-## What the evidence suggests per role
+## Recommendation per role
 
 - **implementer:**
   - `codex` for closed briefs and sensitive correctness (TDD,

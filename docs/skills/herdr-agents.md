@@ -419,7 +419,9 @@ was proved. The full contract is in
 `skills/herdr-agents/references/agent-profiles.md` records what each
 assistant did well and badly in each role in real use (speed, rounds back,
 false positives, and what the sandbox kept it from proving), with a
-suggestion per role. It is evidence, not a benchmark: check it against
+recommendation per role. The orchestrator reads it when it proposes a team
+in the guided setup, and when a slice falls on a known weak spot of the
+configured assistant. It is evidence, not a benchmark: check it against
 `herdr-agents stats` in your own project.
 
 ## When something goes wrong
