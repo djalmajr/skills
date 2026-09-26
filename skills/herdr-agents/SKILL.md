@@ -188,7 +188,9 @@ and model build, which review, at what effort. The one rule that does not
 move: the reviewer of a slice comes from **another model family** than its
 implementer (cursor running a grok model is the xai family, like `grok`).
 The family check enforces it for workers; for code the orchestrator wrote,
-pick the reviewer's family by hand.
+pick the reviewer's family by hand. What each assistant did well and badly
+in each role, from real use, is in
+[references/agent-profiles.md](references/agent-profiles.md).
 
 Definitions live in [roles/](roles/). Resolution order: project
 `.agents/herdr-roles/<role>.md` → this skill's `roles/<role>.md`. `--kind`
@@ -1356,4 +1358,5 @@ matrix (`scripts/run-tests.sh`) runs once, right before the report.
 - [references/troubleshooting.md](references/troubleshooting.md) — observed failures, causes, fixes, and how to validate a kind; read before changing the script
 - [references/orchestration-contract.md](references/orchestration-contract.md) — the delegation contract this skill enforces
 - [references/kinds.md](references/kinds.md) — kind → family table, generic kinds (pi/opencode) with config and provider examples, and install notes
+- [references/agent-profiles.md](references/agent-profiles.md) — strengths and weaknesses of each assistant per role, from real use; read before choosing a team
 - [templates/brief.md](templates/brief.md), [templates/report.md](templates/report.md)

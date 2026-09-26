@@ -414,6 +414,14 @@ integration, review with a different family before push, and say only what
 was proved. The full contract is in
 `skills/herdr-agents/references/orchestration-contract.md`.
 
+## Which assistant for which role
+
+`skills/herdr-agents/references/agent-profiles.md` records what each
+assistant did well and badly in each role in real use (speed, rounds back,
+false positives, and what the sandbox kept it from proving), with a
+suggestion per role. It is evidence, not a benchmark: check it against
+`herdr-agents stats` in your own project.
+
 ## When something goes wrong
 
 `skills/herdr-agents/references/troubleshooting.md` lists every failure
