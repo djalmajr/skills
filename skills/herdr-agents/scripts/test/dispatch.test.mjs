@@ -548,6 +548,7 @@ test('compose: role header, brief verbatim, the report contract in order', { tim
       '- Write your report as Markdown to `' + report + '` (create parent directories if needed) following the `<report>` section of your role. Give every item its state as `[done]`, `[partial]` or `[skipped]`, followed by the reason.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
       '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
+      '- Report only the current brief and its explicit amendments; do not import unrelated work from earlier briefs retained in a reused session. Mention prior work only when it directly affects this brief, stating the relationship.\n',
       '- Command output you put in the report is pasted from the run, never retyped or reconstructed.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
       '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
@@ -1625,6 +1626,48 @@ test('compose: the report-writer line leads the standing rules in brief and amen
   } finally { fix.cleanup(); }
 });
 
+// R30: the report-scope rule sits once in the standing rules of both the
+// brief and the amendment prompt — inside the report contract, right after
+// the report-writer line and before the pasted-output line — and the
+// existing standing-rule order is unchanged.
+test('compose: the report covers only the current brief and its amendments (R30, in order)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-r30-');
+  try {
+    const line = '- Report only the current brief and its explicit amendments; do not import unrelated work from earlier briefs retained in a reused session. Mention prior work only when it directly affects this brief, stating the relationship.\n';
+    const roleFile = path.join(fix.repo, 'alpha.md');
+    fs.writeFileSync(roleFile, '---\nname: alpha\n---\n\nBody.\n');
+    const report = '/r.md';
+    const briefPrompt = composePrompt(roleFile, 'alpha', 'w1', '# Goal\nGo.\n', report, fix.ctx, fix.env);
+    const amendPrompt = composeAmendment('# Amend\nDo X.\n', report, fix.ctx, fix.env);
+    const standing = [
+      '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
+      line,
+      '- Command output you put in the report is pasted from the run, never retyped or reconstructed.\n',
+      '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
+      '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
+      '- Do not commit, push, tag, or open pull requests.\n',
+      '- When finished, reply in the terminal with exactly the report path and nothing else.\n',
+    ];
+    // Mutation captured: the line dropped from (or duplicated in) one of
+    // the two composed prompts, placed outside the report contract, or an
+    // existing standing rule reordered, fails one of the asserts below.
+    for (const [name, text] of [['brief', briefPrompt], ['amendment', amendPrompt]]) {
+      assert.equal(text.indexOf(line), text.lastIndexOf(line), `${name}: exactly one`);
+      assert.ok(text.indexOf(line) !== -1, `${name}: the line is present`);
+      assert.ok(text.indexOf('# Report contract') < text.indexOf(line), `${name}: inside the report contract`);
+      assert.ok(text.indexOf('- Only you write this report') < text.indexOf(line), `${name}: after the report-writer line`);
+      assert.ok(text.indexOf(line) < text.indexOf('- Command output you put in the report'), `${name}: before the pasted-output line`);
+      let prev = -1;
+      for (const rule of standing) {
+        const idx = text.indexOf(rule);
+        assert.ok(idx !== -1, `${name}: standing rule present: ${rule.slice(0, 40)}…`);
+        assert.ok(idx > prev, `${name}: standing order preserved at: ${rule.slice(0, 40)}…`);
+        prev = idx;
+      }
+    }
+  } finally { fix.cleanup(); }
+});
+
 test('dispatch: usage errors (missing args, unknown option, brief not found, not in roster)', { timeout: 60000 }, () => {
   const fix = makeFix('ha-dispatch-usage-');
   try {
@@ -1879,6 +1922,7 @@ test('dispatch --amend: new report, wait markers cleared, title keeps the task w
       '- Give every item its state as `[done]`, `[partial]` or `[skipped]`, followed by the reason.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
       '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
+      '- Report only the current brief and its explicit amendments; do not import unrelated work from earlier briefs retained in a reused session. Mention prior work only when it directly affects this brief, stating the relationship.\n',
       '- Command output you put in the report is pasted from the run, never retyped or reconstructed.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
       '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
@@ -1959,6 +2003,7 @@ test('composeAmendment: the report_language line, in order, only when set', { ti
       '- Write the report in pt-BR.\n',
       '- Write the report in one go, as the last action of your work; the orchestrator treats its existence as completion.\n',
       '- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n',
+      '- Report only the current brief and its explicit amendments; do not import unrelated work from earlier briefs retained in a reused session. Mention prior work only when it directly affects this brief, stating the relationship.\n',
       '- Command output you put in the report is pasted from the run, never retyped or reconstructed.\n',
       '- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n',
       '- Never invent names, endpoints, flags, credentials, URLs or requirements.\n',
