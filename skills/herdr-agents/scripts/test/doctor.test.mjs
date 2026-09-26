@@ -18,7 +18,7 @@ import { spawnSync } from 'node:child_process';
 import { JS_ENTRY, nodeBin, fixtureEnv } from './parity.mjs';
 import { writeFakeCli } from './fakes.mjs';
 import {
-  cmdDoctor, doctorCheck, doctorCodexNetworkWarnings, doctorDiscardedModels, doctorFix, doctorLaneWarnings, doctorModelPairs,
+  cmdDoctor, doctorCheck, doctorCodexNetworkWarnings, doctorDiscardedModels, doctorFeedbackWarnings, doctorFix, doctorLaneWarnings, doctorModelPairs,
   doctorRoleKind, doctorUsedKinds, laneArgsIgnoredWarnings, projectIsFirstRun, ENTRY_SCRIPT,
 } from '../lib/commands/doctor.mjs';
 import { explainActivity, explainIdleParagraph, explainPrintRunning, explainRecommendation, explainStateDir } from '../lib/commands/explain.mjs';
@@ -714,6 +714,53 @@ test('doctorCodexNetworkWarnings: codex UI roles without a network token warn, l
   // no longer lifts), the token rule a plain substring (the suffixed flag
   // lifts), the lane key suggested with the lanes on (the role key), or
   // the role args of a laned role lifting it (no designer line).
+  cleanLayers();
+});
+
+// ---------- doctorFeedbackWarnings ----------
+
+test('doctorFeedbackWarnings: feedback=local warns on an empty or missing feedback_dir; nothing otherwise', () => {
+  const EXACT = `config: feedback=local but feedback_dir is empty, relative or not a directory; set feedback_dir to the maintainer's directory, as an absolute path (feedback send dies 2 until then)`;
+  // Empty feedback_dir (the key is not set anywhere).
+  cleanLayers();
+  writeProj('feedback=local\n');
+  let s = capture();
+  doctorFeedbackWarnings(ctxOf(), ENV, REPO, s);
+  assert.deepEqual(s.lines, [`warn: ${EXACT}`], 'empty: ' + s.lines.join(' | '));
+  // feedback_dir pointing at a file (not a directory) warns too.
+  const notDir = path.join(TMP, 'not-a-dir');
+  fs.writeFileSync(notDir, 'x\n');
+  writeProj(`feedback=local\nfeedback_dir=${notDir}\n`);
+  s = capture();
+  doctorFeedbackWarnings(ctxOf(), ENV, REPO, s);
+  assert.deepEqual(s.lines, [`warn: ${EXACT}`], 'a file, not a directory: ' + s.lines.join(' | '));
+  // A relative feedback_dir warns even when it exists from the cwd.
+  writeProj('feedback=local\nfeedback_dir=.\n');
+  s = capture();
+  doctorFeedbackWarnings(ctxOf(), ENV, REPO, s);
+  assert.deepEqual(s.lines, [`warn: ${EXACT}`], 'relative: ' + s.lines.join(' | '));
+  // A real directory is fine.
+  writeProj(`feedback=local\nfeedback_dir="${TMP}"\n`);
+  s = capture();
+  doctorFeedbackWarnings(ctxOf(), ENV, REPO, s);
+  assert.equal(s.lines.length, 0, 'a directory: ' + s.lines.join(' | '));
+  // Any other feedback value is silent (the issue path does not use feedback_dir).
+  for (const v of ['ask', 'on', 'off']) {
+    writeProj(`feedback=${v}\nfeedback_dir=${TMP}\n`);
+    s = capture();
+    doctorFeedbackWarnings(ctxOf(), ENV, REPO, s);
+    assert.equal(s.lines.length, 0, `${v} is silent: ` + s.lines.join(' | '));
+  }
+  // The full doctor carries the line when feedback=local and feedback_dir is empty.
+  writeProj('feedback=local\n');
+  const out = doctorOut();
+  assert.ok(out.split('\n').includes(`warn   ${EXACT}`), out);
+  // ...and not when the policy is the default ask (the bundled default).
+  cleanLayers();
+  assert.ok(!doctorOut().includes(EXACT), 'the default policy is silent');
+  // Mutation captured: the gate on feedback=local dropped (the other
+  // policies warn), the directory check skipped (a file passes), or the
+  // full doctor lost the line.
   cleanLayers();
 });
 

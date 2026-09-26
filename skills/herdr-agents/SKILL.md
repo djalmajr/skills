@@ -582,6 +582,7 @@ $S wait a b [--any] [--timeout MS]         # block on report files
 $S stats [--since <date>] [--json]          # tasks, times and review findings per role, from the state dir; <date> is YYYY-MM-DD or ISO 8601 (other formats exit 2); the review table covers reviewer, security-reviewer, ui-reviewer and inspector
 $S friction                                # errors/warnings of this workspace (review at end)
 $S friction add "<text>" [--brief <path>]  # record one friction note (level note, command friction; --brief appends ` (brief: <path>)`)
+$S feedback send <report.md> "<summary>"   # feedback=local: save the report in feedback_dir as from-<project>-<date>.md (never overwrites) and send one line to feedback_to
 $S regrid                                  # exact grids: caller's tab (split) + every herd tab
 $S tab-label                               # herd tabs: id, label, auto|manual
 $S tab-label "onda 2" [--tab ID]           # pin a label (newest herd tab, or --tab); --auto goes back
@@ -1316,10 +1317,13 @@ issue on the skill's repo so the maintainer can improve it incrementally.
   message), and `friction add "<text>" [--brief <path>]` records a friction
   the tools do not log themselves (level `note`, command `friction`;
   `--brief` appends ` (brief: <path>)`).
-- **Policy** is the `feedback` config key: `ask` (default) — tell the user
-  what you would file and file it only after they agree; `on` — file it
-  directly and mention it in your final message; `off` — never file, just
-  describe the friction in your final message.
+- **Policy** is the `feedback` config key:
+  - `ask` (default): tell the user what you would file, and file it only
+    after they agree;
+  - `on`: file it directly and mention it in your final message;
+  - `off`: never file, just describe the friction in your final message;
+  - `local`: a maintainer of the skill works on this machine. Send the
+    report to that maintainer instead of filing an issue (below).
 - **How:** fill [templates/issue.md](templates/issue.md) (scenario, what
   happened with exact error text or JSON line, what was expected, the
   output of `$S env` and `$S config`, evidence paths, optional proposed
@@ -1332,6 +1336,24 @@ issue on the skill's repo so the maintainer can improve it incrementally.
 
   Redact secrets and customer data from evidence. Never paste a full report
   from a private repo; quote the lines that show the problem.
+- **With `feedback=local`:** write the same template to a file, then:
+
+  ```bash
+  $S feedback send /tmp/herdr-agents-friction.md "<one-line summary>"
+  ```
+
+  - The report is saved as `<feedback_dir>/from-<project>-<date>.md`, with
+    `-b`, `-c`, … when that day already has one; it never overwrites.
+    `feedback_dir` must be an absolute path to an existing directory
+    (`doctor` warns otherwise).
+  - The pane or agent in `feedback_to` gets one line with the summary and
+    the path.
+  - Without `feedback_to`, only the file is written.
+  - It prints one JSON line. Exit 4 means the file was saved but the
+    notice failed: tell the maintainer yourself.
+  - Do not edit the skill, its installed copy, or another project's roles
+    or config to work around the friction. The maintainer answers and
+    tells you when a change needs your project's config.
 
 ## Testing the skill
 

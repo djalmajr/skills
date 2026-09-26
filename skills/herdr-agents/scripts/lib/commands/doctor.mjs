@@ -565,6 +565,21 @@ export function doctorCodexNetworkWarnings(ctx, env = process.env, cwd = process
   }
 }
 
+// feedback=local needs a destination: one warn when feedback_dir is empty
+// or is not a directory (feedback send would die 2); nothing when feedback
+// is another value (the issue path does not use feedback_dir).
+export function doctorFeedbackWarnings(ctx, env = process.env, cwd = process.cwd(), say = new DoctorSay()) {
+  if (cfg(ctx, 'feedback', 'ask', env) !== 'local') return;
+  const dir = cfg(ctx, 'feedback_dir', '', env);
+  let dirIsDir = false;
+  if (dir !== '' && path.isAbsolute(dir)) {
+    try { dirIsDir = fs.statSync(dir).isDirectory(); } catch { dirIsDir = false; }
+  }
+  if (!dirIsDir) {
+    say.warn(`config: feedback=local but feedback_dir is empty, relative or not a directory; set feedback_dir to the maintainer's directory, as an absolute path (feedback send dies 2 until then)`);
+  }
+}
+
 // project_has_roster port (:1683): a roster row under the state root (any
 // agents.tsv with a line that is not a `#` comment and not blank; a
 // header-only roster never counts).
@@ -750,6 +765,7 @@ export function doctorCheck(ctx, env = process.env, cwd = process.cwd()) {
   doctorModelPairs(ctx, env, cwd, s);
   laneArgsIgnoredWarnings(ctx, env, cwd, s);
   doctorCodexNetworkWarnings(ctx, env, cwd, s);
+  doctorFeedbackWarnings(ctx, env, cwd, s);
   const minRaw = cfg(ctx, 'split_min_pane', '0.18', env);
   if (!/^0?\.[0-9]+$/.test(minRaw)) s.warn(`config: split_min_pane='${minRaw}' must be a fraction like 0.18 (using 0.18)`);
   const hlmRaw = cfg(ctx, 'herd_label_max', '16', env);

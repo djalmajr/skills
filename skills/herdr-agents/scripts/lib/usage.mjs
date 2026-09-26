@@ -59,6 +59,8 @@ Usage:
   herdr-agents clean [--older-than DAYS]
   herdr-agents friction                     # every error/warning of this workspace
   herdr-agents friction add "<text>" [--brief <path>]  # record one friction note (level note, command friction)
+  herdr-agents feedback send <report.md> "<one-line summary>"
+                                             # feedback=local: file the report in feedback_dir; one line to feedback_to when set
 
 Completion contract: a worker is finished when its report file exists. Use
 \`dispatch\` (waits by default), \`wait\` (one or many agents), or \`status\`

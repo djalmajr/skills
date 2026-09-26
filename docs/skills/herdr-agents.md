@@ -405,6 +405,13 @@ with the scenario, the exact error, the environment (`herdr-agents env`)
 and the effective config. `feedback=ask|on|off` decides whether it asks
 first.
 
+With `feedback=local`, a maintainer of the skill works on the same
+machine, and no issue is filed. `herdr-agents feedback send <report.md>
+"<summary>"` saves the report in `feedback_dir` as
+`from-<project>-<date>.md` (never over an existing file). When
+`feedback_to` names a pane or an agent, that maintainer also gets one line
+with the summary and the path.
+
 ## Orchestrator responsibilities
 
 The skill enforces the transport and the report contract. The orchestrator

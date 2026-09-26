@@ -23,7 +23,7 @@ export const CONFIG_SCALAR_KEYS = [
   'auto_approve', 'max_auto_approvals', 'max_effort', 'family_check',
   'settled_grace', 'spawn_timeout', 'dispatch_timeout', 'provider_retries',
   'provider_retry_delay', 'prompt_check_seconds', 'stuck_warn_minutes', 'state_dir',
-  'report_language', 'notify', 'feedback', 'feedback_repo',
+  'report_language', 'notify', 'feedback', 'feedback_repo', 'feedback_dir', 'feedback_to',
 ];
 export const KNOWN_KINDS = ['claude', 'codex', 'grok', 'agy', 'gemini', 'cursor', 'pi', 'opencode'];
 export const EFFORT_LADDER = ['low', 'medium', 'high', 'xhigh', 'max'];

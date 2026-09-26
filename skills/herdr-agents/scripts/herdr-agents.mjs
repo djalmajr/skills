@@ -6,7 +6,7 @@
 // `roles`, `role <name>`, `kinds`, `models <kind>`, `model <kind> <spec>
 // [effort]`, `spawn <role> …`, `dispatch <agent> <brief.md> …`,
 // `run <role> <brief.md> …`, `status <agent>…`, `roster`, `friction`,
-// `tab-label`, `layout-plan`, `wait <agent>…`, `collect <agent>`,
+// `feedback send <report.md> "<one-line summary>"`, `tab-label`, `layout-plan`, `wait <agent>…`, `collect <agent>`,
 // `release <agent>`, `clean`, `doctor [--fix] [--panes 2|3|4] [--user]`,
 // `explain`, `init`, `title` (the orchestrator pane's current objective),
 // `setup [--target FILE] [--no-hooks]
@@ -34,6 +34,7 @@ import { dieFriction, setFrictionLog, stateDir } from './lib/state.mjs';
 import { cmdStatus } from './lib/commands/status.mjs';
 import { cmdRoster } from './lib/commands/roster.mjs';
 import { cmdFriction } from './lib/commands/friction.mjs';
+import { cmdFeedback } from './lib/commands/feedback.mjs';
 import { cmdEnv } from './lib/commands/env.mjs';
 import { printUsage } from './lib/usage.mjs';
 import { cmdLayoutPlan } from './lib/layout.mjs';
@@ -56,7 +57,7 @@ import { die, findExecutable } from './lib/platform.mjs';
 
 // The commands that log to friction when running inside Herdr (bash main's
 // living-command list).
-const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'tab-label', 'regrid', 'wait', 'collect', 'release', 'clean', 'init', 'title']);
+const LIVING = new Set(['spawn', 'dispatch', 'run', 'status', 'roster', 'friction', 'feedback', 'tab-label', 'regrid', 'wait', 'collect', 'release', 'clean', 'init', 'title']);
 
 const argv = process.argv.slice(2);
 const cmd = argv[0] ?? '';
@@ -160,6 +161,11 @@ try {
     case 'friction':
       cmdFriction(argv.slice(1), ctx, env);
       break;
+    case 'feedback': {
+      const rc = cmdFeedback(argv.slice(1), ctx, env);
+      if (rc) process.exitCode = rc;
+      break;
+    }
     case 'tab-label':
       requireEnv(env);
       cmdTabLabel(argv.slice(1), ctx, env);

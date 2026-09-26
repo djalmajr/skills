@@ -226,9 +226,15 @@ notify=off
 
 # Improvement feedback. When the orchestrator hits friction in this skill
 # (wrong mapping, a kind misbehaving, a missing command), it files an issue
-# in `feedback_repo` with the scenario (templates/issue.md): on | ask | off.
+# in `feedback_repo` with the scenario (templates/issue.md): on | ask | off |
+# local. local delivers the report as a file in feedback_dir, plus one line
+# to feedback_to when it is set (feedback send).
 feedback=ask
 feedback_repo=djalmajr/skills
+# Absolute directory where feedback=local writes the report files.
+feedback_dir=
+# Pane (<workspace>:<pane>) or agent name that receives the one-line notice; empty = file only.
+feedback_to=
 
 # Models. `model.<kind>.orchestrator` applies to the sub-orchestrator role,
 # `model.<kind>.worker` to every other role, `model.<kind>` to both. A value is
