@@ -45,6 +45,11 @@ const CAPACITY_RES = [
 ];
 
 // provider-error: the provider is down or the request failed in transit.
+// Transient: worth a second probe before reporting (the wait double
+// confirms these). `unexpected status` matches even without an HTTP
+// reason phrase (R11: a bare `unexpected status 503` is a stop); a 401
+// on the same line never reaches this list — the auth patterns above
+// match first and report it as terminal.
 const PROVIDER_RES = [
   /Request timed out/i,
   /Connection error/i,
@@ -53,14 +58,36 @@ const PROVIDER_RES = [
   /Retry failed after \d+ attempts?/i,
   /\b(500|502|503|504)\b\s*[:{(]/,
   /\b(Internal Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out)\b/i,
+  /unexpected status/i,
   /stream disconnected before completion/i,
   /socket hang up/i,
   /fetch failed/i,
 ];
 
+// auth: the provider refused the credentials — terminal, no retry or
+// second probe will help. R11/D58: a stopped screen containing `401`,
+// `Incorrect API key`, an `unexpected status` WITH a 401, or a revoked
+// refresh token / failed access-token refresh (the Codex access-token
+// refresh failure). Narrow on purpose: a non-401 unexpected status (e.g.
+// `unexpected status 503`) stays a transient provider-error, and a
+// `refresh` without a revoked token or a failed token refresh matches
+// nothing. Checked after the capacity patterns (capacity always wins)
+// and before the transient provider patterns; only ever evaluated on a
+// line that already passed the error-line gate above, so source-code
+// lines and ordinary tool output never reach it.
+const AUTH_RES = [
+  /\b401\b/,
+  /unexpected status.*401|401.*unexpected status/i,
+  /incorrect api key/i,
+  /refresh token.*revok|revok.*refresh token/i,
+  /failed to refresh.*token/i,
+];
+
 // providerDetect(): `state` is the agent state; `screen` the visible
 // lines. Returns null when this is not a provider stop, else
-// { status: 'capacity' | 'provider-error', cause }. The scan covers the
+// { status: 'capacity' | 'provider-error', cause, auth }: `auth` is true
+// for a terminal credential failure (no retry will help) and false for a
+// possibly-transient provider failure. The scan covers the
 // last TAIL_LINES non-empty lines, bottom to top: the most recent matching
 // line wins.
 export function providerDetect(state, screen) {
@@ -76,8 +103,9 @@ export function providerDetect(state, screen) {
     if (OUTPUT_BULLET_RE.test(line) && !ERROR_START_RE.test(line)) return null;
     if (!ERROR_GLYPH_RE.test(line) && !ERROR_START_RE.test(line)) continue;
     const cause = sanitizeCause(redactSecrets(line));
-    if (CAPACITY_RES.some((re) => re.test(line))) return { status: 'capacity', cause };
-    if (PROVIDER_RES.some((re) => re.test(line))) return { status: 'provider-error', cause };
+    if (CAPACITY_RES.some((re) => re.test(line))) return { status: 'capacity', cause, auth: false };
+    if (AUTH_RES.some((re) => re.test(line))) return { status: 'provider-error', cause, auth: true };
+    if (PROVIDER_RES.some((re) => re.test(line))) return { status: 'provider-error', cause, auth: false };
   }
   return null;
 }

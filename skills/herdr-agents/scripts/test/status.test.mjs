@@ -491,3 +491,99 @@ test('status: no names points at the roster (exit 2)', { timeout: 60000 }, () =>
     // old text) — the exact string above no longer matches.
   } finally { fix.cleanup(); }
 });
+
+// ---------- R11/D58: terminal authentication failures ----------
+
+// An auth screen classifies on the first call (no double confirm, no
+// continue): the JSON line with the cause, rc 14, and no wait
+// double-confirm state left behind.
+test('status: an auth screen reports provider-error on the first call, rc 14', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-status-auth-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', 'Error: 401 Unauthorized: Incorrect API key provided\n');
+    // Mutation captured: a missing auth branch (or a wrong status in the
+    // JSON) leaves the TSV line and rc 0.
+    const r = cmd(fix, ['status', 'w']);
+    assert.equal(r.status, 14, r.stderr);
+    const line = JSON.parse(r.stdout.trim());
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report', 'cause']);
+    assert.equal(line.agent, 'w');
+    assert.equal(line.status, 'provider-error');
+    assert.equal(line.report, '');
+    assert.match(line.cause, /401.*Incorrect API key/);
+    // One probe only: no wait double-confirm state is left behind.
+    assert.equal(fix.waitExists('w', 'provider'), false);
+    assert.equal(fix.waitExists('w', 'provider-cause'), false);
+    assert.equal(fix.waitExists('w', 'capacity-retries'), false);
+  } finally { fix.cleanup(); }
+});
+
+// An auth screen on a blocked worker reports provider-error (rc 14) too —
+// the credentials will not fix themselves while blocked — while a
+// genuine decision question on a blocked worker still reports question.
+test('status: an auth screen on a blocked worker reports provider-error, a question still reports question', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-status-auth-blocked-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'codex'), ROW('q', 'implementer', 'codex'));
+    fix.modeOf('w', 'blocked');
+    fix.screenOf('w', '■ Failed to refresh access token: the refresh token was revoked, please log in again\n');
+    // Mutation captured: the blocked branch never consulting the provider
+    // leaves the TSV line and rc 0 here.
+    const r = cmd(fix, ['status', 'w']);
+    assert.equal(r.status, 14, r.stderr);
+    const line = JSON.parse(r.stdout.trim());
+    assert.equal(line.agent, 'w');
+    assert.equal(line.status, 'provider-error');
+    assert.match(line.cause, /refresh token was revoked/);
+    // A genuine decision question without an auth failure is untouched.
+    fix.modeOf('q', 'blocked');
+    fix.screenOf('q', '  1. Use the local cache\n  2. Fetch from remote\n\nEnter to submit answer, esc to cancel\n');
+    const rq = cmd(fix, ['status', 'q']);
+    assert.equal(rq.status, 7, rq.stderr);
+    const qline = JSON.parse(rq.stdout.trim());
+    assert.equal(qline.status, 'question');
+  } finally { fix.cleanup(); }
+});
+
+test('status: the quota wins over an auth failure on the same screen, rc 11', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-status-quota-over-auth-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', 'Individual quota reached\nError: 401 Unauthorized\n');
+    // Mutation captured: checking the provider before the quota reports
+    // the auth stop (rc 14) instead of the quota (rc 11).
+    const r = cmd(fix, ['status', 'w']);
+    assert.equal(r.status, 11, r.stderr);
+    const line = JSON.parse(r.stdout.trim());
+    assert.equal(line.status, 'quota');
+    assert.match(line.match, /Individual quota reached/);
+    assert.ok(!('cause' in line), 'no provider keys on a quota line');
+  } finally { fix.cleanup(); }
+});
+
+// R11 P2 (Luna repro): a current blocked decision question is not hidden
+// behind an older 401 in the screen history — the question wins (rc 7
+// with the text), while a standalone blocked auth failure still reports
+// provider-error (rc 14).
+test('status: a current question wins over an older 401 in the screen history, rc 7', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-status-question-over-stale-auth-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'codex'));
+    fix.modeOf('w', 'blocked');
+    fix.screenOf('w', 'Error: 401 Unauthorized: bad credentials, will not retry\n  1. Use the local cache\n  2. Fetch from remote\n\nEnter to submit answer, esc to cancel\n');
+    // Mutation captured: checking auth before the question reports the
+    // stale 401 (provider-error, rc 14) instead of the current question
+    // (this asserts rc 7 and the question text).
+    const r = cmd(fix, ['status', 'w']);
+    assert.equal(r.status, 7, r.stderr);
+    const line = JSON.parse(r.stdout.trim());
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report', 'question']);
+    assert.equal(line.agent, 'w');
+    assert.equal(line.status, 'question');
+    assert.equal(line.report, '');
+    assert.match(line.question, /Enter to submit answer, esc to cancel/);
+  } finally { fix.cleanup(); }
+});
