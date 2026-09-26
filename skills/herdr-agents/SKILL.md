@@ -193,7 +193,8 @@ read [references/agent-profiles.md](references/agent-profiles.md):** what
 each assistant did well and badly in each role in real use, and a
 recommendation per role. Examples:
 - UI with e2e goes to a kind that can open a port, not a sandboxed `codex`;
-- untrusted-input slices do not go to a small model;
+- untrusted-input slices need a stronger model than a small one, or a
+  brief that lists the hostile variants to test;
 - a `codex` reviewer at `high` found real P1s in 2 to 3 min, where
   `xhigh` cost 2 to 4 times the slice.
 
@@ -939,13 +940,20 @@ see your own edits, so pick that reviewer's kind by hand.
    `implementer`. Bulk mechanical → `tasker`. Every slice that changes
    code gets a `reviewer` from another model family; auth/secrets/input
    handling also gets `security-reviewer`; visible UI also gets `inspector`.
-   When a slice falls on a known weak spot of the configured kind, pick
-   another one for that slice with `spawn --kind`. The weak spots are in
+   When a slice falls on a known weak spot of the configured kind, use
+   another assistant for it. The weak spots are in
    [references/agent-profiles.md](references/agent-profiles.md), for
-   example:
-   - UI or e2e on a sandboxed `codex`;
-   - untrusted input on a small model;
-   - platform behaviour that only the target machine shows.
+   example UI or e2e on a sandboxed `codex`, or untrusted input on a small
+   model.
+   - **With `lanes=off`:** `spawn <role> --name <new> --kind <kind>`.
+   - **With lanes on:** a lane is one CLI, and `spawn --kind` against a
+     live session of another CLI exits 13. First `release <name> --close`
+     the lane's worker, then `session set lane.<name>.kind <kind>` (and
+     its model), then spawn.
+
+   Behaviour that only the target machine shows (paths, shells, OS
+   services) is not fixed by another kind on this machine. The worker
+   reports it could not run it, and the run happens on the target.
 
    Keep the pipeline in [Fluxo paralelo](#fluxo-paralelo) full.
 4. **Write one brief per slice** from [templates/brief.md](templates/brief.md):
