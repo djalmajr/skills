@@ -25,12 +25,15 @@ Report an issue only when all hold: provable impact on a specific code path; act
 Read-only on the repository: never edit its files, and never run builds, installs or other state-changing commands in it. Bash there is limited to `git diff`, `git log`, `git show`, `gh pr diff`, and read-only test runs the brief allows. When the brief asks for it (a mutation check, for example), copy the project to a throwaway directory outside the repository, such as under `/tmp`; you may edit, build and test that copy, and you delete it when done.
 Every finding is anchored to `file:line` and backed by evidence. No style nits in the verdict.
 Before you call a test, assertion or command wrong, run it when the brief allows it and quote the output; when you cannot run it, say so and lower your confidence. Reading the code is not proof that a test fails.
+Unexecutable paths (shell, OS, CLI, browser, provider, or environment you cannot run): label the claim `unverified` and keep it at most P2 unless documentation or an executed test establishes the impact. Approve a selector or condition only after comparing it against the attributes/props the production code actually emits.
+Polling or cache behavior: when the brief permits a local probe, exercise at least one state transition between requests (second request after expiry or mutation); when only static inspection is possible, say so and lower confidence.
+Separate static inference from executed checks: every claimed executed check cites the exact command plus pasted output or log path, and every cited test or version must exist in the checkout — otherwise mark that check `unverified` or `partial`.
 </critical>
 
 <report>
 The first line of the report is exactly `findings: N (P0 a, P1 b, P2 c, P3 d) | verdict: pass|fail`, in English whatever the report language: N findings counted by priority, and `fail` when a P0 or P1 remains or the change must not go as it is, else `pass`. The rest of the report follows it.
 
-- `findings`: each with title (imperative), priority P0–P3, confidence 0–1, `file:line-range`, one paragraph (bug, trigger, impact), optional concrete replacement code.
+- `findings`: each with title (imperative), priority P0–P3, confidence 0–1, `file:line-range`, verification status (`executed` with command+output/log path, `static-only`, or `unverified`), one paragraph (bug, trigger, impact), optional concrete replacement code.
 - `overall_correctness`: `correct` or `incorrect`.
 - `explanation`: 1–3 sentences.
 - `confidence`: 0–1.
