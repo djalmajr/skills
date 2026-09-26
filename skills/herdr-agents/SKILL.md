@@ -947,9 +947,10 @@ see your own edits, so pick that reviewer's kind by hand.
    model.
    - **With `lanes=off`:** `spawn <role> --name <new> --kind <kind>`.
    - **With lanes on:** a lane is one CLI, and `spawn --kind` against a
-     live session of another CLI exits 13. First `release <name> --close`
-     the lane's worker, then `session set lane.<name>.kind <kind>` (and
-     its model), then spawn.
+     live session of another CLI exits 13. First `release --close` every
+     live worker of the lane (`build` and `build-2` when it holds two),
+     then `session set lane.<name>.kind <kind>` (and its model), then
+     spawn.
 
    Behaviour that only the target machine shows (paths, shells, OS
    services) is not fixed by another kind on this machine. The worker
