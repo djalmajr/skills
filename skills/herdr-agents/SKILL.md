@@ -779,7 +779,12 @@ and warning is also appended to `<state>/friction.log` (`$S friction`).
 - **One agent, one growing session.** Several `dispatch` calls to the same
   name land in the same conversation; the worker remembers earlier briefs.
   `collect` prints only the latest report; older ones stay in `reports/`.
-  Spawn a fresh agent when context must not leak between slices.
+  After several briefs, or if a report mentions unrelated prior work, close
+  the completed worker with `release <name> --close` and spawn with `--fresh`
+  for the next slice. A name still live in Herdr (including one released
+  without `--close`, or a pane passed with `--pane`) makes the spawn choose a
+  suffixed name. A worker's report covers only the current brief and its
+  explicit amendments.
 - **`dispatch` only knows agents this skill spawned.** An agent started by
   hand in Herdr is not in the roster; use `herdr agent prompt` directly.
 - **State is per repo and per Herdr workspace.** Orchestrators in another

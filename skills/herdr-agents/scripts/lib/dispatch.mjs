@@ -491,10 +491,13 @@ export function pendingBriefSection(pb) {
 
 // ---------- the composed prompt (:3930-3958) ----------
 // The standing worker rules at the end of every composed prompt (the brief
-// and the amendment): the same lines, never duplicated.
+// and the amendment): the same lines, never duplicated. R30 is the
+// report-scope rule: a reused session retains earlier briefs, but the
+// report covers only the current brief and its explicit amendments.
 function standingRules() {
   return [
     `- Only you write this report, once all of the brief is done, including any part you handed to subagents or background tasks; a subagent never writes it. Report every item as it stands in the files, not as a subagent summarized it.\n`,
+    `- Report only the current brief and its explicit amendments; do not import unrelated work from earlier briefs retained in a reused session. Mention prior work only when it directly affects this brief, stating the relationship.\n`,
     `- Command output you put in the report is pasted from the run, never retyped or reconstructed.\n`,
     `- Nobody watches this terminal: do not ask interactive questions or wait for a confirmation. When the brief does not decide something, follow its "When the brief does not decide" section, or mark the item partial and list the gap and the options under open questions.\n`,
     `- Never invent names, endpoints, flags, credentials, URLs or requirements.\n`,
@@ -535,9 +538,10 @@ export function sandboxNotes(kind, agentArgs) {
 // `# Brief` with the brief verbatim (`cat` — no CRLF normalization), and
 // `# Report contract` with the report path, the report language when
 // `report_language` is set, the one-go rule, the `worker_context=lean` rule,
-// and the standing worker rules (only the worker writes the report,
-// nobody watches the terminal, never invent, no git, reply with the report
-// path). Same lines, same order, as bash.
+// and the standing worker rules (only the worker writes the report, the
+// report covers only the current brief, nobody watches the terminal,
+// never invent, no git, reply with the report path). Same lines, same
+// order, as bash.
 export function composePrompt(roleFile, role, agent, briefRaw, report, ctx, env = process.env, kind = '', agentArgs = '', sharedTree = false) {
   const out = [];
   out.push(`# Role: ${fmGet(roleFile, 'name')}\n\n`);

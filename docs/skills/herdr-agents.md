@@ -220,8 +220,12 @@ prompt` by hand: `wait` would keep watching the old report.
   telling it to report failures in files it does not own as outside its
   slice. A `done` report routed through `$TMPDIR/herdr-agents/<ws>/reports/`
   is mirrored back into the state dir (best effort).
-- One agent name is one growing session. Spawn a new agent when slices
-  must not share context.
+- One agent name is one growing session. After several briefs, or when a
+  report includes unrelated prior work, close the completed worker with
+  `release <name> --close` and spawn with `--fresh` for the next slice (only
+  panes this skill created close). A name still live in Herdr, even after a
+  plain `release`, makes the spawn choose a suffix. A report covers only the
+  current brief and its explicit amendments.
 - `release --close` ends the agent; without `--close` it keeps running.
 
 ## Configuration
