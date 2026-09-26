@@ -839,9 +839,14 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
   }
   // Roster line: the 12 base columns, then column 13 (the `burst` marker
   // for temporary workers — present even when empty, since writing column
-  // 14 requires it) and column 14 (the native args the worker opened with,
-  // '' when none; a line without it reads as '').
-  const rosterFields = [name, pane, kind, role, family, String(created), cwdArg, nowStamp(), model, approvals !== '' ? approvals : 'ask', role, lane, burst === 1 ? 'burst' : '', native];
+  // 14 requires it), column 14 (the native args the worker opened with,
+  // '' when none; a line without it reads as '') and column 15 (the
+  // effective effort the session opened with: the resolved and clamped
+  // value of this spawn — the same one the JSON reports minus its
+  // `default` display — '' when the CLI keeps its own default). Old
+  // 12-14-column lines keep their length: nothing backfills a column 15
+  // from the current configuration after the fact.
+  const rosterFields = [name, pane, kind, role, family, String(created), cwdArg, nowStamp(), model, approvals !== '' ? approvals : 'ask', role, lane, burst === 1 ? 'burst' : '', native, effort];
   rosterAppend(sd, rosterFields);
   sameTreeEditors(name, role, cwdArg, sd, env, cwd);
   if (placement === 'herd') {

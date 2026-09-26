@@ -52,7 +52,7 @@ Usage:
   herdr-agents status <agent>...             # gone = agent_not_found; unavailable = agent get failed (exit 4)
   herdr-agents collect <agent> [--lines N] [--verify]
                                              # --verify checks the sha256 lines of the last report (exit 16 on changed/missing)
-  herdr-agents stats [--since <date>] [--json]  # tasks, times and review findings per role, from the state dir
+  herdr-agents stats [--since <date>] [--by role|kind|model|agent|effort] [--json]  # tasks, times and review findings; --by groups results
   herdr-agents run <role> <brief.md> [spawn/dispatch options] [-- <agent args>]
   herdr-agents roster
   herdr-agents release <agent> [--close] [--force]

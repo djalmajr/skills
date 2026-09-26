@@ -467,22 +467,29 @@ function copyOnce(src, dst) {
   fs.writeFileSync(dst, buf);
 }
 
-// When a done report sits under the tmp routing dir, the report and its
-// composed prompt (next to it) are copied into the state dir — the report
-// to <state>/reports/<name> and the prompt to <state>/briefs/<name> minus
-// the .brief (the same layout dispatch writes when the report stays in the
-// state dir). Best effort: each failure warns and the done stands, and
-// last-report-<agent> and the JSON line keep pointing at the original.
+// When a done report sits under the tmp routing dir, the report, its
+// composed prompt (next to it) and its attempt sidecar (.dispatch.json)
+// are copied into the state dir — the report to <state>/reports/<name>,
+// the prompt to <state>/briefs/<name> minus the .brief, and the sidecar to
+// <state>/briefs/<name>.dispatch.json (the same layout dispatch writes
+// when the report stays in the state dir). Best effort: each failure warns
+// and the done stands, and last-report-<agent> and the JSON line keep
+// pointing at the original. A pair predating the sidecar has none: a
+// missing sidecar source is normal and is skipped without a warn (the
+// conservative copyOnce policy still applies when it is there: a
+// different existing file is never overwritten).
 function mirrorReport(sd, agent, report, ctx, env, cwd) {
   const dir = tmpReportsDir(ctx, env, cwd);
   if (!report.startsWith(dir + path.sep)) return;
   const base = path.basename(report);
   const stem = base.slice(0, -path.extname(base).length);
   const jobs = [
-    [report, path.join(sd, 'reports', base)],
-    [path.join(path.dirname(report), `${stem}.brief.md`), path.join(sd, 'briefs', `${stem}.md`)],
+    [report, path.join(sd, 'reports', base), false],
+    [path.join(path.dirname(report), `${stem}.brief.md`), path.join(sd, 'briefs', `${stem}.md`), false],
+    [path.join(path.dirname(report), `${stem}.dispatch.json`), path.join(sd, 'briefs', `${stem}.dispatch.json`), true],
   ];
-  for (const [src, dst] of jobs) {
+  for (const [src, dst, optional] of jobs) {
+    if (optional && !fs.existsSync(src)) continue;
     try {
       copyOnce(src, dst);
     } catch (e) {

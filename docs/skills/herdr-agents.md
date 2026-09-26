@@ -133,7 +133,7 @@ $S roles
 $S spawn implementer                 # the agent is named after its lane (`build`)
 $S dispatch build brief.md           # waits for the report file
 $S collect build [--verify]          # prints the report; an agent still working or blocked with no report: a short stderr line and exit 4 (`--lines` forces the terminal); --verify re-checks its sha256 lines (exit 16 on changed/missing, 4 if unreadable)
-$S stats [--since <date>] [--json]   # tasks, times and review findings per role (the four review roles); <date> is YYYY-MM-DD or ISO 8601
+$S stats [--since <date>] [--by role|kind|model|agent|effort] [--json] # tasks, times and review findings; date is YYYY-MM-DD or ISO 8601
 $S friction add "<text>" [--brief P] # record one friction note (level note, command friction)
 $S run scouter brief.md               # spawn + dispatch + collect
 $S wait build review                 # block until every report exists
@@ -141,6 +141,22 @@ $S roster                            # live agents with role/kind/pane/state/rep
 $S release build --close             # closes only panes the skill created
 $S clean --older-than 7              # drop gone agents, delete old briefs/reports
 ```
+
+`stats` scans composed prompts and reports in the workspace state and
+temporary routing directories. It counts accepted dispatches and legacy
+pairs without a sidecar. Kind, model and effort come from the dispatch
+snapshot; an absent snapshot or empty field groups as `(unknown)`. With
+`--by` omitted, it groups by role and JSON has `roles`, `lost_briefs`
+and `review`; with `--by` (including `--by role`), JSON has `by`,
+`groups`, `lost_briefs` and `review`. The review table covers reviewer,
+security-reviewer, ui-reviewer and inspector. Other date formats exit 2.
+Each counted pair is exactly one of a task, amendment or reuse. A
+non-amendment that switches from the agent's previous known role counts
+under `reuses`, not `tasks`. Each group also has `no_report`, `minutes`,
+`partials` and `not_received`. The last field records a dispatch's
+arrival-check result even if a later wait recovers. JSON
+`lost_briefs` maps each group to the stored composed-prompt paths for
+lost pairs, and the text output lists them below the tables.
 
 The reviewer dispatch refuses a reviewer whose model family matches a live
 edit agent (exit 5) unless `--allow-same-family` is given. `--for <author>`
