@@ -6,6 +6,20 @@
 // the report with the same `<agent>-<ts>` (the same-second collision
 // suffix, when present, is part of the pair name).
 //
+// The attempt sidecar of a pair — the `.dispatch.json` next to its
+// composed prompt (the state dir for a state pair or a mirror, the
+// $TMPDIR routing for a tmp pair; the dir that won the dedupe supplies
+// the sidecar) — records version 1, the roster kind and model and the
+// session effort at dispatch, and the submission (attempted, accepted or
+// failed). Only an accepted submission — or a legacy pair with no
+// sidecar at all, which keeps today's behavior — counts as a task: an
+// attempted or failed submission is not a task and must never become
+// pending or lost. A malformed or unsupported sidecar fails
+// conservatively (the pair is not counted as accepted) with a warning
+// that names the file without its raw contents. The kind, model and
+// effort of a pair are the sidecar's snapshot at dispatch: a missing
+// historical value is (unknown), never filled from the current roster.
+//
 // The role of a prompt is its `You are running as the `<role>` role`
 // line; an amendment prompt (`# Amendment to your current brief`) has no
 // such line and counts as an amendment of the role of the previous
@@ -14,16 +28,21 @@
 // it is the last dispatch of an agent that is still in the roster (the
 // report may still arrive), `lost` otherwise.
 //
-// `stats [--since <date>] [--json]`:
+// `stats [--since <date>] [--by <dim>] [--json]`:
 //   --since AAAA-MM-DD or ISO — keep only the prompts whose mtime is at
 //   or after the date (an invalid date dies 2);
+//   --by role|kind|model|agent|effort — group the task and review tables
+//   by the dimension (role is the no-`--by` default); kind/model/effort
+//   come from the sidecar snapshot, and a missing value groups under
+//   (unknown); a missing, empty or unknown dimension dies 2; with --by
+//   the JSON is {by, groups, review} instead of {roles, review};
 //   --json — one compact JSON object on stdout;
 //   no dispatch pairs at all — `no dispatches recorded under <dir>`,
 //   exit 0 (the message is printed even with --json).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { stateDir, workspaceId, rosterRows, dieFriction } from '../state.mjs';
+import { stateDir, workspaceId, rosterRows, dieFriction, warn } from '../state.mjs';
 import { readTextFile } from '../platform.mjs';
 import { partialCount, reviewHeader } from '../reportscan.mjs';
 import { REVIEW_ROLES_ALL } from '../roles.mjs';
@@ -35,6 +54,12 @@ import { REVIEW_ROLES_ALL } from '../roles.mjs';
 const PAIR_RE = /^(.+)-(\d{8}T\d{6})(-\d+)?$/;
 const ROLE_RE = /You are running as the `([^`]+)` role/;
 const AMENDMENT_FIRST_LINE = '# Amendment to your current brief';
+// The --by dimensions: role (the no-`--by` default), the sidecar-snapshot
+// dimensions kind/model/effort and the agent name.
+const BY_DIMS = ['role', 'kind', 'model', 'agent', 'effort'];
+// The group of a pair whose snapshot has no value for the dimension
+// (legacy pair, empty snapshot field, or a roster without the column).
+const UNKNOWN = '(unknown)';
 
 // `--since`: AAAA-MM-DD as local midnight, or a strict ISO 8601 — a date,
 // `T`, a time with minutes and optional seconds, an optional fraction, an
@@ -76,7 +101,8 @@ function parseSince(value) {
 // $TMPDIR routing (where the prompt and its report sit together). Once the
 // wait has mirrored a tmp pair into the state dir, both scans see the same
 // <agent>-<ts> pair: it is counted once, the state-dir copy (scanned first)
-// wins over the $TMPDIR original.
+// wins over the $TMPDIR original — and uses its own sidecar (the
+// .dispatch.json next to the winning prompt), never the tmp original's.
 function collectPrompts(sd, tmpDir) {
   const pairs = [];
   const seen = new Set();
@@ -109,6 +135,9 @@ function collectPrompts(sd, tmpDir) {
         partials: 0,
         header: null,
         noReport: '',
+        sidecarPath: path.join(dir, `${base}.dispatch.json`),
+        sidecar: null,
+        counted: true,
       });
     }
   };
@@ -117,14 +146,61 @@ function collectPrompts(sd, tmpDir) {
   return pairs;
 }
 
-// Role, amendment flag, the paired report (mtime, [partial] count and the
-// review header) of one prompt.
+// The attempt sidecar of a pair (.dispatch.json, the same stem as the
+// composed prompt, in the dir that won the dedupe). Absent (ENOENT): the
+// legacy pair keeps today's behavior (counted, no snapshot). Present:
+// parsed strictly — version 1, string kind/model/effort, one of the
+// three submissions — and only an accepted submission counts as a task.
+// A present sidecar that cannot be read (EISDIR, EACCES, …) is invalid,
+// as is anything that fails the parse: the pair is not counted as
+// accepted and a warning names the file without its raw contents.
+function badSidecar(p) {
+  p.counted = false;
+  warn(`stats: ${path.basename(p.sidecarPath)} is not a valid attempt sidecar; the pair is not counted as accepted`);
+}
+function readSidecar(p) {
+  let raw;
+  try { raw = fs.readFileSync(p.sidecarPath, 'utf8'); }
+  catch (e) {
+    // Only ENOENT is the absent (legacy) sidecar: a present path that
+    // cannot be read (a directory, an unreadable file, …) is an invalid
+    // sidecar, not an absent one.
+    if (e && e.code === 'ENOENT') return;
+    badSidecar(p); return;
+  }
+  let o;
+  try { o = JSON.parse(raw); } catch { badSidecar(p); return; }
+  // A valid v1 carries string kind, model and effort: a missing required
+  // field is malformed.
+  const bad = o === null || typeof o !== 'object' || Array.isArray(o) || o.version !== 1
+    || typeof o.submission !== 'string' || !['attempted', 'accepted', 'failed'].includes(o.submission)
+    || typeof o.kind !== 'string' || typeof o.model !== 'string' || typeof o.effort !== 'string';
+  if (bad) { badSidecar(p); return; }
+  p.sidecar = { submission: o.submission, kind: o.kind, model: o.model, effort: o.effort };
+  p.counted = o.submission === 'accepted';
+}
+
+// The group key of a counted pair under the selected dimension: role and
+// agent come from the pair itself; kind/model/effort are the sidecar's
+// snapshot at dispatch (the current roster never fills in a missing
+// historical value): a legacy pair or an empty field is (unknown).
+function dimValue(p, dim) {
+  if (dim === 'role') return p.roleResolved;
+  if (dim === 'agent') return p.agent;
+  const v = p.sidecar === null ? '' : p.sidecar[dim];
+  return v !== '' ? v : UNKNOWN;
+}
+
+// Role, amendment flag, the attempt sidecar (submission and the
+// kind/model/effort snapshot) and the paired report (mtime, [partial]
+// count and the review header) of one prompt.
 function promptMeta(p) {
   let text = '';
   try { text = readTextFile(p.prompt); } catch { text = ''; }
   p.amendment = text.split('\n')[0] === AMENDMENT_FIRST_LINE;
   const rm = ROLE_RE.exec(text);
   p.role = rm ? rm[1] : '';
+  readSidecar(p);
   let st = null;
   try { st = fs.statSync(p.report); } catch { /* absent */ }
   p.hasReport = st !== null && st.size > 0;
@@ -162,10 +238,11 @@ function renderTable(headers, rows) {
   return [fmt(headers), ...rows.map(fmt)].join('\n');
 }
 
-// `stats [--since <date>] [--json]` → 0.
+// `stats [--since <date>] [--by <dim>] [--json]` → 0.
 export function cmdStats(argv, ctx, env = process.env, cwd = process.cwd()) {
   let sinceRaw = '';
   let asJson = false;
+  let by = null; // the --by value; null until the flag is present
   for (let i = 0; i < (argv ?? []).length; i += 1) {
     const a = String(argv[i]);
     if (a === '--since') {
@@ -175,9 +252,17 @@ export function cmdStats(argv, ctx, env = process.env, cwd = process.cwd()) {
       i += 1;
     } else if (a === '--json') {
       asJson = true;
+    } else if (a === '--by') {
+      const v = argv[i + 1];
+      if (v === undefined) dieFriction('stats: --by expects a dimension', 2);
+      by = String(v);
+      i += 1;
     } else {
       dieFriction(`stats: unknown option ${a}`, 2);
     }
+  }
+  if (by !== null && !BY_DIMS.includes(by)) {
+    dieFriction(`stats: --by expects one of ${BY_DIMS.join(', ')} (got '${by}')`, 2);
   }
   let since = null;
   if (sinceRaw !== '') {
@@ -196,10 +281,14 @@ export function cmdStats(argv, ctx, env = process.env, cwd = process.cwd()) {
   // collision suffix breaks the same-second ties): the last pair of an
   // agent is its last dispatch.
   pairs.sort((a, b) => a.agent.localeCompare(b.agent) || a.ts.localeCompare(b.ts) || a.suf - b.suf);
+  // The role an amendment inherits is the role of the previous COUNTED
+  // prompt of the same agent: a rejected (attempted/failed/invalid)
+  // dispatch is not an accepted one and must not be inherited.
   let prevAgent = '';
   let prevRole = '';
   for (const p of pairs) {
     if (p.agent !== prevAgent) { prevAgent = p.agent; prevRole = ''; }
+    if (!p.counted) continue; // its roleResolved stays '' (never aggregated)
     if (!p.amendment) {
       p.roleResolved = p.role !== '' ? p.role : '(unknown)';
     } else {
@@ -207,11 +296,13 @@ export function cmdStats(argv, ctx, env = process.env, cwd = process.cwd()) {
     }
     prevRole = p.roleResolved;
   }
-  // The last dispatch of each agent on the FULL set (before the --since
-  // filter): "may still arrive" describes the agent's real last dispatch,
-  // not the filtered view.
+  // The last COUNTED (accepted or legacy) dispatch of each agent on the
+  // FULL set (before the --since filter): "may still arrive" describes
+  // the agent's real last accepted dispatch, not the filtered view — a
+  // rejected dispatch must not supersede it, and a filtered-out accepted
+  // one still is.
   const lastPerAgent = {};
-  for (const p of pairs) lastPerAgent[p.agent] = p;
+  for (const p of pairs) if (p.counted) lastPerAgent[p.agent] = p;
   if (since !== null) {
     const cut = since.getTime();
     for (let i = pairs.length - 1; i >= 0; i -= 1) if (pairs[i].promptM < cut) pairs.splice(i, 1);
@@ -222,37 +313,85 @@ export function cmdStats(argv, ctx, env = process.env, cwd = process.cwd()) {
   // window would otherwise classify an older included pair as pending).
   for (const p of pairs) {
     if (p.hasReport) continue;
+    // An attempted or failed submission (or a malformed sidecar) is not a
+    // task: it is neither pending nor lost, ever.
+    if (!p.counted) continue;
     p.noReport = rosterNames.has(p.agent) && lastPerAgent[p.agent] === p ? 'pending' : 'lost';
   }
-  const roles = {};
+  // Group key under the selected dimension: the (resolved) role or the
+  // agent name for the default / agent dimensions, the sidecar snapshot
+  // for kind/model/effort.
+  const byMode = by !== null;
+  const keyOf = (p) => (byMode ? dimValue(p, by) : p.roleResolved);
+  // Prototype-less accumulators: the group key is an arbitrary string
+  // (a sidecar snapshot such as __proto__ or constructor), and a plain
+  // object would resolve it against the prototype instead of bucketing.
+  const groups = Object.create(null);
   for (const p of pairs) {
-    const a = roles[p.roleResolved] ??= { tasks: 0, amendments: 0, pending: 0, lost: 0, minutes: [], partials: 0 };
+    if (!p.counted) continue; // not a task: an attempted/failed submission
+    const a = groups[keyOf(p)] ??= { tasks: 0, amendments: 0, pending: 0, lost: 0, minutes: [], partials: 0 };
     if (p.amendment) a.amendments += 1; else a.tasks += 1;
     if (p.noReport === 'pending') a.pending += 1;
     else if (p.noReport === 'lost') a.lost += 1;
     if (p.minutes !== null) a.minutes.push(p.minutes);
     a.partials += p.partials;
   }
-  const review = {};
-  for (const role of REVIEW_ROLES_ALL.split(' ')) {
-    const list = pairs.filter((p) => p.roleResolved === role);
-    if (list.length === 0) continue;
-    const r = { header: 0, pass: 0, fail: 0, P0: 0, P1: 0, P2: 0, P3: 0, no_header: 0 };
-    for (const p of list) {
-      if (!p.hasReport) continue;
-      if (p.header) {
-        r.header += 1;
-        if (p.header.verdict === 'pass') r.pass += 1; else r.fail += 1;
-        for (const k of ['P0', 'P1', 'P2', 'P3']) r[k] += p.header.severity[k];
-      } else {
-        r.no_header += 1;
-      }
+  // The review groups the reviewer-role reports only: under the selected
+  // dimension for an explicit --by, under the role otherwise (the order of
+  // REVIEW_ROLES_ALL, as the no-`--by` output has always had it).
+  const review = Object.create(null);
+  const reviewRoles = REVIEW_ROLES_ALL.split(' ');
+  const addReview = (r, p) => {
+    if (p.header) {
+      r.header += 1;
+      if (p.header.verdict === 'pass') r.pass += 1; else r.fail += 1;
+      for (const k of ['P0', 'P1', 'P2', 'P3']) r[k] += p.header.severity[k];
+    } else {
+      r.no_header += 1;
     }
-    review[role] = r;
+  };
+  if (byMode) {
+    for (const p of pairs) {
+      if (!p.counted || !reviewRoles.includes(p.roleResolved) || !p.hasReport) continue;
+      addReview(review[keyOf(p)] ??= { header: 0, pass: 0, fail: 0, P0: 0, P1: 0, P2: 0, P3: 0, no_header: 0 }, p);
+    }
+  } else {
+    for (const role of reviewRoles) {
+      const list = pairs.filter((p) => p.roleResolved === role && p.counted);
+      if (list.length === 0) continue;
+      const r = { header: 0, pass: 0, fail: 0, P0: 0, P1: 0, P2: 0, P3: 0, no_header: 0 };
+      for (const p of list) {
+        if (!p.hasReport) continue;
+        addReview(r, p);
+      }
+      review[role] = r;
+    }
   }
   if (asJson) {
+    if (byMode) {
+      const sortEntries = (obj) => Object.entries(obj).sort(([a], [b]) => a.localeCompare(b));
+      const byObj = {
+        by,
+        groups: Object.fromEntries(sortEntries(groups).map(([name, a]) => [name, {
+          tasks: a.tasks,
+          amendments: a.amendments,
+          no_report: { pending: a.pending, lost: a.lost },
+          minutes: minutesStats(a.minutes),
+          partials: a.partials,
+        }])),
+        review: Object.fromEntries(sortEntries(review).map(([name, r]) => [name, {
+          header: r.header,
+          pass: r.pass,
+          fail: r.fail,
+          severity: { P0: r.P0, P1: r.P1, P2: r.P2, P3: r.P3 },
+          no_header: r.no_header,
+        }])),
+      };
+      process.stdout.write(`${JSON.stringify(byObj)}\n`);
+      return 0;
+    }
     const obj = {
-      roles: Object.fromEntries(Object.entries(roles).map(([role, a]) => [role, {
+      roles: Object.fromEntries(Object.entries(groups).map(([role, a]) => [role, {
         tasks: a.tasks,
         amendments: a.amendments,
         no_report: { pending: a.pending, lost: a.lost },
@@ -270,11 +409,11 @@ export function cmdStats(argv, ctx, env = process.env, cwd = process.cwd()) {
     process.stdout.write(`${JSON.stringify(obj)}\n`);
     return 0;
   }
-  const t1 = Object.keys(roles).sort((a, b) => a.localeCompare(b)).map((role) => {
-    const a = roles[role];
+  const t1 = Object.keys(groups).sort((a, b) => a.localeCompare(b)).map((name) => {
+    const a = groups[name];
     const m = minutesStats(a.minutes);
     return [
-      role,
+      name,
       String(a.tasks),
       String(a.amendments),
       `${a.pending + a.lost} (${a.pending}/${a.lost})`,
@@ -285,17 +424,20 @@ export function cmdStats(argv, ctx, env = process.env, cwd = process.cwd()) {
     ];
   });
   const t1out = renderTable(
-    ['role', 'tasks', 'amendments', 'no-report (pending/lost)', 'avg min', 'median min', 'max min', 'partials'],
+    [byMode ? by : 'role', 'tasks', 'amendments', 'no-report (pending/lost)', 'avg min', 'median min', 'max min', 'partials'],
     t1,
   );
-  const t2 = REVIEW_ROLES_ALL.split(' ').filter((role) => review[role] !== undefined).map((role) => {
-    const r = review[role];
-    return [role, String(r.header), String(r.pass), String(r.fail), String(r.P0), String(r.P1), String(r.P2), String(r.P3), String(r.no_header)];
+  const t2 = (byMode
+    ? Object.keys(review).sort((a, b) => a.localeCompare(b))
+    : reviewRoles.filter((role) => review[role] !== undefined)
+  ).map((name) => {
+    const r = review[name];
+    return [name, String(r.header), String(r.pass), String(r.fail), String(r.P0), String(r.P1), String(r.P2), String(r.P3), String(r.no_header)];
   });
   const t2out = renderTable(
-    ['role', 'header', 'pass', 'fail', 'P0', 'P1', 'P2', 'P3', 'no-header'],
+    [byMode ? by : 'role', 'header', 'pass', 'fail', 'P0', 'P1', 'P2', 'P3', 'no-header'],
     t2,
   );
-  process.stdout.write(`tasks by role:\n${t1out}\n\nreviews by role:\n${t2out}\n`);
+  process.stdout.write(`tasks by ${byMode ? by : 'role'}:\n${t1out}\n\nreviews by ${byMode ? by : 'role'}:\n${t2out}\n`);
   return 0;
 }

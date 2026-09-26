@@ -585,7 +585,7 @@ $S dispatch impl <brief.md> [--timeout 900000] [--amend]   # role prompt + brief
 $S collect impl [--lines N] [--verify]      # prints the report file (or recent output); an agent still working or blocked with no report gets a short stderr line and exit 4 (no terminal dump) unless --lines is passed; --verify re-checks the report's sha256 lines (exit 16 on changed/missing, 4 when the report cannot be read)
 $S run scouter <brief.md>                    # spawn + dispatch + collect in one call
 $S wait a b [--any] [--timeout MS]         # block on report files
-$S stats [--since <date>] [--json]          # tasks, times and review findings per role, from the state dir; <date> is YYYY-MM-DD or ISO 8601 (other formats exit 2); the review table covers reviewer, security-reviewer, ui-reviewer and inspector
+$S stats [--since <date>] [--by role|kind|model|agent|effort] [--json] # tasks, times and review findings; <date> is YYYY-MM-DD or ISO 8601
 $S friction                                # errors/warnings of this workspace (review at end)
 $S friction add "<text>" [--brief <path>]  # record one friction note (level note, command friction; --brief appends ` (brief: <path>)`)
 $S feedback send <report.md> "<summary>"   # feedback=local: save the report in feedback_dir as from-<project>-<date>.md (never overwrites) and send one line to feedback_to
@@ -605,6 +605,15 @@ $S spawn implementer --effort xhigh --approvals full      # normalized effort + 
 $S spawn scouter --kind cursor --model gpt-5.3-codex --effort high --approvals full
 $S spawn implementer -- -s workspace-write -a never      # native agent args after --
 ```
+
+`stats` scans composed prompts and reports in the workspace state and
+temporary routing directories. It counts accepted dispatches and legacy
+pairs without a sidecar. Kind, model and effort come from the dispatch
+snapshot; an absent snapshot or empty field groups as `(unknown)`. With
+`--by` omitted, it groups by role and JSON keeps `roles` and `review`;
+with `--by` (including `--by role`), JSON returns `by`, `groups` and
+`review`. The review table covers reviewer, security-reviewer,
+ui-reviewer and inspector. Other date formats exit 2.
 
 `scripts/herdr-agents` is a POSIX `sh` launcher: it runs
 `scripts/herdr-agents.mjs` with `node` (20+) — or `bun` when Node.js 20+
@@ -1271,7 +1280,8 @@ stay valid and are reused only for the same role when `lanes=off`. The
 columns are `model`, `approvals`, `roles` (comma-separated history, for
 example `scouter,implementer`), `lane`, `burst` (a temporary worker of the
 flex mode) and `args` (the configured native args it opened with:
-`args.<kind>` plus `lane.<name>.args` or `role.<role>.args`). Column 4
+`args.<kind>` plus `lane.<name>.args` or `role.<role>.args`), then `effort`
+(column 15, the effective effort at spawn; empty when the CLI chose it). Column 4
 stays the current role.
 With lanes on, reuse stays inside the lane. With `lanes=off`, reuse across
 roles rewrites that line in place and appends the new role. The reused

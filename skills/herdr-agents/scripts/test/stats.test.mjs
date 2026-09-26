@@ -4,9 +4,21 @@
 // previous prompt of the same agent), prompt-to-report times with
 // controlled mtimes, pending (last dispatch of a roster agent) vs lost
 // reports, [partial] sums, the review section (header, pass/fail,
-// severity, no header), --since (and an invalid date), --json, and the
-// empty state dir. Run as a child process against an isolated state dir;
-// no herdr is involved.
+// severity, no header), --since (and an invalid date), --json, the
+// attempt sidecar (an accepted submission is the only counted task;
+// attempted/failed never count and never become lost; malformed or
+// unsupported sidecars warn without their raw contents; kind/model/effort
+// are the sidecar's snapshot at dispatch, never the current roster; the
+// sidecar is read from the dir that won the dedupe), --by
+// role|kind|model|agent|effort (the (unknown) group for a missing
+// snapshot value, the grouped review of the reviewer-role reports only,
+// and the missing/empty/invalid flag dying 2), a rejected dispatch never
+// superseding the last counted one (pending/lost and the amendment's
+// inherited role), only-ENOENT legacy sidecars (a present-but-unreadable
+// one is invalid, as is a v1 missing a required field), and
+// prototype-safe group keys (__proto__, constructor) preserved exactly,
+// and the empty state dir. Run as a child process against an isolated
+// state dir; no herdr is involved.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -80,6 +92,17 @@ function makeFix(prefix) {
     },
     roster(...rows) { fs.writeFileSync(path.join(ws, 'agents.tsv'), H12 + rows.join('\n') + '\n'); },
     row(name, role = 'implementer') { return `${name}\tp-${name}\tgrok\t${role}\txai\t1\t/tmp/work\tnow\t\tfull\t\t`; },
+    rowModel(name, model, role = 'implementer') { return [name, `p-${name}`, 'grok', role, 'xai', '1', '/tmp/work', 'now', model, 'full', '', ''].join('\t'); },
+    sidecar(agent, ts, obj) {
+      const p = path.join(briefs, `${agent}-${ts}.dispatch.json`);
+      fs.writeFileSync(p, typeof obj === 'string' ? obj : `${JSON.stringify(obj)}\n`);
+      return p;
+    },
+    tmpSidecar(agent, ts, obj) {
+      const p = path.join(tmpReports, `${agent}-${ts}.dispatch.json`);
+      fs.writeFileSync(p, typeof obj === 'string' ? obj : `${JSON.stringify(obj)}\n`);
+      return p;
+    },
     stats(args) {
       return spawnSync(nodeBin(), [JS_ENTRY, 'stats', ...args], { cwd: root, env: fix.env, encoding: 'utf8', timeout: 30_000 });
     },
@@ -402,5 +425,357 @@ test('stats: an empty state dir prints the no-dispatches message and exits 0', {
     assert.equal(r.stdout, `no dispatches recorded under ${fix.briefs}\n`);
     // The message is printed even with --json.
     assert.equal(fix.stats(['--json']).stdout, `no dispatches recorded under ${fix.briefs}\n`);
+  } finally { fix.cleanup(); }
+});
+
+test('stats: --by kind|model|effort uses the sidecar snapshot, not the current roster', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-snap-');
+  try {
+    // The roster's model changed after the dispatch (m-roster); the
+    // sidecar's snapshot (k-snap/m-snap/e-snap) is what stats must group
+    // by — a missing historical value is never filled from the roster.
+    fix.roster(fix.rowModel('b', 'm-roster'));
+    fix.prompt('b', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('b', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.sidecar('b', '20260925T100000', { version: 1, kind: 'k-snap', model: 'm-snap', effort: 'e-snap', submission: 'accepted' });
+    for (const [dim, want] of [['kind', 'k-snap'], ['model', 'm-snap'], ['effort', 'e-snap']]) {
+      const r = fix.stats(['--by', dim, '--json']);
+      assert.equal(r.status, 0, r.stderr);
+      const o = JSON.parse(r.stdout);
+      assert.equal(o.by, dim, 'the JSON says the selected dimension');
+      assert.deepEqual(Object.keys(o.groups), [want],
+        `${dim} groups under the sidecar snapshot, not the roster: ${JSON.stringify(o.groups)}`);
+      assert.equal(o.groups[want].tasks, 1);
+    }
+    // Mutation captured: grouping by the current roster row (grok/
+    // m-roster) instead of the sidecar snapshot lands the task under a
+    // different key.
+  } finally { fix.cleanup(); }
+});
+
+test('stats: a legacy pair (no sidecar) keeps today\'s behavior and groups under (unknown)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-legacy-');
+  try {
+    // b has no sidecar at all (predates the sidecar): it is still a task,
+    // and its kind/model/effort are unknown.
+    fix.prompt('b', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('b', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    for (const dim of ['kind', 'model', 'effort']) {
+      const r = fix.stats(['--by', dim, '--json']);
+      assert.equal(r.status, 0, r.stderr);
+      const o = JSON.parse(r.stdout);
+      assert.deepEqual(o.groups, { '(unknown)': {
+        tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
+        minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+      }}, `the legacy pair groups under (unknown) for ${dim}: ${JSON.stringify(o.groups)}`);
+    }
+    // The no-`--by` output is unchanged by the sidecar work: the pair is
+    // still counted under its role.
+    const r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).roles.implementer.tasks, 1, 'the legacy pair keeps today\'s behavior');
+  } finally { fix.cleanup(); }
+});
+
+test('stats: only an accepted sidecar is a task; attempted/failed never count and never become lost', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-sub-');
+  try {
+    fix.roster(fix.row('a'), fix.row('f'));
+    // a: accepted with its report: the only task.
+    fix.prompt('a', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('a', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.sidecar('a', '20260925T100000', { version: 1, kind: 'grok', model: 'm-a', effort: 'full', submission: 'accepted' });
+    // f: a failed submission with no report (f is still in the roster and
+    // this is f\'s last dispatch): not counted as a task NOR as
+    // pending/lost.
+    fix.prompt('f', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.sidecar('f', '20260925T100000', { version: 1, kind: 'grok', model: 'm-f', effort: 'full', submission: 'failed' });
+    // t: an attempted submission (a crash stuck in attempted) with no
+    // report and t not in the roster: not a task, not lost.
+    fix.prompt('t', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.sidecar('t', '20260925T100000', { version: 1, kind: 'grok', model: 'm-t', effort: 'full', submission: 'attempted' });
+    const r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: an attempted/failed submission counted as a task
+    // (or a failed one classified as pending/lost) breaks the counts
+    // below.
+    assert.deepEqual(o.roles.implementer, {
+      tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
+      minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+    }, 'the no-by counts: ' + JSON.stringify(o.roles));
+    // --by model: only the accepted pair\'s snapshot bucket exists.
+    const rb = fix.stats(['--by', 'model', '--json']);
+    assert.equal(rb.status, 0, rb.stderr);
+    assert.deepEqual(JSON.parse(rb.stdout).groups, {
+      'm-a': { tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
+        minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0 },
+    }, 'the failed and the attempted pairs do not group anywhere');
+  } finally { fix.cleanup(); }
+});
+
+test('stats: a malformed or unsupported sidecar is not accepted and warns without its raw contents', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-badside-');
+  try {
+    fix.roster(fix.row('m1'), fix.row('m2'));
+    // m1: not JSON at all (a distinctive token the warning must not echo);
+    // no report and m1 in the roster: the pair must not become pending or
+    // lost either.
+    fix.prompt('m1', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.sidecar('m1', '20260925T100000', '{oops RAW-MARKER-NOT-JSON');
+    // m2: valid JSON but an unsupported version (still a roster agent
+    // whose last dispatch would be pending if it counted).
+    fix.prompt('m2', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.sidecar('m2', '20260925T100000', { version: 2, kind: 'grok', model: 'm2', effort: 'full', submission: 'accepted' });
+    const r = fix.stats(['--json']);
+    assert.equal(r.status, 0, 'a malformed sidecar never dies the stats run');
+    assert.match(r.stderr, /m1-20260925T100000\.dispatch\.json is not a valid attempt sidecar/, 'a warning names the sidecar file');
+    assert.match(r.stderr, /m2-20260925T100000\.dispatch\.json is not a valid attempt sidecar/, 'an unsupported version warns too');
+    assert.ok(!r.stderr.includes('RAW-MARKER-NOT-JSON'), 'the raw contents are never printed');
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: a malformed/unsupported sidecar counted as
+    // accepted (or the pair classified as pending) appears in the groups
+    // below.
+    assert.deepEqual(o, { roles: {}, review: {} }, 'neither pair is counted: no task, no pending/lost');
+  } finally { fix.cleanup(); }
+});
+
+test('stats: the sidecar is read from the winning side of the pair (tmp routing and mirror)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-side-route-');
+  try {
+    fix.roster(fix.row('t'), fix.row('w'));
+    // t: the pair lives only under the $TMPDIR routing; its sidecar does
+    // too.
+    fix.tmpPrompt('t', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.tmpReport('t', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + 2 * MIN });
+    fix.tmpSidecar('t', '20260925T100000', { version: 1, kind: 'grok', model: 'm-tmp', effort: 'full', submission: 'accepted' });
+    // w: mirrored into the state dir; the state-dir copy wins the dedupe
+    // and must use the STATE-DIR sidecar (m-state), not the tmp
+    // original\'s (m-tmp-orig).
+    fix.tmpPrompt('w', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.tmpReport('w', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + 3 * MIN });
+    fix.tmpSidecar('w', '20260925T100000', { version: 1, kind: 'grok', model: 'm-tmp-orig', effort: 'full', submission: 'accepted' });
+    fix.prompt('w', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('w', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + 3 * MIN });
+    fix.sidecar('w', '20260925T100000', { version: 1, kind: 'grok', model: 'm-state', effort: 'full', submission: 'accepted' });
+    const r = fix.stats(['--by', 'model', '--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: the sidecar read from the wrong dir (the state
+    // dir for the tmp-only pair, or the tmp original for the mirrored
+    // pair) breaks the buckets below.
+    assert.deepEqual(Object.keys(o.groups).sort(), ['m-state', 'm-tmp'], `the buckets: ${JSON.stringify(o.groups)}`);
+    assert.equal(o.groups['m-state'].tasks, 1, 'the mirrored pair uses the state-dir sidecar');
+    assert.equal(o.groups['m-tmp'].tasks, 1, 'the tmp pair uses the tmp-routing sidecar');
+  } finally { fix.cleanup(); }
+});
+
+test('stats: --by groups the review of the reviewer-role reports only', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-review-by-');
+  try {
+    fix.roster(fix.row('r1', 'reviewer'), fix.row('r2', 'reviewer'), fix.row('r3', 'reviewer'), fix.row('imp'));
+    // r1/r2: reviewer reports with a header, one sidecar kind each; r3:
+    // a reviewer with no sidecar at all (legacy); imp: an implementer
+    // report with a header line (it must never enter the review).
+    fix.prompt('r1', '20260925T100000', 'reviewer', { mtime: T0 });
+    fix.report('r1', '20260925T100000', 'findings: 1 (P0 0, P1 1, P2 0, P3 0) | verdict: pass\n\n# Report\n', { mtime: T0 + MIN });
+    fix.sidecar('r1', '20260925T100000', { version: 1, kind: 'k1', model: 'm1', effort: 'full', submission: 'accepted' });
+    fix.prompt('r2', '20260925T100000', 'reviewer', { mtime: T0 });
+    fix.report('r2', '20260925T100000', 'findings: 1 (P0 1, P1 0, P2 0, P3 0) | verdict: fail\n\n# Report\n', { mtime: T0 + MIN });
+    fix.sidecar('r2', '20260925T100000', { version: 1, kind: 'k2', model: 'm2', effort: 'full', submission: 'accepted' });
+    fix.prompt('r3', '20260925T100000', 'reviewer', { mtime: T0 });
+    fix.report('r3', '20260925T100000', '# Report\n\nno header\n', { mtime: T0 + MIN });
+    fix.prompt('imp', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('imp', '20260925T100000', 'findings: 1 (P0 1, P1 0, P2 0, P3 0) | verdict: fail\n\n# Report\n', { mtime: T0 + MIN });
+    fix.sidecar('imp', '20260925T100000', { version: 1, kind: 'k1', model: 'm1', effort: 'full', submission: 'accepted' });
+    // --by kind: the review is grouped under the sidecar\'s kind, the
+    // legacy reviewer under (unknown), the implementer nowhere.
+    const r = fix.stats(['--by', 'kind', '--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: the review built from ALL pairs (the
+    // implementer\'s report leaks in), or grouped under the role instead
+    // of the kind, breaks the object below.
+    assert.deepEqual(o.review, {
+      k1: { header: 1, pass: 1, fail: 0, severity: { P0: 0, P1: 1, P2: 0, P3: 0 }, no_header: 0 },
+      k2: { header: 1, pass: 0, fail: 1, severity: { P0: 1, P1: 0, P2: 0, P3: 0 }, no_header: 0 },
+      '(unknown)': { header: 0, pass: 0, fail: 0, severity: { P0: 0, P1: 0, P2: 0, P3: 0 }, no_header: 1 },
+    }, `the review grouped by kind: ${JSON.stringify(o.review)}`);
+    // The text headings follow the selected dimension.
+    const rt = fix.stats(['--by', 'kind']);
+    assert.equal(rt.status, 0, rt.stderr);
+    assert.match(rt.stdout, /^tasks by kind:\n/);
+    assert.match(rt.stdout, /reviews by kind:\n/);
+    // --by agent: one bucket per reviewer agent (the implementer is
+    // still not there).
+    const ra = fix.stats(['--by', 'agent', '--json']);
+    assert.equal(ra.status, 0, ra.stderr);
+    const oa = JSON.parse(ra.stdout);
+    assert.deepEqual(Object.keys(oa.review).sort(), ['r1', 'r2', 'r3'], `the review is grouped per agent: ${JSON.stringify(Object.keys(oa.review))}`);
+  } finally { fix.cleanup(); }
+});
+
+test('stats: --by requires a known dimension (missing or invalid dies 2)', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-by-arg-');
+  try {
+    fix.prompt('b', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('b', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    let r = fix.stats(['--by']);
+    assert.equal(r.status, 2, '--by without a value is rc 2');
+    assert.match(r.stderr, /stats: --by expects a dimension/);
+    r = fix.stats(['--by', 'banana']);
+    assert.equal(r.status, 2, 'an unknown dimension is rc 2');
+    assert.match(r.stderr, /stats: --by expects one of role, kind, model, agent, effort \(got 'banana'\)/);
+    // An EXPLICITLY empty value is invalid too (the flag was provided):
+    // it must not fall back to the default shape.
+    r = fix.stats(['--by', '']);
+    assert.equal(r.status, 2, 'an explicit empty --by is rc 2');
+    assert.match(r.stderr, /stats: --by expects one of role, kind, model, agent, effort \(got ''\)/);
+    // The ABSENCE of --by keeps the default shape (roles/review keys).
+    r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(Object.keys(JSON.parse(r.stdout)).sort(), ['review', 'roles'], 'no --by keeps the default shape');
+    // --by role is the dimension default: the role grouping, in the new
+    // explicit shape in JSON.
+    r = fix.stats(['--by', 'role', '--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o = JSON.parse(r.stdout);
+    assert.equal(o.by, 'role');
+    assert.deepEqual(o.groups.implementer, {
+      tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
+      minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+    }, 'the per-group metric shape is the existing one');
+  } finally { fix.cleanup(); }
+});
+
+test('stats: a rejected dispatch does not supersede the last counted dispatch for pending/lost', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-last-counted-');
+  try {
+    fix.roster(fix.row('a'));
+    // a (in the roster): an accepted prompt with no report, then a failed
+    // and an attempted prompt (both report-less, dispatched later). The
+    // rejected dispatches are not accepted ones: the accepted prompt is
+    // still the agent's last accepted dispatch → pending, not lost.
+    fix.prompt('a', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.sidecar('a', '20260925T100000', { version: 1, kind: 'grok', model: 'm1', effort: 'full', submission: 'accepted' });
+    fix.prompt('a', '20260925T110000', 'implementer', { mtime: T0 + MIN });
+    fix.sidecar('a', '20260925T110000', { version: 1, kind: 'grok', model: 'm2', effort: 'full', submission: 'failed' });
+    fix.prompt('a', '20260925T120000', 'implementer', { mtime: T0 + 2 * MIN });
+    fix.sidecar('a', '20260925T120000', { version: 1, kind: 'grok', model: 'm3', effort: 'full', submission: 'attempted' });
+    const r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: a lastPerAgent built over ALL pairs (or only the
+    // filtered rows) classifies the accepted reportless task as lost.
+    assert.deepEqual(o.roles.implementer, {
+      tasks: 1, amendments: 0, no_report: { pending: 1, lost: 0 },
+      minutes: null, partials: 0,
+    }, `the accepted reportless task stays pending: ${JSON.stringify(o.roles)}`);
+    // The rejected dispatches still do not group anywhere.
+    const rb = fix.stats(['--by', 'model', '--json']);
+    assert.equal(rb.status, 0, rb.stderr);
+    assert.deepEqual(Object.keys(JSON.parse(rb.stdout).groups), ['m1'], 'only the accepted sidecar groups');
+  } finally { fix.cleanup(); }
+});
+
+test('stats: a failed dispatch does not change the role inherited by a later accepted amendment', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-amend-failed-');
+  try {
+    fix.roster(fix.row('a'));
+    // a: an accepted implementer task (with report), then a FAILED
+    // reviewer prompt (the roster role had changed), then an accepted
+    // amendment (no role line): it must count under the last ACCEPTED
+    // prompt's role — implementer, not the failed reviewer.
+    fix.prompt('a', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('a', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.sidecar('a', '20260925T100000', { version: 1, kind: 'grok', model: 'm1', effort: 'full', submission: 'accepted' });
+    fix.prompt('a', '20260925T110000', 'reviewer', { mtime: T0 + 5 * MIN });
+    fix.sidecar('a', '20260925T110000', { version: 1, kind: 'grok', model: 'm1', effort: 'full', submission: 'failed' });
+    fix.amendment('a', '20260925T120000', { mtime: T0 + 10 * MIN });
+    fix.report('a', '20260925T120000', '# Report\n\namended.\n', { mtime: T0 + 11 * MIN });
+    fix.sidecar('a', '20260925T120000', { version: 1, kind: 'grok', model: 'm1', effort: 'full', submission: 'accepted' });
+    const r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: a role chain fed by the failed reviewer prompt
+    // (or the failed prompt counted at all) lands the amendment under
+    // reviewer or adds a reviewer row.
+    assert.deepEqual(o.roles, {
+      implementer: {
+        tasks: 1, amendments: 1, no_report: { pending: 0, lost: 0 },
+        minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+      },
+    }, `the amendment counts under the last accepted role: ${JSON.stringify(o.roles)}`);
+    assert.equal(r.stdout.includes('reviewer'), false, 'the failed reviewer prompt is not counted anywhere');
+  } finally { fix.cleanup(); }
+});
+
+test('stats: only an ENOENT sidecar is legacy; present-but-unreadable or field-less sidecars are invalid', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-unreadable-');
+  try {
+    fix.roster(fix.row('d'), fix.row('e'), fix.row('g'), fix.row('l'));
+    // d: a DIRECTORY at the sidecar path (EISDIR): present but not a
+    // readable file → invalid, warned, not counted.
+    fix.prompt('d', '20260925T100000', 'implementer', { mtime: T0 });
+    fs.mkdirSync(path.join(fix.briefs, 'd-20260925T100000.dispatch.json'));
+    // e: an unreadable file (EACCES); the content the warning must never
+    // echo sits inside. As root, chmod 000 does not hide the file: the
+    // case is then not enforceable and the readable sidecar counts.
+    const asRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+    fix.prompt('e', '20260925T100000', 'implementer', { mtime: T0 });
+    const eSide = fix.sidecar('e', '20260925T100000', { version: 1, kind: 'grok', model: 'RAW-EAC-SECRET', effort: 'full', submission: 'accepted' });
+    if (!asRoot) fs.chmodSync(eSide, 0);
+    // g: a v1 sidecar missing a required field (no effort): malformed.
+    fix.prompt('g', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.sidecar('g', '20260925T100000', { version: 1, kind: 'grok', model: 'm-g', submission: 'accepted' });
+    // l: a genuinely absent sidecar: the legacy pair still counts.
+    fix.prompt('l', '20260925T100000', 'implementer', { mtime: T0 });
+    const r = fix.stats(['--json']);
+    assert.equal(r.status, 0, 'an unreadable sidecar never dies the stats run');
+    assert.match(r.stderr, /d-20260925T100000\.dispatch\.json is not a valid attempt sidecar/, 'the directory sidecar warns');
+    if (!asRoot) {
+      assert.match(r.stderr, /e-20260925T100000\.dispatch\.json is not a valid attempt sidecar/, 'the unreadable file warns');
+      assert.ok(!r.stderr.includes('RAW-EAC-SECRET'), 'the unreadable contents are never printed');
+    }
+    assert.match(r.stderr, /g-20260925T100000\.dispatch\.json is not a valid attempt sidecar/, 'the field-less v1 warns');
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: a non-ENOENT read error treated as absent (or a
+    // field-less v1 accepted) counts the pair below (and, as a reportless
+    // last dispatch of a live agent, makes it pending).
+    assert.deepEqual(o.roles.implementer, {
+      tasks: asRoot ? 2 : 1, amendments: 0,
+      no_report: { pending: asRoot ? 2 : 1, lost: 0 },
+      minutes: null, partials: 0,
+    }, `only the legacy pair l counts (root: e's sidecar is readable too): ${JSON.stringify(o.roles)}`);
+  } finally { fix.cleanup(); }
+});
+
+test('stats: --by keeps prototype-ish dimension keys (__proto__, constructor) in JSON and text', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-proto-');
+  try {
+    fix.roster(fix.row('b1'), fix.row('b2'));
+    // Valid dimension values that hit the object prototype: __proto__ and
+    // constructor. A plain-object bucket would resolve them against the
+    // prototype and crash (or silently misplace the pair).
+    fix.prompt('b1', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('b1', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.sidecar('b1', '20260925T100000', { version: 1, kind: 'grok', model: '__proto__', effort: 'full', submission: 'accepted' });
+    fix.prompt('b2', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('b2', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.sidecar('b2', '20260925T100000', { version: 1, kind: 'grok', model: 'constructor', effort: 'full', submission: 'accepted' });
+    const r = fix.stats(['--by', 'model', '--json']);
+    assert.equal(r.status, 0, `the prototype-ish keys must not crash stats: ${r.stderr}`);
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: a plain-object accumulator (or the keys
+    // sanitized away) loses or misplaces one of the exact keys.
+    assert.deepEqual(new Set(Object.keys(o.groups)), new Set(['__proto__', 'constructor']),
+      `the exact keys are preserved: ${JSON.stringify(Object.keys(o.groups))}`);
+    assert.equal(o.groups['__proto__'].tasks, 1);
+    assert.equal(o.groups['constructor'].tasks, 1);
+    // The text tables carry them too.
+    const rt = fix.stats(['--by', 'model']);
+    assert.equal(rt.status, 0, rt.stderr);
+    assert.match(rt.stdout, /^__proto__/m);
+    assert.match(rt.stdout, /^constructor/m);
   } finally { fix.cleanup(); }
 });
