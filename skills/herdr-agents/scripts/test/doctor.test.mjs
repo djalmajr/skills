@@ -428,6 +428,19 @@ test('doctorDiscardedModels: the frontmatter model is dropped when the kind come
   s = capture();
   doctorDiscardedModels(ctxOf(), ENV, REPO, s);
   assert.ok(s.lines.includes("warn: config: role file model 'gemini|sonnet' of 'ui-reviewer' is ignored: role.ui-reviewer.kind=grok comes from a higher layer (project)"), s.lines.join('\n'));
+  // A role model at the kind's layer replaces the frontmatter model: no
+  // warn (the team set kind and model together).
+  writeProj('lanes=off\nrole.ui-reviewer.kind=claude\nrole.ui-reviewer.model=opus\n');
+  s = capture();
+  doctorDiscardedModels(ctxOf(), ENV, REPO, s);
+  assert.equal(s.lines.length, 0, 'kind and model at the same layer: ' + s.lines.join('\n'));
+  // A role model above the kind's layer (env over project) wins too.
+  writeProj('lanes=off\nrole.ui-reviewer.kind=claude\n');
+  const envModel = { ...ENV, HERDR_AGENTS_ROLE_UI_REVIEWER_MODEL: 'opus' };
+  s = capture();
+  doctorDiscardedModels(loadConfig(envModel, REPO), envModel, REPO, s);
+  assert.equal(s.lines.length, 0, 'a role model above the kind layer: ' + s.lines.join('\n'));
+  writeProj('role.ui-reviewer.kind=grok\n');
   // A configured role model under the kind's layer too: both warns fire.
   writeUser('role.ui-reviewer.model=opus\n');
   s = capture();

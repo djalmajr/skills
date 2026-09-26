@@ -58,7 +58,9 @@ project, max 59):
 
 **As designer** (1 project, 4 tasks, about 30 min):
 - **Weak:** this was its worst role. It delivered UI and e2e tests it never
-  ran, because the sandbox gives it no port.
+  ran. Its sandbox blocks what a browser e2e needs: a local port and, on
+  macOS, the browser's own process setup and writes under `~/Library`.
+  Network access does not lift it.
   - The orchestrator found, in the browser: 3 runtime bugs, 1 dependency
     that broke the dev server and about 8 wrong selectors.
   - It also removed a field without checking a test that consumed it.

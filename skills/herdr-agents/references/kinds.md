@@ -35,7 +35,13 @@ Both `edits` (`-s workspace-write -a on-request`) and `full`
 - **cannot write under `.git`** — `git mv` and `git checkout -- <file>`
   fail on `.git/index.lock`;
 - **has no network** — binding a local port included: a test that starts
-  a local server fails with `Operation not permitted`.
+  a local server fails with `Operation not permitted`;
+- **cannot run a browser e2e on macOS, even with network** — Chromium dies
+  with `bootstrap_check_in … MachPortRendezvousServer … Permission denied
+  (1100)`, and a tool that writes under `~/Library/Preferences` (a dev
+  server's registry) fails with `EPERM`. `network_access=true` does not
+  lift either: browser e2e runs outside the sandbox (the orchestrator) or
+  on another kind.
 
 The composed prompt of a codex worker says so: two notes, absent when the
 opening args grant the access (`danger-full-access` or

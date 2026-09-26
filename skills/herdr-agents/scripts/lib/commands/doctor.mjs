@@ -321,7 +321,8 @@ export function doctorLaneWarnings(ctx, env = process.env, cwd = process.cwd(), 
 // The frontmatter is the lowest layer: its model belongs to the
 // frontmatter's kind, and a kind from a config layer drops it (the spawn
 // falls through to model.<kind>.<position> / model.<kind> / the CLI
-// default):
+// default). No warn when a role model at the kind's layer or above
+// replaces it:
 //   config: role file model '<spec>' of '<r>' is ignored: role.<r>.kind=
 //     <k> comes from a higher layer (<layer>)
 // The role check skips the planner (spawn never resolves its kind) and a
@@ -372,8 +373,12 @@ export function doctorDiscardedModels(ctx, env = process.env, cwd = process.cwd(
       }
       // The frontmatter model (the lowest layer): dropped whenever the
       // kind comes from a config layer — resolveRoleSettings discards it
-      // the same way.
-      if (k !== '' && !laneKindSet) {
+      // the same way. A role model at the kind's layer or above wins
+      // anyway, so the warn only fires without one (like the lane case
+      // below); a role model under the kind's layer is dropped too, and
+      // then both warns fire.
+      const roleModelWins = m !== '' && cfgLayerRank(ctx, mkey, env) >= cfgLayerRank(ctx, kkey, env);
+      if (k !== '' && !laneKindSet && !roleModelWins) {
         const f = roleFile(r, env, cwd);
         const fmModel = f ? fmGet(f, 'model') : '';
         if (fmModel !== '') {
