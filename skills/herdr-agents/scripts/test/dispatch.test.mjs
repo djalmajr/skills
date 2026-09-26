@@ -1461,6 +1461,124 @@ test('dispatch: a new dispatch clears the not-received and enter-retry markers',
   } finally { fix.cleanup(); }
 });
 
+// The not-received outcome is durably marked in the attempt sidecar (the
+// same file, the same stem next to the composed prompt): the mark adds
+// `arrival: "not-received"` to the accepted submission — the transport
+// outcome and the exit 15 stand, and the wait marker still lands.
+test('dispatch: a not-received dispatch marks the sidecar arrival without changing the accepted outcome', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nr-sidecar-');
+  try {
+    fix.writeRoster(undefined, `${ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build')}\t\t\thigh`);
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    fix.promptSkip(); // the first prompt is swallowed; the resend stays
+    // idle without a report: not-received, exit 15.
+    // Mutation captured: no mark at all (or a mark that changes the
+    // submission, or a mark written on a received dispatch) fails the
+    // sidecar assert below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '2' });
+    assert.equal(r.status, 15, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'not-received', 'the result stands');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: 'high', submission: 'accepted', arrival: 'not-received' },
+      'the accepted outcome stands; the arrival mark is added to the same sidecar');
+    assert.ok(fs.existsSync(path.join(fix.ws, 'wait', 'build.not-received')), 'the wait marker still lands');
+  } finally { fix.cleanup(); }
+});
+
+// A delivery the arrival check accepts (or the one-shot dispatch with the
+// check off) never gets the mark: the sidecar keeps the accepted
+// submission without an arrival key.
+test('dispatch: a delivered prompt leaves no arrival mark in the sidecar', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nr-none-');
+  try {
+    fix.writeRoster(undefined, `${ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build')}\t\t\thigh`);
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    // A normal delivery: the arrival is confirmed by the state turning
+    // working.
+    const r1 = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '3', FAKE_PROMPT_ARRIVE: '1' });
+    assert.equal(r1.status, 0, r1.stderr);
+    const j1 = parsePretty(r1.stdout);
+    assert.equal(j1.wait_status, 'submitted');
+    // Mutation captured: the mark written on a received dispatch (or the
+    // accepted submission lost to it) fails the exact-object assert below.
+    assert.deepEqual(JSON.parse(fs.readFileSync(`${j1.composed_prompt.slice(0, -3)}.dispatch.json`, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: 'high', submission: 'accepted' },
+      'no arrival key on a received delivery');
+    // And the one-shot dispatch with the check off: accepted, no mark.
+    const r2 = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0' });
+    assert.equal(r2.status, 0, r2.stderr);
+    const j2 = parsePretty(r2.stdout);
+    assert.equal(JSON.parse(fs.readFileSync(`${j2.composed_prompt.slice(0, -3)}.dispatch.json`, 'utf8')).arrival, undefined,
+      'no arrival key with the check off');
+  } finally { fix.cleanup(); }
+});
+
+// The arrival mark is the third sidecar write (after `attempted` and
+// `accepted`). When it fails: only a warn — the not-received result (the
+// JSON and the exit 15) stands, the sidecar keeps the valid `accepted`,
+// the wait marker still lands, and nothing is resent.
+test('dispatch: a not-received sidecar mark that fails warns and keeps the result and the accepted sidecar', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nr-sidecarfail-');
+  try {
+    fix.writeRoster(undefined, `${ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build')}\t\t\thigh`);
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    fix.promptSkip(); // the first prompt is swallowed; the resend stays
+    // idle without a report: not-received.
+    const realWrite = fs.writeFileSync;
+    let sidecarWrites = 0;
+    fs.writeFileSync = (...args) => {
+      if (String(args[0]).includes('.dispatch.json')) {
+        sidecarWrites += 1;
+        if (sidecarWrites >= 3) {
+          const err = new Error('write failed: simulated EIO');
+          err.code = 'EIO';
+          throw err;
+        }
+      }
+      return realWrite(...args);
+    };
+    let out = '';
+    let errOut = '';
+    const realOut = process.stdout.write;
+    const realErrW = process.stderr.write;
+    process.stdout.write = (c, ...r) => { out += String(c); return true; };
+    process.stderr.write = (c, ...r) => { errOut += String(c); return true; };
+    let rc;
+    try {
+      rc = cmdDispatch(['build', brief, '--no-wait'], fix.ctx, fix.env, fix.repo);
+    } finally {
+      fs.writeFileSync = realWrite;
+      process.stdout.write = realOut;
+      process.stderr.write = realErrW;
+    }
+    assert.equal(sidecarWrites, 3, 'the mark was attempted (after attempted and accepted)');
+    assert.equal(rc, 15, 'the not-received code stands');
+    const lines = out.trim().split('\n').filter((l) => l !== '').map((l) => JSON.parse(l));
+    assert.equal(lines.length, 1, 'the dispatch JSON line stands');
+    const j = lines[0];
+    assert.equal(j.wait_status, 'not-received', 'the result stands');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: 'high', submission: 'accepted' },
+      'the sidecar keeps the valid accepted outcome (no arrival mark)');
+    // Mutation captured: an unhandled throw on the mark (no JSON, no
+    // controlled code), a truncated/rewritten sidecar, a resend, or a
+    // missing warn fails the asserts above.
+    assert.match(errOut, /could not record the not-received arrival in the attempt sidecar .*: write failed: simulated EIO/);
+    assert.equal(fix.log().split('\n').filter((l) => l.startsWith('agent prompt build ')).length, 2, 'no extra resend');
+    assert.ok(fs.existsSync(path.join(fix.ws, 'wait', 'build.not-received')), 'the wait marker still lands');
+  } finally { fix.cleanup(); }
+});
+
 // The report-writer line is the first standing rule of every composed
 // prompt (brief and amendment): only the worker writes the report, once
 // the whole brief is done, and a subagent never writes it.

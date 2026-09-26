@@ -15,8 +15,9 @@
 // is working/blocked or a non-empty report exists; at the window's end, the
 // prompt text sitting in the input box gets one Enter (enter_sent), a still
 // H0 screen gets the single resend (resent), any other screen change counts
-// as received; still nothing → `not-received` (exit 15). A `question` wait
-// ends 7.
+// as received; still nothing → `not-received` (exit 15, and the attempt
+// sidecar gets the `arrival: "not-received"` mark — the accepted
+// submission stands). A `question` wait ends 7.
 //
 // Faithful-port notes:
 //   - the dispatch JSON is one line (never pretty-printed) with
@@ -626,9 +627,13 @@ export function dispatchPairSuffix(composedAt, reportAt, exists, lastReport) {
 // prompt, extension .dispatch.json (briefs/<agent>-<ts>[-N].dispatch.json
 // in the state dir, <agent>-<ts>[-N].dispatch.json under the $TMPDIR
 // reports dir). One file per attempt (the brief and the amendment alike);
-// it identifies the attempt and its submission, for the future `stats`
-// that counts only an `accepted` submission as a task (a crash stuck in
-// `attempted` is not a lost one).
+// it identifies the attempt and its submission, for the `stats` that
+// counts only an `accepted` submission as a task (a crash stuck in
+// `attempted` is not a lost one). A dispatch that ends `not-received`
+// marks the same file with `arrival: "not-received"` — written only after
+// the transport accepted the prompt, so the accepted submission stands
+// (the mark also repairs a sidecar the accepted outcome write could not
+// reach), and stats counts one not-received per such accepted pair.
 function dispatchSidecarOf(composed) {
   const b = path.basename(composed);
   const stem = b.endsWith('.brief.md') ? b.slice(0, -'.brief.md'.length) : b.slice(0, -'.md'.length);
@@ -997,6 +1002,17 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd(), o
     // clears every other wait marker). The check only runs with a positive
     // prompt_check_seconds, so the marker never lands with the check off.
     const notReceived = (what) => {
+      // The arrival mark in the attempt sidecar: the same file (the same
+      // stem next to the composed prompt) durably records the
+      // not-received outcome. The accepted transport outcome stands —
+      // the prompt went out and the transport accepted it (the mark is
+      // written only after that) — and so does the dispatch result: a
+      // failed mark only warns, and nothing is resent.
+      try {
+        atomicWrite(sidecar, `${JSON.stringify({ ...sidecarMeta, submission: 'accepted', arrival: 'not-received' })}\n`);
+      } catch (e) {
+        warn(`could not record the not-received arrival in the attempt sidecar ${sidecar}: ${sanitizeCause(e && e.message ? e.message : e) || 'unknown error'}; the dispatch result stands`);
+      }
       let reportNow = false;
       try { reportNow = fs.statSync(report).size > 0; } catch { reportNow = false; }
       const seq = agentState(agent, env).seq;

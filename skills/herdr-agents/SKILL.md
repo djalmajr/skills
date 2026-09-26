@@ -610,10 +610,17 @@ $S spawn implementer -- -s workspace-write -a never      # native agent args aft
 temporary routing directories. It counts accepted dispatches and legacy
 pairs without a sidecar. Kind, model and effort come from the dispatch
 snapshot; an absent snapshot or empty field groups as `(unknown)`. With
-`--by` omitted, it groups by role and JSON keeps `roles` and `review`;
-with `--by` (including `--by role`), JSON returns `by`, `groups` and
-`review`. The review table covers reviewer, security-reviewer,
-ui-reviewer and inspector. Other date formats exit 2.
+`--by` omitted, it groups by role and JSON has `roles`, `lost_briefs`
+and `review`; with `--by` (including `--by role`), JSON has `by`,
+`groups`, `lost_briefs` and `review`. The review table covers reviewer,
+security-reviewer, ui-reviewer and inspector. Other date formats exit 2.
+Each counted pair is exactly one of a task, amendment or reuse. A
+non-amendment that switches from the agent's previous known role counts
+under `reuses`, not `tasks`. Each group also has `no_report`, `minutes`,
+`partials` and `not_received`. The last field records a dispatch's
+arrival-check result even if a later wait recovers. JSON
+`lost_briefs` maps each group to the stored composed-prompt paths for
+lost pairs, and the text output lists them below the tables.
 
 `scripts/herdr-agents` is a POSIX `sh` launcher: it runs
 `scripts/herdr-agents.mjs` with `node` (20+) — or `bun` when Node.js 20+

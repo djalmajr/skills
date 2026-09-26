@@ -14,7 +14,17 @@
 // snapshot value, the grouped review of the reviewer-role reports only,
 // and the missing/empty/invalid flag dying 2), a rejected dispatch never
 // superseding the last counted one (pending/lost and the amendment's
-// inherited role), only-ENOENT legacy sidecars (a present-but-unreadable
+// inherited role), the reuse classification (a non-amendment is a reuse
+// when the immediately previous counted known role of the same agent
+// differs — A, B, B is task, reuse, task, and A, B, A is task, reuse,
+// reuse; a failed dispatch never changes the previous known role; an
+// unknown legacy role never makes a reuse),
+// lost_briefs (the exact composed-prompt path of every lost pair, per
+// group, in the full-set order across the --since boundary and the
+// $TMPDIR routing/mirror; the pending pairs stay out), the not_received
+// count (the accepted sidecar's arrival mark, counted once per pair,
+// stable across repeated queries; a legacy pair carries no arrival
+// proof), only-ENOENT legacy sidecars (a present-but-unreadable
 // one is invalid, as is a v1 missing a required field), and
 // prototype-safe group keys (__proto__, constructor) preserved exactly,
 // and the empty state dir. Run as a child process against an isolated
@@ -75,6 +85,14 @@ function makeFix(prefix) {
     amendment(agent, ts, opts = {}) {
       const p = path.join(briefs, `${agent}-${ts}.md`);
       fs.writeFileSync(p, amendmentBody());
+      if (opts.mtime !== undefined) fs.utimesSync(p, opts.mtime, opts.mtime);
+      return p;
+    },
+    // A non-amendment prompt without the role line (a legacy shape): its
+    // role is unknown.
+    plainPrompt(agent, ts, opts = {}) {
+      const p = path.join(briefs, `${agent}-${ts}.md`);
+      fs.writeFileSync(p, '# Role: implementer\n\n(no role line)\n\n# Brief\n\ndo it\n');
       if (opts.mtime !== undefined) fs.utimesSync(p, opts.mtime, opts.mtime);
       return p;
     },
@@ -141,10 +159,10 @@ test('stats: roles, prompt-to-report times and [partial] per role', { timeout: 3
     const imp = rowOf(r.stdout, 'implementer');
     // Mutation captured: a role read from anywhere else in the prompt (or
     // a broken role regex) lands the tasks on the wrong role row.
-    assert.deepEqual(imp, ['implementer', '2', '0', '0 (0/0)', '7.5', '7.5', '9.0', '1'],
+    assert.deepEqual(imp, ['implementer', '2', '0', '0', '0 (0/0)', '0', '7.5', '7.5', '9.0', '1'],
       `the implementer row (one decimal, partial sum): ${JSON.stringify(imp)}`);
     const rev = rowOf(r.stdout, 'reviewer');
-    assert.deepEqual(rev, ['reviewer', '1', '0', '0 (0/0)', '5.0', '5.0', '5.0', '0']);
+    assert.deepEqual(rev, ['reviewer', '1', '0', '0', '0 (0/0)', '0', '5.0', '5.0', '5.0', '0']);
   } finally { fix.cleanup(); }
 });
 
@@ -165,12 +183,12 @@ test('stats: an amendment counts under the role of the previous prompt of the sa
     assert.equal(r.status, 0, r.stderr);
     const o = JSON.parse(r.stdout);
     assert.deepEqual(o.roles.implementer, {
-      tasks: 1, amendments: 1, no_report: { pending: 0, lost: 0 },
-      minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+      tasks: 1, amendments: 1, reuses: 0, no_report: { pending: 0, lost: 0 },
+      not_received: 0, minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
     }, 'the amendment counts under the role of the previous prompt');
     assert.deepEqual(o.roles['(unknown)'], {
-      tasks: 0, amendments: 1, no_report: { pending: 0, lost: 0 },
-      minutes: { avg: 2.0, median: 2.0, max: 2.0 }, partials: 0,
+      tasks: 0, amendments: 1, reuses: 0, no_report: { pending: 0, lost: 0 },
+      not_received: 0, minutes: { avg: 2.0, median: 2.0, max: 2.0 }, partials: 0,
     }, 'an amendment with no previous prompt of its own has no resolvable role');
   } finally { fix.cleanup(); }
 });
@@ -239,8 +257,8 @@ test('stats: the $TMPDIR routing is counted alongside the state dir', { timeout:
     // Mutation captured: the tmp routing not scanned (or scanned as
     // reports) drops the task or doubles it.
     assert.deepEqual(o.roles.implementer, {
-      tasks: 2, amendments: 0, no_report: { pending: 0, lost: 0 },
-      minutes: { avg: 4.5, median: 4.5, max: 6.0 }, partials: 0,
+      tasks: 2, amendments: 0, reuses: 0, no_report: { pending: 0, lost: 0 },
+      not_received: 0, minutes: { avg: 4.5, median: 4.5, max: 6.0 }, partials: 0,
     });
   } finally { fix.cleanup(); }
 });
@@ -264,8 +282,8 @@ test('stats: a mirrored $TMPDIR pair is counted once (the state-dir copy wins)',
     // prompt mtime from the tmp file (same mtime here, so the count is
     // what the dedupe proves).
     assert.deepEqual(o.roles.implementer, {
-      tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
-      minutes: { avg: 3.0, median: 3.0, max: 3.0 }, partials: 0,
+      tasks: 1, amendments: 0, reuses: 0, no_report: { pending: 0, lost: 0 },
+      not_received: 0, minutes: { avg: 3.0, median: 3.0, max: 3.0 }, partials: 0,
     });
   } finally { fix.cleanup(); }
 });
@@ -408,10 +426,11 @@ test('stats: --json prints one compact object with the stable shape', { timeout:
     assert.deepEqual(o, {
       roles: {
         implementer: {
-          tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
-          minutes: { avg: 12.0, median: 12.0, max: 12.0 }, partials: 1,
+          tasks: 1, amendments: 0, reuses: 0, no_report: { pending: 0, lost: 0 },
+          not_received: 0, minutes: { avg: 12.0, median: 12.0, max: 12.0 }, partials: 1,
         },
       },
+      lost_briefs: {},
       review: {},
     }, 'the exact object (the report header is not a review role report)');
   } finally { fix.cleanup(); }
@@ -465,8 +484,8 @@ test('stats: a legacy pair (no sidecar) keeps today\'s behavior and groups under
       assert.equal(r.status, 0, r.stderr);
       const o = JSON.parse(r.stdout);
       assert.deepEqual(o.groups, { '(unknown)': {
-        tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
-        minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+        tasks: 1, amendments: 0, reuses: 0, no_report: { pending: 0, lost: 0 },
+        not_received: 0, minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
       }}, `the legacy pair groups under (unknown) for ${dim}: ${JSON.stringify(o.groups)}`);
     }
     // The no-`--by` output is unchanged by the sidecar work: the pair is
@@ -501,15 +520,15 @@ test('stats: only an accepted sidecar is a task; attempted/failed never count an
     // (or a failed one classified as pending/lost) breaks the counts
     // below.
     assert.deepEqual(o.roles.implementer, {
-      tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
-      minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+      tasks: 1, amendments: 0, reuses: 0, no_report: { pending: 0, lost: 0 },
+      not_received: 0, minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
     }, 'the no-by counts: ' + JSON.stringify(o.roles));
     // --by model: only the accepted pair\'s snapshot bucket exists.
     const rb = fix.stats(['--by', 'model', '--json']);
     assert.equal(rb.status, 0, rb.stderr);
     assert.deepEqual(JSON.parse(rb.stdout).groups, {
-      'm-a': { tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
-        minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0 },
+      'm-a': { tasks: 1, amendments: 0, reuses: 0, no_report: { pending: 0, lost: 0 },
+        not_received: 0, minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0 },
     }, 'the failed and the attempted pairs do not group anywhere');
   } finally { fix.cleanup(); }
 });
@@ -536,7 +555,7 @@ test('stats: a malformed or unsupported sidecar is not accepted and warns withou
     // Mutation captured: a malformed/unsupported sidecar counted as
     // accepted (or the pair classified as pending) appears in the groups
     // below.
-    assert.deepEqual(o, { roles: {}, review: {} }, 'neither pair is counted: no task, no pending/lost');
+    assert.deepEqual(o, { roles: {}, lost_briefs: {}, review: {} }, 'neither pair is counted: no task, no pending/lost');
   } finally { fix.cleanup(); }
 });
 
@@ -634,7 +653,7 @@ test('stats: --by requires a known dimension (missing or invalid dies 2)', { tim
     // The ABSENCE of --by keeps the default shape (roles/review keys).
     r = fix.stats(['--json']);
     assert.equal(r.status, 0, r.stderr);
-    assert.deepEqual(Object.keys(JSON.parse(r.stdout)).sort(), ['review', 'roles'], 'no --by keeps the default shape');
+    assert.deepEqual(Object.keys(JSON.parse(r.stdout)).sort(), ['lost_briefs', 'review', 'roles'], 'no --by keeps the default shape');
     // --by role is the dimension default: the role grouping, in the new
     // explicit shape in JSON.
     r = fix.stats(['--by', 'role', '--json']);
@@ -642,8 +661,8 @@ test('stats: --by requires a known dimension (missing or invalid dies 2)', { tim
     const o = JSON.parse(r.stdout);
     assert.equal(o.by, 'role');
     assert.deepEqual(o.groups.implementer, {
-      tasks: 1, amendments: 0, no_report: { pending: 0, lost: 0 },
-      minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+      tasks: 1, amendments: 0, reuses: 0, no_report: { pending: 0, lost: 0 },
+      not_received: 0, minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
     }, 'the per-group metric shape is the existing one');
   } finally { fix.cleanup(); }
 });
@@ -668,8 +687,8 @@ test('stats: a rejected dispatch does not supersede the last counted dispatch fo
     // Mutation captured: a lastPerAgent built over ALL pairs (or only the
     // filtered rows) classifies the accepted reportless task as lost.
     assert.deepEqual(o.roles.implementer, {
-      tasks: 1, amendments: 0, no_report: { pending: 1, lost: 0 },
-      minutes: null, partials: 0,
+      tasks: 1, amendments: 0, reuses: 0, no_report: { pending: 1, lost: 0 },
+      not_received: 0, minutes: null, partials: 0,
     }, `the accepted reportless task stays pending: ${JSON.stringify(o.roles)}`);
     // The rejected dispatches still do not group anywhere.
     const rb = fix.stats(['--by', 'model', '--json']);
@@ -702,8 +721,8 @@ test('stats: a failed dispatch does not change the role inherited by a later acc
     // reviewer or adds a reviewer row.
     assert.deepEqual(o.roles, {
       implementer: {
-        tasks: 1, amendments: 1, no_report: { pending: 0, lost: 0 },
-        minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+        tasks: 1, amendments: 1, reuses: 0, no_report: { pending: 0, lost: 0 },
+        not_received: 0, minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
       },
     }, `the amendment counts under the last accepted role: ${JSON.stringify(o.roles)}`);
     assert.equal(r.stdout.includes('reviewer'), false, 'the failed reviewer prompt is not counted anywhere');
@@ -743,9 +762,9 @@ test('stats: only an ENOENT sidecar is legacy; present-but-unreadable or field-l
     // field-less v1 accepted) counts the pair below (and, as a reportless
     // last dispatch of a live agent, makes it pending).
     assert.deepEqual(o.roles.implementer, {
-      tasks: asRoot ? 2 : 1, amendments: 0,
+      tasks: asRoot ? 2 : 1, amendments: 0, reuses: 0,
       no_report: { pending: asRoot ? 2 : 1, lost: 0 },
-      minutes: null, partials: 0,
+      not_received: 0, minutes: null, partials: 0,
     }, `only the legacy pair l counts (root: e's sidecar is readable too): ${JSON.stringify(o.roles)}`);
   } finally { fix.cleanup(); }
 });
@@ -777,5 +796,198 @@ test('stats: --by keeps prototype-ish dimension keys (__proto__, constructor) in
     assert.equal(rt.status, 0, rt.stderr);
     assert.match(rt.stdout, /^__proto__/m);
     assert.match(rt.stdout, /^constructor/m);
+  } finally { fix.cleanup(); }
+});
+
+test('stats: a non-amendment is a reuse when the immediately previous counted known role differs', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-reuse-');
+  try {
+    // b: A, B, B (implementer, reviewer, reviewer) plus the amendment
+    // after the switch (an amendment of the switched role): task, reuse,
+    // task, amendment.
+    fix.prompt('b', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('b', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.prompt('b', '20260925T110000', 'reviewer', { mtime: T0 + 10 * MIN });
+    fix.report('b', '20260925T110000', 'findings: 0 (P0 0, P1 0, P2 0, P3 0) | verdict: pass\n\n# Report\n', { mtime: T0 + 11 * MIN });
+    fix.prompt('b', '20260925T120000', 'reviewer', { mtime: T0 + 20 * MIN });
+    fix.report('b', '20260925T120000', 'findings: 0 (P0 0, P1 0, P2 0, P3 0) | verdict: pass\n\n# Report\n', { mtime: T0 + 21 * MIN });
+    fix.amendment('b', '20260925T130000', { mtime: T0 + 30 * MIN });
+    fix.report('b', '20260925T130000', '# Report\n\namended.\n', { mtime: T0 + 31 * MIN });
+    // c: A, B, A (implementer, reviewer, implementer): task, reuse, reuse.
+    fix.prompt('c', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('c', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.prompt('c', '20260925T110000', 'reviewer', { mtime: T0 + 10 * MIN });
+    fix.report('c', '20260925T110000', 'findings: 0 (P0 0, P1 0, P2 0, P3 0) | verdict: pass\n\n# Report\n', { mtime: T0 + 11 * MIN });
+    fix.prompt('c', '20260925T120000', 'implementer', { mtime: T0 + 20 * MIN });
+    fix.report('c', '20260925T120000', '# Report\n\ndone.\n', { mtime: T0 + 21 * MIN });
+    // d: a legacy pair without a role line, then a known role: the
+    // previous counted role is unknown, so the later dispatch is a task,
+    // not a reuse.
+    fix.plainPrompt('d', '20260925T100000', { mtime: T0 });
+    fix.report('d', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.prompt('d', '20260925T110000', 'implementer', { mtime: T0 + 10 * MIN });
+    fix.report('d', '20260925T110000', '# Report\n\ndone.\n', { mtime: T0 + 11 * MIN });
+    // e: a known role, then a prompt without a role line: the current
+    // role is unknown, so it is a task, not a reuse.
+    fix.prompt('e', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('e', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.plainPrompt('e', '20260925T110000', { mtime: T0 + 10 * MIN });
+    fix.report('e', '20260925T110000', '# Report\n\ndone.\n', { mtime: T0 + 11 * MIN });
+    // f: implementer (accepted), reviewer (FAILED, never counted),
+    // implementer (accepted): the failed reviewer never changes the
+    // previous known role, so the second implementer is a task.
+    fix.prompt('f', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('f', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.sidecar('f', '20260925T100000', { version: 1, kind: 'grok', model: 'm-f1', effort: 'full', submission: 'accepted' });
+    fix.prompt('f', '20260925T110000', 'reviewer', { mtime: T0 + 10 * MIN });
+    fix.sidecar('f', '20260925T110000', { version: 1, kind: 'grok', model: 'm-f2', effort: 'full', submission: 'failed' });
+    fix.prompt('f', '20260925T120000', 'implementer', { mtime: T0 + 20 * MIN });
+    fix.report('f', '20260925T120000', '# Report\n\ndone.\n', { mtime: T0 + 21 * MIN });
+    fix.sidecar('f', '20260925T120000', { version: 1, kind: 'grok', model: 'm-f3', effort: 'full', submission: 'accepted' });
+    const r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: a reuse compared against ANY earlier known role
+    // (the second B of A, B, B counted as a reuse, or f's second
+    // implementer as a reuse after the failed reviewer), or a failed
+    // dispatch changing the previous role, breaks the split below —
+    // every counted pair is exactly one of the three categories (9 tasks
+    // + 3 reuses + 1 amendment = 13 counted pairs).
+    assert.deepEqual(o.roles.implementer, {
+      tasks: 6, amendments: 0, reuses: 1, no_report: { pending: 0, lost: 0 },
+      not_received: 0, minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+    }, 'b: task + task (the second B), c: task + reuse (the return to A), d/e/f: tasks');
+    assert.deepEqual(o.roles.reviewer, {
+      tasks: 1, amendments: 1, reuses: 2, no_report: { pending: 0, lost: 0 },
+      not_received: 0, minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+    }, 'b: reuse + the second B as a task + the amendment under the switched role, c: reuse');
+    assert.deepEqual(o.roles['(unknown)'], {
+      tasks: 2, amendments: 0, reuses: 0, no_report: { pending: 0, lost: 0 },
+      not_received: 0, minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+    }, 'the legacy prompts without a role line group under (unknown)');
+    // The text table carries the reuses column.
+    const rt = fix.stats([]);
+    assert.equal(rt.status, 0, rt.stderr);
+    assert.deepEqual(rowOf(rt.stdout, 'reviewer'),
+      ['reviewer', '1', '1', '2', '0 (0/0)', '0', '1.0', '1.0', '1.0', '0'],
+      `the reviewer row with the reuses column: ${JSON.stringify(rowOf(rt.stdout, 'reviewer'))}`);
+  } finally { fix.cleanup(); }
+});
+
+test('stats: a lost pair exposes its composed prompt path; pending, tmp and mirror keep their exact paths', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-lostbriefs-');
+  try {
+    // a: the live last dispatch without a report: pending, never listed.
+    fix.roster(fix.row('a'));
+    fix.prompt('a', '20260925T100000', 'implementer', { mtime: T0 });
+    // m: a mirrored pair (the state-dir copy won the dedupe; the tmp
+    // original still sits under the $TMPDIR routing) without a report:
+    // lost, and its exposed path is the STATE-DIR one.
+    fix.tmpPrompt('m', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.prompt('m', '20260925T100000', 'implementer', { mtime: T0 });
+    // t: a pair that lives only under the $TMPDIR routing: lost, and its
+    // exposed path is the exact tmp .brief.md path.
+    fix.tmpPrompt('t', '20260925T100000', 'implementer', { mtime: T0 });
+    // x: an older lost pair of a released agent.
+    fix.prompt('x', '20260925T090000', 'implementer', { mtime: T0 - 60 * MIN });
+    const r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o = JSON.parse(r.stdout);
+    assert.deepEqual(o.roles.implementer.no_report, { pending: 1, lost: 3 });
+    // Mutation captured: the pending pair listed, the tmp original's path
+    // reported for the mirrored pair (or the state path for the tmp pair),
+    // or a reconstructed source-brief path, breaks the object below.
+    assert.deepEqual(o.lost_briefs, {
+      implementer: [
+        path.join(fix.briefs, 'm-20260925T100000.md'),
+        path.join(fix.tmpReports, 't-20260925T100000.brief.md'),
+        path.join(fix.briefs, 'x-20260925T090000.md'),
+      ],
+    }, 'the exact stored path of each lost pair, in the full-set order (agent, then ts)');
+    // The concise text section: one line per lost pair, same order; the
+    // pending pair is not there.
+    const rt = fix.stats([]);
+    assert.equal(rt.status, 0, rt.stderr);
+    const section = rt.stdout.split('lost briefs by role:\n')[1];
+    assert.ok(section !== undefined, `the text section:\n${rt.stdout}`);
+    assert.deepEqual(section.split('\n').filter((l) => l !== ''), [
+      `implementer: ${path.join(fix.briefs, 'm-20260925T100000.md')}`,
+      `implementer: ${path.join(fix.tmpReports, 't-20260925T100000.brief.md')}`,
+      `implementer: ${path.join(fix.briefs, 'x-20260925T090000.md')}`,
+    ], `the text lines: ${JSON.stringify(section)}`);
+  } finally { fix.cleanup(); }
+});
+
+test('stats: lost_briefs keeps the full-set order and the inclusive --since boundary', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-lostsince-');
+  try {
+    // a and g are released (not in the roster): both pairs are lost. The
+    // later dispatch (a, T110000) has a NEWER mtime than the older one
+    // (g, T100000): the mtime order would be g then a, the full-set
+    // (dispatch) order is a then g.
+    fix.prompt('a', '20260925T110000', 'implementer', { mtime: T0 });
+    fix.prompt('g', '20260925T100000', 'implementer', { mtime: T0 - 120 * MIN });
+    const aPath = path.join(fix.briefs, 'a-20260925T110000.md');
+    const gPath = path.join(fix.briefs, 'g-20260925T100000.md');
+    let r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout).lost_briefs.implementer, [aPath, gPath],
+      'the full-set order, not the mtime order');
+    // --since at T0: g (mtime T0-120m) is filtered out, a (mtime exactly
+    // T0) stays — the boundary pair is kept (the filter is inclusive) and
+    // the ordering of what is left is unchanged.
+    r = fix.stats(['--since', new Date(T0 * 1000).toISOString(), '--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o2 = JSON.parse(r.stdout);
+    assert.deepEqual(o2.lost_briefs.implementer, [aPath], 'only the boundary pair is listed');
+    assert.equal(o2.roles.implementer.no_report.lost, 1, 'the boundary pair is still lost');
+    // --since before both: both back, in the full-set order.
+    r = fix.stats(['--since', new Date((T0 - 180 * MIN) * 1000).toISOString(), '--json']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout).lost_briefs.implementer, [aPath, gPath]);
+    // Mutation captured: a lost_briefs rebuilt from the mtime (or the
+    // alphabetical path) order, or a --since cut that drops the boundary
+    // pair (strict <), breaks the asserts above.
+  } finally { fix.cleanup(); }
+});
+
+test('stats: an accepted pair with the not-received arrival mark counts once, per query', { timeout: 30000 }, () => {
+  const fix = makeFix('ha-stats-notrecv-');
+  try {
+    fix.roster(fix.row('a'), fix.row('b'), fix.row('c'));
+    // a: accepted with the arrival mark: a task AND one not_received.
+    fix.prompt('a', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('a', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    const aSide = fix.sidecar('a', '20260925T100000', { version: 1, kind: 'grok', model: 'm-a', effort: 'full', submission: 'accepted', arrival: 'not-received' });
+    // b: accepted without the mark: a task, no not_received.
+    fix.prompt('b', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('b', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    fix.sidecar('b', '20260925T100000', { version: 1, kind: 'grok', model: 'm-b', effort: 'full', submission: 'accepted' });
+    // c: a legacy pair (no sidecar): no historical arrival proof.
+    fix.prompt('c', '20260925T100000', 'implementer', { mtime: T0 });
+    fix.report('c', '20260925T100000', '# Report\n\ndone.\n', { mtime: T0 + MIN });
+    const before = fs.readFileSync(aSide, 'utf8');
+    let r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    const o = JSON.parse(r.stdout);
+    // Mutation captured: the mark counted per query (or the legacy pair
+    // counted, or the unmarked pair counted) breaks the count below.
+    assert.deepEqual(o.roles.implementer, {
+      tasks: 3, amendments: 0, reuses: 0, no_report: { pending: 0, lost: 0 },
+      not_received: 1, minutes: { avg: 1.0, median: 1.0, max: 1.0 }, partials: 0,
+    }, 'one not_received for the marked accepted pair, once');
+    // Repeated queries: the same count (stats never writes the sidecar).
+    r = fix.stats(['--json']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout).roles.implementer, o.roles.implementer, 'the repeated query is stable');
+    assert.equal(fs.readFileSync(aSide, 'utf8'), before, 'stats leaves the sidecar untouched');
+    // The text table carries the not-received column, and the
+    // lost-briefs section is absent when nothing is lost.
+    const rt = fix.stats([]);
+    assert.equal(rt.status, 0, rt.stderr);
+    assert.deepEqual(rowOf(rt.stdout, 'implementer'),
+      ['implementer', '3', '0', '0', '0 (0/0)', '1', '1.0', '1.0', '1.0', '0'],
+      `the implementer row with the not-received column: ${JSON.stringify(rowOf(rt.stdout, 'implementer'))}`);
+    assert.ok(!rt.stdout.includes('lost briefs'), 'no lost pairs, no section');
   } finally { fix.cleanup(); }
 });
