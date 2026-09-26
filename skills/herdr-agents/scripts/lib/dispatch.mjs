@@ -56,6 +56,10 @@ import { agentPrompt, agentState, agentRead, agentSendKeys, liveAgents } from '.
 import { agentFamily, kindFamily } from './kinds.mjs';
 import { briefTask, paneTaskTitle } from './tasks.mjs';
 import { waitFor, pollIntervalMs, cksumField } from './wait.mjs';
+import { quotaDetect } from './quota.mjs';
+import { providerDetect } from './provider.mjs';
+import { dialogKind } from './dialog.mjs';
+import { laneOfRole } from './lanes.mjs';
 import { roleTimeoutMs } from './resolve.mjs';
 import { PROMPT_MARKER, lastNonEmptyLines, promptSitsInInput, markerSeq, markerSeqChanged } from './arrival.mjs';
 // Re-exported so the names that were exported here before the move to
@@ -640,6 +644,19 @@ function dispatchSidecarOf(composed) {
   return path.join(path.dirname(composed), `${stem}.dispatch.json`);
 }
 
+// Remember auth causes anywhere in the bounded pre-submit window. The
+// normal provider detector intentionally scans only the tail for a current
+// stop; for freshness, an older line anywhere in that same window still
+// prevents attributing its replay to this dispatch.
+function priorAuthCauses(screen) {
+  const causes = new Set();
+  for (const line of String(screen ?? '').replace(/\r\n/g, '\n').split('\n')) {
+    const pa = providerDetect('idle', line);
+    if (pa !== null && pa.status === 'provider-error' && pa.auth === true) causes.add(pa.cause);
+  }
+  return causes;
+}
+
 // ---------- cmd_dispatch (:3900) ----------
 
 // `dispatch <agent> <brief.md> [--role R] [--timeout MS] [--no-wait]
@@ -953,7 +970,21 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd(), o
   const rawWin = String(cfg(ctx, 'prompt_check_seconds', '15', env));
   const checkOn = /^[0-9]+$/.test(rawWin) && Number(rawWin) > 0;
   let H0 = '';
-  if (checkOn) H0 = cksumField(agentRead(env, agent, { source: 'visible' }));
+  let preSeq = '';
+  let preAuthCauses = new Set();
+  if (checkOn) {
+    H0 = cksumField(agentRead(env, agent, { source: 'visible' }));
+    preSeq = agentState(agent, env).seq;
+    // R11/D58 amendments: screen-only auth evidence before the submit, on
+    // the same source and line window the --no-wait observation uses
+    // below. The state gate is skipped on purpose (the literal can never
+    // be a live `working` read): a failure already on screen is prior
+    // evidence whatever the worker was doing. An identical post-submit
+    // cause is ambiguous even if its line count grows: a TUI can replay
+    // the old frame. Do not attribute it to this dispatch.
+    const prePScreen = agentRead(env, agent, { source: 'recent-unwrapped', lines: 40 });
+    preAuthCauses = priorAuthCauses(prePScreen);
+  }
   let status = 'submitted';
   const p = agentPrompt(agent, text, env);
   if (!p.ok) {
@@ -979,11 +1010,31 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd(), o
   if (checkOn) {
     const windowMs = Number(rawWin) * 1000;
     const pollMs = Math.min(1000, pollIntervalMs(env));
-    // Rule 1 only: the state or the report says the prompt landed.
+    // Rule 1 only: the state or the report says the prompt landed — but
+    // a block on a stale auth screen is not an arrival (R11/D58): the
+    // worker never took the prompt.
     const arrived = () => {
+      try { if (fs.statSync(report).size > 0) return true; } catch {}
       const st = agentState(agent, env);
-      if (st.state === 'working' || st.state === 'blocked') return true;
-      try { return fs.statSync(report).size > 0; } catch { return false; }
+      if (st.state === 'working') return true;
+      if (st.state === 'blocked') return !staleAuthBlock();
+      return false;
+    };
+    // True when the worker sits blocked on an auth screen that predates
+    // this dispatch: no key sent this round, the state_change_seq never
+    // moved since the pre-submit read, the visible screen never moved
+    // since H0, and the screen carries a terminal auth failure. A moved
+    // seq or screen, or a key this dispatch sent, is evidence of a new
+    // attempt and the block counts as an arrival as before.
+    const staleAuthBlock = () => {
+      if (enterSent || resent) return false;
+      const st = agentState(agent, env);
+      if (st.state !== 'blocked') return false;
+      if (preSeq !== '' && st.seq !== '' && st.seq !== preSeq) return false;
+      const screen = agentRead(env, agent, { source: 'visible' });
+      if (String(cksumField(screen)) !== String(H0)) return false;
+      const pa = providerDetect(st.state, screen);
+      return pa !== null && pa.status === 'provider-error' && pa.auth === true;
     };
     const waitForArrival = (ms) => {
       const deadline = Date.now() + ms;
@@ -1032,7 +1083,10 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd(), o
         warn(`prompt to '${agent}' sat in the input box; sent Enter`);
         if (!waitForArrival(windowMs)) return notReceived('an Enter on the text left in its input box');
       } else if (String(cksumField(screen)) === String(H0)) {
-        // (3) the screen never moved: resend the same text once.
+        // (3) the screen never moved: resend the same text once — unless
+        // the worker sits blocked on a stale auth screen (R11/D58): it
+        // cannot take the prompt, so no resend; not-received now.
+        if (staleAuthBlock()) return notReceived('its block on a provider auth error');
         warn(`prompt to '${agent}' did not arrive (screen unchanged, agent not working); sending it once more`);
         H0 = cksumField(agentRead(env, agent, { source: 'visible' }));
         if (agentPrompt(agent, text, env).ok) {
@@ -1087,6 +1141,60 @@ export function cmdDispatch(argv, ctx, env = process.env, cwd = process.cwd(), o
   let wseverity;
   let wdialog;
   let wsettled = '';
+  // R11/D58: --no-wait never watches the worker, so a terminal auth
+  // screen would surface only as `submitted`. After a received prompt,
+  // one observation through the shared detect logic (the wait path needs
+  // none: its first probe already reports auth immediately). Quota wins
+  // as everywhere (ungated, like wait/status); a current decision
+  // question skips the auth attribution; anything transient is left to a
+  // later wait with its double confirmation. The auth failure itself must
+  // be new, not merely the screen moved for an unrelated reason (the
+  // prompt echo in the scrollback moves it). Enter or resend proves only
+  // another submission attempt, not that an identical auth line is new:
+  // the post-submit cause must be absent pre-submit or textually different.
+  // Identical causes are ambiguous even when repeated: a new error and a
+  // replay of an old one look alike, so do not attribute either. Only with the arrival
+  // check on: with prompt_check_seconds=0 there is no observation at all
+  // (H0 is empty).
+  // The attempt sidecar stays `accepted`: this is an outcome of the
+  // accepted attempt, not a transport verdict. The shared tail below
+  // assembles the JSON and the exit code, so the key order matches the
+  // wait path exactly. Report-first precedence, consistent with
+  // wait/status (a non-empty report ends the probe before any screen
+  // detection): when the current report is complete, neither a provider
+  // auth line nor quota on that screen overrides completion.
+  if (wait === 0 && checkOn) {
+    let reportNow = false;
+    try { reportNow = fs.statSync(report).size > 0; } catch { reportNow = false; }
+    const post = reportNow ? null : agentState(agent, env);
+    if (post && post.state !== 'working' && post.state !== 'unavailable') {
+      const qScreen = agentRead(env, agent, { source: 'visible', lines: 20 });
+      const qd = quotaDetect(post.state, qScreen);
+      if (qd) {
+        status = 'quota';
+        qmatch = qd[0];
+        qrenew = qd[1];
+        qlane = cols.length >= 12 ? (cols[11] ?? '') : '';
+        if (qlane === '') qlane = laneOfRole(ctx, role, env);
+        qmodel = cols.length >= 9 ? (cols[8] ?? '') : '';
+      } else {
+        const vScreen = agentRead(env, agent, { source: 'visible', lines: 40 });
+        if (dialogKind(kind, vScreen) !== 'question') {
+          const pScreen = agentRead(env, agent, { source: 'recent-unwrapped', lines: 40 });
+          const pa = providerDetect(post.state, pScreen);
+          const authIsNew = pa !== null && pa.status === 'provider-error' && pa.auth === true
+            && !preAuthCauses.has(pa.cause);
+          if (authIsNew) {
+            status = 'provider-error';
+            qlane = cols.length >= 12 ? (cols[11] ?? '') : '';
+            if (qlane === '') qlane = laneOfRole(ctx, role, env);
+            qmodel = cols.length >= 9 ? (cols[8] ?? '') : '';
+            pcause = pa.cause;
+          }
+        }
+      }
+    }
+  }
   if (wait === 1) {
     const lines = [];
     try {

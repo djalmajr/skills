@@ -387,6 +387,12 @@ without checking that generation succeeded and produced what you expect.
 - **Cause:** the agent is not `working`, the report is missing, and the last ~20 visible lines contain a provider quota error as a whole sentence (`hit your usage limit`, `Individual quota reached`, `quota exceeded`, `You exceeded your current quota`, `RESOURCE_EXHAUSTED`, `429 Too Many Requests`, `rate limit exceeded`, `You've hit your … limit`, `You have reached your … usage limits`). A line that is source (`return`, `func` / `function`, an assignment, a `//` / `#` / `/*` comment, or the phrase in quotes) does not match. `You've hit your stride` does not match. Neither does the same text while the agent is `working`.
 - **Do:** ask the user (switch the lane's kind/model, wait for renewal, take the slice, or pause). On resume, include `git diff` of the partial work in the next brief. The line is logged in `friction`.
 
+## Provider authentication failure (exit 14)
+
+- **Symptom:** `spawn` exits 14 with a sanitized authentication error, or `dispatch`, `wait`, or `status` returns `provider-error` with a sanitized `cause` such as `Error: 401`, `Incorrect API key`, or a revoked refresh token.
+- **Cause:** the CLI stopped on a terminal authentication error. Unlike a transient timeout, the first reliable observation is enough; repeating the same prompt will not repair the credentials. `spawn` leaves the pane open but does not register a worker that failed during startup. An authentication screen already present before `dispatch`, with no evidence of a new attempt, results in `not-received` (exit 15).
+- **Do:** read the pane, repair the CLI's authentication, then start or dispatch again. Keep credentials out of reports and friction notes.
+
 ## `doctor --fix` will not pick 3 or 4
 
 - **Symptom:** `doctor --fix` exits 2 and the config file is unchanged.

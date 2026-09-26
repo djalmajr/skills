@@ -442,17 +442,29 @@ adds `Another worker edits this same tree now: run the global checks the
 brief asks for, but report failures in files you do not own as outside
 your slice (name the files), not as [partial] items of yours.` (a Herdr
 failure listing the agents skips the line: it is advisory).
-`provider-error` is an idle worker whose last error line shows its model
-provider down (for example `Request timed out`, `Connection error`, `Retry
-failed after N attempts`, `503: {…}`); the JSON `cause` is that line.
+`provider-error` is a worker stopped by its model provider (for example
+`Request timed out`, `Connection error`, `Retry failed after N attempts`,
+`503: {…}`, `401`, `Incorrect API key`, or a revoked refresh token). The
+JSON `cause` is sanitized. A terminal authentication failure observed after
+`spawn` starts the CLI exits 14 without registering that worker; an
+authentication failure on the first `wait` or `status` observation also
+returns 14. `dispatch --no-wait` can return 14 after an accepted prompt when
+the new failure is visible and the current report is still missing. A
+completed report takes precedence over a later auth or quota screen. An
+authentication screen already present before
+the prompt, with no evidence the worker took that prompt, is `not-received`.
+If the same auth cause was already visible before dispatch, `--no-wait` leaves
+it unattributed even if the line reappears: redraw or replay can mimic a new
+failure. Use `wait` or `status` to inspect the stopped worker.
 `capacity` is a provider that refused because it was full (for example an
 error type naming `capacity` or `overload`, or status 529). The exact
 patterns live in one place, `scripts/lib/provider.mjs`. On `capacity` the
 wait first sends the worker
 "continue" up to `provider_retries` times, `provider_retry_delay` seconds
 apart (each one logged in friction), and reports `capacity` only when that
-did not help. Both need two identical probes before they count, so a
-transient screen never ends a wait. A worker whose screen changes only in
+did not help. Transient provider errors and capacity need two identical
+probes before they count; a terminal authentication failure is reported on
+the first observation. A worker whose screen changes only in
 its counters for `stuck_warn_minutes` (20) while `working` gets one
 friction line ("may be stuck in one tool call"); the wait goes on. A
 missing, empty or non-numeric screen-age marker counts from now (rewritten
@@ -1318,13 +1330,16 @@ Use the harness's structured-question tool when:
   (pausing is the free text). When the work resumes on a new worker, put
   `git diff` of the partial edit in the brief so it continues instead of
   starting over.
-- `wait`, `status` or `dispatch` returns `provider-error` or `capacity`
-  (exit 14). The worker is idle without a report; the JSON carries `lane`,
-  `kind`, `model` and the `cause` line (plus `retries` on capacity). Options:
-  *Resend the brief to the same worker* (recommended when the provider
-  answers again — a short probe, or the cause was a timeout), *Switch the
-  assistant* (say which ready one), *Wait* + free text. Never resend
-  blindly: read the pane first.
+- `spawn`, `wait`, `status` or `dispatch` returns a provider failure
+  (exit 14). `spawn` prints the sanitized cause in its error and leaves the
+  pane open; `wait`, `status` and `dispatch` return `provider-error` or
+  `capacity` with a sanitized JSON `cause`, `lane`, `kind`, `model` and
+  `retries` on capacity. Read the pane first. For a terminal authentication
+  cause, repair the
+  CLI's login or key before starting or dispatching again. For a timeout,
+  outage or capacity stop, the options are *Resend the brief to the same
+  worker* (recommended when a short probe shows the provider answers
+  again), *Switch the assistant* (say which ready one), *Wait* + free text.
 - The objective could be UI or not UI and the answer changes which roles are
   spawned.
 - A reviewer would come from the same family as the implementer and no

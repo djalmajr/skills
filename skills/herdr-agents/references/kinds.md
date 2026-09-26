@@ -264,8 +264,11 @@ trusting a version named here.
 - **A dead provider looks like a finished worker.** The wait reports it as
   `provider-error` (exit 14) with the screen line as the cause (for example
   `Request timed out`, `Retry failed after N attempts`, `Connection error`,
-  `503: {…}`; the exact patterns are in `scripts/lib/provider.mjs`) when no
-  capacity marker is on the line: it is the provider, not the worker. A plain 503 is not retried; only the capacity markers below
+  `503: {…}`, `401`, `Incorrect API key`, or a revoked refresh token; the
+  exact patterns are in `scripts/lib/provider.mjs`) when no capacity marker
+  is on the line. A terminal authentication failure is reported on the first
+  observation; other provider errors require two matching observations. A
+  plain 503 is not retried; only the capacity markers below
   are. A running worker keeps the provider address it started with: after
   changing the endpoint in the CLI's config, release the old worker
   (`release <name> --close --force`) and spawn a new one.
