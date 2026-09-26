@@ -63,6 +63,11 @@ const seqElement = (advance) => {
 };
 if (cmd === 'agent get') {
   const t = argv[2] ?? '';
+  if (process.env.FAKE_GET_MODE && t === process.env.FAKE_GET_MODE_TARGET) {
+    // R11/D58 post-start states: the target reports the fixed mode.
+    process.stdout.write(JSON.stringify({ result: { agent: { name: t, agent_status: process.env.FAKE_GET_MODE } } }) + '\\n');
+    process.exit(0);
+  }
   if (process.env.FAKE_SEQ !== undefined && t === process.env.FAKE_SEQ_TARGET) {
     if (seqElement(true) === 'gone') {
       process.stderr.write('{"error":{"code":"agent_not_found","message":"gone"}}\\n');
@@ -126,6 +131,10 @@ if (cmd === 'agent get') {
     } else {
       process.stdout.write('screen line 1\\nscreen line 2\\n');
     }
+  } else if (process.env.FAKE_READ_TARGET && t === process.env.FAKE_READ_TARGET && process.env.FAKE_READ_FILE) {
+    // R11/D58 post-start screens: the target reads the file's content.
+    try { process.stdout.write(fs.readFileSync(process.env.FAKE_READ_FILE, 'utf8')); }
+    catch { process.stdout.write('screen line 1\\nscreen line 2\\n'); }
   } else {
     process.stdout.write('screen line 1\\nscreen line 2\\n');
   }
@@ -1255,6 +1264,111 @@ test('spawn: an alive agent without the marker proceeds after the first probe', 
     assert.ok(!r.stderr.includes('updated itself'), r.stderr);
     // Mutation captured: the full window waited (several probes) or the
     // check window missing entirely (no probe of the new agent).
+  } finally { fix.cleanup(); }
+});
+
+// ---------- the post-start auth check (R11/D58) ----------
+
+// A spawn whose new agent reads a fixed screen file: FAKE_READ_TARGET +
+// FAKE_READ_FILE answer `agent read` of the spawned name, FAKE_GET_MODE +
+// FAKE_GET_MODE_TARGET fix its `agent get` state (lanes off, an explicit
+// name and pane). No real provider, no real credentials: the secret below
+// is a fake placeholder shaped like the redactor's patterns.
+function runSpawnScreen(fix, name, screenBody, over = {}) {
+  const screenFile = path.join(fix.root, `screen-${name}`);
+  fs.writeFileSync(screenFile, screenBody);
+  return runSpawn(fix, ['implementer', '--name', name, '--pane', 'p-q'], {
+    HERDR_AGENTS_LANES: 'off',
+    FAKE_READ_TARGET: name,
+    FAKE_READ_FILE: screenFile,
+    ...over,
+  });
+}
+
+const AUTH_SCREEN = 'Error: 401 Unauthorized: Incorrect API key provided token=sk_test_fakestartup1\n';
+
+test('spawn: a stopped auth screen after a successful start dies 14, no roster line, pane open', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-auth-live-');
+  try {
+    fix.clearLog();
+    const r = runSpawnScreen(fix, 'w1', AUTH_SCREEN);
+    assert.equal(r.status, 14, r.stderr);
+    assert.match(r.stderr, /agent 'w1' \(grok\) hit a terminal provider authentication error right after start: Error: 401 Unauthorized: Incorrect API key provided token=\[redacted\]; pane p-q stays open for inspection/);
+    assert.ok(!r.stderr.includes('sk_test_fakestartup1'), 'the fake secret never reaches the output');
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.ok(friction.includes('error(exit 14)'), friction);
+    assert.equal(fix.row('w1'), '', 'no roster line for the auth-dead worker');
+    assert.equal(fix.logLines().filter((l) => l.startsWith('pane close')).length, 0, 'the pane stays open for inspection');
+    // Mutation captured: the auth check missing (ready, exit 0, roster
+    // line written) or the raw secret in the message.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: a blocked post-start state with an auth screen dies 14', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-auth-blocked-');
+  try {
+    fix.clearLog();
+    const r = runSpawnScreen(fix, 'w2', AUTH_SCREEN, { FAKE_GET_MODE: 'blocked', FAKE_GET_MODE_TARGET: 'w2' });
+    assert.equal(r.status, 14, r.stderr);
+    assert.match(r.stderr, /agent 'w2' \(grok\) hit a terminal provider authentication error right after start/);
+    assert.equal(fix.row('w2'), '', 'no roster line for the auth-dead worker');
+    assert.equal(fix.logLines().filter((l) => l.startsWith('pane close')).length, 0, 'the pane stays open for inspection');
+    // Mutation captured: skipping blocked workers in the auth check
+    // (ready, exit 0, roster line written).
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: a blocked post-start state without auth keeps the ready path and the roster line', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-blocked-plain-');
+  try {
+    fix.clearLog();
+    const r = runSpawnScreen(fix, 'w3', 'screen line 1\nscreen line 2\n', { FAKE_GET_MODE: 'blocked', FAKE_GET_MODE_TARGET: 'w3' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).status, 'ready');
+    assert.ok(fix.row('w3') !== '', 'the worker is registered');
+    // Mutation captured: the auth check firing on a non-auth screen.
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: a still-working worker is never classified from an old error line', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-auth-working-');
+  try {
+    fix.clearLog();
+    const r = runSpawnScreen(fix, 'w4', AUTH_SCREEN, { FAKE_GET_MODE: 'working', FAKE_GET_MODE_TARGET: 'w4' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).status, 'ready');
+    assert.ok(fix.row('w4') !== '', 'the worker is registered');
+    // Mutation captured: classifying the working worker (exit 14).
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: a transient provider screen at start still proceeds to ready', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-transient-');
+  try {
+    fix.clearLog();
+    const r = runSpawnScreen(fix, 'w5', 'Error: Connection error.\n');
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).status, 'ready');
+    assert.ok(fix.row('w5') !== '', 'the worker is registered');
+    // Mutation captured: treating every provider-error as terminal at
+    // start (exit 14 on a transient blip).
+  } finally { fix.cleanup(); }
+});
+
+test('spawn: an immediate exit with an auth screen dies 14, not 4', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-spawn-auth-exit-');
+  try {
+    const auth = path.join(fix.root, 'auth-crash');
+    fs.writeFileSync(auth, AUTH_SCREEN);
+    fix.clearLog();
+    const r = runSpawnSeq(fix, 'dead9', 'gone', { FAKE_READ_GONE: auth });
+    assert.equal(r.status, 14, r.stderr);
+    assert.match(r.stderr, /agent 'dead9' \(codex\) hit a terminal provider authentication error right after start: Error: 401 Unauthorized/);
+    assert.ok(!r.stderr.includes('sk_test_fakestartup1'), 'the fake secret never reaches the output');
+    assert.equal(fix.logLines().filter((l) => l.startsWith('agent start dead9 ')).length, 1, 'no relaunch: ' + fix.logLines().join('\n'));
+    assert.equal(fix.row('dead9'), '', 'no roster line for the auth-dead worker');
+    // Mutation captured: the exited path never consulting the auth
+    // patterns (exit 4 with the last-screen-lines message).
   } finally { fix.cleanup(); }
 });
 

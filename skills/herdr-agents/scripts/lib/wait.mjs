@@ -363,6 +363,15 @@ export function probeAgent(sd, agent, report, ctx, env = process.env) {
     const ptext = agentRead(env, agent, { source: 'recent-unwrapped', lines: 40 });
     const p = providerDetect(st.state, ptext);
     if (p) {
+      // Terminal authentication failure (R11/D58): no retry or second
+      // probe will help, so report it on the first probe instead of
+      // double-confirming or settling without a report. The quota check
+      // above still wins over this on the same screen.
+      if (p.status === 'provider-error' && p.auth === true) {
+        clearProviderMarks();
+        fs.writeFileSync(path.join(sd, 'wait', `${agent}.provider-cause`), `${p.cause}\n`);
+        return 'provider-error';
+      }
       // Double confirm, like blocked: the first detection records the
       // screen hash and the detected status in <agent>.provider and keeps
       // working; it acts only on the next probe when the hash AND the

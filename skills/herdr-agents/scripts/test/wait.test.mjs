@@ -1968,3 +1968,111 @@ test('wait: a missing, empty or non-numeric stuck-since is now (rewritten), neve
     assert.match(friction(), /for 21 min while working/);
   } finally { fix.cleanup(); }
 });
+
+// ---------- R11/D58: terminal authentication failures ----------
+
+// An auth failure reports provider-error on the FIRST probe — no second
+// identical screen, no settling without a report — and leaves no
+// double-confirm record behind. A transient failure right after still
+// needs its two probes.
+test('wait: an auth failure returns provider-error on the first probe', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-auth-first-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', 'Error: 401 Unauthorized: Incorrect API key provided\n');
+    const sd = fix.ws;
+    // Mutation captured: routing auth through the double confirm returns
+    // 'working' here (this asserts 'provider-error').
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'provider-error', 'the first probe reports');
+    assert.equal(fix.waitRead('w', 'provider-cause'), 'Error: 401 Unauthorized: Incorrect API key provided\n');
+    assert.equal(fix.waitRead('w', 'provider'), null, 'no double-confirm record for auth');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'provider-error', 'a second identical probe still reports');
+    // A transient failure on the next screen still double-confirms.
+    fix.screenOf('w', 'Error: Connection error.\n');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'a transient screen only records');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'provider-error', 'and confirms on the next probe');
+  } finally { fix.cleanup(); }
+});
+
+// Auth end-to-end: exit 14 on the first wait — no settled_grace — with
+// the lane/kind/model/cause JSON line and the friction warn.
+test('wait: auth exits 14 with the lane, kind, model and cause', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-auth-rc-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', '■ Failed to refresh access token: the refresh token was revoked, please log in again\n');
+    // Mutation captured: a wrong JSON key set or a missing immediate
+    // return changes the line or the rc (this asserts both).
+    const r = waitCmd(fix, ['w', '--timeout', '10000']);
+    assert.equal(r.status, 14, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.deepEqual(Object.keys(line), ['agent', 'status', 'report', 'lane', 'kind', 'model', 'cause']);
+    assert.equal(line.agent, 'w');
+    assert.equal(line.status, 'provider-error');
+    assert.equal(line.report, '');
+    assert.equal(line.lane, 'build');
+    assert.equal(line.kind, 'grok');
+    assert.equal(line.model, 'grok-4.7');
+    assert.match(line.cause, /refresh token was revoked/);
+    const friction = fs.readFileSync(path.join(fix.ws, 'friction.log'), 'utf8');
+    assert.match(friction, /warning\twait\tprovider error: agent 'w' lane=build kind=grok model=grok-4\.7 : .*refresh token was revoked/);
+  } finally { fix.cleanup(); }
+});
+
+// Quota still wins over an auth failure on the same screen: the quota
+// check runs first and the auth stop is never reported.
+test('wait: quota wins over an auth failure on the same screen', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-quota-over-auth-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', 'Individual quota reached\nError: 401 Unauthorized\n');
+    // Mutation captured: swapping the quota/provider order reports
+    // provider-error (rc 14) instead of quota (rc 11).
+    const r = waitCmd(fix, ['w', '--timeout', '2000']);
+    assert.equal(r.status, 11, r.stderr);
+    const line = jsonLines(r.stdout)[0];
+    assert.equal(line.status, 'quota');
+    assert.match(line.match, /Individual quota reached/);
+  } finally { fix.cleanup(); }
+});
+
+// Amendment regression: a non-401 unexpected status is transient, so the
+// first probe only records (working) and the second identical probe
+// confirms (provider-error) — never an immediate report like auth.
+test('wait: a non-auth unexpected status still needs two probes', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-nonauth-unexpected-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    fix.screenOf('w', 'Error: unexpected status 503 Service Unavailable\n');
+    const sd = fix.ws;
+    // Mutation captured: treating every unexpected status as auth returns
+    // 'provider-error' on this first probe (this asserts 'working').
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'the first probe only records');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'provider-error', 'the second equal probe confirms');
+    assert.equal(fix.waitRead('w', 'provider-cause'), 'Error: unexpected status 503 Service Unavailable\n');
+  } finally { fix.cleanup(); }
+});
+
+// Amendment 2: the bare lines without a reason phrase — a bare 503 goes
+// through the two-probe confirmation, a bare 401 reports immediately.
+test('wait: bare unexpected statuses without a reason phrase', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-wait-bare-unexpected-');
+  try {
+    fix.writeRoster(ROW('w', 'implementer', 'grok', 'grok-4.7', 'build'));
+    fix.mode('idle');
+    const sd = fix.ws;
+    fix.screenOf('w', 'Error: unexpected status 503\n');
+    // Mutation captured: dropping the bare pattern from the transient
+    // list settles this screen instead of recording it (this asserts
+    // 'working', and the confirm below asserts 'provider-error').
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'working', 'bare 503: the first probe only records');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'provider-error', 'bare 503: the second probe confirms');
+    assert.equal(fix.waitRead('w', 'provider-cause'), 'Error: unexpected status 503\n');
+    fix.screenOf('w', 'Error: unexpected status 401\n');
+    assert.equal(probeAgent(sd, 'w', '', fix.ctx, fix.env), 'provider-error', 'bare 401: immediate, no second probe');
+  } finally { fix.cleanup(); }
+});

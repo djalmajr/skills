@@ -11,7 +11,10 @@
 // `done`
 // and `unknown-agent` never consult herdr; quota is only considered when
 // the agent is not working, and always wins over the provider detection;
-// the provider gets one probe only — no double confirm, no continue.
+// the provider gets one probe only — no double confirm, no continue. On
+// a blocked worker a current decision question wins over an older 401 in
+// the screen history; a standalone blocked auth failure still reports
+// `provider-error`.
 import fs from 'node:fs';
 import path from 'node:path';
 import { stateDir, rosterLine, lastReport, warn, dieFriction } from '../state.mjs';
@@ -97,14 +100,28 @@ export function cmdStatus(argv, ctx, env = process.env, cwd = process.cwd()) {
         if (waitRank(15) > waitRank(rc)) rc = 15;
       } else if (!stale && orig === 'blocked') {
         // A blocked worker whose visible screen is a decision question is
-        // reported as `question` (rc 7) with the text, not blocked (one
-        // probe only, like the provider stop).
+        // reported as `question` (rc 7) with the text — the question is
+        // current and actionable, so it wins over an older 401 lingering
+        // in the recent-unwrapped history (R11 P2: never hide a current
+        // question behind stale auth history). Otherwise a terminal
+        // authentication failure in the recent screen is reported as
+        // `provider-error` (rc 14) on the first call — the credentials
+        // will not fix themselves while blocked. One probe only, like the
+        // provider stop.
         const kindNow = rosterLine(sd, a).split('\t')[2] ?? '';
         const visible = agentRead(env, a, { source: 'visible', lines: 40 });
         if (dialogKind(kindNow, visible) === 'question') {
           question = questionText(visible);
           // rc 7 sits below 11 and 14 and above 0 (the global wait rank).
           if (waitRank(7) > waitRank(rc)) rc = 7;
+        } else {
+          const ptext = agentRead(env, a, { source: 'recent-unwrapped', lines: 40 });
+          const pa = providerDetect(orig, ptext);
+          if (pa && pa.status === 'provider-error' && pa.auth === true) {
+            provider = pa;
+            // rc 14 sits below 11 and 4 and above 7 and 0 — the global wait rank.
+            if (waitRank(14) > waitRank(rc)) rc = 14;
+          }
         }
       } else if (!stale && orig !== 'working' && orig !== 'gone' && orig !== 'blocked' && orig !== 'unavailable') {
         const qtext = agentRead(env, a, { source: 'visible', lines: 20 });

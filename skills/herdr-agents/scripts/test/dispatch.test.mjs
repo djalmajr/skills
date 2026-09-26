@@ -120,14 +120,31 @@ if (cmd === 'agent get') {
   } else if (process.env.FAKE_REPORT_TEXT !== undefined) {
     // The fake worker writes the report in answer to the prompt: the
     // report path is the last "write your report to <path> and reply" of
-    // the prompt text, the body is the FAKE_REPORT_TEXT value.
+    // the prompt text, the body is the FAKE_REPORT_TEXT value. With
+    // FAKE_PROMPT_AUTHSCREEN the screen also becomes that file (a report
+    // with a moved screen); with FAKE_REPORT_APPEND the prompt echo is
+    // appended instead (a report with a scrollback-only move).
     const promptText = argv[3] ?? '';
     const rm = promptText.match(/write your report to (.+) and reply with exactly that path and nothing else\.$/);
     if (rm) { try { fs.writeFileSync(rm[1], process.env.FAKE_REPORT_TEXT); } catch {} }
+    if (process.env.FAKE_PROMPT_AUTHSCREEN && fs.existsSync(process.env.FAKE_PROMPT_AUTHSCREEN)) {
+      try { fs.writeFileSync(screenTargetOf(t), fs.readFileSync(process.env.FAKE_PROMPT_AUTHSCREEN, 'utf8')); } catch {}
+    } else if (process.env.FAKE_REPORT_APPEND) {
+      try { fs.appendFileSync(screenTargetOf(t), 'prompt received: ok\\n'); } catch {}
+    }
+    process.stdout.write('{"result":{"submitted":true}}\\n');
+  } else if (process.env.FAKE_PROMPT_AUTHSCREEN && fs.existsSync(process.env.FAKE_PROMPT_AUTHSCREEN)) {
+    // R11/D58: the worker takes the prompt and stops on an auth screen.
+    try { fs.writeFileSync(screenTargetOf(t), fs.readFileSync(process.env.FAKE_PROMPT_AUTHSCREEN, 'utf8')); } catch {}
     process.stdout.write('{"result":{"submitted":true}}\\n');
   } else {
     // Accepted into the scrollback: the screen moves, the state stays.
     try { fs.appendFileSync(screenTargetOf(t), 'prompt received: ok\\n'); } catch {}
+    if (process.env.FAKE_AUTH_APPEND && fs.existsSync(process.env.FAKE_AUTH_APPEND)) {
+      // R11/D58 amendment 3: the worker then emits a fresh auth failure
+      // (the file content) after the prompt echo.
+      try { fs.appendFileSync(screenTargetOf(t), fs.readFileSync(process.env.FAKE_AUTH_APPEND, 'utf8')); } catch {}
+    }
     process.stdout.write('{"result":{"submitted":true}}\\n');
   }
 } else if (cmd === 'agent send-keys') {
@@ -135,6 +152,10 @@ if (cmd === 'agent get') {
   // FAKE_SENDKEYS_WORK file exists; otherwise the key is swallowed.
   if (process.env.FAKE_SENDKEYS_WORK && fs.existsSync(process.env.FAKE_SENDKEYS_WORK)) {
     try { fs.writeFileSync(modeFileOf(t), 'working\\n'); } catch {}
+  }
+  if (process.env.FAKE_SENDKEYS_BLOCKED_AUTH && fs.existsSync(process.env.FAKE_SENDKEYS_BLOCKED_AUTH)) {
+    try { fs.writeFileSync(modeFileOf(t), 'blocked\\n'); } catch {}
+    try { fs.writeFileSync(screenTargetOf(t), fs.readFileSync(process.env.FAKE_SENDKEYS_BLOCKED_AUTH, 'utf8')); } catch {}
   }
   process.stdout.write('{"result":{}}\\n');
 } else if (cmd === 'agent list') {
@@ -3016,5 +3037,731 @@ test('dispatch: a mid-wait amendment that re-points the report settles on it (D3
     // report (or settled_report dropped / placed after report_exists)
     // breaks case A (report_exists false without the key, or the key order)
     // and case B (the key appearing on an unchanged pointer).
+  } finally { fix.cleanup(); }
+});
+
+// ---------- R11/D58: dispatch auth evidence (the --no-wait observation) ----------
+
+// A newly visible terminal auth failure after an accepted prompt reports
+// provider-error (exit 14) with the redacted cause, lane/model and the
+// existing JSON key order; the accepted attempt sidecar stays accepted.
+test('dispatch --no-wait: a newly visible auth failure exits 14 with the redacted cause (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-auth-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, 'Error: 401 Unauthorized: Incorrect API key provided sk-live-AbC123dEf456\n');
+    // Mutation captured: a missing observation (or one that reads the quota
+    // / question / transient order wrong, or that rewrites the sidecar
+    // submission) fails the status, the cause or the sidecar below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 14, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'provider-error');
+    assert.equal(j.lane, 'build');
+    assert.equal(j.model, 'grok-4.7');
+    assert.equal(j.cause, 'Error: 401 Unauthorized: Incorrect API key provided [redacted]');
+    assert.equal(j.kind, 'grok', 'the base kind key stays');
+    assert.ok(!('retries' in j) && !('match' in j) && !('renewal' in j) && !('question' in j),
+      'provider-error adds lane, model, cause only');
+    assert.ok(!('enter_sent' in j) && !('resent' in j), 'no key was sent and nothing was resent');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved', 'lane', 'model', 'cause'],
+      'the existing provider-error key order');
+    assert.match(r.stderr, /agent 'build' stopped on a provider error: Error: 401 Unauthorized: Incorrect API key provided \[redacted\]\. It is idle without a report; ask the user whether to resend the brief, switch the assistant, or wait\./);
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' },
+      'the accepted attempt sidecar stays accepted (no arrival key)');
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'one prompt only');
+    assert.equal(log.filter((l) => l.startsWith('agent send-keys')).length, 0, 'no keys sent');
+  } finally { fix.cleanup(); }
+});
+
+// An auth screen that predates the prompt is not attributed without
+// evidence of a new attempt: the screen never moved since H0 and no key
+// went out, so the dispatch stays submitted.
+test('dispatch --no-wait: an auth screen that predates the prompt is not attributed (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-stale-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Error: 401 Unauthorized: Incorrect API key provided\n');
+    // The worker took the prompt (the report is written) but the screen
+    // never moved: no enter_sent, no resent, no cksum change.
+    // Mutation captured: attributing the pre-existing screen (ignoring the
+    // new-evidence gate) reports provider-error instead of submitted.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_REPORT_TEXT: '# Report\n\ndone.\n' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.equal(j.report_exists, true);
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause without a new auth attempt');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' },
+      'no arrival mark on a received delivery');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- R11/D58 amendment 2: a completed report wins over the screen ----------
+
+// The worker writes the current non-empty report and the screen moves while
+// retaining the pre-submit 401: completion stands — submitted (exit 0,
+// report_exists true) with the ordinary keys and no resend warning.
+test('dispatch --no-wait: a completed report wins over a retained auth screen (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-report-auth-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Error: 401 Unauthorized: old credentials\n');
+    // The report is written and the prompt echo moves the screen, which
+    // retains the old 401.
+    // Mutation captured: letting the screen override completion reports
+    // provider-error (14) with report_exists true instead of submitted.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_REPORT_TEXT: '# Report\n\ndone.\n', FAKE_REPORT_APPEND: '1' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.equal(j.report_exists, true);
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause on a completed report');
+    assert.ok(!r.stderr.includes('sending it once more'), `no resend warning: ${r.stderr}`);
+    assert.ok(!r.stderr.includes('provider error'), `no provider warning: ${r.stderr}`);
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' },
+      'the accepted attempt sidecar stays accepted (no arrival key)');
+  } finally { fix.cleanup(); }
+});
+
+// Even a newly produced auth line cannot override a completed report: the
+// report is stronger evidence than any screen.
+test('dispatch --no-wait: a completed report wins over a new auth line (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-report-newauth-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Error: 401 Unauthorized: old credentials\n');
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, 'Error: 401 Unauthorized: old credentials\n■ Failed to refresh access token: the refresh token was revoked, please log in again\n');
+    // Mutation captured: classifying the new line despite the report
+    // returns provider-error (14) with report_exists true.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_REPORT_TEXT: '# Report\n\ndone.\n', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.equal(j.report_exists, true);
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause on a completed report');
+  } finally { fix.cleanup(); }
+});
+
+// Quota on the screen cannot override a completed report either.
+test('dispatch --no-wait: a completed report wins over quota (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-report-quota-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, 'Individual quota reached\ntry again in 2 hours\n');
+    // Mutation captured: checking quota before the report returns quota
+    // (11) with report_exists true.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_REPORT_TEXT: '# Report\n\ndone.\n', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.equal(j.report_exists, true);
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/match/renewal on a completed report');
+  } finally { fix.cleanup(); }
+});
+
+// Quota wins over an auth failure on the same screen, as everywhere.
+test('dispatch --no-wait: quota wins over an auth failure on the same screen (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-quota-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, 'Individual quota reached\ntry again in 2 hours\nError: 401 Unauthorized: Incorrect API key provided\n');
+    // Mutation captured: checking the provider before the quota reports
+    // provider-error (rc 14) instead of quota (rc 11).
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 11, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'quota');
+    assert.equal(j.lane, 'build');
+    assert.equal(j.model, 'grok-4.7');
+    assert.match(j.match, /Individual quota reached/);
+    assert.match(j.renewal, /try again in 2 hours/);
+    assert.ok(!('cause' in j), 'no provider cause on a quota');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved', 'lane', 'model', 'match', 'renewal'],
+      'the existing quota key order');
+  } finally { fix.cleanup(); }
+});
+
+// A current decision question skips the auth attribution: the worker is
+// asking, not stopped on credentials.
+test('dispatch --no-wait: a current decision question skips the auth attribution (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-question-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'codex', 'implementer', 'openai', fix.repo, 'gpt-5', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, 'Error: 401 Unauthorized: Incorrect API key provided\n  1. Retry with a new key\n  2. Abort the run\n\nEnter to submit answer, esc to cancel\n');
+    // Mutation captured: attributing before the question check reports
+    // provider-error on a screen the worker is deciding on.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause on a question screen');
+  } finally { fix.cleanup(); }
+});
+
+// A transient provider failure is left to a later wait with its double
+// confirmation: --no-wait stays submitted.
+test('dispatch --no-wait: a transient provider failure is not attributed (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-transient-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, 'Error: Connection error.\n');
+    // Mutation captured: dropping the auth-only gate reports provider-error
+    // on a failure the wait would still double-confirm.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause on a transient failure');
+  } finally { fix.cleanup(); }
+});
+
+// A prompt that never arrives ends not-received (exit 15), not
+// provider-error, even with an auth screen on the pane.
+test('dispatch --no-wait: a prompt that never arrives ends not-received despite the auth screen (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-notreceived-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Error: 401 Unauthorized: Incorrect API key provided\n');
+    fix.promptSkip(); // the first prompt is swallowed; the resend lands idle
+    // Mutation captured: the auth observation overriding the arrival
+    // failure reports provider-error (14) instead of not-received (15).
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1' });
+    assert.equal(r.status, 15, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'not-received');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists'],
+      'the error-case keys without raw');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted', arrival: 'not-received' },
+      'the accepted outcome stands; the arrival mark is added');
+  } finally { fix.cleanup(); }
+});
+
+// With prompt_check_seconds=0 there is no observation at all: submitted,
+// no added reads, even with an auth screen on the pane.
+test('dispatch --no-wait: prompt_check_seconds=0 observes nothing on an auth screen (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-nocheck-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Error: 401 Unauthorized: Incorrect API key provided\n');
+    // Mutation captured: observing anyway (or resending) adds agent
+    // get/read lines or a second prompt to the log below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '0' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'one prompt only');
+    assert.equal(log.filter((l) => l.startsWith('agent get ')).length, 0, 'no arrival probes');
+    assert.equal(log.filter((l) => l.startsWith('agent read ')).length, 0, 'no screen reads (not even the H0)');
+    assert.equal(fs.existsSync(path.join(fix.ws, 'wait', 'build.not-received')), false, 'no marker with the check off');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.equal(JSON.parse(fs.readFileSync(sidecar, 'utf8')).arrival, undefined, 'no arrival key with the check off');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- R11/D58: the stale-auth full-wait boundary ----------
+
+// A report written by this prompt is stronger arrival evidence than a
+// blocked state and an unchanged auth screen inherited from an earlier
+// attempt. In particular it must not leave a not-received marker.
+test('dispatch --no-wait: a completed report wins during stale-auth arrival (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-report-arrival-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('blocked');
+    fix.screen('Error: 401 Unauthorized: Incorrect API key provided\n');
+    fs.writeFileSync(fix.env.FAKE_SEQ, '7\n');
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_REPORT_TEXT: '# Report\n\ndone.\n' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.equal(j.report_exists, true);
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved']);
+    assert.equal(fs.existsSync(path.join(fix.ws, 'wait', 'build.not-received')), false);
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' });
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    const submittedAt = log.findIndex((l) => l.startsWith('agent prompt build '));
+    assert.ok(submittedAt >= 0);
+    assert.equal(log.slice(submittedAt + 1).some((l) => l.startsWith('agent get ') || l.startsWith('agent read ')), false,
+      'a completed report avoids post-submit Herdr state and screen probes');
+  } finally { fix.cleanup(); }
+});
+
+// A worker already blocked on an auth screen before the prompt, with no
+// post-submit screen or state-change evidence, never becomes the current
+// dispatch's provider-error: after the arrival window it returns
+// not-received (exit 15) with the sidecar arrival mark, and nothing is
+// resent to a pane that cannot take the prompt.
+test('dispatch: a stale blocked auth screen ends not-received, never provider-error (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-stale-wait-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('blocked');
+    fix.screen('Error: 401 Unauthorized: Incorrect API key provided\n');
+    fs.writeFileSync(fix.env.FAKE_SEQ, '7\n'); // the seq never moves: no state-change evidence
+    fix.promptSkip(); // the prompt is a silent no-op: no screen evidence either
+    // Mutation captured: counting the stale block as an arrival lets the
+    // wait report provider-error (14) on the first probe; resending to the
+    // stuck pane adds a second prompt to the log below.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--timeout', '5000'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1' });
+    assert.equal(r.status, 15, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'not-received');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists'],
+      'the error-case keys without raw');
+    assert.match(r.stderr, /prompt to 'build' was not received after its block on a provider auth error/);
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted', arrival: 'not-received' },
+      'the accepted outcome stands; the arrival mark is added');
+    assert.match(fs.readFileSync(path.join(fix.ws, 'wait', 'build.not-received'), 'utf8'),
+      /^\d{10} 7\n$/, 'the marker holds the epoch and the seq');
+    assert.equal(fs.existsSync(path.join(fix.ws, 'wait', 'build.provider-cause')), false,
+      'the wait never ran: no provider cause was recorded');
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'one prompt only');
+    assert.equal(log.filter((l) => l.startsWith('agent send-keys')).length, 0, 'no keys sent');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- R11/D58: identical auth across a bounded rollover ----------
+
+// The old 401 sits at line 31 of the 40-line pre window; 31 lines arrive
+// (prompt echo, ordinary output, then a new byte-identical 401) so the
+// post window evicts the old occurrence and ends on the new one. The
+// matching-line count stays 1. The same two bounded screens can arise
+// from a redraw of the old error, so no-wait leaves this ambiguous event
+// submitted and lets a later wait/status classify the terminal screen.
+test('dispatch --no-wait: an identical auth failure across a 40-line rollover remains unconfirmed (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-rollover-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    const AUTH = 'Error: 401 Unauthorized: Incorrect API key provided';
+    const out = (n) => `output line ${String(n).padStart(2, '0')}`;
+    const pre = [];
+    for (let n = 1; n <= 40; n += 1) pre.push(n === 31 ? AUTH : out(n));
+    fix.screen(`${pre.join('\n')}\n`);
+    const post = [...pre.slice(31), 'prompt received: ok'];
+    for (let n = 41; n <= 69; n += 1) post.push(out(n));
+    post.push(AUTH);
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, `${post.join('\n')}\n`);
+    // The pre/post windows do not identify which identical 401 produced
+    // the bottom line; do not claim a new failure from its position.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no attribution for ambiguous identical evidence');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' },
+      'the accepted attempt sidecar stays accepted (no arrival key)');
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'one prompt only');
+    assert.equal(log.filter((l) => l.startsWith('agent send-keys')).length, 0, 'no keys sent');
+  } finally { fix.cleanup(); }
+});
+
+// Repeated old 401 lines retained with only the prompt echo stay
+// submitted: the matching-line count has not grown.
+test('dispatch --no-wait: repeated retained old auth lines plus echo remain submitted (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-repeated-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    const AUTH = 'Error: 401 Unauthorized: Incorrect API key provided';
+    fix.screen(`${AUTH}\noutput line 02\n${AUTH}\n`);
+    // The default fake appends only the prompt echo; both old lines stay.
+    // A screen move alone never attributes an older failure.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause for retained repetitions');
+  } finally { fix.cleanup(); }
+});
+
+// Source-like text never counts as auth evidence: a `// Error: 401 ...`
+// code line next to the retained old error keeps the dispatch submitted.
+test('dispatch --no-wait: source-like auth text does not count as new evidence (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-sourcelike-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    const AUTH = 'Error: 401 Unauthorized: Incorrect API key provided';
+    fix.screen(`${AUTH}\n`);
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, `${AUTH}\nprompt received: ok\n// ${AUTH}\n`);
+    // Mutation captured: counting raw sanitized equality without the
+    // detector's error-line shape would treat the code line as a second
+    // occurrence; the gate counts through the same pipeline, so it stays
+    // submitted. (The count helper counts sanitized lines; the code line
+    // sanitizes differently and the detector skips it as source.)
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause for source-like text');
+  } finally { fix.cleanup(); }
+});
+
+// Both old occurrences are retained while the window slides, so the
+// matching-line count stays equal and dispatch remains submitted.
+test('dispatch --no-wait: shifted repeated old auth lines remain submitted (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-shiftedrepeat-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    const AUTH = 'Error: 401 Unauthorized: Incorrect API key provided';
+    const out = (n) => `output line ${String(n).padStart(2, '0')}`;
+    const pre = [];
+    for (let n = 1; n <= 40; n += 1) pre.push(n === 6 || n === 31 ? AUTH : out(n));
+    fix.screen(`${pre.join('\n')}\n`);
+    const post = [...pre.slice(5), 'prompt received: ok', out(41), out(42), out(43), out(44)];
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, `${post.join('\n')}\n`);
+    // An index change under scrolling does not prove a new failure.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause when every occurrence only moved up');
+  } finally { fix.cleanup(); }
+});
+
+// Screen redraw: the retained 401 is re-rendered at the bottom with no new
+// failure. Equal-count evidence stays submitted even when the error moves.
+test('dispatch --no-wait: a redrawn old auth line remains submitted (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-redraw-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    const AUTH = 'Error: 401 Unauthorized: Incorrect API key provided';
+    const out = (n) => `output line ${String(n).padStart(2, '0')}`;
+    const pre = [AUTH];
+    for (let n = 2; n <= 10; n += 1) pre.push(out(n));
+    fix.screen(`${pre.join('\n')}\n`);
+    const post = [...pre.slice(1), AUTH];
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, `${post.join('\n')}\n`);
+    // Trusting the absolute bottom index would report 14 for a reorder.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause for ambiguous evidence');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' },
+      'the accepted attempt sidecar stays accepted (no arrival key)');
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch --no-wait: a redraw with ordinary lines remains submitted (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-redraw-no-anchor-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    const AUTH = 'Error: 401 Unauthorized: Incorrect API key provided';
+    fix.screen(`${AUTH}\nprevious screen line A\nprevious screen line B\n`);
+    const auth = path.join(fix.root, 'redrawn-screen.txt');
+    fs.writeFileSync(auth, `redrawn screen line X\nredrawn screen line Y\n${AUTH}\n`);
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(parsePretty(r.stdout).wait_status, 'submitted');
+  } finally { fix.cleanup(); }
+});
+
+// A newly observed auth screen after the prompt still reports
+// provider-error (exit 14) on waitFor's first probe.
+test('dispatch: a newly observed auth screen reports provider-error on the first wait probe (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-newauth-wait-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Welcome to the worker\n');
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, 'Error: 401 Unauthorized: Incorrect API key provided\n');
+    // Mutation captured: the stale-auth guard swallowing the new screen
+    // (or the wait double-confirming auth) changes the status below from
+    // provider-error to not-received or delays it past the timeout.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--timeout', '5000'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 14, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'provider-error');
+    assert.equal(j.lane, 'build');
+    assert.equal(j.model, 'grok-4.7');
+    assert.equal(j.cause, 'Error: 401 Unauthorized: Incorrect API key provided');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved', 'lane', 'model', 'cause'],
+      'the existing provider-error key order');
+    assert.equal(j.report_exists, false);
+    assert.match(r.stderr, /agent 'build' stopped on a provider error: Error: 401 Unauthorized: Incorrect API key provided\. It is idle without a report; ask the user whether to resend the brief, switch the assistant, or wait\./);
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' },
+      'no arrival mark on a received delivery');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- R11/D58 amendment: the auth failure itself must be new ----------
+
+// The accepted prompt only appends its echo to the scrollback (no new auth
+// line, no state change, no key sent): the screen moves, so arrival rule 4
+// applies, but the old 401 already on screen must not become this
+// dispatch's provider-error.
+test('dispatch --no-wait: a scrollback-only append does not attribute the old auth failure (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-scrollback-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Error: 401 Unauthorized: Incorrect API key provided\n');
+    // The default fake: the prompt is accepted into the scrollback and the
+    // state stays idle.
+    // Mutation captured: attributing on a mere screen move reports
+    // provider-error (14) with the old 401 instead of submitted (0).
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1' });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause for a pre-existing failure');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' },
+      'the accepted attempt sidecar stays accepted (no arrival key)');
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'one prompt only');
+    assert.equal(log.filter((l) => l.startsWith('agent send-keys')).length, 0, 'no keys sent');
+  } finally { fix.cleanup(); }
+});
+
+// An old error that remains with a newly produced error line still exits
+// 14: the failure itself is new even though a stale failure was already
+// visible.
+test('dispatch --no-wait: an old auth error plus a new auth line still exits 14 (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-oldplusnew-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Error: 401 Unauthorized: Incorrect API key provided\n');
+    const auth = path.join(fix.root, 'auth-screen.txt');
+    fs.writeFileSync(auth, 'Error: 401 Unauthorized: Incorrect API key provided\n■ Failed to refresh access token: the refresh token was revoked, please log in again\n');
+    // Mutation captured: comparing only "was there an auth failure before"
+    // (instead of "is this failure new") stays submitted on a fresh stop.
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 14, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'provider-error');
+    assert.equal(j.lane, 'build');
+    assert.equal(j.model, 'grok-4.7');
+    assert.match(j.cause, /refresh token was revoked/);
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved', 'lane', 'model', 'cause'],
+      'the existing provider-error key order');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' },
+      'no arrival mark on a received delivery');
+  } finally { fix.cleanup(); }
+});
+
+// ---------- R11/D58: identical auth history stays unattributed ----------
+
+// The accepted prompt is followed by a prompt echo and then a newly
+// produced 401 line byte-identical to the pre-submit one (no Enter/resend,
+// no current report). The bounded screen cannot distinguish this from a
+// replay of the old frame, so dispatch leaves the attribution unconfirmed.
+test('dispatch --no-wait: an appended identical auth line remains unconfirmed (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-identical-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    fix.screen('Error: 401 Unauthorized: Incorrect API key provided\n');
+    const append = path.join(fix.root, 'auth-append.txt');
+    fs.writeFileSync(append, 'Error: 401 Unauthorized: Incorrect API key provided\n');
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_AUTH_APPEND: append });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.deepEqual(Object.keys(j),
+      ['wait_status', 'agent', 'role', 'kind', 'composed_prompt', 'report', 'report_exists', 'auto_approved'],
+      'no lane/model/cause for ambiguous identical evidence');
+    const sidecar = `${j.composed_prompt.slice(0, -3)}.dispatch.json`;
+    assert.deepEqual(JSON.parse(fs.readFileSync(sidecar, 'utf8')),
+      { version: 1, kind: 'grok', model: 'grok-4.7', effort: '', submission: 'accepted' },
+      'the accepted attempt sidecar stays accepted (no arrival key)');
+    const log = fix.log().split('\n').filter((l) => l !== '');
+    assert.equal(log.filter((l) => l.startsWith('agent prompt build ')).length, 1, 'one prompt only');
+    assert.equal(log.filter((l) => l.startsWith('agent send-keys')).length, 0, 'no keys sent');
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch --no-wait: replaying an old auth frame remains unconfirmed (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-replay-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    const frame = 'Error: 401 Unauthorized: Incorrect API key provided\nold frame line A\nold frame line B\n';
+    fix.screen(frame);
+    const auth = path.join(fix.root, 'replayed-screen.txt');
+    fs.writeFileSync(auth, `${frame}prompt received: ok\n${frame}`);
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.equal(j.report_exists, false);
+    assert.ok(!('cause' in j));
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch --no-wait: Enter does not make a preexisting identical auth cause new (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-enter-old-auth-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    const old = 'Error: 401 Unauthorized: Incorrect API key provided';
+    fix.screen(`${old}\n`);
+    const blocked = path.join(fix.root, 'old-auth-after-enter.txt');
+    fs.writeFileSync(blocked, `${old}\n`);
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_INPUT: '1', FAKE_SENDKEYS_BLOCKED_AUTH: blocked });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.equal(j.enter_sent, true);
+    assert.ok(!('cause' in j));
+    assert.deepEqual(fix.log().split('\n').filter((l) => l.startsWith('agent send-keys')),
+      ['agent send-keys build enter']);
+  } finally { fix.cleanup(); }
+});
+
+test('dispatch --no-wait: an auth line outside the detector tail remains unattributed when replayed (R11/D58)', { timeout: 60000 }, () => {
+  const fix = makeFix('ha-dispatch-nw-old-tail-');
+  try {
+    fix.writeRoster(undefined, ROW12('build', 'p1', 'grok', 'implementer', 'xai', fix.repo, 'grok-4.7', 'build'));
+    const brief = fix.brief('brief.md', FULL_BRIEF);
+    fix.mode('idle');
+    const old = 'Error: 401 Unauthorized: Incorrect API key provided';
+    const pre = [old, ...Array.from({ length: 20 }, (_, n) => `old output ${n}`)];
+    fix.screen(`${pre.join('\n')}\n`);
+    const auth = path.join(fix.root, 'replayed-auth.txt');
+    fs.writeFileSync(auth, `${pre.join('\n')}\nprompt received: ok\n${old}\n`);
+    const r = cmd(fix, ['dispatch', 'build', brief, '--no-wait'],
+      { HERDR_AGENTS_PROMPT_CHECK_SECONDS: '1', FAKE_PROMPT_AUTHSCREEN: auth });
+    assert.equal(r.status, 0, r.stderr);
+    const j = parsePretty(r.stdout);
+    assert.equal(j.wait_status, 'submitted');
+    assert.ok(!('cause' in j));
   } finally { fix.cleanup(); }
 });

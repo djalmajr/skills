@@ -33,6 +33,7 @@ import {
   agentRead, agentState, callerAgentName, HERDR_TIMEOUT_MS, liveAgents, paneClose, paneSplit,
 } from './herdr.mjs';
 import { pollIntervalMs } from './wait.mjs';
+import { providerDetect } from './provider.mjs';
 import {
   dieFriction, lastReport, nowStamp, rosterAppend, rosterLine, rosterRemove,
   rosterSetRole, rosterRows, stateDir, warn,
@@ -373,36 +374,45 @@ function checkPollMs(env) {
 //   'exited'  — the agent went gone without the marker (or after the
 //               relaunch, when canRelaunch is false): die 4 with the last
 //               screen lines. `lastScreen` is the last non-empty screen
-//               the window read.
+//               the window read, `lastState` the last probed agent state.
 function checkWindow(name, kind, pollMs, env, canRelaunch) {
   const marker = START_UPDATE_MARKERS[kind];
   let lastScreen = '';
+  let lastState = '';
   let seenMarker = 0;
   const end = Date.now() + 5000;
   for (;;) {
     const st = agentState(name, env);
+    lastState = st.state;
     const screen = agentRead(env, name, { source: 'visible', lines: 40 });
     if (screen !== '') lastScreen = screen;
     if (marker !== undefined && marker.test(screen)) seenMarker = 1;
     if (st.state === 'gone') {
-      if (canRelaunch && seenMarker === 1) return { verdict: 'updated', lastScreen };
-      return { verdict: 'exited', lastScreen };
+      if (canRelaunch && seenMarker === 1) return { verdict: 'updated', lastScreen, lastState };
+      return { verdict: 'exited', lastScreen, lastState };
     }
-    if (seenMarker === 1 && canRelaunch) return { verdict: 'updated', lastScreen };
-    if (seenMarker === 0 || Date.now() >= end) return { verdict: 'ok', lastScreen };
+    if (seenMarker === 1 && canRelaunch) return { verdict: 'updated', lastScreen, lastState };
+    if (seenMarker === 0 || Date.now() >= end) return { verdict: 'ok', lastScreen, lastState };
     sleepSync(pollMs);
   }
 }
 
 // The window's exit: the agent exited right after start (no update marker,
-// or the relaunch exited too). Up to 5 non-empty last screen lines joined
-// by ' / '; the pane stays open for inspection (the start failure does
-// the same) and no roster line is written (the spawn dies before it).
-function dieExitedAfterStart(name, kind, lastScreen, env) {
+// or the relaunch exited too). A stopped auth screen on the way out
+// (R11/D58) is a terminal credential failure, not a plain crash: die 14
+// with the sanitized cause. Otherwise up to 5 non-empty last screen lines
+// joined by ' / ' and die 4. Either way the pane stays open for inspection
+// (the start failure does the same) and no roster line is written (the
+// spawn dies before it).
+function dieExitedAfterStart(name, kind, pane, lastScreen, env) {
   let lines = lastScreen.split('\n').map((l) => l.trim()).filter((l) => l !== '');
   if (lines.length === 0) {
     // the pane is open and may still hold the text: one best-effort read
     lines = agentRead(env, name, { source: 'visible', lines: 40 }).split('\n').map((l) => l.trim()).filter((l) => l !== '');
+  }
+  const pa = providerDetect('gone', lines.join('\n'));
+  if (pa && pa.status === 'provider-error' && pa.auth === true) {
+    dieFriction(`agent '${name}' (${kind}) hit a terminal provider authentication error right after start: ${pa.cause}; pane ${pane} stays open for inspection`, 14);
   }
   dieFriction(`agent '${name}' (${kind}) exited right after start; last screen lines: ${lines.slice(-5).join(' / ')}`, 4);
 }
@@ -410,17 +420,19 @@ function dieExitedAfterStart(name, kind, lastScreen, env) {
 // The post-start check: the window, and when the agent's screen shows the
 // kind updating itself at start, the wait for the agent to go gone (until
 // the spawn timeout), a single relaunch in the same pane with the same
-// args, and a second window without another relaunch. Returns the blocked
-// flag of the (re)start (the blocked path registers the worker and exits
-// 7, as today); dies 4 when the agent exited right after start.
+// args, and a second window without another relaunch. Returns { blocked,
+// lastState, lastScreen }: the blocked flag of the (re)start (the blocked
+// path registers the worker and exits 7, as today) with the final window's
+// last probed state and screen for the auth check below; dies 4 (or 14 on
+// a stopped auth screen) when the agent exited right after start.
 function checkStartWindow(name, kind, pane, timeout, agentArgs, env, startAgent) {
   const poll = checkPollMs(env);
   let canRelaunch = true;
   let blocked = 0;
   for (;;) {
     const w = checkWindow(name, kind, poll, env, canRelaunch);
-    if (w.verdict === 'ok') return blocked;
-    if (w.verdict === 'exited') dieExitedAfterStart(name, kind, w.lastScreen, env);
+    if (w.verdict === 'ok') return { blocked, lastState: w.lastState, lastScreen: w.lastScreen };
+    if (w.verdict === 'exited') dieExitedAfterStart(name, kind, pane, w.lastScreen, env);
     // The update is on the screen: wait for the agent to go gone, until
     // the spawn timeout; if it is still alive when the timeout passes,
     // proceed as today (a live agent is not killed here).
@@ -431,7 +443,7 @@ function checkStartWindow(name, kind, pane, timeout, agentArgs, env, startAgent)
       sleepSync(poll);
       st = agentState(name, env);
     }
-    if (st.state !== 'gone') return blocked;
+    if (st.state !== 'gone') return { blocked, lastState: st.state, lastScreen: w.lastScreen };
     const r = startAgent(); // the shared retry loop; dies 4 on a hard failure
     blocked = r.blocked;
     warn(`'${name}' (${kind}) updated itself at start and exited; started it again`);
@@ -828,8 +840,26 @@ export function cmdSpawn(argv, ctx, env = process.env, cwd = process.cwd()) {
   // never started an agent): a CLI that updates itself at start exits
   // right after the start — the window catches it (one relaunch), and an
   // agent that exits without that marker makes the spawn die 4 before
-  // the roster line is written.
-  if (blocked === 0) blocked = checkStartWindow(name, kind, pane, timeout, agentArgs, env, startAgent);
+  // the roster line is written (14 on a stopped auth screen).
+  // A stopped auth screen on a live worker (R11/D58) is terminal: die 14
+  // with the sanitized cause before declaring the worker ready — no
+  // roster line, the pane stays open for inspection, like the exited
+  // path. Only auth counts (a transient startup blip still proceeds);
+  // the check runs on working and blocked workers alike — providerDetect
+  // never classifies a still-working worker — but unqueryable workers
+  // proceed as today. It reuses the window's last probe, no new herdr
+  // calls. The agent_not_ready start response (blocked=1, no agent
+  // started) keeps the exit 7 blocked-startup path below.
+  if (blocked === 0) {
+    const chk = checkStartWindow(name, kind, pane, timeout, agentArgs, env, startAgent);
+    blocked = chk.blocked;
+    if (blocked === 0 && chk.lastState !== 'unavailable') {
+      const pa = providerDetect(chk.lastState, chk.lastScreen);
+      if (pa && pa.status === 'provider-error' && pa.auth === true) {
+        dieFriction(`agent '${name}' (${kind}) hit a terminal provider authentication error right after start: ${pa.cause}; pane ${pane} stays open for inspection`, 14);
+      }
+    }
+  }
   // A name is only free for a spawn when no live agent uses it, so a
   // roster line left with that name — or with the pane the new worker now
   // hosts — belongs to an agent that exited: replace the stale lines.

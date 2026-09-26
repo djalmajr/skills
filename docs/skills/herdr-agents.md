@@ -344,9 +344,16 @@ not landed:
 - `blocked` (exit 7): the worker stopped on an approval dialog.
 - `question` (exit 7): the worker asked a question. It is never answered
   for the worker — read the pane and ask the user.
-- `provider-error` (exit 14): the worker's model provider is down (for
-  example `Request timed out`, `503: {…}`); it is the provider, not the
-  worker. The JSON `cause` is the screen line.
+- `provider-error` (exit 14): the worker's model provider is down or rejects
+  authentication (for example `Request timed out`, `503: {…}`, `401`,
+  `Incorrect API key`, or a revoked refresh token). The JSON `cause` is
+  sanitized. A terminal authentication failure is reported on the first
+  `wait` or `status` observation and after `spawn` starts the CLI. A received
+  `dispatch --no-wait` prompt can report the same failure immediately while
+  the current report is missing; a completed report takes precedence. If the
+  same auth cause was already visible before dispatch, `--no-wait` leaves it
+  unattributed even if its line reappears: redraw or replay can mimic a new
+  failure. Use `wait` or `status` to inspect the worker.
 - `capacity` (exit 14): the provider refused because it was full (for
   example an error naming `capacity` or `overload`, or status 529). The
   wait first sends the worker "continue" up to `provider_retries` times,
@@ -359,7 +366,8 @@ not landed:
   the prompt still sits in the input box (a CLI that was still opening
   swallows the first Enter), and ends `not-received` in about a minute
   instead of waiting for the screen to settle. Read the pane before
-  sending anything else.
+  sending anything else. An authentication screen that predates the prompt
+  and never changes also means the prompt was not received.
 
 The other outcomes: `quota` (exit 11, the account's quota is out),
 `settled-no-report` or `gone` (exit 6), `unavailable` (exit 4 — restore

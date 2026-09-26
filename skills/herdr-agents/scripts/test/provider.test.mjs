@@ -144,3 +144,120 @@ test('providerDetect: agent output below an error ends the search', () => {
   miss('idle', '  ⎿  API Error: Request timed out\n● Wrote the report\n>\n  ? for shortcuts', 'Claude went on after the error');
   hit('idle', '• Ran the tests\nError: Connection error.\n›\n  my-model · 40% left', 'provider-error', 'the error is below the last output');
 });
+
+// R11/D58: a terminal authentication failure is a provider-error with
+// auth=true — no retry or second probe will help. The stopped screen
+// contains `401`, `unexpected status`, `Incorrect API key` or
+// `refresh token was revoked`, including the Codex access-token refresh
+// failure. No real credentials anywhere: the secrets below are fake
+// placeholders shaped like the redactor's patterns.
+test('providerDetect: authentication failures are terminal provider-errors', () => {
+  const authHit = (state, screen, label) => {
+    const out = providerDetect(state, screen);
+    assert.ok(out, `${label}: expected a match`);
+    assert.equal(out.status, 'provider-error', `${label}: ${out.status}`);
+    assert.equal(out.auth, true, `${label}: the auth flag marks it terminal`);
+    assert.ok(out.cause, `${label}: non-empty cause`);
+  };
+  authHit('idle', 'Error: 401 Unauthorized', 'bare 401');
+  authHit('idle', 'Error: 401: {"message":"Incorrect API key provided"}', '401 with an API key message');
+  authHit('idle', 'API Error: Incorrect API key provided', 'Incorrect API key');
+  authHit('idle', '■ unexpected status 401: authentication failed', 'Codex unexpected status');
+  authHit('idle', '■ Failed to refresh access token: the refresh token was revoked, please log in again',
+    'Codex access-token refresh failure');
+  authHit('idle', 'Error: Failed to refresh access token', 'refresh failure without the revoked phrase');
+  // A transient failure keeps auth=false (the wait still double-confirms it).
+  const transient = providerDetect('idle', 'Error: Connection error.');
+  assert.ok(transient, 'transient matched');
+  assert.equal(transient.status, 'provider-error');
+  assert.equal(transient.auth, false, 'a transient failure is not auth');
+  // Capacity always wins over auth on the same line.
+  const both = providerDetect('idle', 'Error: 529 Incorrect API key');
+  assert.ok(both, 'matched');
+  assert.equal(both.status, 'capacity', 'capacity precedence over auth');
+  // The most recent matching line wins across the classes.
+  const newerTransient = providerDetect('idle', 'Error: 401 Unauthorized\nError: Connection error.\n');
+  assert.ok(newerTransient, 'matched');
+  assert.equal(newerTransient.auth, false, 'a newer transient wins over the older auth');
+  const newerAuth = providerDetect('idle', 'Error: Connection error.\nError: 401 Unauthorized\n');
+  assert.ok(newerAuth, 'matched');
+  assert.equal(newerAuth.auth, true, 'a newer auth wins over the older transient');
+});
+
+test('providerDetect: auth false positives stay null', () => {
+  miss('working', 'Error: 401 Unauthorized', 'never while working');
+  miss('idle', '  const msg = "Error: 401 Unauthorized";', 'a code line with 401');
+  miss('idle', '// Error: Incorrect API key provided', 'a comment line with an auth phrase');
+  miss('idle', '• Ran the health check: 401 on the first try, fine after', 'tool output with 401');
+  miss('idle', '● The docs said the refresh token was revoked, so I used the local copy', 'tool output with an auth phrase');
+  miss('idle', 'error: 401 unauthorized', 'lowercase error: start is not an error line');
+  miss('idle', 'throw new Error("Incorrect API key")', 'the text must START with the error word');
+  miss('idle', 'Error: expected a semicolon', 'an error line without any provider pattern');
+});
+
+test('providerDetect: the auth cause is redacted and sanitized', () => {
+  const out = providerDetect('idle', 'Error: 401 Unauthorized token=sk_test_fakekey000');
+  assert.ok(out, 'matched');
+  assert.equal(out.status, 'provider-error');
+  assert.equal(out.auth, true);
+  assert.equal(out.cause, 'Error: 401 Unauthorized token=[redacted]', 'the fake secret is redacted');
+  assert.ok(!out.cause.includes('sk_test_fakekey000'), 'no credential in the cause');
+});
+
+// Amendment: only a 401 unexpected status is auth — a non-401 unexpected
+// status stays a transient provider-error (the wait double-confirms it) —
+// and refresh matching is narrowed to a revoked refresh token or a failed
+// token refresh. The D58 revoked-token examples still match.
+test('providerDetect: non-401 unexpected statuses are transient, not auth', () => {
+  for (const screen of [
+    'Error: unexpected status 503 Service Unavailable',
+    'Error: unexpected status 500 Internal Server Error',
+    '■ unexpected status 503 Service Unavailable',
+  ]) {
+    const out = providerDetect('idle', screen);
+    assert.ok(out, `${screen}: still a provider stop`);
+    assert.equal(out.status, 'provider-error', screen);
+    assert.equal(out.auth, false, `${screen}: transient, needs the second probe`);
+  }
+  const auth401 = providerDetect('idle', 'Error: unexpected status 401: authentication failed');
+  assert.ok(auth401, 'matched');
+  assert.equal(auth401.status, 'provider-error');
+  assert.equal(auth401.auth, true, 'a 401 unexpected status stays terminal');
+});
+
+test('providerDetect: refresh matching needs a revoked token or a failed token refresh', () => {
+  for (const screen of [
+    '■ Failed to refresh access token: the refresh token was revoked, please log in again',
+    'Error: the refresh token was revoked by the admin',
+    'Error: refresh token revoked, please re-login',
+    'Error: Failed to refresh access token',
+  ]) {
+    const out = providerDetect('idle', screen);
+    assert.ok(out, `${screen}: expected a match`);
+    assert.equal(out.status, 'provider-error', screen);
+    assert.equal(out.auth, true, `${screen}: terminal auth`);
+  }
+  miss('idle', 'Error: failed to refresh the dashboard', 'a refresh without a token is not auth');
+  miss('idle', 'Error: the refresh token cache is stale', 'a refresh token without revoked is not auth');
+});
+
+// Amendment 2: a bare `unexpected status` with no HTTP reason phrase is
+// still a stop — transient for a non-401 code, terminal auth for 401 —
+// but only inside an error line.
+test('providerDetect: bare unexpected statuses classify inside an error line only', () => {
+  const bare503 = providerDetect('idle', 'Error: unexpected status 503');
+  assert.ok(bare503, 'matched');
+  assert.equal(bare503.status, 'provider-error');
+  assert.equal(bare503.auth, false, 'bare 503 is transient');
+  const bare401 = providerDetect('idle', 'Error: unexpected status 401');
+  assert.ok(bare401, 'matched');
+  assert.equal(bare401.status, 'provider-error');
+  assert.equal(bare401.auth, true, 'bare 401 stays terminal auth');
+  const glyph503 = providerDetect('idle', '■ unexpected status 503');
+  assert.ok(glyph503, 'matched');
+  assert.equal(glyph503.auth, false, 'the glyph line is transient too');
+  miss('idle', 'unexpected status 503', 'no error start: not a stop');
+  miss('idle', '• unexpected status 503, kept going locally', 'tool output is not a stop');
+  miss('idle', 'const s = "unexpected status 503";', 'a code line is not a stop');
+  miss('working', 'Error: unexpected status 503', 'never while working');
+});
