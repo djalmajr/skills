@@ -65,11 +65,11 @@ project, max 59):
     that broke the dev server and about 8 wrong selectors.
   - It also removed a field without checking a test that consumed it.
 
-**As reviewer or security-reviewer** (3 projects, about 43 tasks):
+**As reviewer or security-reviewer** (3 projects, about 45 tasks):
 - **Time depends on the effort:**
   - at `xhigh`: median 10 to 12 min, max 35;
-  - at `high` (one project, 4 tasks): 2 to 3 min on average, and it still
-    found concrete P1s.
+  - at `high` (one project, 6 tasks): about 2 to 3 min each, and it still
+    found concrete P1s, one proved with the external CLI's own trace.
 - **Strong:**
   - finds the class of bug an implementer left, and proves it with a probe
     in a throwaway copy;
@@ -114,7 +114,12 @@ project, max 59):
     - hung a function on a DOM node;
     - justified a change with a compiler option the project did not set;
   - wrote eval answer keys without checking them against the fixture;
-  - scripts needed security and cleanup fixes that the review found;
+  - scripts needed security and cleanup fixes that the review found. In
+    one, a request body was cut at the first space by the way it was
+    passed to an external CLI, and its test with a fake CLI did not see
+    it; run the real binary with adversarial input;
+  - in a long reused session, two reports mentioned a subject from outside
+    the brief. Spawn it `--fresh` after many tasks;
   - one pane gave no report after 9 min and was abandoned;
   - closed a task without reading a prompt sent to it mid-slice with a raw
     `herdr agent prompt`. The skill's way to add to a running slice is
