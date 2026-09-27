@@ -37,6 +37,7 @@ import { applyLaneFile, setupLaneSpec } from '../lanes.mjs';
 import { sessionConfPath } from '../session.mjs';
 import { setupBlockResult, settingsHooksResult } from '../setuptext.mjs';
 import { setupTargetExisting } from './setup.mjs';
+import { localRels, localTarget, planLocalExcludes, preflightLocalExcludes, refuseTrackedLocal, refuseUnignorableStateDir, resolveSetupMode } from '../setuplocal.mjs';
 
 // `[ -f ]` / `[ -L ]` ports (same as commands/setup.mjs, which does not
 // export them).
@@ -313,6 +314,7 @@ export function cmdSetupPlan(args, ctx, env = process.env, cwd = process.cwd()) 
   let panes = '';
   let target = '';
   let hooks = 1;
+  let local = 0;
   const laneSpecs = [];
   const setProj = [];
   const setUser = [];
@@ -340,6 +342,8 @@ export function cmdSetupPlan(args, ctx, env = process.env, cwd = process.cwd()) 
       else setSess.push([k, v]);
     } else if (a === '--no-hooks') {
       hooks = 0;
+    } else if (a === '--local') {
+      local = 1;
     } else {
       throw new DieError(`setup --plan: unknown option '${a}'`, 2);
     }
@@ -357,6 +361,22 @@ export function cmdSetupPlan(args, ctx, env = process.env, cwd = process.cwd()) 
   validate(setSess);
 
   const root = projectRoot(env, cwd);
+  // Local mode (R28/D71): --local wins over setup_target=local, an explicit
+  // --target wins over both, and --local with --target dies 2 here — before
+  // anything is shown.
+  const mode = resolveSetupMode({ local: local === 1, target, ctx, env, cmd: 'setup --plan' });
+  // Local preflight before any output: a symlinked CLAUDE.local.md must die
+  // here, not after the plan header, an unsafe state-dir name must die
+  // before the exclude diff is simulated, and an unresolvable, symlinked
+  // (or ancestor-redirected), unreadable-or-directory or unwritable exclude
+  // must die before a single plan line. Read-only (no active write probe):
+  // the plan must stay write-free, so the unwritable-destination refusal is
+  // the W_OK access check, and a healthy parent still plans.
+  if (mode === 'local') {
+    refuseUnignorableStateDir(root, ctx, env, cwd, 'setup --plan');
+    refuseTrackedLocal(root, env, 'setup --plan');
+    preflightLocalExcludes(root, localRels(root, ctx, env, cwd), env, 'setup --plan', false);
+  }
   const tmpd = fs.mkdtempSync(path.join(env.TMPDIR || os.tmpdir(), 'herdr-agents-plan.'));
   try {
     const projconf = configFileFor('project', env, cwd);
@@ -412,10 +432,15 @@ export function cmdSetupPlan(args, ctx, env = process.env, cwd = process.cwd()) 
       process.stdout.write('\n');
     }
 
-    // The instruction block, the hooks and the .gitignore entry are part of
+    // The instruction block, the hooks and the ignore entry are part of
     // every setup, so the plan simulates those writes and shows the unified
-    // diff of each file (config files keep the key before → after).
-    if (target === '') {
+    // diff of each file (config files keep the key before → after). Local
+    // mode targets CLAUDE.local.md and the repo-local info/exclude — never
+    // the tracked AGENTS.md/CLAUDE.md/.gitignore.
+    if (mode === 'local') {
+      target = localTarget(root);
+      refuseTrackedLocal(root, env, 'setup --plan');
+    } else if (target === '') {
       target = setupTargetExisting(root) ?? '';
       if (target === '') {
         if (isFile(path.join(root, 'AGENTS.md'))) target = path.join(root, 'AGENTS.md');
@@ -438,6 +463,16 @@ export function cmdSetupPlan(args, ctx, env = process.env, cwd = process.cwd()) 
       const sjAfter = settingsHooksResult(sjc);
       if (sjAfter === null) throw new DieError(`setup --plan: could not merge hooks into ${sj} (setup would refuse it and leave the file untouched)`, 4);
       process.stdout.write(planFileDiff(sj, sjc === null ? '' : sjc, sjAfter));
+    }
+    // Local mode keeps the block and the state dir unversioned through the
+    // repo-local info/exclude (shown, never written); canonical mode keeps
+    // the state dir in the tracked .gitignore via state_root.
+    if (mode === 'local') {
+      const planned = planLocalExcludes(root, localRels(root, ctx, env, cwd), env);
+      if (planned && planned.path !== '' && planned.after !== planned.before) {
+        process.stdout.write(planFileDiff(planned.path, planned.before, planned.after));
+      }
+      return;
     }
     // setup (and session set) call state_root, which adds the state dir to
     // the repo's .gitignore once; show that write too when it would happen.

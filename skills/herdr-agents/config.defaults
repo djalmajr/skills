@@ -198,6 +198,16 @@ state_dir=.herdr-agents
 # Language the workers must write reports in (empty = language of the brief).
 report_language=
 
+# Instruction target of plain `setup` / `setup --plan`: canonical (default,
+# the tracked AGENTS.md/CLAUDE.md) | local (the untracked CLAUDE.local.md,
+# for forks whose tracked instruction files belong to an upstream).
+# An explicit --target or --local overrides it per call. Do not set this in
+# a third-party fork's tracked project config — that would itself be a
+# tracked change there. Repeat --local, or run `session set setup_target local`
+# after the first `setup --local` (a project config only when the fork already
+# ignores it).
+setup_target=canonical
+
 # Herdr toast when a report lands: on | off.
 notify=off
 

@@ -57,6 +57,10 @@ to a file.
 
 ## Preconditions
 
+In a third-party fork, run `$S setup --local` before the first `$S init`
+if the state directory is not yet Git-ignored. Otherwise `init` can add that
+directory to the fork's tracked `.gitignore` before local setup runs.
+
 ```bash
 test "${HERDR_ENV:-}" = 1 && command -v herdr >/dev/null && { command -v node >/dev/null && [ "$(node -p 'process.versions.node' | cut -d. -f1)" -ge 20 ] || command -v bun >/dev/null; } && $S init
 ```
@@ -129,7 +133,8 @@ says what the team is and how to start.
 
 ## Names: who is who in the roster
 
-Run `$S init` first. It runs `doctor` (advisory: inside Herdr,
+Run `$S init` first, after any required first `setup --local` in a fork. It
+runs `doctor` (advisory: inside Herdr,
 Herdr client vs server version, the **official `herdr` skill present and
 identical to `herdr --skill`**, kinds in `PATH`, state dir writable,
 config sane), then renames the caller's own agent to `orchestrator`
@@ -1095,6 +1100,9 @@ one, and the orchestrator will read A and B itself. Run once per project:
 ```bash
 $S setup                      # block in AGENTS.md (or a non-symlink CLAUDE.md) + Claude hooks
 $S setup --target CLAUDE.md   # when CLAUDE.md is the canonical file
+$S setup --plan --local       # preview the local block, hooks and git exclusion
+$S setup --local              # for a third-party fork: local block + Claude hooks
+$S setup --local --no-hooks   # keep the fork's Claude settings file untouched
 $S setup --no-hooks           # instruction block only
 ```
 
@@ -1118,6 +1126,21 @@ or hooks are missing. Validate setup changes with
 `scripts/run-tests.sh --env outside test-setup.sh`.
 Codex, Grok, Cursor and agy have no prompt hooks; for them the block is
 the guard.
+
+For a fork whose tracked instructions belong to an upstream, `setup --local`
+puts the block in root `CLAUDE.local.md` and keeps that file and the state
+directory out of Git through the repository's local `info/exclude`. It leaves
+`AGENTS.md`, `CLAUDE.md` and the tracked `.gitignore` alone, while writing the
+Claude hooks unless `--no-hooks` is given. `doctor` accepts the local block.
+The hooks go to `.claude/settings.json`; local setup neither excludes that
+file nor checks whether the fork tracks it. Use `--no-hooks` when that file
+must remain untouched. Repeat `--local` on later setup calls, or, after the
+first local setup, run `session set setup_target local` for this Herdr
+workspace. A project config can hold that key only if the fork already
+ignores the config file. `CLAUDE.local.md` is read by Claude Code; other
+harnesses need their own local instruction route.
+Run this before the first `init` when the state directory is not already
+ignored; `init` can otherwise add it to the tracked `.gitignore`.
 
 ## Setup: guided configuration
 
@@ -1207,14 +1230,17 @@ Steps, in order, in the user's language (never the words `lane`, `kind`, or
    the session — and show its output: the exact change of every file it
    would touch — `key before → after` for the config files, a unified
    diff for the instruction file, `.claude/settings.json` and (when the
-   write would add it) `.gitignore` (it writes nothing). Options: *Write it*
+   write would add it) `.gitignore` or the local `info/exclude` with
+   `--local` (it writes nothing). Options: *Write it*
    (recommended
    — it matches your answers), *Adjust* (the user says what changes; the
    plan is rebuilt and shown again), *Cancel* + free text.
 6. **Write.** `setup --panes 2|3|4 --lane name=kind[:model[:effort]]…`,
    `config set <key> <value> [--user]`, `session set <key> <value>` — the
    same keys the plan showed — then `setup` (instruction block + hooks) and
-   `doctor`; act on whatever still warns.
+   `doctor`; act on whatever still warns. If the plan used `--local`, keep
+   `--local` on both setup writes (`setup --local --panes …`, then
+   `setup --local`) unless `setup_target=local` is already effective.
 
 ### How the answers are built (mechanics)
 

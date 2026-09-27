@@ -21,12 +21,12 @@ Usage:
   herdr-agents doctor [--fix] [--panes 2|3|4] [--user|--session]
                                              # advisory check; --fix normalizes lanes in the project file
   herdr-agents explain                       # plain text for a person: what is running, or how to start
-  herdr-agents setup [--target FILE] [--no-hooks] [--dry-run]
+  herdr-agents setup [--local | --target FILE] [--no-hooks] [--dry-run]
                      [--detect | --probe [--kind K --model M] [--timeout S]
                       | --plan [--panes 2|3|4] [--lane name=kind[:model[:effort]]]
                         [--set K V] [--user-set K V] [--session-set K V]]
                      [--panes 2|3|4] [--lane name=kind[:model[:effort]]]
-                                             # write the block + hooks; --detect/--probe/--plan print and write nothing
+                                             # write the block + hooks; --local uses CLAUDE.local.md and Git info/exclude; --detect/--probe/--plan print and write nothing
   herdr-agents roles | kinds
   herdr-agents config [set <key> <value> [--project|--user]]
   herdr-agents session [set <key> <value> | clear [key] | show]
