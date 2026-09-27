@@ -36,11 +36,10 @@ Human-facing notes moved out of individual skill folders.
 | [create-audio](create-audio.md) | Spoken audio (podcast / tutorial / VO); asks which engine |
 | [create-video](create-video.md) | Screencast (Playwright) or composed video (Remotion) |
 
-## Orchestration (1)
+## Orchestration
 
-| Skill | One-liner |
-|---|---|
-| [herdr-agents](herdr-agents.md) | Role agents (scout, designer, implementer, reviewer…) as CLI agents in Herdr panes |
+`herdr-agents` moved to [djalmajr/herdr-soho](https://github.com/djalmajr/herdr-soho)
+as `herdr-soho`; see [herdr-agents.md](herdr-agents.md).
 
 ## Planning (1)
 
