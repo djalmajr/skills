@@ -49,7 +49,7 @@ These skills are written for the common `SKILL.md` format used by `skills.sh`, C
 
 Keep frontmatter portable. Avoid agent-specific fields unless the skill truly needs them and the behavior is documented in `SKILL.md`.
 
-## Skills (25)
+## Skills (24)
 
 ### Agile (14)
 
@@ -90,11 +90,16 @@ Keep frontmatter portable. Avoid agent-specific fields unless the skill truly ne
 |-------|---------|
 | plan-goal | One plan with checklist + clipboard copy + paste-ready goal prompt |
 
-### Orchestration (1)
+### Orchestration
 
-| Skill | Purpose |
-|-------|---------|
-| herdr-agents | omp-style role agents (scouter, designer, implementer, reviewer…) run as CLI agents in Herdr panes; the caller orchestrates |
+The former `herdr-agents` skill moved to
+[djalmajr/herdr-soho](https://github.com/djalmajr/herdr-soho) and is now
+named `herdr-soho`:
+
+```bash
+bunx skills remove herdr-agents -g -y
+bunx skills add djalmajr/herdr-soho --skill herdr-soho -g
+```
 
 ### UX (2)
 
@@ -169,7 +174,6 @@ Each skill is invoked with `/skill-name`:
 /create-audio
 /create-video
 /plan-goal
-/herdr-agents
 ```
 
 Not sure which skill to use? Try `/agile-router`.
