@@ -34,7 +34,8 @@ import { resolveModel } from '../models.mjs';
 import { sessionConfPath } from '../session.mjs';
 import { splitCap, splitMin } from '../layout.mjs';
 import { herdLabelMax } from '../herdtabs.mjs';
-import { setupHookDoctor } from '../setuptext.mjs';
+import { SETUP_START, setupHookDoctor } from '../setuptext.mjs';
+import { LOCAL_INSTRUCTION_FILE } from '../setuplocal.mjs';
 import { kindExe } from '../kinds.mjs';
 import { ownProviderDoctorLines } from '../ownproviders.mjs';
 import { sandboxNotes } from '../dispatch.mjs';
@@ -773,13 +774,25 @@ export function doctorCheck(ctx, env = process.env, cwd = process.cwd()) {
   else s.ok(`config: herd_label='${cfg(ctx, 'herd_label', '{roles}', env)}' herd_label_max=${herdLabelMax(ctx, env)}`);
   // Instruction block + hooks: without them the orchestrator forgets to
   // delegate when a prompt does not say "herdr" or "workers". `setup`
-  // writes both.
+  // writes both. A valid block in CLAUDE.local.md (R28/D71) counts too —
+  // but only for the check: canonical `setup` still resolves its target
+  // from AGENTS.md/CLAUDE.md alone and never silently switches to local.
   const root = projectRoot(env, cwd);
   const t = setupTargetExisting(root);
+  let localHas = false;
+  try { localHas = readTextFile(path.join(root, LOCAL_INSTRUCTION_FILE)).includes(SETUP_START); } catch { /* absent */ }
   if (t) s.ok(`instruction block present in ${path.basename(t)}`);
+  else if (localHas) s.ok(`instruction block present in ${LOCAL_INSTRUCTION_FILE}`);
+  else if (cfg(ctx, 'setup_target', 'canonical', env) === 'local') s.warn(`no herdr-agents block in ${LOCAL_INSTRUCTION_FILE}: run '${ENTRY_SCRIPT} setup --local' (writes the delegation rules between <!-- herdr-agents:start/end --> markers, kept unversioned)`);
   else s.warn(`no herdr-agents block in AGENTS.md/CLAUDE.md: run '${ENTRY_SCRIPT} setup' (writes the delegation rules between <!-- herdr-agents:start/end --> markers)`);
   if (isFile(path.join(root, '.claude', 'settings.json')) && settingsHasDoctorHook(path.join(root, '.claude', 'settings.json'))) {
     s.ok('Claude hooks present in .claude/settings.json');
+  } else if (localHas || cfg(ctx, 'setup_target', 'canonical', env) === 'local') {
+    // A fork on the local target must never be sent to canonical `setup`
+    // (it would write the upstream's tracked instruction file): the
+    // missing-hooks warning keeps the local target, whether the local
+    // block already exists or setup_target=local says it should.
+    s.warn(`no herdr-agents hooks in .claude/settings.json: run '${ENTRY_SCRIPT} setup --local' (UserPromptSubmit reminder + SessionStart doctor)`);
   } else {
     s.warn(`no herdr-agents hooks in .claude/settings.json: run '${ENTRY_SCRIPT} setup' (UserPromptSubmit reminder + SessionStart doctor)`);
   }

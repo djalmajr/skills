@@ -237,6 +237,19 @@ versioned) → `HERDR_AGENTS_<KEY>` → flags. `herdr-agents config` shows the
 effective values and where each came from (scalar keys, then the dotted
 `args.*`/`role.*`/`model.*`/`effort.*`/`lane.*` keys in the file's own
 spelling). `brief_lint_aliases` sets alternate brief section headings.
+For a third-party fork, `setup --plan --local` previews a local
+`CLAUDE.local.md` block and Claude hooks; `setup --local` writes them. Local
+setup keeps the block and state directory out of Git through `info/exclude`,
+leaving tracked upstream instructions and `.gitignore` untouched. `doctor`
+recognizes the local block. The hooks go to `.claude/settings.json`, which
+local setup neither excludes nor checks for tracking; use `--no-hooks` when
+that file must remain untouched. Repeat `--local` on later setup calls, or
+run `session set setup_target local` after the first local setup. A project
+config can hold the key only if the fork already ignores that file. Claude
+Code reads `CLAUDE.local.md`; other harnesses need their own local
+instruction route. In a new fork, run local setup before the first `init`
+if the state directory is not already ignored; `init` can otherwise add
+it to the tracked `.gitignore`.
 Kind and model travel together per layer: a lane or role model from a
 layer below the layer that set the effective kind is discarded, and
 `--kind` without `--model` discards every configured lane/role model;
