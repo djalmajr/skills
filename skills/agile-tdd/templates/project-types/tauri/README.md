@@ -46,4 +46,4 @@ edit; the gate lists each pending app separately.
 
 The actual "how to debug & validate Tauri with MCP" knowhow (toolbox,
 gotchas, rebuild flow, Definition of Done) lives in the parent
-`SKILL.md` under the section **"Tauri MCP validation (project type)"**.
+`references/tauri.md` (**"Tauri MCP validation (project type)"**).

@@ -22,7 +22,7 @@ apps at session end.
 MCP toolbox details, validation patterns, and cross-project gotchas
 (whisper-rs abort_callback_safe, orphan jobs after restart, modal/dialog
 race, schema drift, decode pipeline): see "Tauri MCP
-validation (project type)" in `.claude/skills/agile-tdd/SKILL.md`.
+validation (project type)" in `.claude/skills/agile-tdd/references/tauri.md`.
 
 Project-specific gotchas and fixes live in the local wiki (if the project
 adopts the LLM Wiki pattern): look for

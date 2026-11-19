@@ -103,107 +103,21 @@ Every `.excalidraw` file is this top-level object:
 
 ## The element model
 
-Elements are a discriminated union on `type`. **Every** element carries this common block
-(values below are the safe defaults):
+Elements are a discriminated union on `type`; `rectangle`, `text`, and `arrow` cover most
+diagrams. Every field, default, and per-type shape lives in
+`references/element-reference.md` — read it before hand-writing elements. The rules that
+break scenes most often:
 
-| Field | Type | Default / notes |
-|---|---|---|
-| `id` | string | Unique within the scene. Any string works (`"el-1"`, a nanoid…). |
-| `type` | string | `"rectangle" \| "text" \| "arrow"` (others exist; these three cover most diagrams). |
-| `x`,`y` | number | Top-left on the canvas. Y grows **downward**, X rightward, px units. |
-| `width`,`height` | number | Bounding size. For arrows this is the extent of `points`. |
-| `angle` | number | Rotation in radians. `0` = upright. |
-| `strokeColor` | string | Outline/text color. Default `#1e1e1e`. |
-| `backgroundColor` | string | Fill. `"transparent"` for unfilled shapes. |
-| `fillStyle` | string | `"solid" \| "hachure" \| "cross-hatch"`. Use `"solid"`. |
-| `strokeWidth` | number | `1` thin, `2` bold (default), `4` extra-bold. |
-| `strokeStyle` | string | `"solid" \| "dashed" \| "dotted"`. |
-| `roughness` | number | Sketchiness: `0` architect (clean), `1` artist (default), `2` cartoonist. |
-| `opacity` | number | `0`–`100`. |
-| `groupIds` | string[] | Group membership — see **Groups**. `[]` = ungrouped. |
-| `frameId` | string \| null | Owning frame id, or `null`. |
-| `roundness` | object \| null | Corner/curve style — see per-type below. |
-| `seed` | number | Arbitrary integer (Excalidraw's hand-drawn RNG seed). Any int. |
-| `versionNonce` | number | Arbitrary integer; changes on every edit. |
-| `version` | number | Edit counter; start at `1`, bump on each change. |
-| `isDeleted` | boolean | `false`. Soft-deleted elements stay in the file with `true`. |
-| `boundElements` | array | Back-references to bound arrows/labels — see **Binding**. |
-| `updated` | number | Epoch-ms timestamp (or any monotonic int for deterministic output). |
-| `link` | string \| null | Optional hyperlink. |
-| `locked` | boolean | `false`. |
-
-> **`index` (z-order):** the Excalidraw editor adds a fractional-index string per element
-> (`"a0"`, `"a1"`, …) to track stacking order. **When hand-authoring, omit it** — the
-> editor assigns indices on load from your array order. Do *not* set it on some elements
-> and not others; partial indices corrupt the z-order.
-
-### rectangle
-
-```json
-{ "type": "rectangle", "roundness": { "type": 3 }, /* + common fields */ }
-```
-
-- `roundness: { "type": 3 }` → rounded corners. `roundness: null` → sharp corners.
-- A box with a label is a rectangle **plus** a separate text element (see **Labels**).
-
-### text
-
-```json
-{
-  "type": "text",
-  "text": "Login service",
-  "originalText": "Login service",
-  "fontSize": 16,
-  "fontFamily": 2,
-  "textAlign": "left",
-  "verticalAlign": "top",
-  "containerId": null,
-  "lineHeight": 1.25,
-  "baseline": 13,
-  "autoResize": true,
-  "roundness": null
-  /* + common fields */
-}
-```
-
-- `text` is what renders; `originalText` mirrors it (Excalidraw keeps both — keep them
-  equal unless you know why not).
-- `fontFamily`: `1` = hand-drawn (Virgil), `2` = normal (Helvetica, default), `3` = code
-  (Cascadia/monospace).
-- **`width`/`height` must match the rendered text** or the editor will look wrong until it
-  recomputes. With no font metrics available, approximate:
-  `width ≈ longestLineChars × fontSize × 0.58`, `height ≈ lineCount × fontSize × 1.25`.
-  `baseline ≈ round(fontSize × 0.8)`. Setting `autoResize: true` lets the editor correct
-  sizing on load.
-- `textAlign`: `"left" | "center" | "right"`. `verticalAlign`: `"top" | "middle" | "bottom"`.
-
-### arrow
-
-```json
-{
-  "type": "arrow",
-  "points": [[0, 0], [0, 80]],
-  "lastCommittedPoint": null,
-  "startBinding": { "elementId": "el-1", "focus": 0, "gap": 4 },
-  "endBinding":   { "elementId": "el-2", "focus": 0, "gap": 4 },
-  "startArrowhead": null,
-  "endArrowhead": "arrow",
-  "roundness": { "type": 2 }
-  /* + common fields */
-}
-```
-
-- **`points` are relative to the arrow's own `x`/`y`.** The first point is `[0, 0]`; the
-  arrow's `x`/`y` *is* that first point in absolute canvas coordinates. `width`/`height`
-  are the bounding extent of the points. A common mistake is storing absolute points —
-  don't.
-- Multi-segment (orthogonal/elbow) arrows are just more points:
-  `[[0,0],[0,40],[120,40]]` draws down-then-right. Keep segments **axis-aligned** (purely
-  horizontal or vertical) for clean routing.
-- `roundness: { "type": 2 }` rounds the bends; `null` keeps sharp elbows.
-- `endArrowhead`/`startArrowhead`: `"arrow"` (default end), `null` (none), or `"triangle"`,
-  `"dot"`, `"bar"`.
-- Color arrows via `strokeColor` (a muted `#495057` reads well as default).
+- **Common block on every element:** `id`, `type`, `x`/`y` (Y grows **down**), `width`/`height`,
+  `strokeColor`, `backgroundColor`, `groupIds`, `boundElements`, `seed`, `version`, `isDeleted`.
+- **Omit `index`** (z-order). The editor assigns it from array order; partial indices corrupt stacking.
+- **rectangle:** `roundness: { "type": 3 }` for rounded corners, `null` for sharp. A labelled box
+  is a rectangle **plus** a text element (see **Labels**).
+- **text:** keep `originalText` equal to `text`; `fontFamily` `1` hand-drawn, `2` normal, `3` code.
+  Size it to the rendered text (`width ≈ longestLineChars × fontSize × 0.58`,
+  `height ≈ lineCount × fontSize × 1.25`) or set `autoResize: true`.
+- **arrow:** `points` are **relative** to the arrow's own `x`/`y` and start at `[0, 0]`.
+  Elbows are extra axis-aligned points; `roundness: { "type": 2 }` rounds the bends.
 
 ## Binding — make arrows follow their shapes
 
