@@ -1,6 +1,6 @@
 ---
 name: agile-router
-description: Routes to the appropriate agile skill based on context. Use when you need guidance on which skill to use — planning, ceremonies, tracking, prototype/UX, TDD, or memory.
+description: Routes to the appropriate agile skill based on context. Use when you need guidance on which agile skill to use — planning, ceremonies, tracking, prototypes, TDD, or onboarding. Knows only the agile-* skills.
 compatibility: opencode
 metadata:
   audience: engineering
@@ -32,26 +32,27 @@ No-pause mode: if the user has explicitly disabled mid-skill clarification, pick
 
 ## Scope
 
-This skill covers these areas. **Resolve UI / test / memory first**, then fall through to planning:
+This skill knows only the `agile-*` skills. Requests outside them (UX walkthroughs, production UI, media, memory) are out of scope: say so and let the agent pick from its own skill list.
+
+**Resolve prototype / test / onboarding first**, then fall through to planning:
 
 | Area | Question | Skills |
 |---|---|---|
-| UI / flow | Need to validate a screen, mockup, or journey? | `/agile-proto` (+ `htm-ui` skill), `/agile-design`, `/ux-flows`, `/ux-persona` |
+| Prototype | Need to validate a screen, mockup, or flow before building? | `/agile-proto`, `/agile-design` |
 | Test | Need TDD, coverage, or red-green? | `/agile-tdd` |
-| Memory | Wire or query project knowledge? | `/aim-init`, `/aim-query`, `/aim-write` |
+| Onboarding | Someone new needs to learn the flow? | `/agile-onboarding` |
 | What to create | What planning artifact fits this work? | `/agile-intake`, `/agile-roadmap`, `/agile-epic`, `/agile-story` |
 | What ceremony to run | Where are we in the sprint cycle? | `/agile-sprint`, `/agile-review`, `/agile-retro` |
 | What to track | How should I report progress? | `/agile-status` (checkpoint, consolidation, closure) |
 
 ## Decision tree
 
-### First: UI, test, or memory?
+### First: prototype, test, or onboarding?
 
-- **Clickable browser prototype / validate a flow without a backend** → `/agile-proto` (complement: `htm-ui` skill)
+- **Clickable browser prototype / validate a flow without a backend** → `/agile-proto`
 - **Screens and states in a design tool (Paper, Figma, Pen.dev, Penpot…)** → `/agile-design`
-- **Walk the app (or the served proto) as a user** → `/ux-flows`, `/ux-persona`
 - **TDD, coverage, red-green, test enforcement** → `/agile-tdd`
-- **Wire ai-memory, recall, durable annotation** → `/aim-init`, `/aim-query`, `/aim-write`
+- **New team member learning the flow** → `/agile-onboarding`
 - **Otherwise** → planning, ceremony, or tracking below
 
 ### Planning: What artifact do I need?
@@ -74,7 +75,7 @@ flowchart TD
 
 > **Note on `/agile-roadmap`:** Roadmap is NOT defined by time horizon (e.g., "3-12 months"). It is defined by **trajectory complexity**. Even a 4-week initiative benefits from a roadmap if it has multiple sequenced phases with dependencies between them.
 
-> **Note on `/agile-epic`:** Handles both the epic overview and story decomposition. There is no separate story skill. Medium work that needs richer acceptance criteria goes through `/agile-epic` for structure, or directly to `/agile-story` if it's a single vertical delivery.
+> **Note on `/agile-epic`:** Handles both the epic overview and story decomposition. `/agile-story` is for a single story or a localized standalone change. Medium work that needs richer acceptance criteria goes through `/agile-epic` for structure, or directly to `/agile-story` if it's a single vertical delivery.
 
 ### Ceremonies: Where am I in the cycle?
 
@@ -122,7 +123,7 @@ Sizing alone is not enough to decide between roadmap and epic. Use this checklis
 ## Process
 
 1. Listen to the user's context.
-2. Determine which area applies: UI/test/memory, planning, ceremony, or tracking.
+2. Determine which area applies: prototype/test/onboarding, planning, ceremony, or tracking. Outside these, say the router does not cover it.
 3. Apply the decision tree for that area.
 4. Recommend the specific skill with a brief explanation.
 5. Confirm with the user before they proceed.
@@ -148,11 +149,9 @@ Sizing alone is not enough to decide between roadmap and epic. Use this checklis
 | `/agile-review` | Sprint review, metrics, and demo |
 | `/agile-retro` | Retrospective with improvement actions |
 | `/agile-tdd` | TDD coaching and optional enforcement |
-| `/agile-proto` | Static browser prototype process (complement: `htm-ui` skill) |
+| `/agile-proto` | Static browser prototype process |
 | `/agile-design` | Screens, states, and flows in any design tool |
 | `/agile-onboarding` | New team member onboarding |
-| `/ux-flows` / `/ux-persona` | Usage-flow catalog and persona walkthroughs |
-| `/aim-init` / `/aim-query` / `/aim-write` | Wire and use ai-memory |
 | `/agile-router` | This skill — guidance on which skill to use |
 
 ## Relationship with the flow

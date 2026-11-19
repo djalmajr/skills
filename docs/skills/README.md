@@ -23,11 +23,12 @@ Human-facing notes moved out of individual skill folders.
 | [agile-proto](agile-proto.md) | Static browser prototype process; UI via the `htm-ui` skill |
 | [agile-design](agile-design.md) | Screens, states, and flows in any design tool |
 
-## Design (1)
+## Design (2)
 
 | Skill | One-liner |
 |---|---|
 | [design-workflow](design-workflow.md) | Contrato de UI + gate de paridade + bootstrap sobre o DESIGN.md raiz |
+| [excalidraw](../../skills/excalidraw/SKILL.md) | Author & edit raw `.excalidraw` scene files |
 
 ## Media (2)
 
@@ -46,3 +47,10 @@ as `herdr-soho`; see [herdr-agents.md](herdr-agents.md).
 | Skill | One-liner |
 |---|---|
 | [plan-goal](plan-goal.md) | One plan with checklist + clipboard copy + paste-ready goal prompt |
+
+## UX (2)
+
+| Skill | One-liner |
+|---|---|
+| [ux-flows](../../skills/ux-flows/SKILL.md) | Usage-flow catalog and E2E orchestration |
+| [ux-persona](../../skills/ux-persona/SKILL.md) | Walk one flow through the UI as a persona |
