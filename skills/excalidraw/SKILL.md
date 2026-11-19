@@ -51,7 +51,7 @@ Free-form prompts (no structured tool):
 - Output path and file name
 - Diagram content (boxes, labels, connections)
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, use `excalidraw mermaid` when the diagram fits a Mermaid type, the builder otherwise, edit in place for small changes, and state the choice in the summary.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), use `excalidraw mermaid` when the diagram fits a Mermaid type, the builder otherwise, edit in place for small changes, and state the choice in the summary.
 
 ## When to use
 
