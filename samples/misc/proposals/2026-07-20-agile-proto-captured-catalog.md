@@ -1,3 +1,9 @@
+---
+status: obsolete
+reviewed: 2026-11-19
+resolution: "Pencil/ADS catalog left agile-proto (now HTML-only via htm-ui, skills/agile-proto/SKILL.md:3,16); successor agile-design forbids catalogs/capture pipelines (skills/agile-design/SKILL.md:116)."
+---
+
 # Skill Feedback: catálogo capturado para o agile-proto
 
 **Observed during:** retomada do catálogo Pencil/ADS no repositório de skills

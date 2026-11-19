@@ -1,3 +1,9 @@
+---
+status: applied
+reviewed: 2026-11-19
+resolution: "skills/design-workflow/ exists with contract/audit/bootstrap modes (SKILL.md:6-14) and scripts/check-classes.ts + check-tokens.ts; figma-capture and minions absent from skills/ and skills.json."
+---
+
 # 2026-08-31 — criação de `design-workflow` + remoção de `figma-capture`/`minions`
 
 ## Evidência

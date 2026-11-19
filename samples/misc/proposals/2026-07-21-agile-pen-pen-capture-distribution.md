@@ -1,3 +1,9 @@
+---
+status: obsolete
+reviewed: 2026-11-19
+resolution: "agile-pen and its pen-capture script were removed in 0b62c7c; agile-design owns no capture pipeline (skills/agile-design/SKILL.md:8,116)."
+---
+
 # Skill Feedback: Distribuição reproduzível do pen-capture
 
 **Observed during:** teste ponta a ponta do `agile-pen` com `dashboard-01`
@@ -9,7 +15,7 @@
 - Source skill version/commit: worktree local deste repo
 - Model/provider (if AI-generated): Codex / OpenAI
 - Originating session/journal: teste do Trello Clone em Pen.dev
-- Related findings/proposals: `feedback/2026-07-21-agile-pen-registry-blocks.md`
+- Related findings/proposals: `2026-07-21-agile-pen-registry-blocks.md`
 
 ## Context
 

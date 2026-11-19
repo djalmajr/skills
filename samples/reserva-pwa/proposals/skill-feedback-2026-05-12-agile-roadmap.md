@@ -1,3 +1,9 @@
+---
+status: applied
+reviewed: 2026-11-19
+resolution: "Roadmap objectives rename at skills/agile-roadmap/templates/roadmap.md:12-15, tension hint at :22, Solo dev paragraph at skills/agile-roadmap/SKILL.md:110-112."
+---
+
 # Skill Feedback: `agile-roadmap` — three refinements
 
 **Observed during:** project `reserva-pwa`, roadmap session 2026-05-12

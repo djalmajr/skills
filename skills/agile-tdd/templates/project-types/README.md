@@ -25,7 +25,7 @@ type's own `<TYPE>_MODE`).
 3. `audit.partial.sh` exports `check_<type>_evidence` (function name
    matches the type slug) and sets `<TYPE>_MODE` (uppercase slug
    suffix) after reading the config.
-4. Update the table in `SKILL.md → Project-type templates` and the
+4. Update the table in `references/enforcement.md → Project-type templates` and the
    "Available types" row.
 5. Smoke-install in a real project: confirm `detect.sh` matches,
    partials append cleanly, hooks land in `.claude/hooks/`, and the

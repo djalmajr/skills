@@ -1,3 +1,9 @@
+---
+status: applied
+reviewed: 2026-11-19
+resolution: "Applied: promotion criteria and findings-index convention in samples/README.md; clarification rounds, presets and decision propagation in skills/agile-intake/SKILL.md (Structure the intake). Deferred by the proposal itself: findings-index script, agile-decisions skill, dev-tooling reference."
+---
+
 # Skill Feedback: meta / cross-cutting — six observations across skills
 
 **Observed during:** project `reserva-pwa`, sessions 2026-05-12 (12 journal entries across the day)

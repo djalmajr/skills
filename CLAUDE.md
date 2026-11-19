@@ -1,4 +1,22 @@
-**CRITICAL**: These instructions are MANDATORY. Read all *.md files inside .agents/rules and its subfolders as well as ~/.agents/rules to get context and rules.
+This file holds the project rules for the skills package. `AGENTS.md` is a symlink to it.
+
+## Validation
+
+Run `npm test` before every PR; CI runs the same command plus the media smoke tests. It checks that:
+
+- every `skills/<name>/SKILL.md` has frontmatter whose `name` matches the folder and a description up to 1024 characters;
+- `SKILL.md` stays within 500 lines (move detail to `references/`);
+- every `SKILL.md` has `## Prompting`, and `## Project root` unless it writes no artifacts (`agile-onboarding`, `agile-router`);
+- bundled paths cited in `SKILL.md` (`templates/`, `references/`, `scripts/`, `assets/`) exist;
+- every `agile-*` or `ux-*` name mentioned is a real skill;
+- `skills.json`, `README.md`, and `docs/skills/README.md` list exactly the skills in `skills/`;
+- `agile-router` routes to every `agile-*` skill and to nothing else.
+
+When a check is wrong for a legitimate case, change `scripts/validate-skills.mjs` and its test, not the skill.
+
+## Skill Routing
+
+`agile-router` knows only the `agile-*` skills. Other skills (design, media, UX, planning) are found by the agent from its own skill list and are indexed in `README.md`.
 
 ## Skill Templates
 
@@ -23,7 +41,8 @@ Skills are expected to improve from real project usage.
 
 - Prefer small, evidence-backed changes over broad rewrites.
 - Capture the observed problem, affected skill/template, proposed change, and validation artifact.
-- Draft proposals under `samples/<project>/proposals/` (journal → findings → proposals) when evidence suggests a skill should be refined, merged, split, deprecated, removed, or created.
+- Draft proposals under `samples/<project>/proposals/` (journal → findings → proposals) when evidence suggests a skill should be refined, merged, split, deprecated, removed, or created. Feedback from a project without a sample goes to `samples/misc/proposals/`.
+- Every proposal carries frontmatter `status` (`open`, `partial`, `applied`, `obsolete`), `reviewed`, and `resolution`. When a change lands or a skill is removed, update the proposals that target it.
 - Check for overlap before adding a new skill. Prefer improving or merging existing skills when that keeps routing clearer.
 - Keep `SKILL.md` concise; move reusable detail into local `templates/`, `references/`, or `scripts/` only when it directly supports the skill.
 - Validate changed skills against at least one realistic artifact before treating the change as ready.

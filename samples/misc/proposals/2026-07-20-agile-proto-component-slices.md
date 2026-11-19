@@ -1,3 +1,9 @@
+---
+status: obsolete
+reviewed: 2026-11-19
+resolution: "scripts/ads.mjs and components.lib.pen are gone from agile-proto (templates only); agile-design forbids component catalogs (skills/agile-design/SKILL.md:116)."
+---
+
 # Skill Feedback: slices verticais por componente no agile-proto
 
 **Observed during:** evolução do catálogo Pencil/ADS

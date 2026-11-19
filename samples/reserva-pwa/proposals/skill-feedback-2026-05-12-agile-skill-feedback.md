@@ -1,3 +1,9 @@
+---
+status: obsolete
+reviewed: 2026-11-19
+resolution: "agile-skill-feedback was removed in 0b62c7c; proposals now live under samples/<project>/proposals/ (CLAUDE.md Skill Evolution). Auditability block survives informally in samples/misc/proposals/*.md."
+---
+
 # Skill Feedback: `agile-skill-feedback` — three refinements (meta)
 
 **Observed during:** project `reserva-pwa`, first `/agile-skill-feedback` session 2026-05-12 (formalizing the paths/CWD finding)

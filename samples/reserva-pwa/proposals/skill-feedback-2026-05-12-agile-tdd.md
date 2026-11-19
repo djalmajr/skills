@@ -1,3 +1,9 @@
+---
+status: applied
+reviewed: 2026-11-19
+resolution: "Templates under skills/agile-tdd/templates/ (hooks, opencode-plugin.js.tmpl), bash case glob semantics at SKILL.md:225, Enforcement caveats at :227; agile-tdd-init split and strict Red-before-Green mode were deferred by design."
+---
+
 # Skill Feedback: `agile-tdd` — enforcement layer + four refinements
 
 **Observed during:** project `reserva-pwa`, sessions 2026-05-12 (advisory invocation, enforcement build, real implementation of Story 01)

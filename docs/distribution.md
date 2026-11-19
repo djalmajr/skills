@@ -27,7 +27,7 @@ bunx skills add djalmajr/skills --skill '*'
 ## Install selected skills
 
 ```bash
-bunx skills add djalmajr/skills --skill aim-init --skill aim-query
+bunx skills add djalmajr/skills --skill agile-intake --skill agile-story
 ```
 
 ## Install for explicit agents
@@ -80,13 +80,9 @@ Do not rely on:
 
 ## Before publishing
 
-Before asking users to update installed skills:
+Before asking users to update installed skills, run `npm test`. It automates the structural checks (frontmatter, `name`, manifest, indexes, bundled paths, line budget). Still confirm by hand:
 
-- Confirm every directory under `skills/` has `SKILL.md`.
-- Confirm every `SKILL.md` starts with YAML frontmatter.
-- Confirm frontmatter `name` matches the directory name.
 - Confirm frontmatter `description` explains both capability and trigger context.
-- Confirm `skills.json`, if kept, lists every skill directory.
 - Confirm human docs link to `docs/skills/*.md`, not removed `skills/*/README.md` files.
 - Confirm templates/scripts are inside the owning skill directory.
 - Confirm reusable skill content has no local absolute paths or project-specific names.
@@ -99,7 +95,7 @@ The update path is reinstalling from the source repository with `bunx skills add
 Use a selected install when only one skill changed:
 
 ```bash
-bunx skills add djalmajr/skills --skill aim-init
+bunx skills add djalmajr/skills --skill agile-story
 ```
 
 Use full install when shared docs/templates or several skills changed:

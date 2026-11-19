@@ -49,7 +49,7 @@ These skills are written for the common `SKILL.md` format used by `skills.sh`, C
 
 Keep frontmatter portable. Avoid agent-specific fields unless the skill truly needs them and the behavior is documented in `SKILL.md`.
 
-## Skills (24)
+## Skills (21)
 
 ### Agile (14)
 
@@ -64,7 +64,7 @@ Keep frontmatter portable. Avoid agent-specific fields unless the skill truly ne
 | agile-sprint | Plan a sprint: objective, items, capacity |
 | agile-review | Sprint review, metrics, and demo for stakeholders |
 | agile-retro | Retrospective with improvement actions |
-| agile-router | Guidance on which skill to use |
+| agile-router | Guidance on which agile skill to use |
 | agile-onboarding | New member onboarding guide |
 | agile-proto | Static browser prototype process; UI via the `htm-ui` skill |
 | agile-design | Screens, states, and flows in any design tool (Paper, Figma, Pen.dev, Penpot…) |
@@ -108,14 +108,6 @@ bunx skills add djalmajr/herdr-soho --skill herdr-soho -g
 | ux-flows | Usage-flow catalog and E2E orchestration |
 | ux-persona | Walk one flow through the UI as a persona |
 
-### Memory (3)
-
-| Skill | Purpose |
-|-------|---------|
-| aim-init | Wire ai-memory into a repo (marker, snippet, MCP, hooks) |
-| aim-ops | Install, upgrade and operate an ai-memory server (compose stack, providers, keys, backups) |
-| aim-query | Explicit recall from the wiki |
-| aim-write | Durable page (decision, rule, gotcha) |
 
 ## Flow
 

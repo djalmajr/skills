@@ -1,3 +1,9 @@
+---
+status: applied
+reviewed: 2026-11-19
+resolution: "Applied: story side in skills/agile-story/SKILL.md and templates/story.md; epic-side note that epic Tasks are phase outlines added to skills/agile-epic/SKILL.md (Required sections)."
+---
+
 # Skill Feedback: `agile-story` — three refinements
 
 **Observed during:** project `reserva-pwa`, Story 01 execution-plan session 2026-05-12

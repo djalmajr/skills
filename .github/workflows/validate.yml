@@ -1,0 +1,23 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Validator tests and package lint
+        run: npm test
+      - name: Install ffmpeg for media smoke tests
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: create-audio smoke
+        run: npm run test:create-audio
+      - name: create-video smoke
+        run: npm run test:create-video

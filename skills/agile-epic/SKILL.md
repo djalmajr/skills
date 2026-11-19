@@ -214,7 +214,7 @@ Use `templates/epic.md` from this skill as base for the overview artifact.
 2. **Traceability** (prototype routes/screens and business rule IDs/files)
 3. **Files** (exact paths, action, reason)
 4. **Detail** (AS-IS, TO-BE, scope, acceptance criteria, dependencies)
-5. **Tasks** (verifiable checklist in vertical phases)
+5. **Tasks** (verifiable checklist in vertical phases; at epic time they are phase outlines, and per-task acceptance is detailed later by `/agile-story`)
 6. **Verification** (commands, validations, evidence)
 
 ## Relationship with the flow

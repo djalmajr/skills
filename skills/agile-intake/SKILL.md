@@ -90,6 +90,8 @@ Fill in the template with collected information:
 
 **Assumption vs Open question:** an *assumption* is a decision logged for review (the agent took it, the user can override later). An *open question* is a pending decision that would block the next artifact if not resolved. Use the slots accordingly.
 
+**Resolving open questions:** expect 1–3 clarification rounds per question; do not assume one answer closes it. When a choice is a bounded configuration (deadlines, retry backoff, limits), offer 2–3 named presets as options instead of asking for raw numbers. Once a question is resolved, carry the decision into every artifact that already cites it (intake, roadmap, story) in the same pass.
+
 ### 3. Define next step
 
 Based on trajectory complexity (not duration):

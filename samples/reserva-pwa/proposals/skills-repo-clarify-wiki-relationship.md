@@ -1,8 +1,10 @@
 ---
 title: "Correct the wiki reference in skills/CLAUDE.md"
 finding: findings/skills-repo-dogfooding.md
-status: ready (Option B)
 target_files: [CLAUDE.md]
+status: obsolete
+reviewed: 2026-11-19
+resolution: "The LLM-Maintained Wiki section is gone from CLAUDE.md and the wiki-* skills were removed; no wiki/ reference remains to correct."
 ---
 
 # Proposal: rewrite the "LLM-Maintained Wiki" section in `skills/CLAUDE.md`

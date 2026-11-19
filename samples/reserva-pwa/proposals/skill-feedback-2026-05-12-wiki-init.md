@@ -1,3 +1,9 @@
+---
+status: obsolete
+reviewed: 2026-11-19
+resolution: "wiki-init no longer exists in skills/ (replaced by ai-memory, whose aim-* skills were also removed)."
+---
+
 # Skill Feedback: `wiki-init` — content seeding + glob trap
 
 **Observed during:** project `reserva-pwa`, wiki initialization session 2026-05-12 + TDD enforcement build (related glob trap)

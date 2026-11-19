@@ -1,8 +1,10 @@
 ---
 title: "Document and instruct wiki seed in wiki-init"
 finding: findings/wiki-init-content-seeding.md
-status: ready (minimal version)
 target_skills: [wiki-init]
+status: obsolete
+reviewed: 2026-11-19
+resolution: "wiki-init no longer exists in skills/; wiki seeding is out of scope for this repo."
 ---
 
 # Proposal: document the wiki seed in `wiki-init`

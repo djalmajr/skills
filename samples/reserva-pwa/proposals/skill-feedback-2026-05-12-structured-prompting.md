@@ -1,3 +1,9 @@
+---
+status: applied
+reviewed: 2026-11-19
+resolution: "## Prompting present in 18 SKILL.md, all original agile-* targets (e.g. skills/agile-epic/SKILL.md:31); wiki-* targets removed; newer ux-flows, ux-persona, excalidraw lack it (out of original scope)."
+---
+
 # Skill Feedback: Structured-prompting convention is missing from 19 of 20 SKILL.md files
 
 **Observed during:** project `reserva-pwa`, audit of skill compliance with `CLAUDE.md` → "Skill Prompting Conventions"

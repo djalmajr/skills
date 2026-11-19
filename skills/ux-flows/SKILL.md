@@ -7,6 +7,31 @@ description: Catalog + orchestrator for a web application's usage (E2E) flows. K
 
 This skill is the **source of truth for a project's usage flows** and the **conductor** that hands them to the persona. It separates the **what** (the flows, which are project data) from the **how** (the usability walkthrough, in the `ux-persona` skill). It is stack-agnostic: no hardcoded ports/addresses — each flow declares its own entry point.
 
+## Project root
+
+This skill writes the flow catalog (`e2e/flows/`) and personas (`e2e/personas/`) at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory (e.g., a sibling repo), prepend `<project-root>/` to every path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Next action after `list` | Branches the run | run one flow · run all · new flow · discover |
+| Flow to run (short catalog) | Picks from a known list | the catalog flow ids, up to 4 |
+| Confirm discovered drafts before running | Writes the catalog the user owns | accept all · trim first · cancel |
+
+Free-form prompts (no structured tool):
+
+- New flow goal, persona, and design reference
+- Corrections to discovered steps
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, write discovered drafts as proposals, skip the run, and list them for review in the summary.
+
 ## Where flows live
 
 Convention: **one file per flow** at `e2e/flows/<id>.md` in the project, version-controlled. Template:

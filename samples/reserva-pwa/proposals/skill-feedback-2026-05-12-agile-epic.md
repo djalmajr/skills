@@ -1,3 +1,9 @@
+---
+status: applied
+reviewed: 2026-11-19
+resolution: "Applied: flowchart default block added to skills/agile-epic/templates/epic.md (gantt kept as the scheduled alternative); path-conflict gate and diagram guidance in skills/agile-epic/SKILL.md; core/probable column in skills/agile-story/templates/story.md."
+---
+
 # Skill Feedback: `agile-epic` — three refinements
 
 **Observed during:** project `reserva-pwa`, epic decomposition session 2026-05-12 (Foundation initiative)

@@ -1,6 +1,6 @@
 # agile-router
 
-Routes to the appropriate agile skill based on context. Covers planning (what artifact to create), ceremonies (where in the sprint cycle), tracking (how to report progress), and UI/test/memory entry points (prototype, TDD, ai-memory). Use when you need guidance on which skill to use.
+Routes to the appropriate agile skill based on context. Covers planning (what artifact to create), ceremonies (where in the sprint cycle), tracking (how to report progress), and prototype/test/onboarding entry points. It knows only the `agile-*` skills. Use when you need guidance on which agile skill to use.
 
 ## When to use
 
@@ -14,6 +14,7 @@ Routes to the appropriate agile skill based on context. Covers planning (what ar
 - You already know which skill you need -- invoke it directly
 - You need to create an artifact -- use the specific skill
 - You need to implement code -- use `/agile-story` for the plan first
+- The work is outside the agile flow (UX walkthroughs, production UI, media) -- the router does not cover it
 
 ## How to use
 
@@ -63,11 +64,9 @@ Example: `/agile-router add multi-language support to onboarding`
 | `/agile-review` | Sprint review, metrics, and demo |
 | `/agile-retro` | Retrospective |
 | `/agile-tdd` | TDD coaching and optional enforcement |
-| `/agile-proto` | Static browser prototype process (+ `htm-ui` skill) |
+| `/agile-proto` | Static browser prototype process |
 | `/agile-design` | Screens, states, and flows in any design tool |
 | `/agile-onboarding` | New member onboarding |
-| `/ux-flows` / `/ux-persona` | Usage-flow catalog and persona walkthroughs |
-| `/aim-init` / `/aim-query` / `/aim-write` | Wire and use ai-memory |
 
 ## Workflow integration
 

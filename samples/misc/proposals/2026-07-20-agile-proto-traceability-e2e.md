@@ -1,3 +1,9 @@
+---
+status: obsolete
+reviewed: 2026-11-19
+resolution: "ADS/Pencil gates removed with agile-pen in 0b62c7c; the traceability ideas (stable IDs, paired notes, no overlap, locale copy) carried into skills/agile-design/SKILL.md:48-100 as an advisory checklist."
+---
+
 # Skill Feedback: rastreabilidade e validação ponta a ponta no agile-proto
 
 **Observed during:** reconstrução do exemplo Trello Clone e consolidação do catálogo Pencil/ADS
@@ -9,7 +15,7 @@
 - Source skill version/commit: `fcc88d0`
 - Model/provider (if AI-generated): OpenAI Codex (GPT-5)
 - Originating session/journal: continuação da sessão `019f7fed-4123-73e0-9538-76267a5e652c`
-- Related findings/proposals: `feedback/2026-07-20-agile-proto-captured-catalog.md`; `feedback/2026-07-20-agile-proto-component-slices.md`
+- Related findings/proposals: `2026-07-20-agile-proto-captured-catalog.md`; `2026-07-20-agile-proto-component-slices.md`
 
 ## Context
 
