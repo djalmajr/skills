@@ -2,7 +2,7 @@ This file holds the project rules for the skills package. `AGENTS.md` is a symli
 
 ## Validation
 
-Run `npm test` before every PR; CI runs the same command plus the media smoke tests. It checks that:
+Run `npm test` before every PR; CI runs the same command plus the media and excalidraw smoke tests. It checks that:
 
 - every `skills/<name>/SKILL.md` has frontmatter whose `name` matches the folder and a description up to 1024 characters;
 - `SKILL.md` stays within 500 lines (move detail to `references/`);

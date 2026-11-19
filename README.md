@@ -75,7 +75,7 @@ Keep frontmatter portable. Avoid agent-specific fields unless the skill truly ne
 | Skill | Purpose |
 |-------|---------|
 | design-workflow | Root DESIGN.md contract for production UI: precedence, closed vocabulary, visual review, deterministic parity gate, project bootstrap |
-| excalidraw | Author & edit raw `.excalidraw` scene files by hand (element JSON, binding, updating sections) |
+| excalidraw | Author & edit `.excalidraw` scenes (element JSON, builder, linter); render and convert Mermaid with the official CLI |
 
 ### Media (2)
 

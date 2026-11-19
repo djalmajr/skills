@@ -1,10 +1,9 @@
 // Example: a custom architecture diagram via the JS-official builder.
 // Run after `sh scripts/setup.sh`:
 //   node examples/architecture.example.mjs
-//   node scripts/lint-scene.mjs /tmp/arch.excalidraw     # catch crossings/overflow
-//   node scripts/render.mjs    /tmp/arch.excalidraw      # -> /tmp/arch.svg
-//   rsvg-convert -w 1200 /tmp/arch.svg -o /tmp/arch.png  # look at it, then iterate
-import { Diagram, writeScene, writeSvg } from "../scripts/excalidraw-lib.mjs";
+//   node scripts/lint-scene.mjs /tmp/arch.excalidraw                      # catch crossings/overflow
+//   excalidraw render /tmp/arch.excalidraw --out /tmp/arch.png --scale 2  # look at it, then iterate
+import { Diagram, writeScene } from "../scripts/excalidraw-lib.mjs";
 
 const d = new Diagram("Example — web app architecture");
 d.note(40, 58, "Lay out cards with absolute coords; arrows bind + route through waypoints.");
@@ -28,8 +27,5 @@ d.arrow("svc", "cache", "get/set", { color: "#0c8599" });
 
 const els = d.elements();
 writeScene("/tmp/arch.excalidraw", els);
-await writeSvg("/tmp/arch.svg", els);
-console.log(`built /tmp/arch.excalidraw (${els.length} elements) + /tmp/arch.svg`);
-
-// For standard shapes (flowchart/sequence/class/ER), `fromMermaid()` is terser
-// (auto-layout) — see scripts/excalidraw-lib.mjs (optional dependency).
+console.log(`built /tmp/arch.excalidraw (${els.length} elements)`);
+console.log("next: node scripts/lint-scene.mjs /tmp/arch.excalidraw && excalidraw render /tmp/arch.excalidraw --out /tmp/arch.png");

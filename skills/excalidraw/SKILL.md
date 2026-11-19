@@ -1,6 +1,6 @@
 ---
 name: excalidraw
-description: "Author and edit Excalidraw scene files (`.excalidraw`): the JSON element model (rectangle, text, arrow), two-way arrow binding, ids/z-order, coordinates & sizing, groups, and reading/updating an existing scene. Two paths — by hand for small scenes/edits, or programmatically via `scripts/` which builds scenes with Excalidraw's own `convertToExcalidrawElements`, renders a faithful preview with `exportToSvg`, and lints geometry. Use whenever you create or modify a `.excalidraw` file directly (not through the editor UI). Mermaid is a supported INPUT for standard diagrams, not the file format."
+description: "Author and edit Excalidraw scene files (`.excalidraw`): the JSON element model (rectangle, text, arrow), two-way arrow binding, ids/z-order, coordinates & sizing, groups, and reading/updating an existing scene. Build by hand for small scenes/edits, or with the `scripts/` builder on Excalidraw's own `convertToExcalidrawElements`; lint geometry; render PNG/SVG previews and convert Mermaid with the official `excalidraw` CLI (`@excalidraw/cli`). Use whenever you create or modify a `.excalidraw` file directly (not through the editor UI). Mermaid is a supported INPUT for standard diagrams, not the file format."
 metadata:
   short-description: Author & edit .excalidraw scenes — by hand or via the official JS compiler + preview/lint
 ---
@@ -17,13 +17,15 @@ text, arrows) on an infinite canvas. Two ways to author, picked by scale:
 - **Programmatically** — for anything bigger or that you'll maintain. The toolchain in
   [`scripts/`](scripts/) builds scenes with Excalidraw's **own**
   `convertToExcalidrawElements` (it owns the gotchas: reciprocal binding, container
-  labels, text sizing, z-order), renders a **faithful** SVG preview with `exportToSvg`,
-  and lints geometry. See **Programmatic authoring** below.
+  labels, text sizing, z-order) and lints geometry. See **Programmatic authoring** below.
+
+Either way, preview with the official CLI (`excalidraw render`) and look at the image
+before calling a scene done. See **The official CLI** below.
 
 > `.excalidraw` is Excalidraw's own on-disk JSON format. **Mermaid** is a separate
 > thing but a useful **input**: for standard shapes (flowchart, sequence, class, ER)
 > write Mermaid and convert it to a native Excalidraw scene — the editor's built-in
-> "Mermaid to Excalidraw", or `fromMermaid()` in `scripts/`. Either way the file you
+> "Mermaid to Excalidraw", or `excalidraw mermaid` from the CLI. Either way the file you
 > then edit is Excalidraw JSON, which is what this skill covers.
 
 ## Project root
@@ -40,7 +42,7 @@ Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Promptin
 
 | Decision point | Why structured | Suggested options |
 |---|---|---|
-| Authoring path (when scale is unclear) | Changes the toolchain | By hand (JSON) · Programmatic (`scripts/`) · From Mermaid |
+| Authoring path (when scale is unclear) | Changes the toolchain | From Mermaid (`excalidraw mermaid`) · Builder (`scripts/`) · By hand (JSON) |
 | Editing an existing scene | Hard to undo if the file is not versioned | Append below · Replace a region · Edit in place |
 | Arrow binding vs free label | Affects how the scene behaves when edited | Container-bound (editable) · Free-floating (deterministic) |
 
@@ -49,7 +51,7 @@ Free-form prompts (no structured tool):
 - Output path and file name
 - Diagram content (boxes, labels, connections)
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, pick the programmatic path for new scenes, edit in place for small changes, and state the choice in the summary.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, use `excalidraw mermaid` when the diagram fits a Mermaid type, the builder otherwise, edit in place for small changes, and state the choice in the summary.
 
 ## When to use
 
@@ -62,21 +64,43 @@ If a real Excalidraw editor is available and the user just wants to *draw*, pref
 editor. This skill is for **generating/editing the file directly** — pick the by-hand
 path for small or edit work, the programmatic path (next) for non-trivial diagrams.
 
-## Programmatic authoring (the preview-and-lint loop)
+## The official CLI (render and Mermaid)
 
-For non-trivial or maintained diagrams, don't hand-place dozens of elements — use the
-JS toolchain in [`scripts/`](scripts/). It wraps the **official** Excalidraw functions,
-so its output can't drift from the format:
+`@excalidraw/cli` (MIT, Node 22+) renders scenes and converts Mermaid **locally**, with
+no account: it drives an installed Chrome, Chromium, Edge, or Firefox, and nothing is
+uploaded. Detect it with `excalidraw --version`; if missing, run it as
+`npx -y @excalidraw/cli <command>` or install with `npm install -g @excalidraw/cli`.
 
-- `convertToExcalidrawElements(skeleton)` — Excalidraw's own compiler. Hand it
-  high-level shapes plus which boxes an arrow connects; it returns valid elements with
-  reciprocal binding, container labels, measured text, ids and z-order. The single
-  biggest correctness win — the **Gotchas** further down become *its* job, not yours.
-- `exportToSvg(scene)` — renders the **real** look (rough strokes, fonts), so previews
-  don't lie the way an approximate renderer would.
+```sh
+excalidraw render scene.excalidraw --out scene.png --scale 2   # PNG preview to look at
+excalidraw render scene.excalidraw --out scene.svg             # SVG with embedded fonts
+excalidraw render deck.excalidraw --all-frames --out slides/   # one image per frame
+excalidraw mermaid flow.mmd --out flow.excalidraw --elbow      # editable native scene
+node build.mjs | excalidraw render - --out -  > scene.png      # stdin/stdout pipes
+```
 
-One-time setup (installs the headless toolchain + bundles `@excalidraw/*`; needs node +
-npm, plus `canvas`/`jsdom` for headless text measurement):
+- Useful flags: `--theme light|dark`, `--transparent`, `--frame-id <id>`, `--padding`,
+  `--timeout <ms>`. `excalidraw <command> --help` lists them all.
+- `excalidraw mermaid` turns flowcharts, sequence, class, ER and state diagrams, Gantt,
+  quadrant charts and timelines into editable shapes; other types (pie) become one image.
+  Prefer it over hand-placing elements whenever the diagram fits a Mermaid type.
+- Invalid JSON exits non-zero with the parse error, so a render doubles as a load check.
+- No browser found: pass `--browser-path` (or `EXCALIDRAW_BROWSER_PATH`); if none exists,
+  say the preview was not rendered instead of calling the scene done.
+- **Excalidraw+ commands** (`login`, `scenes`, `collections`, `mcp`) need an account and
+  upload drawings to the user's workspace. Use them only when the user asks for it, and
+  confirm before creating, sharing, or changing remote scenes.
+
+## Programmatic authoring (the build, lint, render loop)
+
+For non-trivial or maintained diagrams that Mermaid can't lay out, don't hand-place dozens
+of elements — use the `Diagram` builder in [`scripts/`](scripts/). It wraps Excalidraw's
+own compiler, `convertToExcalidrawElements(skeleton)`: hand it high-level shapes plus which
+boxes an arrow connects, and it returns valid elements with reciprocal binding, container
+labels, measured text, ids and z-order. The **Gotchas** further down become *its* job.
+
+One-time setup (installs and bundles `@excalidraw/excalidraw`; needs node + npm, plus
+`canvas`/`jsdom` for headless text measurement):
 
 ```sh
 sh scripts/setup.sh
@@ -86,20 +110,19 @@ Then loop — **build → lint → render → look → iterate**:
 
 ```sh
 node examples/architecture.example.mjs              # build with the Diagram builder
-node scripts/lint-scene.mjs  /tmp/arch.excalidraw   # arrow crossings / label overflow / overlap
-node scripts/render.mjs      /tmp/arch.excalidraw   # -> /tmp/arch.svg (faithful)
-rsvg-convert -w 1200 /tmp/arch.svg -o /tmp/arch.png # rasterize, then actually LOOK
+node scripts/lint-scene.mjs  /tmp/arch.excalidraw   # unbound arrows, crossings, overflow, overlap
+excalidraw render /tmp/arch.excalidraw --out /tmp/arch.png --scale 2   # then actually LOOK
 ```
 
-**Looking at the render is the most important step.** Valid JSON still produces
-unreadable diagrams — arrows through unrelated boxes, labels off-card. The linter
-catches the mechanical ones; your eyes catch the routing. Iterate on the builder code,
-not on the JSON.
+`lint-scene.mjs` needs no setup: run it on any scene, including hand-written ones and
+`excalidraw mermaid` output. **Looking at the render is the most important step.** Valid
+JSON still produces unreadable diagrams — arrows through unrelated boxes, labels
+off-card. The linter catches the mechanical ones; your eyes catch the routing. Iterate on
+the builder code, not on the JSON.
 
-The `Diagram` builder (`scripts/excalidraw-lib.mjs`) gives `card()`, `zone()`, `note()`
-and `arrow(a, b, label, {waypoints, dashed, color})`; `arrow()` binds both ends and
-routes through absolute waypoints (keep them axis-aligned for clean orthogonal lines).
-`fromMermaid()` converts Mermaid for standard diagram types (optional dependency).
+The builder (`scripts/excalidraw-lib.mjs`) gives `card()`, `zone()`, `note()`, `group()`
+and `arrow(a, b, label, {waypoints, dashed, color})`; `arrow()` binds both ends and routes
+through absolute waypoints (keep them axis-aligned for clean orthogonal lines).
 
 The element-format reference below still matters — it's what the builder emits, what you
 edit by hand on small scenes, and how you reason about an existing file.
@@ -277,8 +300,9 @@ for you. These bite mainly when **hand-authoring**.
 - `references/minimal-scene.excalidraw` — a complete, loadable two-box-and-an-arrow scene
   you can copy and adapt.
 - `scripts/` — the programmatic toolchain: `excalidraw-lib.mjs` (the `Diagram` builder +
-  `writeScene`/`writeSvg`/`fromMermaid`), `render.mjs` (faithful SVG export), `lint-scene.mjs`
-  (geometry linter), `setup.sh` (one-time install + bundle). See `scripts/README.md`.
+  `writeScene`), `lint-scene.mjs` (geometry linter, no setup), `smoke.mjs` (toolchain check),
+  `setup.sh` (one-time install + bundle for the builder). See `scripts/README.md`.
+- Rendering and Mermaid conversion: the official CLI, see **The official CLI**.
 - `examples/architecture.example.mjs` — a runnable end-to-end diagram built with the builder.
 
 ## Source of truth
