@@ -114,3 +114,19 @@ test("router coverage needs the exact skill name", () => {
   skill("agile-router", "Use `/agile-story` or `/agile-prototype`.")
   assert.ok(validate(root).includes("skills/agile-router/SKILL.md: does not route to /agile-pro"))
 })
+
+test("machine-local paths are rejected in references and templates too", () => {
+  write("skills/plan-goal/references/notes.md", "Copy from $HOME/.config/x.md or /root/.agents/y.md.")
+  assert.deepEqual(validate(root).sort(), [
+    "skills/plan-goal/references/notes.md: points at a machine-local path $HOME/.config/x.md; bundle the file in the skill instead",
+    "skills/plan-goal/references/notes.md: points at a machine-local path /root/.agents/y.md; bundle the file in the skill instead",
+  ])
+})
+
+test("machine-local paths are rejected", () => {
+  skill("plan-goal", "Apply `~/.agents/rules/code-review.md` and /home/me/notes.md. Import alias `~/components/ui/` is fine.")
+  assert.deepEqual(validate(root).sort(), [
+    "skills/plan-goal/SKILL.md: points at a machine-local path /home/me/notes.md; bundle the file in the skill instead",
+    "skills/plan-goal/SKILL.md: points at a machine-local path ~/.agents/rules/code-review.md; bundle the file in the skill instead",
+  ])
+})
