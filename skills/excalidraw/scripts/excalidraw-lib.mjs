@@ -6,8 +6,8 @@
 // shapes), container labels, text measurement, ids, versions, z-index. You hand
 // it geometry + which shapes an arrow connects; it returns a valid scene.
 //
-// `exportToSvg` renders the REAL Excalidraw look (rough strokes, fonts) — a
-// faithful preview, not an approximation.
+// Rendering and Mermaid conversion are not here: use the official CLI
+// (`excalidraw render`, `excalidraw mermaid`), see ../SKILL.md.
 import "./dom-shim.mjs"; // MUST be first: installs the headless DOM globals
 import * as Excalidraw from "./vendor/bundle.mjs";
 import { writeFileSync } from "node:fs";
@@ -117,22 +117,4 @@ export function scene(elements) {
 
 export function writeScene(path, elements) {
   writeFileSync(path, JSON.stringify(scene(elements), null, 2));
-}
-
-export async function writeSvg(path, elements) {
-  const svg = await Excalidraw.exportToSvg({ elements, appState: { viewBackgroundColor: "#ffffff", exportPadding: 16 }, files: null });
-  writeFileSync(path, svg.outerHTML || svg.toString());
-}
-
-// Optional: build a scene from Mermaid text (flowchart / sequence / class / ER).
-// `@excalidraw/mermaid-to-excalidraw` is NOT a default dependency — install it
-// on demand (`npm install @excalidraw/mermaid-to-excalidraw --legacy-peer-deps`).
-// Mermaid drives a real DOM; if it misbehaves headless, author the Mermaid in
-// the Excalidraw editor's built-in "Mermaid to Excalidraw" import instead.
-export async function fromMermaid(definition, opts = {}) {
-  let parse;
-  try { ({ parseMermaidToExcalidraw: parse } = await import("@excalidraw/mermaid-to-excalidraw")); }
-  catch { throw new Error("install @excalidraw/mermaid-to-excalidraw (--legacy-peer-deps) to use fromMermaid()"); }
-  const { elements } = await parse(definition, opts);
-  return Excalidraw.convertToExcalidrawElements(elements);
 }

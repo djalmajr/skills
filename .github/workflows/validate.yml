@@ -21,3 +21,7 @@ jobs:
         run: npm run test:create-audio
       - name: create-video smoke
         run: npm run test:create-video
+      - name: excalidraw smoke (official CLI, runner Chrome)
+        run: npm run test:excalidraw
+        env:
+          EXCALIDRAW_REQUIRE_CLI: "1"

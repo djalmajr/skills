@@ -28,7 +28,7 @@ Human-facing notes moved out of individual skill folders.
 | Skill | One-liner |
 |---|---|
 | [design-workflow](design-workflow.md) | Contrato de UI + gate de paridade + bootstrap sobre o DESIGN.md raiz |
-| [excalidraw](../../skills/excalidraw/SKILL.md) | Author & edit raw `.excalidraw` scene files |
+| [excalidraw](../../skills/excalidraw/SKILL.md) | Author & edit `.excalidraw` scenes; render and convert Mermaid with the official CLI |
 
 ## Media (2)
 

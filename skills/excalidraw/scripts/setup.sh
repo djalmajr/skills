@@ -20,4 +20,4 @@ npm run build
 # Verify the bundle imports (dom-shim must load first — it installs the globals).
 node --input-type=module -e "import './dom-shim.mjs'; const m = await import('./vendor/bundle.mjs'); console.log('ready:', Object.keys(m).join(', '));" \
   || { echo "vendor/bundle.mjs built but failed to import — check node >= 18"; exit 1; }
-echo "done. Try: node examples/architecture.example.mjs && node scripts/render.mjs /tmp/arch.excalidraw"
+echo "done. Try: node examples/architecture.example.mjs && excalidraw render /tmp/arch.excalidraw --out /tmp/arch.png"
