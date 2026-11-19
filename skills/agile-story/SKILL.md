@@ -155,7 +155,7 @@ Every plan must contain:
 ## Rules
 
 - Every plan must be presented before implementation (ExitPlanMode).
-- Only implement after explicit user confirmation.
+- Only implement after explicit user confirmation (in a delegated run with nobody to confirm, after the delegating brief asked for implementation).
 - Don't create a task plan for work that needs an epic (large scope with several stories).
 - Files must have exact paths.
 - Reference business rule IDs when the story implements domain behavior, permissions, sync, conflict handling, AI approvals, or audit/versioning.
