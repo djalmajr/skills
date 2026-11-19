@@ -34,6 +34,8 @@ function assert(cond, msg) {
 }
 
 const lint = (file) => execFileSync("node", [join(SKILL, "scripts/lint-scene.mjs"), file], { encoding: "utf8" })
+const lintStatus = (file) => spawnSync("node", [join(SKILL, "scripts/lint-scene.mjs"), file], { encoding: "utf8" })
+const requireCli = ["1", "true", "yes"].includes(String(process.env.EXCALIDRAW_REQUIRE_CLI ?? "").toLowerCase())
 
 function findCli() {
   // Pinned to the major the skill documents, so a breaking 2.x can't fail CI silently.
@@ -47,20 +49,33 @@ function findCli() {
 const scene = join(SKILL, "references/minimal-scene.excalidraw")
 check("lint: bundled minimal scene is clean", () => assert(/clean/.test(lint(scene)), "linter reported problems"))
 
+// Mutation guarded: a linter that never reports (e.g. `return []`) must fail here.
+check("lint: an unbound arrow is reported with a non-zero exit", () => {
+  const broken = JSON.parse(readFileSync(scene, "utf8"))
+  for (const el of broken.elements) {
+    if (el.type === "arrow") { el.startBinding = null; el.endBinding = null }
+    if (el.boundElements) el.boundElements = el.boundElements.filter((b) => b.type !== "arrow")
+  }
+  const file = join(tmp, "unbound.excalidraw")
+  writeFileSync(file, JSON.stringify(broken))
+  const r = lintStatus(file)
+  assert(r.status !== 0, "linter accepted an unbound arrow")
+})
+
 const cli = findCli()
 const run = (args, opts = {}) =>
   spawnSync(cli[0], [...cli.slice(1), ...args], { encoding: "utf8", timeout: 120000, ...opts })
 
 if (!cli) {
   const msg = "official CLI not runnable (needs Node 22+ and npm or a global install)"
-  if (process.env.EXCALIDRAW_REQUIRE_CLI) {
+  if (requireCli) {
     failed.push("cli")
     console.log(`FAIL cli: ${msg}`)
   } else console.log(`skip  cli: ${msg}`)
 } else {
   const png = join(tmp, "min.png")
   const probe = run(["render", scene, "--out", png])
-  if (probe.status !== 0 && !process.env.EXCALIDRAW_REQUIRE_CLI) {
+  if (probe.status !== 0 && !requireCli) {
     console.log(`skip  cli: render failed, likely no browser (${probe.stderr.trim().split("\n").pop()})`)
   } else {
     check("cli render: minimal scene -> PNG", () => {

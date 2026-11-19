@@ -52,9 +52,10 @@ You've just implemented rate limiting and want a quality gate:
 
 This skill does NOT produce a saved artifact. It produces an inline report with:
 - Issues grouped by category
-- Severity levels (red flag, warning, info)
-- Specific file and line references
+- Severity: `blocker` or `minor` for code review; red flag, warning, info for planning lint
+- Specific file and line references, with a failure scenario for code findings
 - Actionable suggestions
+- In code-review mode: the commit reviewed and a verdict (`ok`, `changes`, `blocked`)
 
 ## Workflow integration
 
@@ -70,7 +71,7 @@ flowchart LR
 
 - Read everything in scope before producing any output.
 - Be specific with feedback. "Code looks bad" is not actionable. "Replace RateLimitError with HttpError on line 42" is.
-- AI code review does not replace human code review -- it's an additional gate.
+- The author's own session is not an independent review. Run code review from a fresh session, another agent, or a teammate, and answer every finding (`fixed`, `declined: <reason>`, or `backlog: <item>`). Verdict `ok` means no open blocker.
 - Planning lint can be run at any time as a health check.
 - Focus on security and scope first -- these cause the most real problems.
 

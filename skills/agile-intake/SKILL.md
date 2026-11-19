@@ -36,13 +36,14 @@ Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Promptin
 |---|---|---|
 | Next artifact in the flow | Branches the chain | /agile-roadmap · /agile-epic · /agile-story |
 | Save the intake | Hard-to-undo write | Save · Present inline only |
+| Does the team use a project tracker? (once per initiative) | Decides where items live | No, files only · Yes (name it: Linear, Jira, GitHub Projects…) |
 
 Free-form prompts (no structured tool):
 
 - Initiative name (kebab-case slug)
 - Problem description and constraints
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -118,6 +119,7 @@ Register the recommendation in the intake and confirm with the user.
 - Ask for the initiative name (e.g., `component-tests`, `auth-refactor`, `mvp-reserva`). Pick a **kebab-case slug** describing the initiative (not the artifact). Avoid sequential numbers, dates, or labels like `intake-1`; pick a slug stable enough to survive scope evolution.
 - Save at `planning/<initiative>/intake.md`
 - If the user prefers not to save, present inline
+- **Project tracker:** if the team uses one (Linear, Jira, GitHub Projects, Azure Boards, or similar), the artifact's content also feeds its items: create or update the matching item with the problem, scope, and open questions, and link it from the intake. The file under `planning/` stays the default; ask once per initiative and do not assume a specific tool.
 
 ### 5. Chain
 

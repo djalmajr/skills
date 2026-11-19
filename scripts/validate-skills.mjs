@@ -49,6 +49,17 @@ function listSkills(root) {
     .sort()
 }
 
+const LOCAL_PATH = /(?<![\w.])((?:~\/\.|\$HOME\/|\/root\/|\/home\/[\w.-]+\/|\/Users\/[\w.-]+\/)[\w./-]*[\w/])/g
+
+// Markdown files a skill ships (SKILL.md, references, templates), skipping installed deps.
+function skillMarkdown(dir, rel = "") {
+  return readdirSync(join(dir, rel), { withFileTypes: true }).flatMap((e) => {
+    const p = rel ? `${rel}/${e.name}` : e.name
+    if (e.isDirectory()) return e.name === "node_modules" ? [] : skillMarkdown(dir, p)
+    return /\.md(\.tmpl)?$/.test(e.name) ? [p] : []
+  })
+}
+
 function shippedPathExists(skillDir, rel) {
   const clean = rel.replace(/[.,;:)]+$/, "")
   return [clean, `${clean}.tmpl`].some((p) => existsSync(join(skillDir, p)))
@@ -93,6 +104,12 @@ export function validate(root) {
     for (const [, rel] of text.matchAll(pathRe)) {
       if (consumer.some((c) => rel.startsWith(c))) continue
       if (!shippedPathExists(dir, rel)) err(where, `references missing file ${rel}`)
+    }
+
+    for (const rel of skillMarkdown(dir)) {
+      const md = readFileSync(join(dir, rel), "utf8")
+      for (const [, path] of md.matchAll(LOCAL_PATH))
+        err(`skills/${name}/${rel}`, `points at a machine-local path ${path}; bundle the file in the skill instead`)
     }
 
     for (const [, ref] of text.matchAll(/(?<![\w./-])((?:agile|ux)-[a-z]+(?:-[a-z]+)*)\b/g)) {

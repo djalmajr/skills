@@ -9,6 +9,7 @@
 - References:
 
 ## Traceability
+<!-- Write N/A with the reason when the project has no prototypes or business rules. -->
 - Prototype routes/screens:
 - Business rules:
 - Source docs:
@@ -39,29 +40,38 @@ column that fits each file.
 ### Approach
 -
 
-#### Story-time decisions (optional)
+#### Decisions
 <!--
-Use this when 2+ implementation choices need to be locked before tasks start
-(e.g. pnpm vs bun, biome vs eslint+prettier, file-based vs code-based routing).
-Skip this sub-section if the story has no architectural choices left.
+Record each choice made while planning or implementing (tooling, approach,
+naming, trade-off). Keep updating it during execution; the closure lists the
+new entries. Skip when the story has no choices left.
+Status: applied · in progress · queued · blocked
 -->
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| tooling / package / strategy | concrete pick | one-line reason |
+| Decision | Why | Alternatives (and why not) | Cost to reverse | Status |
+|---|---|---|---|---|
+| concrete pick | one-line reason | option — reason | low / medium / high | applied |
 
 ### Risks and dependencies
 -
 
 ## Acceptance criteria
-- [ ]
+<!--
+Each criterion is observable and names its proof: a command, a test name, or a
+result someone can check. "Works well" is not a criterion.
+-->
+
+| Criterion | Proof |
+|---|---|
+| observable outcome | `command` / test name / checked result |
 
 ## Test-first plan
 - Behavior to prove before implementation:
 - First failing test:
 - Preferred test level: unit/integration/E2E
-- Front-end test value check: does this protect validation, business rule, API contract, permission, offline/sync behavior, or a critical flow?
+- Front-end test value check (front-end changes only): does this protect validation, business rule, API contract, permission, offline/sync behavior, or a critical flow?
 - Low-value tests to avoid:
+- Mutation each new test must kill:
 
 ## Tasks
 <!--
@@ -70,17 +80,30 @@ At story-time, write tasks in vertical phases. Each task should have a `Done whe
 - [ ] Map impact and validate files
 - [ ] Write the first failing test for the main behavior. **Done when:** test runs and fails (Red).
 - [ ] Implement the main change. **Done when:** test passes (Green).
-- [ ] Refactor for clarity. **Done when:** typecheck + lint still clean.
+- [ ] Refactor for clarity. **Done when:** the project's fast checks (lint, typecheck where it exists) are still clean.
 - [ ] Adjust tests, types, and necessary documentation
 - [ ] Review final consistency
 
 ## Verification
-- [ ] `bun run lint` (or project equivalent, e.g. `pnpm lint`)
-- [ ] `bun run typecheck` (or project equivalent)
-- [ ] `bun test` (or project equivalent)
-- [ ] Manual validation of the changed flow
-- [ ] Acceptance criteria met
+<!--
+Copy the applicable items from the project's validation contract (VALIDATION.md
+or equivalent). Without one, list the project's lint, typecheck, and test
+commands and suggest creating the contract with /agile-tdd.
+Keep only the rows that apply to this change; mark others N/A with the reason.
+At closure every item gets a verdict: PASS · FAIL · NOT RUN (why) · BLOCKED (what is missing) · N/A (why).
+-->
+
+| Item | Command / check | Verdict |
+|---|---|---|
+| <item from VALIDATION.md, e.g. lint> | `<project command>` | |
+| <item from VALIDATION.md, e.g. tests this change touches> | `<project command>` | |
+| Acceptance criteria proofs | see table above | |
+| Real user path on existing state | what was exercised | |
+| Manual checks (visual, device) | viewports / devices | |
+| Independent review | verdict on final code | |
+
 - [ ] Red-Green-Refactor evidence recorded when applicable
+- [ ] Findings outside this story's scope recorded as new backlog items
 - [ ] Skill feedback captured if the process/template did not fit the work
 
 ## Recommended next step

@@ -37,7 +37,7 @@ Free-form prompts (no structured tool):
 - Stakeholder names
 - Demo narration text
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -66,6 +66,8 @@ Gather information from:
 - Status closure reports generated
 - Status checkpoints and consolidation reports from the period
 - Registered scope changes
+
+Count an item as delivered only when its closure state is **done** (as defined by `/agile-status`: every applicable per-change item PASS or N/A with reason, review `ok`). Items closed as **partial** are shown as partial, with what is missing; items with FAIL, NOT RUN, or BLOCKED verdicts are not presented as delivered.
 
 For each delivered item, register:
 - What was expected (from sprint planning)

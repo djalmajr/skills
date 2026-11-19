@@ -199,5 +199,5 @@ Use the harness's structured-question tool when: the governing `DESIGN.md` is
 ambiguous between candidates; a vocabulary gap needs a new token/exception
 (offer 2–3 concrete options); bootstrap must choose where rules live or
 whether to enable CI; audit findings need owner triage (fix vs allowlist).
-Free-form for paths and names. In no-pause mode, record these as open
-questions and proceed conservatively.
+Free-form for paths and names. In no-pause mode, or when running as a delegated
+agent with nobody to ask, record these as open questions and proceed conservatively.

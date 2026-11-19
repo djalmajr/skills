@@ -26,7 +26,23 @@ Every `SKILL.md` includes a `## Prompting` section listing the **decision points
 
 Structured prompts are used when the choice is a small discrete set (2–4 options), branches the skill's next steps, requires confirmation before something hard to undo, or selects from a known list (multi-select). Free-form is used for paths, names, descriptions, and any value the skill cannot enumerate.
 
-When the user runs in **no-pause mode** (explicit "do not stop for clarifications"), the skill converts every structured prompt into an entry under *Open questions* (or equivalent) and proceeds without blocking.
+When the user runs in **no-pause mode** (explicit "do not stop for clarifications"), or the skill runs as a delegated, non-interactive agent with nobody to ask, the skill applies the recommended option for every structured prompt, records it under *Open questions* (or equivalent), and proceeds without blocking.
+
+## Verification vocabulary — shared by the agile skills
+
+The agile skills share one way to say whether work is proven:
+
+- **Validation contract:** each project keeps `VALIDATION.md` (or an equivalent it already uses) listing test layers with their commands, per-change checks, and manual checks. `agile-tdd` creates it from its template.
+- **Verdicts:** every verification item ends in `PASS`, `FAIL`, `NOT RUN` (with why), `BLOCKED` (with what is missing), or `N/A` (with why it does not apply). Not proven is never `PASS`.
+- **Applicable items:** chosen when the change is planned, in proportion to its size. Layers gated at release are reported at release, not per story.
+- **Done vs partial:** done only when every applicable item is `PASS` or `N/A` on the final code (planning-only commits don't count); otherwise partial, listing what is missing (`agile-status`, `agile-review`).
+- **Proof per acceptance criterion:** a command, test name, or checkable result (`agile-story`, `agile-epic`).
+- **Independent review:** by a fresh session, another agent, or a person. Findings are `blocker` (security, in-scope correctness, acceptance without proof) or `minor`; verdict `ok` means no open blocker; every finding answered (`fixed`, `declined: <reason>`, or `backlog: <item>`) (`agile-refinement`).
+- **Decisions:** decision, why, alternatives, cost to reverse, status (`agile-story`, `agile-epic`).
+
+## Project tracker — optional
+
+Artifacts are files under `planning/` by default. `agile-intake` asks once per initiative whether the team uses a tracker (Linear, Jira, GitHub Projects, or similar); if so, intake, epic, and story content also feeds its items. Skills never assume a specific tool.
 
 ## Real-world evidence — `samples/`
 
@@ -82,7 +98,6 @@ A few patterns recur across real sessions:
 | One executable plan for a single change | `/agile-story` |
 | One plan with checklist, clipboard copy, and paste-ready goal prompt | `/plan-goal` |
 | TDD coaching or enforcement install | `/agile-tdd` |
-| A team of role agents (design, review, implement) inside Herdr | `/herdr-soho` ([djalmajr/herdr-soho](https://github.com/djalmajr/herdr-soho)) |
 | Validate a planning artifact or review code | `/agile-refinement` |
 | Daily / period / closure status | `/agile-status` |
 | Sprint ceremony | `/agile-sprint`, `/agile-review` (includes metrics), `/agile-retro` |

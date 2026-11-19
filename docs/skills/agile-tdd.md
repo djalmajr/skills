@@ -1,6 +1,6 @@
 # agile-tdd
 
-Guides the TDD (Test-Driven Development) cycle and pragmatic testing strategy. Follows the Red-Green-Refactor pattern, applies the test pyramid with sensible coverage targets, and enforces best practices like AAA pattern, factory-based data, and behavior-focused tests.
+Guides the TDD (Test-Driven Development) cycle and pragmatic testing strategy. Follows the Red-Green-Refactor pattern, picks test layers by project type, accepts only tests that verify observable behavior and name the mutation they kill, and keeps the project's validation contract (`VALIDATION.md`): the layers, their commands, and the PASS / FAIL / NOT RUN / BLOCKED verdicts every closure reports.
 
 Ships with an **optional opt-in enforcement layer** (templates + hooks) that turns the TDD rule into a project-level guardrail — see [Enforcement layer](#enforcement-layer-optional-opt-in-per-project) below.
 
@@ -9,7 +9,7 @@ Ships with an **optional opt-in enforcement layer** (templates + hooks) that tur
 - Starting a new feature with TDD (Red-Green-Refactor).
 - Adding tests to existing code that lacks coverage.
 - Deciding between unit, integration, or E2E tests for a module.
-- Establishing a testing strategy for a codebase.
+- Establishing a testing strategy for a codebase, or writing its `VALIDATION.md`.
 - Choosing valuable front-end integration tests for validations, API contracts, permissions, offline/sync behavior, or critical flows.
 - Installing the enforcement layer in a project where ad-hoc TDD discipline has proven unreliable.
 
@@ -38,8 +38,8 @@ A `utils/currency.ts` module has zero test coverage:
 3. Red phase: writes a failing test for `formatCurrency()`.
 4. Green phase: verifies the function passes (it already exists, so the test should pass — if not, the function has a bug).
 5. Continues for `parseCurrency()`, `convertRate()`, etc.
-6. Runs `bun test --coverage` (or project equivalent) and checks against the 85%+ target for utils.
-7. Reports coverage gaps and suggests next steps.
+6. For each new test, names the mutation it kills (e.g. dropping the rounding step) and confirms the test fails with that change.
+7. Runs the project's test command and reports real counts; uses coverage only to point at untested critical paths.
 
 ### Example 2 — TDD for a new feature
 
@@ -51,7 +51,7 @@ Building a new `NotificationService` from scratch:
 4. Refactor: extracts common setup into a factory.
 5. Repeats for `schedule()` and `cancel()`.
 6. Integration test: writes a test that verifies notifications are persisted to the database.
-7. Final coverage check against the 80%+ target for services.
+7. Runs the layers the project's `VALIDATION.md` requires and reports one verdict per item.
 
 ### Example 3 — Installing enforcement in a new project
 
@@ -129,7 +129,8 @@ When the optional enforcement is installed, the file-pair check fires automatica
 ## Tips & pitfalls
 
 - Always start with a failing test. If the test passes immediately, you either wrote the wrong test or the behavior already exists.
-- Use factories (`faker`) for test data. Hardcoded strings like `"test@test.com"` hide assumptions and make tests brittle.
+- Follow the project's test-data convention (factories, fixtures, builders). Where none exists, generated data hides fewer assumptions than one hardcoded value.
+- If you cannot name a code change that would make a test fail, the test protects nothing: delete it.
 - Do not mock your own code. Mock external dependencies (APIs, databases, third-party services).
 - One concept per test. If a test name has "and" in it, split it.
 - Run tests in watch mode during development for fast feedback.

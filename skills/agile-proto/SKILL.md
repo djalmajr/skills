@@ -44,7 +44,7 @@ Use the harness's structured-question tool for choices that materially branch th
 | Existing prototype | Extend existing · Start fresh |
 | `htm-ui` skill missing | Install now · Continue with CDN/docs only |
 
-If the user has explicitly requested uninterrupted execution, record unresolved choices and proceed with the safest reversible assumption.
+If the user has explicitly requested uninterrupted execution, or the skill runs as a delegated agent with nobody to ask, record unresolved choices and proceed with the safest reversible assumption.
 
 ## Stack
 

@@ -167,7 +167,7 @@ Flags one issue: duplicated email validation logic in sender and templates. Fix:
 
 - **Delivered:** all 8 tasks, all 5 AC met
 - **Scope change:** none
-- **Verification:** lint, typecheck, tests all pass. Manual: 4 emails received in staging.
+- **Verification:** lint PASS, typecheck PASS, tests PASS (42 of 42); real path PASS (4 emails received in staging); review `ok` on the final code. State: done.
 - **Next step:** monitor email delivery rate in prod for 1 week
 
 ---
@@ -257,14 +257,14 @@ test("applies discount from DB-stored promo code", async () => {
 ### Step 4: Verify and close
 
 ```
-bun test --coverage
+bun test
 ```
 
-Check coverage against targets (80%+ for services). Run `/agile-refinement` to review test quality, then `/agile-status` (closure) to wrap up.
+Run the items your `VALIDATION.md` requires for this change, confirm each new test kills the mutation it names, and use coverage only to spot untested critical paths. Run `/agile-refinement` (ideally from a fresh session) to review the change, then `/agile-status` (closure) to record one verdict per item.
 
 **Outcome:**
 - 12 unit tests, 3 integration tests, all passing
-- 87% coverage on `discount.ts` (above target)
+- Each test names the mutation it kills (e.g. removing the minimum-order check fails `rejects discount below minimum order`)
 - Implementation driven by tests from day 1 -- no dead code, no untested paths
 
 ---

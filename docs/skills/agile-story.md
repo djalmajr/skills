@@ -69,6 +69,8 @@ flowchart LR
 - Tasks must be verifiable -- "implement X" is not a task; "add expiry check to verifyResetToken in tokens.ts" is.
 - When a task is completed, update `[ ]` to `[x]` in the plan.
 - If the work turns out to be bigger than expected mid-plan, stop and suggest `/agile-epic` instead.
+- Each acceptance criterion names its proof; Verification items come from the project's `VALIDATION.md` and close with verdicts.
+- Findings outside the story become new backlog items; after three fix rounds without closing, stop and reassess.
 
 ## Chaining
 
