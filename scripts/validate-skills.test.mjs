@@ -97,3 +97,20 @@ test("convention sections are required, project root only where artifacts are wr
     "skills/plan-goal/SKILL.md: missing ## Prompting section",
   ])
 })
+
+test("CRLF files parse, the line budget is exact, and plain paths are not commands", () => {
+  write("skills/plan-goal/SKILL.md", "---\r\nname: plan-goal\r\ndescription: x\r\n---\r\n## Project root\r\n## Prompting\r\n")
+  skill("agile-router", "Use `/agile-story`; scratch files go to `/tmp`.")
+  assert.deepEqual(validate(root), [])
+  const header = "---\nname: agile-story\ndescription: x\n---\n## Project root\n## Prompting\n"
+  const pad = MAX_SKILL_LINES - header.split("\n").length + 1
+  write("skills/agile-story/SKILL.md", header + "x\n".repeat(pad))
+  assert.deepEqual(validate(root), [])
+})
+
+test("router coverage needs the exact skill name", () => {
+  skill("agile-pro")
+  manifest(["agile-pro", "agile-router", "agile-story", "plan-goal"])
+  skill("agile-router", "Use `/agile-story` or `/agile-prototype`.")
+  assert.ok(validate(root).includes("skills/agile-router/SKILL.md: does not route to /agile-pro"))
+})

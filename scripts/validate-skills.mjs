@@ -22,7 +22,7 @@ const CONSUMER_PATHS = {
 }
 
 export function parseFrontmatter(text) {
-  const m = text.match(/^---\n([\s\S]*?)\n---\n/)
+  const m = text.replace(/\r\n/g, "\n").match(/^---\n([\s\S]*?)\n---\n/)
   if (!m) return null
   const fields = {}
   const lines = m[1].split("\n")
@@ -84,7 +84,7 @@ export function validate(root) {
     if (!NO_PROJECT_ROOT.has(name) && !/^## Project root$/m.test(text))
       err(where, "missing ## Project root section")
 
-    const lines = text.split("\n").length
+    const lines = text.replace(/\n$/, "").split("\n").length
     if (lines > MAX_SKILL_LINES)
       err(where, `${lines} lines (max ${MAX_SKILL_LINES}); move detail to references/`)
 
@@ -115,10 +115,10 @@ export function validate(root) {
   if (existsSync(routerPath)) {
     const router = readFileSync(routerPath, "utf8")
     for (const s of agile) {
-      if (s !== "agile-router" && !router.includes(`/${s}`))
+      if (s !== "agile-router" && !new RegExp(`/${s}(?![\\w-])`).test(router))
         err("skills/agile-router/SKILL.md", `does not route to /${s}`)
     }
-    for (const [, cmd] of router.matchAll(/`\/([a-z][\w-]*)`/g)) {
+    for (const [, cmd] of router.matchAll(/`\/([a-z]+-[a-z][\w-]*)`/g)) {
       if (!cmd.startsWith("agile-")) err("skills/agile-router/SKILL.md", `routes to non-agile /${cmd}`)
     }
   }

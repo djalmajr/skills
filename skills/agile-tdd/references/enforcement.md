@@ -10,7 +10,7 @@ Beyond advisory guidance, this skill ships hook templates that turn the TDD rule
 - **Stop hook** — at session end, scans the git diff and reports source files touched without a companion test.
 - **SessionStart hook** — announces "TDD enforcement active" so the agent knows the rule is in force.
 
-The hook templates live at `skills/agile-tdd/templates/hooks/*.sh.tmpl` and the config schema at `skills/agile-tdd/templates/tdd-guardrails.yml.tmpl`.
+The hook templates live at `templates/hooks/*.sh.tmpl` and the config schema at `templates/tdd-guardrails.yml.tmpl`.
 
 ## Config (`.tdd-guardrails.yml`)
 
