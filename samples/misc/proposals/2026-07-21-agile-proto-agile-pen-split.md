@@ -1,3 +1,9 @@
+---
+status: obsolete
+reviewed: 2026-11-19
+resolution: "Split superseded: agile-proto stayed web-only (skills/agile-proto/SKILL.md:3), but agile-pen was replaced by tool-neutral agile-design in 0b62c7c."
+---
+
 # Skill Feedback: separar protótipos web e Pen.dev
 
 **Observed during:** evolução do renderer determinístico ADS e teste ponta a ponta do Trello Clone
@@ -9,7 +15,7 @@
 - Source skill version/commit: `fcc88d0d91dbc0fba3e535e9c086e9ed5f1705bd`
 - Model/provider (if AI-generated): OpenAI Codex
 - Originating session/journal: sessão iniciada a partir de `019f7fed-4123-73e0-9538-76267a5e652c`
-- Related findings/proposals: `feedback/2026-07-20-agile-proto-captured-catalog.md`; `feedback/2026-07-20-agile-proto-component-slices.md`; `feedback/2026-07-20-agile-proto-traceability-e2e.md`
+- Related findings/proposals: `2026-07-20-agile-proto-captured-catalog.md`; `2026-07-20-agile-proto-component-slices.md`; `2026-07-20-agile-proto-traceability-e2e.md`
 
 ## Context
 

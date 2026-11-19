@@ -1,3 +1,9 @@
+---
+status: applied
+reviewed: 2026-11-19
+resolution: "## Project root present in 16 SKILL.md (e.g. skills/agile-intake/SKILL.md:23, skills/agile-epic/SKILL.md:23); skipped agile-router/agile-onboarding by design; wiki-* targets no longer exist."
+---
+
 # Skill Feedback: Declare "Project root" in skills that write artifacts
 
 **Observed during:** project `reserva-pwa` (skills-validation sample), sessions 2026-05-12 across multiple skill invocations

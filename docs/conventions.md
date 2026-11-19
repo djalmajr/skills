@@ -12,11 +12,11 @@ Every skill that writes an artifact has a `## Project root` section in its `SKIL
 
 This matters most for multi-repo sessions (e.g., the skills repo open while planning a sample project as a sibling). Without the section, the first write tends to land in the wrong repo silently. With it, the agent has explicit guidance.
 
-Covered skills: 13 of 15. The two skipped — `agile-onboarding` and `agile-router` — do not write artifacts.
+Covered: every skill that writes artifacts. `agile-onboarding` and `agile-router` write none, so they have no section.
 
 ## How a skill asks you a question — `## Prompting`
 
-Every `SKILL.md` includes a `## Prompting` section listing the **decision points** that warrant the harness's **structured-question tool** vs. free-form text. The tool by harness:
+Every `SKILL.md` with user decision points includes a `## Prompting` section listing the **decision points** that warrant the harness's **structured-question tool** vs. free-form text. The tool by harness:
 
 | Harness | Tool name |
 |---|---|

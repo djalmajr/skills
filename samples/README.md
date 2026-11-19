@@ -34,6 +34,7 @@ samples/
 | Sample | Primary focus |
 |---|---|
 | [`reserva-pwa/`](./reserva-pwa/) | OpenTable-style table reservation PWA. Exercises the full agile cycle and a wiki with dense domain rules. |
+| [`misc/`](./misc/) | Proposals observed in projects without a dedicated sample (only `proposals/`). |
 
 ## Future samples (backlog)
 
@@ -57,7 +58,7 @@ Ideas to validate as additional samples later. Each one is chosen to stress diff
 
 - **Pitch:** timer, projects, clients, billing/invoicing, reports.
 - **What it stresses:** real business rules around billing (rate cards, currency, tax), reporting depth, integration with calendar/git. Solid wiki content (billing rules, productivity metrics).
-- **Skill coverage:** strong on `wiki-ingest` and `wiki-policy-check` (billing rules must not leak into code). Reports stress `agile-story` for analytics work.
+- **Skill coverage:** billing rules stress `agile-intake` and `agile-refinement`; reports stress `agile-story` for analytics work.
 - **Status:** backlog.
 
 > When promoting a backlog idea to an active sample: create `samples/<slug>/`, write its README explaining the chosen focus, then start a new `journal/` from the kickoff session.
@@ -99,4 +100,5 @@ session uses skill → journal/ entry
   - **Strong evidence (≥ 2 occurrences across sessions):** promote to `findings/<slug>.md` with `status: mature`.
   - **Single strong evidence (1 occurrence, structurally clear gap):** still promote to `findings/<slug>.md` but with `status: draft` and a one-sentence rationale explaining why the single evidence justifies promotion (e.g., "fact is verifiable from disk", "gap is structural, not coincidental").
   - **Single weak evidence (1 occurrence, ambiguous):** keep in the journal as `[[finding-candidate]]`; wait for repetition.
+- **Proposal status:** every `proposals/*.md` starts with frontmatter `status` (`open`, `partial`, `applied`, `obsolete`), `reviewed` (date of the last check against `skills/`), and `resolution` (one line with evidence or what is still open). Re-check open and partial proposals when the target skill changes.
 - **Findings index by skill:** at any moment, finding files can be grouped by their `skill:` frontmatter. A future helper script (`scripts/findings-index.sh`) can scan `samples/*/findings/*.md` and print a grouped table. Until then, `grep "^skill:" samples/*/findings/*.md | sort` works as a quick index.

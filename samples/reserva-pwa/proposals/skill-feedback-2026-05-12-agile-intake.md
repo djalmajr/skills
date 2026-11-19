@@ -1,3 +1,9 @@
+---
+status: applied
+reviewed: 2026-11-19
+resolution: "kebab-case slug at skills/agile-intake/SKILL.md:116, no-pause at :45, exploratory N/A at :89, assumption vs open question at :91."
+---
+
 # Skill Feedback: `agile-intake` — four refinements
 
 **Observed during:** project `reserva-pwa`, intake session 2026-05-12 and two follow-up decision-capture rounds

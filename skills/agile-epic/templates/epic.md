@@ -45,6 +45,14 @@
 
 ## Epic roadmap
 
+Default: `flowchart` for dependencies without a real schedule. Use the `gantt` block instead only when concrete dates and capacity exist; keep one of the two.
+
+```mermaid
+flowchart LR
+    S1["Story 1"] --> S2["Story 2"]
+    S2 --> S3["Story 3"]
+```
+
 ```mermaid
 gantt
     title Epic roadmap

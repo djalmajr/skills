@@ -1,3 +1,9 @@
+---
+status: obsolete
+reviewed: 2026-11-19
+resolution: "agile-pen (registry harness, renderer, shadcn blocks matrix) removed in 0b62c7c; superseded by tool-neutral agile-design."
+---
+
 # Skill Feedback: Materialização de blocos shadcn completos
 
 **Observed during:** teste ponta a ponta do `agile-pen` com `npx shadcn add dashboard-01`
@@ -9,7 +15,7 @@
 - Source skill version/commit: `fcc88d0d91dbc0fba3e535e9c086e9ed5f1705bd` com alterações locais da nova skill `agile-pen`
 - Model/provider (if AI-generated): OpenAI Codex
 - Originating session/journal: sessão atual de validação do Trello Clone
-- Related findings/proposals: `feedback/2026-07-21-agile-proto-agile-pen-split.md`
+- Related findings/proposals: `2026-07-21-agile-proto-agile-pen-split.md`
 
 ## Context
 

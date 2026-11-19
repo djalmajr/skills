@@ -1,3 +1,9 @@
+---
+status: applied
+reviewed: 2026-11-19
+resolution: "Per-story vs cycle-end closure at skills/agile-status/SKILL.md:115-116 and :133-134, <slug> filename at :119 and templates/status.md:92, scope-drift step at SKILL.md:108."
+---
+
 # Skill Feedback: `agile-status` — three refinements
 
 **Observed during:** project `reserva-pwa`, Story 01 closure session 2026-05-12

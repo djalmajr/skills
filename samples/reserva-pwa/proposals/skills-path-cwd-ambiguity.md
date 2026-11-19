@@ -1,8 +1,10 @@
 ---
 title: "Declare project root in skills that write artifacts"
 finding: findings/agile-skills-paths-cwd.md
-status: ready
 target_skills: [agile-intake, wiki-init]
+status: applied
+reviewed: 2026-11-19
+resolution: "Superseded by skill-feedback-2026-05-12-project-root.md, which landed ## Project root (skills/agile-intake/SKILL.md:23); wiki-init target no longer exists."
 ---
 
 # Proposal: declare project root explicitly in skills
