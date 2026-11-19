@@ -12,7 +12,7 @@ node_modules/
 
 # Skills (installed via npx skills add)
 .claude/
-.c cursor/
+.cursor/
 .codeium/
 .copilot/
 .codex/

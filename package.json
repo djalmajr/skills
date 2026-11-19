@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "validate": "node scripts/validate-skills.mjs",
+    "test": "node --test scripts/*.test.mjs && node scripts/validate-skills.mjs",
     "test:create-audio": "node skills/create-audio/scripts/smoke.mjs",
     "test:create-video": "node skills/create-video/scripts/smoke.mjs"
   }
