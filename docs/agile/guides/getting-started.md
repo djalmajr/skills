@@ -83,8 +83,8 @@ A new backend dev joins the team and needs to learn the flow.
 **Day 3 -- Practical exercise (TDD + execution):**
 - Implement the rate limiting plan using TDD with AI as pair
 - Write failing test (red), implement (green), refactor
-- Run lint, typecheck, tests
-- Run `/agile-refinement` (code review mode) -- review the diff together
+- Run the items from the project's `VALIDATION.md` and record a verdict for each
+- Run `/agile-refinement` (code review mode) from a fresh session -- review the diff together and answer every finding
 
 **Day 4 -- Practical exercise (tracking):**
 - Generate a `/agile-status` checkpoint for the rate limiting work

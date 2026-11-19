@@ -33,8 +33,11 @@
 - Prototype:
 - Business rules:
 
-**Acceptance criteria:**
-- [ ]
+**Acceptance criteria** (each observable, with its proof):
+
+| Criterion | Proof |
+|---|---|
+| observable outcome | `command` / test name / checkable result |
 
 ---
 
@@ -64,8 +67,14 @@ gantt
 ```
 
 ## Epic acceptance criteria
-- [ ]
-- [ ]
+
+| Criterion | Proof |
+|---|---|
+| observable outcome | `command` / test name / checkable result |
+
+## Decisions
+| Decision | Why | Alternatives (and why not) | Cost to reverse | Status |
+|---|---|---|---|---|
 
 ## Risks
 

@@ -28,7 +28,7 @@ Free-form prompts (no structured tool):
 
 - Problem description (so the router can decide)
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, pick the highest-confidence recommendation and proceed; surface the decision and reasoning rather than asking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), pick the highest-confidence recommendation and proceed; surface the decision and reasoning rather than asking.
 
 ## Scope
 

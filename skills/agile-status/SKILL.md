@@ -43,7 +43,7 @@ Free-form prompts (no structured tool):
 - Blocker descriptions
 - Progress narration
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -105,11 +105,15 @@ Formal delivery closure — plan vs result, verification, remaining risks, hando
 
 **Process:**
 1. Identify the delivery being closed (plan, story, epic).
-2. **Surface scope drift before drafting.** Run `git diff` (or equivalent) against the story's acceptance criteria. Explicitly list any change that does not map to an acceptance bullet, with the rationale per change. Catches drift at write-time, not retrospectively.
+2. **Surface scope drift before drafting.** Run `git diff` (or equivalent) against the story's acceptance criteria. Explicitly list any change that does not map to an acceptance criterion, with the rationale per change. Catches drift at write-time, not retrospectively.
 3. Compare plan vs result: what was delivered, what remained pending, scope changes.
-4. Execute verifications: lint, typecheck, tests, manual validation. Record actual results.
-5. Record remaining risks and next steps.
-6. Define handoff (who needs to know).
+4. Run the story's Verification items (from the project's validation contract) on the final code, or reuse a result that is still valid (same code, configuration, dependencies, and environment), and give each a verdict: **PASS, FAIL, NOT RUN** (with why), **BLOCKED** (with what is missing), or **N/A** (with why it does not apply). Record the commit verified and what was reused versus rerun. Commits that only touch planning or status files do not change "final code". Final code is the PR head before merge; after a merge, the merge commit, once `git diff <head> <merge>` shows no code change.
+   - **Epic closure:** there is no separate Verification list. The epic is done when every story closure is done and each epic acceptance criterion has its proof; list each story's state.
+5. Exercise the real path: the state users actually have (not only a clean install or empty database), and open every link, path, or command the delivery hands over. Separate automated checks from manual ones; a regression found manually gets an automated test before closing.
+6. Record the review verdict on the final commit and the response to every finding.
+7. Set the delivery state: **done** only when every applicable item is PASS or N/A with reason; otherwise **partial**, listing what is missing. Release-gate layers (nightly or release-only) are reported at release and do not make a story partial.
+8. List the decisions made, out-of-scope findings turned into backlog items, remaining risks, and next steps.
+9. Define handoff (who needs to know).
 
 **Scope of closure (affects chaining):**
 - **Per-story closure** — single story complete inside an ongoing epic/sprint. Do **not** trigger `/agile-retro`; recommend the next `/agile-story` or a consolidation later.
@@ -142,8 +146,10 @@ Use `templates/status.md` from this skill as base.
 - Every update must reflect real state, not optimistic intention.
 - Blockers must have impact, owner, and next action — not just a description.
 - Checkpoints must reference the specific plan, story, or issue for traceability.
-- Closure mode must always run lint, typecheck, and tests. Don't assume they pass.
-- Report actual results, not intention. If lint failed, say it failed.
+- Closure mode runs the verification items or reuses still-valid results, saying which. Don't assume they pass.
+- Report actual results with counts, not intention. If lint failed, say it failed.
+- Not proven is never PASS. A response 200 or a green CI proves plumbing, not the user flow.
+- Say what was proven and no more: "no regression observed in <suites>", never "zero regressions".
 - Keep it proportional — a checkpoint should take under 5 minutes, a consolidation under 15.
 
 ## Relationship with the flow

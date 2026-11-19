@@ -74,7 +74,8 @@ flowchart LR
 - Every update must reflect real state, not optimistic intention.
 - Blockers must have impact, owner, and next action -- "blocked on X" without resolution is useless.
 - Checkpoints should take under 5 minutes. If longer, you need consolidation mode.
-- Closure mode must always run lint, typecheck, and tests. Don't assume they pass.
+- Closure mode runs the story's verification items and gives each a verdict: PASS, FAIL, NOT RUN, or BLOCKED. Not proven is never PASS.
+- A delivery is done only when every applicable item is PASS on the final commit; otherwise the closure says partial and lists what is missing.
 - Keep it proportional -- a 1-week report doesn't need 5 pages.
 
 ## Chaining

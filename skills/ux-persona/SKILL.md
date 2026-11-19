@@ -31,7 +31,7 @@ Free-form prompts (no structured tool):
 - Persona details not covered by the flow file
 - Answers to questions a real user would need to ask
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, stop when the app is unreachable and report it; never start processes without a prior instruction.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), stop when the app is unreachable and report it; never start processes without a prior instruction.
 
 ## Input (the flow comes FIRST)
 

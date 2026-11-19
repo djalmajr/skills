@@ -37,13 +37,14 @@ Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Promptin
 | Save path when user-passed path conflicts with convention | Hard-to-undo write | Use convention · Honor user path · Ask |
 | Roadmap diagram type | Affects template fit | Mermaid flowchart · Mermaid gantt |
 | Which story to detail first via /agile-story | Branches the next skill | first by dependency · pick |
+| Project tracker (only if the intake did not record it) | Decides where story items live | No, files only · Yes (name it) |
 
 Free-form prompts (no structured tool):
 
 - Story names (kebab-case)
 - Epic title and outcome wording
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -146,6 +147,7 @@ planning/<initiative>/epics/NN-<epic-name>/
 
 - Epic folder: `planning/<initiative>/epics/NN-<epic-name>/`
 - If the initiative doesn't have a folder in `planning/`, ask the user for the name
+- **Project tracker:** if the team uses one (Linear, Jira, GitHub Projects, Azure Boards, or similar), the artifact's content also feeds its items: one item per story, with its acceptance criteria and proofs, linked from the story file. The file under `planning/` stays the default; reuse the answer recorded in the intake, ask only when there is none, and do not assume a specific tool.
 - **Path-conflict gate:** if the user passes a save path that does not match the convention above (e.g., `planning/<initiative>/<epic-name>/` instead of the `epics/NN-<epic-name>/` shape), surface the conflict before writing. Honor the user's path only after explicit confirmation; otherwise apply the convention and tell the user why. Use the harness's question tool (see `## Prompting`) to disambiguate.
 
 ## Roadmap diagram
@@ -195,7 +197,9 @@ Use `templates/epic.md` from this skill as base for the overview artifact.
 - Break by behavior/delivery (vertical slices), not by technical layer.
 - Each story in the backlog must have a clear objective and be executable separately.
 - The roadmap must show dependencies, not just chronological order.
-- Epic acceptance criteria must be verifiable.
+- Epic acceptance criteria must be verifiable: each names its proof (command, test name, or checkable result).
+- Record choices made while decomposing in the `Decisions` table (why, alternatives, cost to reverse, status).
+- If the project has no validation contract (`VALIDATION.md` or equivalent), note it as a risk and suggest `/agile-tdd` to create one before the first story closes.
 - Update story statuses as the epic progresses.
 - Each story file must contain enough context to be planned and executed independently.
 

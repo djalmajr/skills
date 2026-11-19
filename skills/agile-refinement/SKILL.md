@@ -36,13 +36,14 @@ Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Promptin
 |---|---|---|
 | Target | Branches the workflow | Planning artifact · Code · Both |
 | Depth | Affects review effort | Lint-only · Full review · Security focus |
+| Who reviews (code review) | Independence of the verdict | Fresh session or another agent (recommended) · Teammate · This session (flagged as self-review) |
 
 Free-form prompts (no structured tool):
 
 - File paths to review
 - Specific concerns
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -82,7 +83,7 @@ Validates planning artifacts against the following checks:
 - [ ] Dependency order is consistent with the roadmap/epic sequence
 
 ### Completeness
-- [ ] Required sections are present (Context, Files, Detail, Tasks, Verification)
+- [ ] Required sections are present (for stories, the list in `/agile-story` → "Required sections")
 - [ ] No empty required fields
 - [ ] Acceptance criteria are defined and verifiable
 - [ ] Tasks are specific and actionable (not vague)
@@ -122,66 +123,47 @@ Validates planning artifacts against the following checks:
 
 ## Mode 2: Code Review
 
-Reviews changed code applying the checklist from `~/.agents/rules/code-review.md`:
+Reviews a change with the checklist in `references/code-review.md` (correctness, security, tests, coherence, scope, completeness).
 
-### Security
-- [ ] Inputs validated and sanitized
-- [ ] No SQL injection, XSS, command injection, or SSRF
-- [ ] No hardcoded secrets
-- [ ] Authentication and authorization correct when applicable
-- [ ] Sensitive data not exposed in logs or responses
+### Independence
 
-### Project Coherence
-- [ ] Follows repository patterns and conventions
-- [ ] Uses existing components, utilities, and helpers
-- [ ] Did not reinvent the wheel
-- [ ] Naming consistent with codebase
-- [ ] Imports follow project conventions
-
-### Over-engineering
-- [ ] No premature abstractions
-- [ ] No error handling for impossible scenarios
-- [ ] No generalization for hypothetical requirements
-
-### Scope
-- [ ] Code does only what was requested
-- [ ] No refactoring of unrelated code
-- [ ] No additional features not requested
-
-### Quality
-- [ ] Tests cover acceptance scenarios
-- [ ] Code readable without explanatory comments
-- [ ] Small functions with single responsibility
-- [ ] No logic duplication
-- [ ] Errors handled at system boundaries
-
-### Completeness
-- [ ] Lint passes
-- [ ] Typecheck passes
-- [ ] Tests pass
-- [ ] Diff read in full
+The author's own self-check is not a review. The review is done by someone without the author's working context: a fresh agent session, another agent, or a person. When this skill runs in the same session that wrote the code, say so in the report and recommend an independent pass before merge. Give the reviewer the code and the acceptance criteria, not the author's conclusions.
 
 ### Process
 
-1. Identify the scope: branch, files, or working tree changes.
-2. Read the complete diff before issuing any output.
-3. Apply each check category.
-4. Produce an inline report grouped by category.
-5. Highlight red flags that justify immediate rejection.
+1. Identify the scope and pin it: base and head commits. Review `git diff <base>...<head>` (or the PR diff), never a commit range that includes merges from the base branch; after a merge, `git diff <merge>^1 <merge>^2`.
+2. Read the complete diff and the story's acceptance criteria before issuing any output.
+3. Apply each checklist category.
+4. Report findings, each with severity, `file:line`, and a concrete failure scenario (input or state → wrong result). No finding without a scenario. Severity:
+   - `blocker` — a security issue, a correctness bug inside the story's scope, or an acceptance criterion without proof;
+   - `minor` — everything else worth fixing (style of a test, missing docs, small refactor).
+5. Give a verdict:
+   - `ok` — no open blocker;
+   - `changes` — at least one blocker is open;
+   - `blocked` — cannot be reviewed as is (missing context, broken build, scope far beyond the plan).
+
+### Closing the loop
+
+- The author answers **every** finding: `fixed` (with the change), `declined: <reason>`, or `backlog: <item>` for minors outside the scope. An unanswered finding is a silent decision.
+- Minors never hold the verdict once answered. A declined blocker goes back to the reviewer, who either accepts the reason (verdict `ok`) or keeps `changes` and says why.
+- A verdict is valid for the code it reviewed. If code changes afterwards, re-review what the change touched; commits that only touch planning or status files (checkboxes, closure reports) do not invalidate it.
+- Merge needs verdict `ok` on the final code plus the applicable validation items in PASS (or N/A with reason).
+- After three review rounds without reaching `ok`, or if the change grew well beyond its plan, stop and reassess: split the work or narrow the scope, and record the decision.
 
 ## Output
 
-This skill does NOT produce a saved artifact. It produces an inline report with:
+The report is inline by default. When a closure or a pull request will cite the review, save it where the team keeps reviews (a PR comment, or `planning/<initiative>/reviews/<slug>.md`) with the commit, verdict, findings, and their responses. The report contains:
 - Issues grouped by category
-- Severity: red flag (reject), warning (fix before proceeding), info (consider)
-- Specific file and line references where applicable
+- Severity: `blocker` or `minor` for code review; for planning lint, red flag (reject), warning (fix before proceeding), info (consider)
+- Specific file and line references, with a failure scenario for code findings
 - Actionable suggestions for each issue
+- In code-review mode: the commit reviewed and the verdict (`ok`, `changes`, `blocked`)
 
 ## Rules
 
 - Read everything in scope before producing any output.
 - Be specific. "Code looks bad" is not actionable. "Replace `RateLimitError` with `HttpError` on line 42 of `src/middleware/rate-limit.ts`" is.
-- AI code review does not replace human code review. This is an additional gate.
+- A review by the author's own session does not count as the independent review; say so when that is the case.
 - Planning lint can be run at any time — it's a health check, not a ceremony.
 - Never produce vague, generic feedback. Every issue must be verifiable.
 

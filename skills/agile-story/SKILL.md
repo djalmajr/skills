@@ -43,7 +43,7 @@ Free-form prompts (no structured tool):
 - Task descriptions
 - Stack choices (when not yet locked at epic-time)
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -84,12 +84,13 @@ If standalone, ask the user and explore the code to understand context.
 Fill in the required sections:
 
 - **Context:** problem, objective, constraints
-- **Traceability:** prototype routes/screens, business rule IDs/files, source docs
+- **Traceability:** prototype routes/screens, business rule IDs/files, source docs (N/A with the reason when the project has none)
 - **Files:** exact paths with action (read/alter/create)
-- **Detail:** AS-IS, TO-BE, scope, approach
-- **Test-first plan:** behavior to prove, first failing test, test level, and low-value tests to avoid
+- **Detail:** AS-IS, TO-BE, scope, approach with the decisions table (choice, why, alternatives, cost to reverse, status)
+- **Acceptance criteria:** each observable and paired with its proof (command, test name, or checkable result)
+- **Test-first plan:** behavior to prove, first failing test, test level, the mutation each new test kills, and low-value tests to avoid
 - **Tasks:** verifiable checklist
-- **Verification:** commands and validations
+- **Verification:** the per-change items from the project's validation contract (`VALIDATION.md` or equivalent) that apply to this change, each to be closed with PASS, FAIL, NOT RUN, BLOCKED, or N/A with reason. Release-gate layers (for example nightly mutation, release E2E) are reported at release, not per story. Without a contract, list the project's commands and suggest `/agile-tdd` to create one
 
 ### 3. Present and wait for confirmation
 
@@ -108,7 +109,9 @@ When the story file already exists from `/agile-epic`, this skill **adds executi
 
 - Epic-time produces vertical-phase **outlines** in `Tasks`.
 - Story-time adds **per-task `Done when:` criteria**, the **`Test-first plan`**, and concrete **verification commands**.
-- Story-time may also introduce a **`Story-time decisions`** table inside `Approach` if 2+ implementation choices need to be locked.
+- Story-time records choices in the **`Decisions`** table inside `Approach` and keeps it updated during execution.
+- Story-time may add the **proof** to each existing acceptance criterion (turning the epic checklist into the `Criterion | Proof` table) without changing the criteria themselves.
+- If the initiative records a project tracker (in the intake), update the story's item there with the plan's acceptance criteria and status.
 
 ## Where to save
 
@@ -143,10 +146,11 @@ Every plan must contain:
 1. **Context** (problem, objective, constraints, references)
 2. **Traceability** (prototype routes/screens, business rule IDs/files, source docs)
 3. **Files** (exact paths, action, reason)
-4. **Detail** (AS-IS, TO-BE, scope, approach, risks)
-5. **Test-first plan** (behavior, first failing test, preferred level, and front-end value check when applicable)
-6. **Tasks** (verifiable checklist)
-7. **Verification** (lint, typecheck, tests, manual validation, acceptance)
+4. **Detail** (AS-IS, TO-BE, scope, approach with decisions, risks)
+5. **Acceptance criteria** (each with its proof)
+6. **Test-first plan** (behavior, first failing test, preferred level, mutation to kill, and front-end value check when applicable)
+7. **Tasks** (verifiable checklist)
+8. **Verification** (items from the validation contract, closed with verdicts)
 
 ## Rules
 
@@ -158,6 +162,10 @@ Every plan must contain:
 - Front-end plans should cite the prototype route/screen when the change is user-facing.
 - Tasks must be verifiable, not vague.
 - When completed, update `[ ]` to `[x]` according to actual progress.
+- A finding outside the story's objective becomes a new backlog item, not extra scope. Inside the scope, review blockers (security, correctness, acceptance without proof) must be fixed; minors are answered and never hold the delivery.
+- After three rounds of fixes without closing, or when the change grows well beyond the plan, stop and reassess: split or narrow the story and record the decision.
+- Pick the applicable Verification items at planning time, proportional to the change: a one-line copy fix needs lint and the check that the text shows, not end to end or manual device checks. Rows that do not apply are removed or marked N/A with the reason.
+- Done means every applicable Verification item is PASS (or N/A with reason) on the final code. Anything else is a partial delivery: say what is missing.
 
 ## Relationship with the flow
 

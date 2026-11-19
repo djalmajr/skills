@@ -1,6 +1,6 @@
 ---
 name: agile-tdd
-description: Guide TDD workflow and testing strategy. Use when implementing features with tests, writing new tests, or establishing test coverage. Triggers on "TDD", "write tests", "test coverage", "red-green-refactor".
+description: Guide TDD workflow, testing strategy, and the project's validation contract (VALIDATION.md). Use when implementing features with tests, writing new tests, choosing test layers, or defining what must be proven before a change is done. Triggers on "TDD", "write tests", "test coverage", "red-green-refactor", "VALIDATION.md".
 compatibility: opencode
 metadata:
   audience: engineering
@@ -37,26 +37,28 @@ Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Promptin
 | Enforcement mode (when installing) | Hard-to-undo policy choice | warn · block · keep current |
 | Test strategy (when ambiguous) | Affects file layout | sibling · sibling_dir · tests_root |
 | Exempt a specific path | Edits guardrails config | yes · no · review later |
+| No validation contract found | Creates a project-level file | create `VALIDATION.md` from the template · use an existing equivalent (name it) · skip for now |
 
 Free-form prompts (no structured tool):
 
 - Test descriptions
 - Exemption rationale
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, convert every structured prompt into an entry under *Open questions* (or equivalent) and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## When to use
 
 - Starting a new feature with TDD
 - Adding tests to existing code
 - Establishing test coverage for a module
+- Creating or updating the project's validation contract (`VALIDATION.md`)
 - Unclear whether something needs unit, integration, or E2E tests
 
 ## When NOT to use
 
 - Quick prototypes where tests add no value -- use `/agile-proto`
 - Throwaway scripts
-- Pure documentation changes
+- Pure documentation changes in a project whose product is code (docs-first packages still get a contract: see archetype 5 in `references/by-project-type.md`)
 
 ## TDD cycle
 
@@ -67,53 +69,53 @@ No-pause mode: if the user has explicitly disabled mid-skill clarification, conv
 
 Present each step explicitly. Do not skip Red -- the test must fail first.
 
-## Test pyramid (pragmatic)
+## Validation contract
 
-| Layer | Target | Focus |
-|---|---|---|
-| Unit | 60% | Pure functions, transformers, utils |
-| Integration | 30% | Services, DB interactions, API routes |
-| E2E | 10% | Critical user flows |
+Each project keeps one contract of what must be proven before a change is done: `VALIDATION.md` at the root, or an equivalent the team already uses (a CONTRIBUTING section, a CI policy doc). It lists the test layers with the command that runs each, the per-change checks, and the manual checks.
 
-Overall coverage target: 75%+.
+- Look for it first. If none exists, offer to create it from `templates/validation.md`:
+  1. read the package scripts and every CI workflow step;
+  2. write one layer row per check, with its command and any flag that makes it strict (for example an env var that turns skips into failures);
+  3. mark each row `per change` or `release`, choosing layers with `references/by-project-type.md`;
+  4. write the per-change checks in the project's own terms (screens, endpoints, commands, documents).
+- Every item ends in **PASS, FAIL, NOT RUN, BLOCKED**, or **N/A** with the reason. Not proven is never PASS. A change is done only when every applicable per-change item is PASS (or N/A) on the final code; otherwise it is partial. Layers marked as release gates are reported at release, not per change.
+- `/agile-story` copies its Verification items from the contract; `/agile-status` (closure) reports one verdict per item.
 
-For front-end work, treat these percentages as risk guidance, not quotas. Prefer integration tests that exercise user behavior, validation, local state, API contracts, permissions, offline/sync behavior, and critical flows. Avoid tests that only assert static text, that a button rendered, or implementation details of a design-system component.
+## Choosing test layers
+
+Pick layers by project type, not by fixed percentages: `references/by-project-type.md` maps pure logic, backend/boundary, UI, and concurrent/desktop/CLI code to the techniques that pay off. Diversity of test types finds more bugs than more tests of one type.
+
+Coverage is a signal, not the goal. Use it to find untested critical code; a project's coverage floors, if it has them, live in its contract and CI. A line covered by a test that would still pass with the code broken proves nothing.
 
 When a project keeps business rules in `planning/<initiative>/business/*.md`, use those rule IDs to decide what deserves tests. Tests should prove behavior behind important rules, not restate the rule text.
 
-## File structure
+## Accepted tests
 
-- **Unit:** co-located with source (`foo.test.ts` beside `foo.ts`)
-- **Integration/E2E:** `tests/` with `integration/`, `e2e/`, `helpers/`, `fixtures/`, `mocks/`
-- **Naming:** `.test.ts` (unit/integration), `.e2e.test.ts` (E2E)
-- **Never** `.spec.ts`
+A test earns its place when it verifies **observable behavior**: a result the user sees, or a contract another component relies on.
 
-## Rules
+Every new test falls in one category: regression of a real bug (name the symptom), domain rule, property or invariant, API contract, integration with a real dependency, critical flow, security or permission boundary, concurrency or idempotency.
 
-- AAA pattern (Arrange / Act / Assert)
-- One concept per test
-- Descriptive names that read as sentences
-- **Always** use factories (e.g., `faker`) over hardcoded data
-- Isolate with `beforeEach` -- no shared state between tests
-- Test behavior, not implementation details
+**Name the mutation the test kills, and try it.** Write which code change would make the test fail (for example, dropping a validation, `>` becoming `>=`, ignoring a scoping key) and confirm it fails when you make that change. If no mutation can be named, the test protects nothing: delete it. Where it pays (critical pure logic, boundaries), run a mutation tool (Stryker, mutmut, cargo-mutants, PIT) on that module.
 
-## Anti-patterns (avoid)
+Reject and delete:
 
-- Interdependent tests (test A depends on test B running first)
-- Arbitrary `sleep(ms)` -- use proper waits
-- Testing private methods -- test through public API
-- `console.log` in tests -- use proper assertions
-- Order-dependent tests
-- Mocking what you own (mock external dependencies, not your own code)
+- "x is defined" with no assertion on shape or behavior;
+- "foo was called" without checking the effect;
+- "the component renders" with no DOM or contract assertion;
+- snapshots over ~30 lines without a comment naming the rule they protect;
+- mocking the unit under test.
 
-## Coverage targets (granular)
+Hard to set up is a signal to refactor (extract a smaller child or a pure function with injected dependencies), not to skip the test.
 
-| Area | Target |
-|---|---|
-| Transformers / pure functions | 90%+ |
-| Utils | 85%+ |
-| Services | 80%+ |
-| Routes / handlers | 70%+ |
+## Conventions
+
+Follow the project's existing conventions for test location, naming (`.test` vs `.spec`), runner, and test data (factories, fixtures, builders). When the project has none, a sensible default is unit tests beside the source (`foo.test.ts`) and integration/E2E under `tests/`.
+
+- Arrange / Act / Assert; one concept per test; names that read as sentences.
+- No shared state between tests; no order dependence.
+- No arbitrary `sleep(ms)`: wait for the condition.
+- Test through the public API, not private methods.
+- Mock external dependencies, not your own code.
 
 ## Commands (Bun)
 
@@ -147,7 +149,7 @@ TDD still decides observable behavior: test the screen flow, validation, permiss
 
 ### 2. Choose the right test type
 
-Use the test pyramid as guide:
+Use the project's contract and `references/by-project-type.md` as guide:
 - Pure function with no side effects? Unit test.
 - Service that talks to DB or external API? Integration test.
 - Critical user flow that spans multiple systems? E2E test.
@@ -164,11 +166,11 @@ For each behavior:
 3. Refactor if needed
 4. Verify the test still passes
 
-Record the business rule ID or acceptance criterion in the test description or surrounding story artifact when that mapping helps future refinement.
+Record the business rule ID or acceptance criterion in the test description or surrounding story artifact when that mapping helps future refinement. Record the mutation each new test kills next to it.
 
-### 4. Verify coverage
+### 4. Verify against the contract
 
-Run coverage and check against targets. Fill gaps in critical areas first.
+Run the layers the contract requires for this change. During iteration run only the suite that proves the current item; run the full set once, on the final code, before reporting. Report real results with counts, and say what was proven and no more: "no regression observed in <suites>", never "zero regressions". Use coverage to find untested critical paths, not as the finish line.
 
 ## Chaining
 
