@@ -43,7 +43,7 @@ Free-form prompts (no structured tool):
 - Task descriptions
 - Stack choices (when not yet locked at epic-time)
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -94,7 +94,7 @@ Fill in the required sections:
 
 ### 3. Present and wait for confirmation
 
-Use the harness's plan-mode tool to present the plan (e.g., `ExitPlanMode` in Claude Code). Wait for explicit confirmation before implementing.
+Use the harness's plan-mode tool to present the plan (e.g., `ExitPlanMode` in Claude Code). Wait for explicit confirmation before implementing. In a delegated run with nobody to confirm, follow the delegating brief: implement only if it asked for implementation, otherwise stop after the plan (plan-only).
 
 **Implementation mode (decide at this step):**
 
@@ -110,8 +110,8 @@ When the story file already exists from `/agile-epic`, this skill **adds executi
 - Epic-time produces vertical-phase **outlines** in `Tasks`.
 - Story-time adds **per-task `Done when:` criteria**, the **`Test-first plan`**, and concrete **verification commands**.
 - Story-time records choices in the **`Decisions`** table inside `Approach` and keeps it updated during execution.
-- Story-time may add the **proof** to each existing acceptance criterion (turning the epic checklist into the `Criterion | Proof` table) without changing the criteria themselves.
-- If the initiative records a project tracker (in the intake), update the story's item there with the plan's acceptance criteria and status.
+- Story-time may fill or sharpen the **proof** of each existing acceptance criterion and move the criteria into the story's own `Acceptance criteria` section, without changing the criteria themselves.
+- If the initiative records a project tracker (in the intake, or in the epic overview when there is no intake), update the story's item there with the plan's acceptance criteria and status.
 
 ## Where to save
 

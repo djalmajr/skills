@@ -167,7 +167,7 @@ Flags one issue: duplicated email validation logic in sender and templates. Fix:
 
 - **Delivered:** all 8 tasks, all 5 AC met
 - **Scope change:** none
-- **Verification:** lint PASS, typecheck PASS, tests PASS (42 of 42); real path PASS (4 emails received in staging); review `ok` on the final commit. State: done.
+- **Verification:** lint PASS, typecheck PASS, tests PASS (42 of 42); real path PASS (4 emails received in staging); review `ok` on the final code. State: done.
 - **Next step:** monitor email delivery rate in prod for 1 week
 
 ---

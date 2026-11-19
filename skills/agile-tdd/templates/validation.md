@@ -47,7 +47,7 @@ releasing and do not make a single story partial.
 - [ ] New tests verify observable behavior and name the mutation they kill.
 - [ ] The real user path was exercised on existing state, not only a clean install or empty database.
 - [ ] Every link, path, or command handed to users was opened or run once.
-- [ ] Independent review verdict is `ok` on the final commit, and every finding has a response.
+- [ ] Independent review verdict is `ok` on the final code, and every finding has a response.
 - [ ] Documentation updated when the public behavior or API changed.
 
 ## Manual checks

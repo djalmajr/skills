@@ -43,7 +43,7 @@ Free-form prompts (no structured tool):
 - File paths to review
 - Specific concerns
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -83,7 +83,7 @@ Validates planning artifacts against the following checks:
 - [ ] Dependency order is consistent with the roadmap/epic sequence
 
 ### Completeness
-- [ ] Required sections are present (for stories, the list in `/agile-story` → "Required sections")
+- [ ] Required sections are present for the artifact's stage: an epic-time story file has `/agile-epic` → "Required sections for NN-story-name.md"; a story planned by `/agile-story` has its "Required sections" list
 - [ ] No empty required fields
 - [ ] Acceptance criteria are defined and verifiable
 - [ ] Tasks are specific and actionable (not vague)

@@ -59,7 +59,8 @@ If the copy fails, say so. Still print the closing fence.
 ## Prompting
 
 - Empty objective: ask in free-form text (one sentence) and wait. Do not use
-  the structured question tool — the objective is free-form.
+  the structured question tool — the objective is free-form. In a delegated run
+  with nobody to ask, stop and report that the objective is missing.
 
 ## Content
 

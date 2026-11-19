@@ -43,7 +43,7 @@ Free-form prompts (no structured tool):
 - Blocker descriptions
 - Progress narration
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -110,7 +110,7 @@ Formal delivery closure — plan vs result, verification, remaining risks, hando
 4. Run the story's Verification items (from the project's validation contract) on the final code, or reuse a result that is still valid (same code, configuration, dependencies, and environment), and give each a verdict: **PASS, FAIL, NOT RUN** (with why), **BLOCKED** (with what is missing), or **N/A** (with why it does not apply). Record the commit verified and what was reused versus rerun. Commits that only touch planning or status files do not change "final code". Final code is the PR head before merge; after a merge, the merge commit, once `git diff <head> <merge>` shows no code change.
    - **Epic closure:** there is no separate Verification list. The epic is done when every story closure is done and each epic acceptance criterion has its proof; list each story's state.
 5. Exercise the real path: the state users actually have (not only a clean install or empty database), and open every link, path, or command the delivery hands over. Separate automated checks from manual ones; a regression found manually gets an automated test before closing.
-6. Record the review verdict on the final commit and the response to every finding.
+6. Record the review verdict on the final code and the response to every finding.
 7. Set the delivery state: **done** only when every applicable item is PASS or N/A with reason; otherwise **partial**, listing what is missing. Release-gate layers (nightly or release-only) are reported at release and do not make a story partial.
 8. List the decisions made, out-of-scope findings turned into backlog items, remaining risks, and next steps.
 9. Define handoff (who needs to know).

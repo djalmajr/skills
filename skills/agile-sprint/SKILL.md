@@ -42,7 +42,7 @@ Free-form prompts (no structured tool):
 - Sprint goal text
 - Capacity overrides
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -85,7 +85,7 @@ Each item must have:
 
 If an item doesn't have DoR, it doesn't enter the sprint — needs decomposition via `/agile-epic` or validation via `/agile-refinement`.
 
-**Definition of Done (DoD):** every applicable item of the project's validation contract (`VALIDATION.md` or equivalent) is PASS on the final commit, and the independent review verdict is `ok`. An item closed with anything less counts as partial in `/agile-review`, not as delivered. If the project has no contract, agree on the DoD in the sprint plan and suggest `/agile-tdd` to write one.
+**Definition of Done (DoD):** every applicable per-change item of the project's validation contract (`VALIDATION.md` or equivalent) is PASS, or N/A with reason, on the final code (planning-only commits don't count), and the independent review verdict is `ok`. Release-gate layers are reported at release and do not hold a sprint item. An item closed with anything less counts as partial in `/agile-review`, not as delivered. If the project has no contract, agree on the DoD in the sprint plan and suggest `/agile-tdd` to write one.
 
 ### 5. Order execution
 

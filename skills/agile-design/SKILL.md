@@ -26,7 +26,7 @@ Use the harness's structured-question tool for choices that materially branch th
 
 Infer the tool without asking when the project already has a design file, a tool link in planning docs, or the session has that tool's MCP connected. Free-form prompts cover file names, links, and screen names.
 
-If the user has explicitly requested uninterrupted execution, record unresolved choices under *Open questions* in the prototype index and proceed with the safest reversible assumption.
+If the user has explicitly requested uninterrupted execution, or the skill runs as a delegated agent with nobody to ask, record unresolved choices under *Open questions* in the prototype index and proceed with the safest reversible assumption.
 
 ## Inputs
 

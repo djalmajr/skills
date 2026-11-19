@@ -27,7 +27,7 @@ Ask these **before generating**, unless `$ARGUMENTS` already answers them.
 
 Free-form: language, tone, script, proof sentence, module name.
 
-No-pause defaults: `--type=tutorial`, **ask is skipped only if the user already named an engine**; otherwise do not invent a hosted key or start a multi-GB download.
+No-pause defaults (also for delegated runs with nobody to ask): `--type=tutorial`, **ask is skipped only if the user already named an engine**; otherwise do not invent a hosted key or start a multi-GB download.
 
 ## When to use
 

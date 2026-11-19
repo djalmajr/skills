@@ -26,7 +26,7 @@ Every `SKILL.md` includes a `## Prompting` section listing the **decision points
 
 Structured prompts are used when the choice is a small discrete set (2–4 options), branches the skill's next steps, requires confirmation before something hard to undo, or selects from a known list (multi-select). Free-form is used for paths, names, descriptions, and any value the skill cannot enumerate.
 
-When the user runs in **no-pause mode** (explicit "do not stop for clarifications"), the skill converts every structured prompt into an entry under *Open questions* (or equivalent) and proceeds without blocking.
+When the user runs in **no-pause mode** (explicit "do not stop for clarifications"), or the skill runs as a delegated, non-interactive agent with nobody to ask, the skill applies the recommended option for every structured prompt, records it under *Open questions* (or equivalent), and proceeds without blocking.
 
 ## Verification vocabulary — shared by the agile skills
 

@@ -89,7 +89,7 @@ Report real results with counts. Say what was proven, no more.
 
 ### Review
 - **Reviewer:** independent session / agent / teammate, or self-review (flagged)
-- **Verdict on final commit:** ok / changes / blocked
+- **Verdict on final code:** ok / changes / blocked
 - **Findings:** each answered — `F1: fixed` / `F2: declined: <reason>` / `F3: backlog: <item>`
 
 ### Decisions made

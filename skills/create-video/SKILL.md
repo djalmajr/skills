@@ -34,7 +34,7 @@ Ask **type** unless `$ARGUMENTS` already has `--type=`.
 
 Free-form: project root, `BASE_URL`, beat table, sign-in env **names** only, Remotion composition id.
 
-No-pause: if the ask is “record the app”, `--type=screencast`. If it is “intro / promo / motion”, Remotion. Do not invent a Remotion app when a screencast was requested.
+No-pause (also for delegated runs with nobody to ask): if the ask is “record the app”, `--type=screencast`. If it is “intro / promo / motion”, Remotion. Do not invent a Remotion app when a screencast was requested.
 
 ## When to use
 

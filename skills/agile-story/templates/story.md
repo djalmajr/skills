@@ -100,7 +100,7 @@ At closure every item gets a verdict: PASS · FAIL · NOT RUN (why) · BLOCKED (
 | Acceptance criteria proofs | see table above | |
 | Real user path on existing state | what was exercised | |
 | Manual checks (visual, device) | viewports / devices | |
-| Independent review | verdict on final commit | |
+| Independent review | verdict on final code | |
 
 - [ ] Red-Green-Refactor evidence recorded when applicable
 - [ ] Findings outside this story's scope recorded as new backlog items

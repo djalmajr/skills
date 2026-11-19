@@ -44,7 +44,7 @@ Free-form prompts (no structured tool):
 - Story names (kebab-case)
 - Epic title and outcome wording
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or the skill runs as a delegated, non-interactive agent with nobody to ask, apply the recommended option for every structured prompt, record it under *Open questions* (or equivalent), and proceed without blocking.
 
 ## Objective
 
@@ -147,7 +147,7 @@ planning/<initiative>/epics/NN-<epic-name>/
 
 - Epic folder: `planning/<initiative>/epics/NN-<epic-name>/`
 - If the initiative doesn't have a folder in `planning/`, ask the user for the name
-- **Project tracker:** if the team uses one (Linear, Jira, GitHub Projects, Azure Boards, or similar), the artifact's content also feeds its items: one item per story, with its acceptance criteria and proofs, linked from the story file. The file under `planning/` stays the default; reuse the answer recorded in the intake, ask only when there is none, and do not assume a specific tool.
+- **Project tracker:** if the team uses one (Linear, Jira, GitHub Projects, Azure Boards, or similar), the artifact's content also feeds its items: one item per story, with its acceptance criteria and proofs, linked from the story file. The file under `planning/` stays the default; reuse the answer recorded in the intake; when there is none, ask and record it in the epic overview (`Context`), and do not assume a specific tool.
 - **Path-conflict gate:** if the user passes a save path that does not match the convention above (e.g., `planning/<initiative>/<epic-name>/` instead of the `epics/NN-<epic-name>/` shape), surface the conflict before writing. Honor the user's path only after explicit confirmation; otherwise apply the convention and tell the user why. Use the harness's question tool (see `## Prompting`) to disambiguate.
 
 ## Roadmap diagram
