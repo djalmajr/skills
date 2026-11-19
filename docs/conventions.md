@@ -16,7 +16,7 @@ Covered: every skill that writes artifacts. `agile-onboarding` and `agile-router
 
 ## How a skill asks you a question — `## Prompting`
 
-Every `SKILL.md` with user decision points includes a `## Prompting` section listing the **decision points** that warrant the harness's **structured-question tool** vs. free-form text. The tool by harness:
+Every `SKILL.md` includes a `## Prompting` section listing the **decision points** that warrant the harness's **structured-question tool** vs. free-form text. The tool by harness:
 
 | Harness | Tool name |
 |---|---|

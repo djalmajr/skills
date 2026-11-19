@@ -14,7 +14,8 @@ function write(rel, text) {
 }
 
 function skill(name, body = "", description = `Does ${name}. Use when testing.`) {
-  write(`skills/${name}/SKILL.md`, `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n${body}\n`)
+  const sections = "\n## Project root\n\n## Prompting\n"
+  write(`skills/${name}/SKILL.md`, `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n${sections}${body}\n`)
 }
 
 function manifest(names) {
@@ -45,12 +46,12 @@ test("manifest must match the skill directories", () => {
 })
 
 test("frontmatter name must match the directory", () => {
-  write("skills/plan-goal/SKILL.md", "---\nname: plan\ndescription: x\n---\n")
+  write("skills/plan-goal/SKILL.md", "---\nname: plan\ndescription: x\n---\n## Project root\n## Prompting\n")
   assert.deepEqual(validate(root), ['skills/plan-goal/SKILL.md: frontmatter name "plan" differs from directory'])
 })
 
 test("folded multi-line descriptions are read", () => {
-  write("skills/plan-goal/SKILL.md", "---\nname: plan-goal\ndescription: >\n  Line one\n  line two.\n---\n")
+  write("skills/plan-goal/SKILL.md", "---\nname: plan-goal\ndescription: >\n  Line one\n  line two.\n---\n## Project root\n## Prompting\n")
   assert.deepEqual(validate(root), [])
 })
 
@@ -85,5 +86,14 @@ test("README table and count must match", () => {
   assert.deepEqual(validate(root).sort(), [
     "README.md: heading says 2 skills, found 3",
     "README.md: skill table lacks plan-goal",
+  ])
+})
+
+test("convention sections are required, project root only where artifacts are written", () => {
+  write("skills/plan-goal/SKILL.md", "---\nname: plan-goal\ndescription: x\n---\n")
+  write("skills/agile-router/SKILL.md", "---\nname: agile-router\ndescription: x\n---\n## Prompting\nUse `/agile-story`.\n")
+  assert.deepEqual(validate(root).sort(), [
+    "skills/plan-goal/SKILL.md: missing ## Project root section",
+    "skills/plan-goal/SKILL.md: missing ## Prompting section",
   ])
 })

@@ -9,6 +9,30 @@ You become a **real user** and walk through **one** usage flow of the applicatio
 
 These skills also validate **coded screens against the planned design** (design fidelity), not only abstract usability. When a flow (or a step) declares a **design reference** (`design_ref` — e.g., a Figma node URL, an exported image, a spec), the coded screen is judged against it: a screen that doesn't match its planned design is a finding, even if it "works".
 
+## Project root
+
+This skill writes usability reports (`e2e/usability/`) and screenshots at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory (e.g., a sibling repo), prepend `<project-root>/` to every path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Flow to run (when `$ARGUMENTS` is empty) | Picks from a known list | the project flow ids, up to 4 |
+| App not reachable at the entry point | Starting a process is a side effect | start it with the project command · stop and report |
+
+Free-form prompts (no structured tool):
+
+- Persona details not covered by the flow file
+- Answers to questions a real user would need to ask
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, stop when the app is unreachable and report it; never start processes without a prior instruction.
+
 ## Input (the flow comes FIRST)
 
 - `$ARGUMENTS` = path to a **flow file** (convention: `e2e/flows/<id>.md` in the project). If empty, list the available flows in the project and ask which to run.

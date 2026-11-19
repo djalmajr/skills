@@ -6,6 +6,7 @@ Run `npm test` before every PR; CI runs the same command plus the media smoke te
 
 - every `skills/<name>/SKILL.md` has frontmatter whose `name` matches the folder and a description up to 1024 characters;
 - `SKILL.md` stays within 500 lines (move detail to `references/`);
+- every `SKILL.md` has `## Prompting`, and `## Project root` unless it writes no artifacts (`agile-onboarding`, `agile-router`);
 - bundled paths cited in `SKILL.md` (`templates/`, `references/`, `scripts/`, `assets/`) exist;
 - every `agile-*` or `ux-*` name mentioned is a real skill;
 - `skills.json`, `README.md`, and `docs/skills/README.md` list exactly the skills in `skills/`;

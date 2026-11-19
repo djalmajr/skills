@@ -11,6 +11,9 @@ import { fileURLToPath } from "node:url"
 export const MAX_SKILL_LINES = 500
 export const MAX_DESCRIPTION = 1024
 
+// Skills that write no artifacts and so declare no project root.
+const NO_PROJECT_ROOT = new Set(["agile-onboarding", "agile-router"])
+
 const ASSET_DIRS = ["templates", "references", "scripts", "assets", "agents"]
 
 // Paths a skill tells the agent to create in the consumer project, not files it ships.
@@ -76,6 +79,10 @@ export function validate(root) {
     if (!fm.description) err(where, "empty description")
     else if (fm.description.length > MAX_DESCRIPTION)
       err(where, `description has ${fm.description.length} chars (max ${MAX_DESCRIPTION})`)
+
+    if (!/^## Prompting$/m.test(text)) err(where, "missing ## Prompting section")
+    if (!NO_PROJECT_ROOT.has(name) && !/^## Project root$/m.test(text))
+      err(where, "missing ## Project root section")
 
     const lines = text.split("\n").length
     if (lines > MAX_SKILL_LINES)

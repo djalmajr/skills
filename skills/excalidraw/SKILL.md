@@ -26,6 +26,31 @@ text, arrows) on an infinite canvas. Two ways to author, picked by scale:
 > "Mermaid to Excalidraw", or `fromMermaid()` in `scripts/`. Either way the file you
 > then edit is Excalidraw JSON, which is what this skill covers.
 
+## Project root
+
+This skill writes `.excalidraw` scenes and SVG previews at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+
+- If invoked from inside the project, use the relative paths shown in this skill.
+- If invoked from another directory (e.g., a sibling repo), prepend `<project-root>/` to every path.
+- When the project root is ambiguous, confirm with the user via the harness question tool before writing.
+
+## Prompting
+
+Follow the project-wide convention in `CLAUDE.md` / `AGENTS.md` ("Skill Prompting Conventions"). Use the harness's structured-question tool — `AskUserQuestion` (Claude Code), `ask_user_question` (Codex), or `question` (OpenCode) — for the decision points below. Use free-form text only where a path/name/value cannot be enumerated.
+
+| Decision point | Why structured | Suggested options |
+|---|---|---|
+| Authoring path (when scale is unclear) | Changes the toolchain | By hand (JSON) · Programmatic (`scripts/`) · From Mermaid |
+| Editing an existing scene | Hard to undo if the file is not versioned | Append below · Replace a region · Edit in place |
+| Arrow binding vs free label | Affects how the scene behaves when edited | Container-bound (editable) · Free-floating (deterministic) |
+
+Free-form prompts (no structured tool):
+
+- Output path and file name
+- Diagram content (boxes, labels, connections)
+
+No-pause mode: if the user has explicitly disabled mid-skill clarification, pick the programmatic path for new scenes, edit in place for small changes, and state the choice in the summary.
+
 ## When to use
 
 - Creating a `.excalidraw` file from scratch (architecture diagram, flow, boxes-and-arrows).
