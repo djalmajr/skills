@@ -2,7 +2,7 @@
   "name": "excalidraw-skill-tools",
   "private": true,
   "type": "module",
-  "description": "Headless Node toolchain for the excalidraw skill: official element compiler + faithful SVG export.",
+  "description": "Headless Node toolchain for the excalidraw skill: the official element compiler behind the Diagram builder.",
   "scripts": {
     "build": "esbuild vendor/entry.mjs --bundle --platform=node --format=esm --outfile=vendor/bundle.mjs --loader:.css=empty --log-level=error"
   },

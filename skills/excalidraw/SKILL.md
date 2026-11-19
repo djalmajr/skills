@@ -30,7 +30,7 @@ before calling a scene done. See **The official CLI** below.
 
 ## Project root
 
-This skill writes `.excalidraw` scenes and SVG previews at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
+This skill writes `.excalidraw` scenes and PNG/SVG previews at paths relative to the **project root** (the repo where the work happens), not the agent's current working directory.
 
 - If invoked from inside the project, use the relative paths shown in this skill.
 - If invoked from another directory (e.g., a sibling repo), prepend `<project-root>/` to every path.
@@ -69,7 +69,7 @@ path for small or edit work, the programmatic path (next) for non-trivial diagra
 `@excalidraw/cli` (MIT, Node 22+) renders scenes and converts Mermaid **locally**, with
 no account: it drives an installed Chrome, Chromium, Edge, or Firefox, and nothing is
 uploaded. Detect it with `excalidraw --version`; if missing, run it as
-`npx -y @excalidraw/cli <command>` or install with `npm install -g @excalidraw/cli`.
+`npx -y @excalidraw/cli@1 <command>` or install with `npm install -g @excalidraw/cli`.
 
 ```sh
 excalidraw render scene.excalidraw --out scene.png --scale 2   # PNG preview to look at

@@ -36,7 +36,8 @@ function assert(cond, msg) {
 const lint = (file) => execFileSync("node", [join(SKILL, "scripts/lint-scene.mjs"), file], { encoding: "utf8" })
 
 function findCli() {
-  for (const cmd of [["excalidraw"], ["npx", "-y", "@excalidraw/cli"]]) {
+  // Pinned to the major the skill documents, so a breaking 2.x can't fail CI silently.
+  for (const cmd of [["excalidraw"], ["npx", "-y", "@excalidraw/cli@1"]]) {
     const r = spawnSync(cmd[0], [...cmd.slice(1), "--version"], { encoding: "utf8", timeout: 180000 })
     if (r.status === 0) return cmd
   }
@@ -52,8 +53,10 @@ const run = (args, opts = {}) =>
 
 if (!cli) {
   const msg = "official CLI not runnable (needs Node 22+ and npm or a global install)"
-  if (process.env.EXCALIDRAW_REQUIRE_CLI) failed.push(msg)
-  else console.log(`skip  cli: ${msg}`)
+  if (process.env.EXCALIDRAW_REQUIRE_CLI) {
+    failed.push("cli")
+    console.log(`FAIL cli: ${msg}`)
+  } else console.log(`skip  cli: ${msg}`)
 } else {
   const png = join(tmp, "min.png")
   const probe = run(["render", scene, "--out", png])
@@ -82,6 +85,7 @@ if (!cli) {
     check("cli render: invalid JSON fails with non-zero exit", () => {
       const r = run(["render", "-", "--out", join(tmp, "bad.png")], { input: "{bad" })
       assert(r.status !== 0, "broken scene rendered without error")
+      assert(/parse JSON/i.test(r.stderr), `failed for another reason: ${r.stderr.trim()}`)
     })
   }
 }
