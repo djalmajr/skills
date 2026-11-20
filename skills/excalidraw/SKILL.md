@@ -51,7 +51,7 @@ Free-form prompts (no structured tool):
 - Output path and file name
 - Diagram content (boxes, labels, connections)
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), use `excalidraw mermaid` when the diagram fits a Mermaid type, the builder otherwise, edit in place for small changes, and state the choice in the summary.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or the skill runs as a delegated, non-interactive agent with nobody to ask, use `excalidraw mermaid` when the diagram fits a Mermaid type, the builder otherwise, edit in place for small changes, and state the choice in the summary.
 
 ## When to use
 
@@ -68,8 +68,9 @@ path for small or edit work, the programmatic path (next) for non-trivial diagra
 
 `@excalidraw/cli` (MIT, Node 22+) renders scenes and converts Mermaid **locally**, with
 no account: it drives an installed Chrome, Chromium, Edge, or Firefox, and nothing is
-uploaded. Detect it with `excalidraw --version`; if missing, run it as
-`npx -y @excalidraw/cli@1 <command>` or install with `npm install -g @excalidraw/cli`.
+uploaded. Detect it with `excalidraw --version` and use it only when it reports 1.x;
+otherwise run it as `npx -y @excalidraw/cli@1 <command>` or install with
+`npm install -g @excalidraw/cli@1`.
 
 ```sh
 excalidraw render scene.excalidraw --out scene.png --scale 2   # PNG preview to look at

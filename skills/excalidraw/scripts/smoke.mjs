@@ -8,7 +8,7 @@
  * Set EXCALIDRAW_REQUIRE_CLI=1 to fail instead of skipping when the CLI can't run.
  */
 import { execFileSync, spawnSync } from "node:child_process"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -37,11 +37,17 @@ const lint = (file) => execFileSync("node", [join(SKILL, "scripts/lint-scene.mjs
 const lintStatus = (file) => spawnSync("node", [join(SKILL, "scripts/lint-scene.mjs"), file], { encoding: "utf8" })
 const requireCli = ["1", "true", "yes"].includes(String(process.env.EXCALIDRAW_REQUIRE_CLI ?? "").toLowerCase())
 
+// The skill documents the 1.x CLI: a global install of another major is skipped
+// (its version is reported) and the pinned npx package is used instead.
+const CLI_MAJOR = 1
+const isSupportedVersion = (out) => new RegExp(`^v?${CLI_MAJOR}\\.`).test(String(out).trim().split("\n").pop() ?? "")
+
 function findCli() {
-  // Pinned to the major the skill documents, so a breaking 2.x can't fail CI silently.
-  for (const cmd of [["excalidraw"], ["npx", "-y", "@excalidraw/cli@1"]]) {
+  for (const cmd of [["excalidraw"], ["npx", "-y", `@excalidraw/cli@${CLI_MAJOR}`]]) {
     const r = spawnSync(cmd[0], [...cmd.slice(1), "--version"], { encoding: "utf8", timeout: 180000 })
-    if (r.status === 0) return cmd
+    if (r.status !== 0) continue
+    if (isSupportedVersion(r.stdout)) return cmd
+    console.log(`skip  ${cmd.join(" ")}: version ${r.stdout.trim()} is not ${CLI_MAJOR}.x`)
   }
   return null
 }
@@ -98,9 +104,14 @@ if (!cli) {
     })
 
     check("cli render: invalid JSON fails with non-zero exit", () => {
-      const r = run(["render", "-", "--out", join(tmp, "bad.png")], { input: "{bad" })
+      // Render already worked above, so the browser is fine; the failure must come
+      // from the input. Check that no output was written and the error is about JSON,
+      // without depending on the exact wording.
+      const out = join(tmp, "bad.png")
+      const r = run(["render", "-", "--out", out], { input: "{bad" })
       assert(r.status !== 0, "broken scene rendered without error")
-      assert(/parse JSON/i.test(r.stderr), `failed for another reason: ${r.stderr.trim()}`)
+      assert(!existsSync(out), "a PNG was written for a broken scene")
+      assert(/json/i.test(r.stderr), `failed for another reason: ${r.stderr.trim()}`)
     })
   }
 }

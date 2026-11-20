@@ -30,7 +30,7 @@ Free-form prompts (no structured tool):
 - New flow goal, persona, and design reference
 - Corrections to discovered steps
 
-No-pause mode: if the user has explicitly disabled mid-skill clarification, or nobody can be asked (delegated, non-interactive run), write discovered drafts as proposals, skip the run, and list them for review in the summary.
+No-pause mode: if the user has explicitly disabled mid-skill clarification, or the skill runs as a delegated, non-interactive agent with nobody to ask, write discovered drafts as proposals, skip the run, and list them for review in the summary.
 
 ## Where flows live
 
