@@ -15,6 +15,11 @@
  *   - um mapeamento pode nomear um bloco de at-rule de nível superior
  *     exatamente `@theme` ou `@theme inline`; outros at-rules permanecem
  *     rejeitados como escopo aninhado;
+ *   - para um mapeamento `@theme`/`@theme inline`, a var é lida em TODOS os blocos
+ *     superiores `@theme`, `@theme inline` e `@theme <modifiers>`: dois
+ *     cabeçalhos DISTINTOS declarando a mesma var são rejeitados
+ *     explicitamente (o scanner não resolve precedência do Tailwind);
+ *     repetição do MESMO cabeçalho mantém last-wins;
  *   - declarações duplicadas em QUALQUER bloco de nível superior cujo
  *     seletor normalizado seja o alvo: a ÚLTIMA vence (semântica CSS) e é
  *     a única comparada — valor "em qualquer lugar" nunca passa.
@@ -288,6 +293,33 @@ function scanScope(selector: string): ScopeScan {
   return result;
 }
 
+/** Blocos `@theme` de nível superior, com o cabeçalho normalizado. */
+function* topLevelThemeBlocks(): Generator<{ header: string; start: number; end: number }> {
+  let depth = 0;
+  let headStart = 0;
+  let blockStart = -1;
+  let header = "";
+  for (let index = 0; index < structural.length; index++) {
+    const char = structural[index];
+    if (char === "{") {
+      const normalized = normalizeSelector(content.slice(headStart, index));
+      if (depth === 0 && (normalized === "@theme" || normalized.startsWith("@theme "))) {
+        header = normalized;
+        blockStart = index + 1;
+      }
+      depth++;
+      headStart = index + 1;
+    } else if (char === "}") {
+      depth--;
+      if (depth === 0 && header) yield { header, start: blockStart, end: index };
+      if (depth === 0) header = "";
+      headStart = index + 1;
+    } else if (char === ";" && depth === 0) {
+      headStart = index + 1;
+    }
+  }
+}
+
 /** Valor a partir de `from` no CSS original: para em `;`/`}` FORA de aspas. */
 function readValue(from: number, until: number): string {
   let index = from;
@@ -313,6 +345,23 @@ function tokenValue(path: string) {
   return typeof node === "string" || typeof node === "number" ? String(node) : undefined;
 }
 const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
+
+/** Última declaração da var em um bloco (índices alinhados das duas visões). */
+function declarationsIn(block: { start: number; end: number }, varName: string): string[] {
+  const re = new RegExp(
+    `(^|[;{}])\\s*${varName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:`,
+    "g",
+  );
+  const slice = structural.slice(block.start, block.end);
+  return [...slice.matchAll(re)].flatMap((match) => {
+    const before = slice.slice(0, match.index);
+    const boundary = match[1] === "{" ? 1 : match[1] === "}" ? -1 : 0;
+    const depth =
+      (before.match(/\{/g)?.length ?? 0) - (before.match(/\}/g)?.length ?? 0) + boundary;
+    if (depth !== 0) return [];
+    return [normalize(readValue(block.start + match.index + match[0].length, block.end))];
+  });
+}
 
 const failures: string[] = [];
 for (const [tokenPath, rawMapping] of entries) {
@@ -342,23 +391,41 @@ for (const [tokenPath, rawMapping] of entries) {
   // (início do bloco ou `;`/`{`/`}`) — `--alias--primary:` não casa — e só
   // profundidade relativa 0: `--primary` dentro de regra aninhada
   // (`:root { .child { … } }`) NÃO é declaração do escopo-alvo.
-  // Última declaração vence entre TODOS os blocos com o mesmo seletor
-  // normalizado (CSS), inclusive blocos posteriores com aspas diferentes.
-  const re = new RegExp(
-    `(^|[;{}])\\s*${mapping.var.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:`,
-    "g",
-  );
-  const declarations = scan.blocks.flatMap((block) => {
-    const slice = structural.slice(block.start, block.end);
-    return [...slice.matchAll(re)].flatMap((match) => {
-      const before = slice.slice(0, match.index);
-      const boundary = match[1] === "{" ? 1 : match[1] === "}" ? -1 : 0;
-      const depth =
-        (before.match(/\{/g)?.length ?? 0) - (before.match(/\}/g)?.length ?? 0) + boundary;
-      if (depth !== 0) return [];
-      return [normalize(readValue(block.start + match.index + match[0].length, block.end))];
+  // Última declaração vence entre blocos com o MESMO cabeçalho normalizado
+  // (CSS). Cabeçalhos @theme distintos competem: o scanner não resolve a
+  // precedência que o Tailwind aplicaria a eles.
+  let declarations: string[];
+  const scope = mapping.selector.trim().replace(/\s+/g, " ");
+  if (scope === "@theme" || scope === "@theme inline") {
+    const found = [...topLevelThemeBlocks()].flatMap((block) =>
+      declarationsIn(block, mapping.var).map((value) => ({ header: block.header, value })),
+    );
+    const headers = [...new Set(found.map((declaration) => declaration.header))];
+    if (headers.length > 1) {
+      failures.push(
+        `${label}: competing @theme declarations em ${parity.cssFile}: ${headers.map((header) => `"${header}"`).join(", ")} declaram ${mapping.var}; precedência Tailwind não resolvida por este scanner`,
+      );
+      continue;
+    }
+    declarations = found.map((declaration) => declaration.value);
+  } else {
+    const re = new RegExp(
+      `(^|[;{}])\\s*${mapping.var.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:`,
+      "g",
+    );
+    const declarationsLocal = scan.blocks.flatMap((block) => {
+      const slice = structural.slice(block.start, block.end);
+      return [...slice.matchAll(re)].flatMap((match) => {
+        const before = slice.slice(0, match.index);
+        const boundary = match[1] === "{" ? 1 : match[1] === "}" ? -1 : 0;
+        const depth =
+          (before.match(/\{/g)?.length ?? 0) - (before.match(/\}/g)?.length ?? 0) + boundary;
+        if (depth !== 0) return [];
+        return [normalize(readValue(block.start + match.index + match[0].length, block.end))];
+      });
     });
-  });
+    declarations = declarationsLocal;
+  }
   const effective = declarations.at(-1);
   if (effective === undefined) {
     failures.push(`${label}: var ausente NESSE escopo`);

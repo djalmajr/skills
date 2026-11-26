@@ -151,6 +151,56 @@ describe("check-tokens: CSS-aware selector lists", () => {
     expect(media.output).toContain("ANINHADO");
   });
 
+  test("competing @theme headers are rejected; one header keeps last-wins", () => {
+    const mapping = { token: "colors.light", selector: "@theme inline", varName: "--font-sans", value: '"Inter", sans-serif' };
+    const inline = '@theme inline {\n  --font-sans: "Inter", sans-serif;\n}\n';
+    const plain = '@theme {\n  --font-sans: "Other", sans-serif;\n}\n';
+    const conflict = run("check-tokens.ts", tokenProject(inline + plain, undefined, mapping));
+    expect(conflict.status).toBe(1);
+    expect(conflict.output).toContain("competing @theme declarations");
+    expect(conflict.output).toContain('"@theme inline"');
+    expect(conflict.output).toContain('"@theme"');
+    const reversed = run("check-tokens.ts", tokenProject(plain + inline, undefined, mapping));
+    expect(reversed.status).toBe(1);
+    expect(reversed.output).toContain("competing @theme declarations");
+    const modified = run(
+      "check-tokens.ts",
+      tokenProject(inline + '@theme default {\n  --font-sans: "Other", sans-serif;\n}\n', undefined, mapping),
+    );
+    expect(modified.status).toBe(1);
+    expect(modified.output).toContain('"@theme default"');
+    const single = run("check-tokens.ts", tokenProject(inline, undefined, mapping));
+    expect(single.status).toBe(0);
+    expect(single.output).toContain("check-tokens: OK");
+    const sameHeader = run(
+      "check-tokens.ts",
+      tokenProject(inline + inline, undefined, mapping),
+    );
+    expect(sameHeader.status).toBe(0);
+    expect(sameHeader.output).not.toContain("competing");
+    const duplicate = run(
+      "check-tokens.ts",
+      tokenProject(
+        '@theme inline {\n  --font-sans: "Other", sans-serif;\n  --font-sans: "Inter", sans-serif;\n}\n',
+        undefined,
+        mapping,
+      ),
+    );
+    expect(duplicate.status).toBe(0);
+    expect(duplicate.output).not.toContain("competing");
+    const duplicateDrift = run(
+      "check-tokens.ts",
+      tokenProject(
+        '@theme inline {\n  --font-sans: "Inter", sans-serif;\n  --font-sans: "Other", sans-serif;\n}\n',
+        undefined,
+        mapping,
+      ),
+    );
+    expect(duplicateDrift.status).toBe(1);
+    expect(duplicateDrift.output).not.toContain("competing");
+    expect(duplicateDrift.output).toContain('efetivo "\"other\", sans-serif"');
+  });
+
   test("distinct selectors are not merged and alias declarations do not count", () => {
     const distinct = run("check-tokens.ts", tokenProject(baseCss, ".dark"));
     expect(distinct.status).toBe(1);
@@ -172,6 +222,25 @@ describe("check-classes: utility candidates", () => {
     expect(result.output).toContain("src/a.tsx:1: bg-[#123456]");
     expect(result.output).not.toContain("dark:text-");
     expect(result.output).not.toContain("hover:bg-");
+  });
+
+  test("Tailwind important markers normalize to the base utility", () => {
+    for (const source of ["!text-[13px]", "dark:!text-[13px]", "text-[13px]!", "dark:text-[13px]!"]) {
+      const result = run("check-classes.ts", classProject(`<div className="${source}">x</div>`));
+      expect(result.status, source).toBe(1);
+      expect(result.output, source).toContain("text-[13px]");
+    }
+    for (const source of ["!text-[11px]", "text-[11px]!", "dark:!text-[11px]"]) {
+      const result = run("check-classes.ts", classProject(`<div className="${source}">x</div>`));
+      expect(result.status, source).toBe(0);
+      expect(result.output, source).toContain("check-classes: OK");
+    }
+    const identity = run(
+      "check-classes.ts",
+      classProject('<div className="!bg-[#123456]">x</div>'),
+    );
+    expect(identity.status).toBe(1);
+    expect(identity.output).toContain("bg-[#123456]");
   });
 
   test("forbidden text inside arbitrary variants is not a utility", () => {

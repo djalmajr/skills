@@ -48,7 +48,9 @@ Rules:
   arbitrary-variant brackets (`[&_[data-value='text-[13px]']]`) is a selector.
   `forbidden` regexes are anchored at the BASE utility start and `allowed`
   compares it whole, so a utility-like suffix in a URL, test ID or CSS text is
-  not a class.
+  not a class. Tailwind's important marker (`!` after variants or at the end,
+  as in `dark:!text-[13px]` / `text-[13px]!`) is removed from the base before
+  both checks; the marker never turns another utility into an allowlist match.
 - `cssVars` compares the EXACT value (normalized for whitespace/case) of the
   LAST declaration of the var across ALL TOP-LEVEL blocks whose selector
   normalizes to the indicated selector (CSS last-wins) — never "anywhere in
@@ -69,7 +71,12 @@ Rules:
   and exact-value rules. Other at-rules (`@layer`, `@media`, …) and a target
   selector nested inside them are REJECTED with an explicit error: this
   scanner does not resolve at-rule context. Move the mapped vars to the top
-  level or swap the gate for a real CSS parser.
+  level or swap the gate for a real CSS parser. For a mapping to `@theme` or
+  `@theme inline`, the var is read across ALL top-level `@theme`, `@theme inline`
+  and `@theme <modifiers>` blocks: two distinct normalized headers declaring it
+  are rejected with `competing @theme declarations` naming both headers (the
+  scanner does not resolve Tailwind precedence); repeated declarations under
+  the same header keep CSS last-wins.
 - Comments and strings are masked only for STRUCTURAL scanning and declaration
   lookup; the VALUE is extracted from the original CSS with quote-aware
   reading (values with `;`/`{` inside quotes do not cut early). Comparison is

@@ -16,6 +16,8 @@
  * fora de ${…}) e de valores de className/ class. Colchetes da sintaxe JS não
  * são variantes: só um grupo `[…]` seguido de ':' no início do candidato é.
  * Variantes são removidas com split bracket-aware em ':' fora de colchetes.
+ * O marcador de important do Tailwind (`!` após variantes ou no fim da base)
+ * é removido antes de testar a base; ele não cria outra utilidade.
  * As regex `forbidden` são ANCORADAS no início da base; `allowed` é exato.
  *
  * Uso: bun check-classes.ts --project <root> [--design DESIGN.md]
@@ -248,7 +250,9 @@ function baseUtility(token: string): string {
     else if (char === "]") depth = Math.max(0, depth - 1);
     else if (char === ":" && depth === 0) cut = index + 1;
   }
-  return candidate.slice(cut);
+  const base = candidate.slice(cut);
+  const withoutLeading = base.startsWith("!") ? base.slice(1) : base;
+  return withoutLeading.endsWith("!") ? withoutLeading.slice(0, -1) : withoutLeading;
 }
 
 const includeDirs: string[] = [];
