@@ -27,6 +27,7 @@ x-parity:
     colors.primary: { selector: ":root", var: "--primary" }
     colors.border: "--border"
     darkColors.primary: { selector: ".dark", var: "--primary" }
+    typography.body-md.fontFamily: { selector: "@theme inline", var: "--font-sans" }
 ```
 
 Rules:
@@ -37,25 +38,38 @@ Rules:
   and `*.test.*` / `*.spec.*` files are not scanned.
 - `forbidden`/`allowed` encode the project's closed vocabulary; every
   `allowed` entry corresponds to an owner-indicated exception in the
-  `DESIGN.md` prose (exceptions / Do's & Don'ts). Both test the BASE utility,
-  after variant prefixes are stripped by bracket-aware `:` splitting outside
-  brackets. Source tokens (including template literals and `cn()`/`clsx()`
-  arguments) are read as plain text; text inside arbitrary-variant brackets
-  (`[&_[data-value='text-[13px]']]`) is a selector, never a utility.
+  `DESIGN.md` prose (exceptions / Do's & Don'ts). Candidates are the contents
+  of string literals (single, double and template quotes, template `${…}`
+  expressions scanned recursively), split on whitespace; that reaches JSX
+  `className`, `cn()`/`clsx()` arrays, object keys, templates and ternaries.
+  A leading bracket group is an arbitrary variant only when followed by `:`
+  (`[&_p]:text-sm`); a bare `[` from JS syntax is never one. Other variants
+  are stripped by bracket-aware `:` splitting outside brackets; text inside
+  arbitrary-variant brackets (`[&_[data-value='text-[13px]']]`) is a selector.
+  `forbidden` regexes are anchored at the BASE utility start and `allowed`
+  compares it whole, so a utility-like suffix in a URL, test ID or CSS text is
+  not a class.
 - `cssVars` compares the EXACT value (normalized for whitespace/case) of the
   LAST declaration of the var across ALL TOP-LEVEL blocks whose selector
   normalizes to the indicated selector (CSS last-wins) — never "anywhere in
   the file": an alternate theme with the same value does not mask a broken
   `:root`. A later block with a different spelling of the same selector
   list (quoted/unquoted attribute values, line wraps) still wins.
-- Selector lists are normalized for comparison: whitespace/newlines collapsed,
-  comma-separated item order significant, and attribute values equivalent
-  with or without quotes (`[data-theme=dark]` ≡ `[data-theme="dark"]` ≡
-  `[data-theme='dark']`). Distinct lists (`.dark` vs `.dark, [data-theme=dark]`)
-  are NOT merged.
-- A target selector nested in `@layer`/`@media` is REJECTED with an explicit
-  error: this scanner does not resolve at-rule context. Move the mapped vars
-  to the top level or swap the gate for a real CSS parser.
+- Selector lists use a conservative tokenizer: whitespace/newlines collapse
+  to ONE descendant combinator (never deleted), `> + ~` and attribute
+  operator/value/modifier are kept, comma-separated item order is significant,
+  and quoted/unquoted attribute values are equivalent ONLY when the decoded
+  value is a valid CSS identifier (`[data-theme=dark]` ≡ `[data-theme="dark"]`
+  ≡ `[data-theme='dark']`, but `[data-theme=dark i]` ≠ `[data-theme="dark i"]`
+  and `[data-theme=dark]` ≠ `[data-theme="dark "]`). Anything that cannot be
+  parsed confidently is compared literally. Distinct lists (`.dark` vs
+  `.dark, [data-theme=dark]`) are NOT merged.
+- A mapping selector may name a top-level at-rule block EXACTLY as written:
+  `@theme` or `@theme inline` (whitespace normalized), with the same last-wins
+  and exact-value rules. Other at-rules (`@layer`, `@media`, …) and a target
+  selector nested inside them are REJECTED with an explicit error: this
+  scanner does not resolve at-rule context. Move the mapped vars to the top
+  level or swap the gate for a real CSS parser.
 - Comments and strings are masked only for STRUCTURAL scanning and declaration
   lookup; the VALUE is extracted from the original CSS with quote-aware
   reading (values with `;`/`{` inside quotes do not cut early). Comparison is

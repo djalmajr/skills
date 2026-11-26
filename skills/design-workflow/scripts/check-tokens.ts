@@ -6,9 +6,15 @@
  *   - só blocos de NÍVEL SUPERIOR contam; seletor-alvo aninhado em
  *     `@layer`/`@media` é REJEITADO explicitamente (não ignorado);
  *   - seletores são comparados como LISTAS normalizadas: espaços/quebras
- *     colapsados, ordem dos itens significativa, aspas em valores de
- *     atributo equivalentes (`[data-theme=dark]` ≡ `[data-theme='dark']`)
- *     e cabeçalhos de múltiplas linhas suportados;
+ *     colapsados para UM combinador descendente (nunca removido), ordem dos
+ *     itens significativa, combinadores (> + ~) preservados, e valores de
+ *     atributo equivalentes quando o valor decodificado é identificador CSS
+ *     válido (`[data-theme=dark]` ≡ `[data-theme='dark']`, mas
+ *     `[data-theme=dark i]` ≠ `[data-theme="dark i"]`); o que não pode ser
+ *     interpretado com segurança é comparado literalmente;
+ *   - um mapeamento pode nomear um bloco de at-rule de nível superior
+ *     exatamente `@theme` ou `@theme inline`; outros at-rules permanecem
+ *     rejeitados como escopo aninhado;
  *   - declarações duplicadas em QUALQUER bloco de nível superior cujo
  *     seletor normalizado seja o alvo: a ÚLTIMA vence (semântica CSS) e é
  *     a única comparada — valor "em qualquer lugar" nunca passa.
@@ -81,52 +87,128 @@ const blankNonNewline = (m: string) => m.replace(/[^\n]/g, " ");
 const content = rawCss.replace(/\/\*[\s\S]*?\*\//g, blankNonNewline);
 const structural = content.replace(/(["'])(?:\\.|(?!\1).)*\1/g, blankNonNewline);
 
-/** Normaliza um item da lista de seletores: espaços e aspas de atributo. */
+const cssIdentifier = /^-?[_a-zA-Z\u0080-\uFFFF][-_a-zA-Z0-9\u0080-\uFFFF]*$/;
+
+/** Fim do colchete que abre em `start`, com aspas e colchetes aninhados. */
+function matchingBracket(text: string, start: number): number {
+  let depth = 0;
+  let quote = "";
+  for (let index = start; index < text.length; index++) {
+    const char = text[index];
+    if (quote) {
+      if (char === "\\") index++;
+      else if (char === quote) quote = "";
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === "[") depth++;
+    else if (char === "]") {
+      depth--;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Forma canônica de um seletor de atributo, ou null quando a leitura não é
+ * confiável. Só remove aspas quando o valor decodificado é identificador
+ * CSS; escapes ficam literalmente comparados (não são decodificados aqui).
+ */
+function attributeSelector(raw: string): string | null {
+  const inner = raw.slice(1, -1);
+  let index = 0;
+  const skipSpace = () => {
+    while (index < inner.length && /\s/.test(inner[index])) index++;
+  };
+  skipSpace();
+  let name = "";
+  while (index < inner.length && !/[\s~|^$*=]/.test(inner[index])) name += inner[index++];
+  if (!cssIdentifier.test(name)) return null;
+  skipSpace();
+  let operator = "";
+  for (const candidate of ["~=", "|=", "^=", "$=", "*="]) {
+    if (inner.startsWith(candidate, index)) {
+      operator = candidate;
+      index += 2;
+      break;
+    }
+  }
+  if (!operator && inner[index] === "=") {
+    operator = "=";
+    index++;
+  }
+  let value = "";
+  if (operator) {
+    skipSpace();
+    if (inner[index] === '"' || inner[index] === "'") {
+      const quote = inner[index++];
+      while (index < inner.length && inner[index] !== quote) {
+        if (inner[index] === "\\") return null;
+        value += inner[index++];
+      }
+      if (index >= inner.length) return null;
+      index++;
+    } else {
+      while (index < inner.length && !/\s/.test(inner[index])) value += inner[index++];
+      if (!cssIdentifier.test(value)) return null;
+    }
+  }
+  skipSpace();
+  let modifier = "";
+  if (index < inner.length && /[iIsS]/.test(inner[index])) {
+    modifier = inner[index++].toLowerCase();
+    skipSpace();
+  }
+  if (index !== inner.length) return null;
+  const canonicalValue = cssIdentifier.test(value) ? value : JSON.stringify(value);
+  return `[${name}${operator ? operator + canonicalValue : ""}${modifier ? " " + modifier : ""}]`;
+}
+
+/**
+ * Normaliza um item da lista de seletores com tokenização conservadora:
+ * manter combinadores e a fronteira do combinador descendente, e canonizar
+ * atributos só quando a leitura é inequívoca.
+ */
 function normalizeSelectorPart(part: string): string {
   let out = "";
-  let inAttribute = false;
+  let pendingSpace = false;
+  let afterCombinator = false;
   let index = 0;
   while (index < part.length) {
     const char = part[index];
     if (/\s/.test(char)) {
-      if (out && !out.endsWith(" ")) out += " ";
+      while (index < part.length && /\s/.test(part[index])) index++;
+      if (out && !afterCombinator) pendingSpace = true;
+      continue;
+    }
+    if (char === ">" || char === "+" || char === "~") {
+      pendingSpace = false;
+      out += char;
+      afterCombinator = true;
       index++;
       continue;
+    }
+    if (pendingSpace) {
+      out += " ";
+      pendingSpace = false;
     }
     if (char === "[") {
-      inAttribute = true;
-      out = out.replace(/\s+$/, "") + "[";
-      index++;
-      continue;
-    }
-    if (char === "]") {
-      inAttribute = false;
-      out += "]";
-      index++;
-      continue;
-    }
-    if (inAttribute && char === "=") {
-      out = out.replace(/\s+$/, "") + "=";
-      index++;
-      while (index < part.length && /\s/.test(part[index])) index++;
-      if (part[index] === '"' || part[index] === "'") {
-        const quote = part[index++];
-        while (index < part.length && part[index] !== quote) {
-          if (part[index] === "\\" && index + 1 < part.length) {
-            out += part.slice(index, index + 2);
-            index += 2;
-          } else {
-            out += part[index++];
-          }
-        }
-        if (index < part.length) index++;
+      const end = matchingBracket(part, index);
+      if (end < 0) {
+        out += part.slice(index).replace(/\s+/g, " ");
+        break;
       }
-      continue;
+      const raw = part.slice(index, end + 1);
+      out += attributeSelector(raw) ?? raw.replace(/\s+/g, " ");
+      index = end + 1;
+    } else {
+      out += char;
+      index++;
     }
-    out += char;
-    index++;
+    afterCombinator = false;
   }
-  return out.trim().replace(/\s+\]/g, "]").replace(/\[\s+/g, "[");
+  return out.trim();
 }
 
 /** Lista de seletores: vírgulas no nível superior separam itens; ordem importa. */
@@ -169,8 +251,14 @@ interface ScopeScan {
  * at-rules; para isso, use um parser CSS real.
  */
 function scanScope(selector: string): ScopeScan {
-  const target = normalizeSelector(selector);
+  const asAtRule = selector.trim().replace(/\s+/g, " ");
+  const isAtRule = asAtRule.startsWith("@");
+  const themeBlock = asAtRule === "@theme" || asAtRule === "@theme inline";
+  const target = isAtRule ? asAtRule : normalizeSelector(selector);
   const result: ScopeScan = { blocks: [], nestedHits: 0 };
+  // Apenas @theme / @theme inline podem ser escopo de nível superior; outros
+  // at-rules nomeados no mapeamento são rejeitados como escopo aninhado.
+  if (isAtRule && !themeBlock) result.nestedHits++;
   let depth = 0;
   let headStart = 0;
   let blockStart = -1;
@@ -179,7 +267,7 @@ function scanScope(selector: string): ScopeScan {
     const char = structural[index];
     if (char === "{") {
       const normalized = normalizeSelector(content.slice(headStart, index));
-      if (depth === 0) {
+      if (depth === 0 && (!isAtRule || themeBlock)) {
         topNormalized = normalized;
         blockStart = index + 1;
       } else if (normalized === target) {
