@@ -5,12 +5,17 @@
  * indicado. Semântica e limites (deliberados, sem parser CSS real):
  *   - só blocos de NÍVEL SUPERIOR contam; seletor-alvo aninhado em
  *     `@layer`/`@media` é REJEITADO explicitamente (não ignorado);
+ *   - seletores são comparados como LISTAS normalizadas: espaços/quebras
+ *     colapsados, ordem dos itens significativa, aspas em valores de
+ *     atributo equivalentes (`[data-theme=dark]` ≡ `[data-theme='dark']`)
+ *     e cabeçalhos de múltiplas linhas suportados;
+ *   - declarações duplicadas em QUALQUER bloco de nível superior cujo
+ *     seletor normalizado seja o alvo: a ÚLTIMA vence (semântica CSS) e é
+ *     a única comparada — valor "em qualquer lugar" nunca passa.
  *   - comentários/strings são mascarados só para estrutura e localização;
  *     o valor sai do CSS original com leitura quote-aware; comparação é
  *     LÉXICA EXATA (só trim/caixa/espaços): aspas CSS devem estar
- *     representadas no valor do token (delimitadores YAML não contam);
- *   - declarações duplicadas no escopo: a ÚLTIMA vence (semântica CSS) e é
- *     a única comparada — valor "em qualquer lugar" nunca passa.
+ *     representadas no valor do token (delimitadores YAML não contam).
  *
  * Config (front matter do DESIGN.md):
  *   x-parity:
@@ -70,11 +75,87 @@ const rawCss = readFileSync(join(root, parity.cssFile), "utf8");
 // Duas visões com ÍNDICES ALINHADOS (máscara preserva comprimento):
 //   structural — comentários E strings viram espaços: chaves/`;` dentro
 //     deles não corrompem varredura nem localização de declarações;
-//   content — só comentários mascarados: valores (inclusive quoted) são
-//     extraídos daqui, nunca da cópia sem strings.
+//   content — só comentários mascarados: valores (inclusive quoted) e
+//     cabeçalhos de seletores são lidos daqui, nunca da cópia sem strings.
 const blankNonNewline = (m: string) => m.replace(/[^\n]/g, " ");
 const content = rawCss.replace(/\/\*[\s\S]*?\*\//g, blankNonNewline);
 const structural = content.replace(/(["'])(?:\\.|(?!\1).)*\1/g, blankNonNewline);
+
+/** Normaliza um item da lista de seletores: espaços e aspas de atributo. */
+function normalizeSelectorPart(part: string): string {
+  let out = "";
+  let inAttribute = false;
+  let index = 0;
+  while (index < part.length) {
+    const char = part[index];
+    if (/\s/.test(char)) {
+      if (out && !out.endsWith(" ")) out += " ";
+      index++;
+      continue;
+    }
+    if (char === "[") {
+      inAttribute = true;
+      out = out.replace(/\s+$/, "") + "[";
+      index++;
+      continue;
+    }
+    if (char === "]") {
+      inAttribute = false;
+      out += "]";
+      index++;
+      continue;
+    }
+    if (inAttribute && char === "=") {
+      out = out.replace(/\s+$/, "") + "=";
+      index++;
+      while (index < part.length && /\s/.test(part[index])) index++;
+      if (part[index] === '"' || part[index] === "'") {
+        const quote = part[index++];
+        while (index < part.length && part[index] !== quote) {
+          if (part[index] === "\\" && index + 1 < part.length) {
+            out += part.slice(index, index + 2);
+            index += 2;
+          } else {
+            out += part[index++];
+          }
+        }
+        if (index < part.length) index++;
+      }
+      continue;
+    }
+    out += char;
+    index++;
+  }
+  return out.trim().replace(/\s+\]/g, "]").replace(/\[\s+/g, "[");
+}
+
+/** Lista de seletores: vírgulas no nível superior separam itens; ordem importa. */
+function normalizeSelector(head: string): string {
+  const parts: string[] = [];
+  let start = 0;
+  let depth = 0;
+  let quote = "";
+  for (let index = 0; index < head.length; index++) {
+    const char = head[index];
+    if (quote) {
+      if (char === "\\") index++;
+      else if (char === quote) quote = "";
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === "[" || char === "(") {
+      depth++;
+    } else if (char === "]" || char === ")") {
+      depth = Math.max(0, depth - 1);
+    } else if (char === "," && depth === 0) {
+      parts.push(normalizeSelectorPart(head.slice(start, index)));
+      start = index + 1;
+    }
+  }
+  parts.push(normalizeSelectorPart(head.slice(start)));
+  return parts.filter(Boolean).join(", ");
+}
 
 interface ScopeScan {
   blocks: Array<{ start: number; end: number }>;
@@ -88,28 +169,31 @@ interface ScopeScan {
  * at-rules; para isso, use um parser CSS real.
  */
 function scanScope(selector: string): ScopeScan {
+  const target = normalizeSelector(selector);
   const result: ScopeScan = { blocks: [], nestedHits: 0 };
   let depth = 0;
   let headStart = 0;
   let blockStart = -1;
-  let topSelector = "";
+  let topNormalized = "";
   for (let index = 0; index < structural.length; index++) {
     const char = structural[index];
     if (char === "{") {
-      const selectorText = structural.slice(headStart, index).split("\n").at(-1)?.trim() ?? "";
+      const normalized = normalizeSelector(content.slice(headStart, index));
       if (depth === 0) {
-        topSelector = selectorText;
+        topNormalized = normalized;
         blockStart = index + 1;
-      } else if (selectorText === selector) {
+      } else if (normalized === target) {
         result.nestedHits++;
       }
       depth++;
       headStart = index + 1;
     } else if (char === "}") {
       depth--;
-      if (depth === 0 && topSelector === selector) {
+      if (depth === 0 && topNormalized === target) {
         result.blocks.push({ start: blockStart, end: index });
       }
+      headStart = index + 1;
+    } else if (char === ";" && depth === 0) {
       headStart = index + 1;
     }
   }
@@ -170,7 +254,8 @@ for (const [tokenPath, rawMapping] of entries) {
   // (início do bloco ou `;`/`{`/`}`) — `--alias--primary:` não casa — e só
   // profundidade relativa 0: `--primary` dentro de regra aninhada
   // (`:root { .child { … } }`) NÃO é declaração do escopo-alvo.
-  // Última declaração vence (CSS).
+  // Última declaração vence entre TODOS os blocos com o mesmo seletor
+  // normalizado (CSS), inclusive blocos posteriores com aspas diferentes.
   const re = new RegExp(
     `(^|[;{}])\\s*${mapping.var.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:`,
     "g",

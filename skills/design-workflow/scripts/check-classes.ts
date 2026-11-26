@@ -7,13 +7,18 @@
  *   x-parity:
  *     include: ["src"]                      # dirs varridos (relativos à raiz)
  *     exclude: ["**\/renderer/**"]          # sempre soma .test., locales por conta do projeto
- *     forbidden:
+ *     forbidden:                            # regex (g) do utilitário-base
  *       - "text-(sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)(?![-\\w])"
  *       - "text-\\[[0-9.]+(px|rem)\\]"
- *     allowed: ["text-xs", "text-[11px]", "text-[0.625rem]", "text-[0.5625rem]"]
+ *     allowed: ["text-xs", "text-[11px]"]   # exceções EXATAS do utilitário-base
+ *
+ * Tokens são lidos como texto simples (inclusive template literals e args de
+ * cn()/clsx); prefixos de variante são removidos com split bracket-aware em
+ * ':' fora de colchetes, e conteúdo de variante arbitrária (`[&_…]`) não é
+ * utilitário. As regex e os exemplos de `allowed` avaliam SEMPRE a base.
  *
  * Uso: bun check-classes.ts --project <root> [--design DESIGN.md]
- * Sai 1 listando file:line:token para cada violação.
+ * Sai 1 listando file:line:base para cada violação.
  */
 import { readdirSync, readFileSync, type Stats, statSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -83,6 +88,76 @@ function* walk(dir: string): Generator<string> {
   }
 }
 
+// Salta delimitadores de código fora de colchetes; dentro de `[…]` valores
+// arbitrários podem conter vírgulas, parênteses, aspas e espaços.
+const stopOutsideBrackets = new Set(['"', "'", "`", "<", ">", "(", ")", "{", "}", ";", ",", "="]);
+
+function* candidates(line: string): Generator<string> {
+  let token = "";
+  let brackets = 0;
+  for (const char of line) {
+    if (char === "[") brackets++;
+    else if (char === "]") brackets = Math.max(0, brackets - 1);
+    if (brackets === 0 && (/\s/.test(char) || stopOutsideBrackets.has(char))) {
+      if (token) yield token;
+      token = "";
+      continue;
+    }
+    token += char;
+  }
+  if (token) yield token;
+}
+
+/** Fim do colchete que abre em `text[0]`, com aspas e colchetes aninhados. */
+function matchingBracket(text: string, start: number): number {
+  let depth = 0;
+  let quote = "";
+  for (let index = start; index < text.length; index++) {
+    const char = text[index];
+    if (quote) {
+      if (char === "\\") index++;
+      else if (char === quote) quote = "";
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === "[") depth++;
+    else if (char === "]") {
+      depth--;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+/** Base de um utilitário: sem variantes, sem conteúdo de variante arbitrária. */
+function baseUtility(token: string): string {
+  let candidate = token;
+  // `[&_[data-value='text-[13px]']]:font-bold` — o colchete é uma variante;
+  // seu conteúdo é seletor, nunca utilitário.
+  while (candidate.startsWith("[")) {
+    const end = matchingBracket(candidate, 0);
+    if (end < 0) break;
+    candidate = candidate.slice(end + 1);
+    if (candidate.startsWith(":")) candidate = candidate.slice(1);
+  }
+  let depth = 0;
+  let quote = "";
+  let cut = 0;
+  for (let index = 0; index < candidate.length; index++) {
+    const char = candidate[index];
+    if (quote) {
+      if (char === "\\") index++;
+      else if (char === quote) quote = "";
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === "[") depth++;
+    else if (char === "]") depth = Math.max(0, depth - 1);
+    else if (char === ":" && depth === 0) cut = index + 1;
+  }
+  return candidate.slice(cut);
+}
+
 const includeDirs: string[] = [];
 for (const base of include) {
   const dir = join(root, base);
@@ -106,11 +181,21 @@ for (const dir of includeDirs) {
     if (excluded(file)) continue;
     const lines = readFileSync(file, "utf8").split("\n");
     lines.forEach((line, index) => {
-      for (const re of forbidden) {
-        re.lastIndex = 0;
-        for (const match of line.matchAll(re)) {
-          if (allowed.has(match[0])) continue;
-          violations.push(`${relative(root, file)}:${index + 1}: ${match[0]}`);
+      const seen = new Set<string>();
+      for (const token of candidates(line)) {
+        const base = baseUtility(token);
+        if (!base || allowed.has(base) || seen.has(base)) continue;
+        let hit = false;
+        for (const re of forbidden) {
+          re.lastIndex = 0;
+          if (re.test(base)) {
+            hit = true;
+            break;
+          }
+        }
+        if (hit) {
+          seen.add(base);
+          violations.push(`${relative(root, file)}:${index + 1}: ${base}`);
         }
       }
     });

@@ -12,10 +12,10 @@ x-parity:
   exclude:                        # ignored path patterns
     - "**/renderer/**"            # e.g. user-app output
     - "src/locales/**"            # translated strings
-  forbidden:                      # regex (g flag) of forbidden utilities
+  forbidden:                      # regex (g flag) of forbidden BASE utilities
     - "text-(sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)(?![-\\w])"
     - "text-\\[[0-9.]+(px|rem)\\]"
-  allowed:                        # exact matches released (owner exceptions)
+  allowed:                        # exact BASE matches released (owner exceptions)
     - "text-xs"
     - "text-[11px]"
     - "text-[0.625rem]"
@@ -37,11 +37,22 @@ Rules:
   and `*.test.*` / `*.spec.*` files are not scanned.
 - `forbidden`/`allowed` encode the project's closed vocabulary; every
   `allowed` entry corresponds to an owner-indicated exception in the
-  `DESIGN.md` prose (exceptions / Do's & Don'ts).
+  `DESIGN.md` prose (exceptions / Do's & Don'ts). Both test the BASE utility,
+  after variant prefixes are stripped by bracket-aware `:` splitting outside
+  brackets. Source tokens (including template literals and `cn()`/`clsx()`
+  arguments) are read as plain text; text inside arbitrary-variant brackets
+  (`[&_[data-value='text-[13px]']]`) is a selector, never a utility.
 - `cssVars` compares the EXACT value (normalized for whitespace/case) of the
-  LAST declaration of the var inside the TOP-LEVEL block of the indicated
-  selector (CSS last-wins) — never "anywhere in the file": an alternate theme
-  with the same value does not mask a broken `:root`.
+  LAST declaration of the var across ALL TOP-LEVEL blocks whose selector
+  normalizes to the indicated selector (CSS last-wins) — never "anywhere in
+  the file": an alternate theme with the same value does not mask a broken
+  `:root`. A later block with a different spelling of the same selector
+  list (quoted/unquoted attribute values, line wraps) still wins.
+- Selector lists are normalized for comparison: whitespace/newlines collapsed,
+  comma-separated item order significant, and attribute values equivalent
+  with or without quotes (`[data-theme=dark]` ≡ `[data-theme="dark"]` ≡
+  `[data-theme='dark']`). Distinct lists (`.dark` vs `.dark, [data-theme=dark]`)
+  are NOT merged.
 - A target selector nested in `@layer`/`@media` is REJECTED with an explicit
   error: this scanner does not resolve at-rule context. Move the mapped vars
   to the top level or swap the gate for a real CSS parser.
