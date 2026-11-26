@@ -121,25 +121,48 @@ bun <this-skill-dir>/scripts/check-tokens.ts --project <root>
 In a bootstrapped consumer, prefer the vendored copies at
 `scripts/design/` (see bootstrap step 4) — that is what CI runs.
 
-- `check-classes.ts` — scans source for utility classes forbidden by the
-  project's `x-parity` front-matter block (e.g. font-size utilities outside
-  the declared allowlist). Exits non-zero listing `file:line:token`. Fixed
-  traversal hygiene (not project configuration): skips `node_modules`,
-  dot-directories, and `*.test.*` / `*.spec.*`; every configured `include`
-  must be an existing directory or the scanner exits 2.
+- `check-classes.ts` — scans the CONTENT of string literals (`'…'`, `"…"`,
+  `` `…` `` including template text outside `${…}`; nested expressions are
+  scanned too), which covers JSX `className`, `cn()`/`clsx()` string and array
+  arguments, object keys, templates and ternaries, for utility classes
+  forbidden by the project's `x-parity` front-matter block. Each literal is
+  split on whitespace; a leading bracket group is an arbitrary variant ONLY
+  when immediately followed by `:` (`[&_p]:text-sm`), so a bare JS `[` is
+  never a variant. Other variant prefixes are stripped with bracket-aware
+  `:` splitting outside brackets, so `dark:text-[13px]` is checked as
+  `text-[13px]`; text inside arbitrary-variant brackets
+  (`[&_[data-value='text-[13px]']]`) is selector text, not a utility.
+  `forbidden` regexes are anchored at the start of the BASE utility and
+  `allowed` exact entries compare the whole base — URLs, test IDs and CSS
+  text that merely end in a utility-like suffix are not classes. Exits
+  non-zero listing `file:line:base`. Fixed traversal hygiene
+  (not project configuration): skips `node_modules`, dot-directories, and
+  `*.test.*` / `*.spec.*`; every configured `include` must be an existing
+  directory or the scanner exits 2.
 - `check-tokens.ts` — asserts each front-matter token mapped in
   `x-parity.cssVars` is declared with the exact value **in the exact CSS
   scope** (`{selector, var}`; `.dark` mappings for `darkColors`). Semantics:
-  top-level selector blocks only; duplicate declarations resolve by CSS
-  last-wins (only the effective value is compared); comments/strings are
-  masked for structure and declaration lookup while values are extracted
-  quote-aware from the original CSS (quoted values with `;`/`{` inside work);
-  comparison is lexically EXACT beyond trim/case/whitespace — CSS quotes are
-  semantic (`serif` ≠ `"serif"`), so a quoted CSS value must be quoted inside
-  the YAML token value (`fontFamily: '"Inter"'`); a target selector nested in
-  `@layer`/`@media` is **rejected with an explicit error** — this scanner
-  does not resolve at-rule context (move the mapped vars to top level, or
-  swap in a real CSS parser).
+  top-level selector blocks only; a mapping may also name `@theme` or
+  `@theme inline` exactly as written (other at-rules stay rejected). Selector
+  lists use a conservative tokenizer: whitespace runs become ONE descendant
+  combinator (never deleted), `> + ~` and attribute operators/modifiers are
+  kept, and quoted/unquoted attribute values are equivalent ONLY when the
+  decoded value is a valid CSS identifier (`[data-theme=dark]` ≡
+  `[data-theme="dark"]`, but `[data-theme=dark i]` ≠ `[data-theme="dark i"]`
+  and `[data-theme=dark]` ≠ `[data-theme="dark "]`). Anything unparsed is
+  compared literally; list order is significant and multi-line heads are
+  supported. Duplicate declarations
+  across ALL top-level blocks with the normalized target selector resolve
+  by CSS last-wins (only the effective value is compared); comments/strings
+  are masked for structure and declaration lookup while values and selector
+  heads are read quote-aware from the original CSS (quoted values with
+  `;`/`{` inside work). Comparison is lexically EXACT beyond
+  trim/case/whitespace — CSS quotes are semantic (`serif` ≠ `"serif"`), so a
+  quoted CSS value must be quoted inside the YAML token value
+  (`fontFamily: '"Inter"'`); a target selector nested in `@layer`/`@media`
+  is **rejected with an explicit error** — this scanner does not resolve
+  at-rule context (move the mapped vars to top level, or swap in a real CSS
+  parser).
 - Both read configuration ONLY from the project `DESIGN.md` front matter
   (`x-parity`); nothing project-specific lives in this skill. See
   [references/x-parity.md](references/x-parity.md) for the block format.

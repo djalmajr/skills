@@ -7,13 +7,21 @@
  *   x-parity:
  *     include: ["src"]                      # dirs varridos (relativos à raiz)
  *     exclude: ["**\/renderer/**"]          # sempre soma .test., locales por conta do projeto
- *     forbidden:
+ *     forbidden:                            # regex (g) do utilitário-base
  *       - "text-(sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)(?![-\\w])"
  *       - "text-\\[[0-9.]+(px|rem)\\]"
- *     allowed: ["text-xs", "text-[11px]", "text-[0.625rem]", "text-[0.5625rem]"]
+ *     allowed: ["text-xs", "text-[11px]"]   # exceções EXATAS do utilitário-base
+ *
+ * Candidatos vêm do CONTEÚDO de literais string ('…', "…", `…`, incluindo o texto
+ * fora de ${…}) e de valores de className/ class. Colchetes da sintaxe JS não
+ * são variantes: só um grupo `[…]` seguido de ':' no início do candidato é.
+ * Variantes são removidas com split bracket-aware em ':' fora de colchetes.
+ * O marcador de important do Tailwind (`!` após variantes ou no fim da base)
+ * é removido antes de testar a base; ele não cria outra utilidade.
+ * As regex `forbidden` são ANCORADAS no início da base; `allowed` é exato.
  *
  * Uso: bun check-classes.ts --project <root> [--design DESIGN.md]
- * Sai 1 listando file:line:token para cada violação.
+ * Sai 1 listando file:line:base para cada violação.
  */
 import { readdirSync, readFileSync, type Stats, statSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -53,7 +61,7 @@ if (!parity.forbidden?.length) {
 const include = parity.include ?? ["src"];
 const exclude = parity.exclude ?? [];
 const allowed = new Set(parity.allowed ?? []);
-const forbidden = parity.forbidden.map((p) => new RegExp(p, "g"));
+const forbidden = parity.forbidden.map((p) => new RegExp(`^(?:${p})`, "g"));
 const extensions = new Set([".ts", ".tsx", ".jsx", ".vue", ".svelte", ".astro", ".html"]);
 
 function globToRegExp(pattern: string) {
@@ -83,6 +91,170 @@ function* walk(dir: string): Generator<string> {
   }
 }
 
+interface Literal {
+  text: string;
+  offset: number;
+}
+
+/**
+ * Varredura de literais: o conteúdo de '…' / "…" / `…` é um candidato;
+ * expressões ${…} dentro de templates também são varridas, com offsets
+ * absolutos. Strings não terminadas terminam no fim do arquivo.
+ */
+function* literals(source: string, from = 0, to = source.length): Generator<Literal> {
+  let index = from;
+  while (index < to) {
+    const char = source[index];
+    // Comentários podem conter aspas/crases soltos; nunca abrem literais.
+    if (char === "/" && source[index + 1] === "/") {
+      while (index < to && source[index] !== "\n") index++;
+      continue;
+    }
+    if (char === "/" && source[index + 1] === "*") {
+      index += 2;
+      while (index + 1 < to && !(source[index] === "*" && source[index + 1] === "/")) index++;
+      index = Math.min(to, index + 2);
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      const start = index + 1;
+      let end = start;
+      while (end < to) {
+        if (source[end] === "\\") {
+          end += 2;
+          continue;
+        }
+        if (source[end] === char) break;
+        end++;
+      }
+      yield { text: source.slice(start, Math.min(end, to)), offset: start };
+      index = end < to ? end + 1 : to;
+      continue;
+    }
+    if (char === "`") {
+      let textStart = index + 1;
+      let end = textStart;
+      let closed = false;
+      while (end < to) {
+        if (source[end] === "\\") {
+          end += 2;
+          continue;
+        }
+        if (source[end] === "`") {
+          closed = true;
+          break;
+        }
+        if (source[end] === "$" && source[end + 1] === "{") {
+          yield { text: source.slice(textStart, end), offset: textStart };
+          let depth = 1;
+          let expr = end + 2;
+          while (expr < to && depth > 0) {
+            const inner = source[expr];
+            if (inner === "\\") {
+              expr += 2;
+              continue;
+            }
+            if (inner === '"' || inner === "'" || inner === "`") {
+              const quote = inner;
+              expr++;
+              while (expr < to) {
+                if (source[expr] === "\\") {
+                  expr += 2;
+                  continue;
+                }
+                if (source[expr] === quote) {
+                  expr++;
+                  break;
+                }
+                expr++;
+              }
+              continue;
+            }
+            if (inner === "{") depth++;
+            else if (inner === "}") depth--;
+            expr++;
+          }
+          yield* literals(source, end + 2, depth === 0 ? expr - 1 : Math.min(expr, to));
+          end = expr;
+          textStart = expr;
+          continue;
+        }
+        end++;
+      }
+      if (end > textStart) {
+        yield { text: source.slice(textStart, Math.min(end, to)), offset: textStart };
+      }
+      index = closed ? end + 1 : to;
+      continue;
+    }
+    index++;
+  }
+}
+
+/** Palavras de um literal, com offset absoluto para a linha do relatório. */
+function* candidates(literal: Literal): Generator<Literal> {
+  let index = 0;
+  while (index < literal.text.length) {
+    while (index < literal.text.length && /\s/.test(literal.text[index])) index++;
+    const start = index;
+    while (index < literal.text.length && !/\s/.test(literal.text[index])) index++;
+    if (index > start) {
+      yield { text: literal.text.slice(start, index), offset: literal.offset + start };
+    }
+  }
+}
+
+/** Fim do colchete que abre em `text[0]`, com aspas e colchetes aninhados. */
+function matchingBracket(text: string, start: number): number {
+  let depth = 0;
+  let quote = "";
+  for (let index = start; index < text.length; index++) {
+    const char = text[index];
+    if (quote) {
+      if (char === "\\") index++;
+      else if (char === quote) quote = "";
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === "[") depth++;
+    else if (char === "]") {
+      depth--;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+/** Base de um utilitário: sem variantes, sem conteúdo de variante arbitrária. */
+function baseUtility(token: string): string {
+  let candidate = token;
+  // `[&_[data-value='text-[13px]']]:font-bold` — só um grupo seguido de ':'
+  // é variante; um '[' solto (sintaxe JS, sem ':') nunca é.
+  while (candidate.startsWith("[")) {
+    const end = matchingBracket(candidate, 0);
+    if (end < 0 || candidate[end + 1] !== ":") break;
+    candidate = candidate.slice(end + 2);
+  }
+  let depth = 0;
+  let quote = "";
+  let cut = 0;
+  for (let index = 0; index < candidate.length; index++) {
+    const char = candidate[index];
+    if (quote) {
+      if (char === "\\") index++;
+      else if (char === quote) quote = "";
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === "[") depth++;
+    else if (char === "]") depth = Math.max(0, depth - 1);
+    else if (char === ":" && depth === 0) cut = index + 1;
+  }
+  const base = candidate.slice(cut);
+  const withoutLeading = base.startsWith("!") ? base.slice(1) : base;
+  return withoutLeading.endsWith("!") ? withoutLeading.slice(0, -1) : withoutLeading;
+}
+
 const includeDirs: string[] = [];
 for (const base of include) {
   const dir = join(root, base);
@@ -104,16 +276,47 @@ const violations: string[] = [];
 for (const dir of includeDirs) {
   for (const file of walk(dir)) {
     if (excluded(file)) continue;
-    const lines = readFileSync(file, "utf8").split("\n");
-    lines.forEach((line, index) => {
-      for (const re of forbidden) {
-        re.lastIndex = 0;
-        for (const match of line.matchAll(re)) {
-          if (allowed.has(match[0])) continue;
-          violations.push(`${relative(root, file)}:${index + 1}: ${match[0]}`);
+    const source = readFileSync(file, "utf8");
+    const lineStarts = [0];
+    for (let index = 0; index < source.length; index++) {
+      if (source[index] === "\n") lineStarts.push(index + 1);
+    }
+    const lineOf = (offset: number) => {
+      let low = 0;
+      let high = lineStarts.length - 1;
+      while (low < high) {
+        const middle = (low + high + 1) >> 1;
+        if (lineStarts[middle] <= offset) low = middle;
+        else high = middle - 1;
+      }
+      return low + 1;
+    };
+    const seen = new Map<number, Set<string>>();
+    for (const literal of literals(source)) {
+      for (const candidate of candidates(literal)) {
+        const base = baseUtility(candidate.text);
+        if (!base || allowed.has(base)) continue;
+        const line = lineOf(candidate.offset);
+        let lineSeen = seen.get(line);
+        if (!lineSeen) {
+          lineSeen = new Set();
+          seen.set(line, lineSeen);
+        }
+        if (lineSeen.has(base)) continue;
+        let hit = false;
+        for (const re of forbidden) {
+          re.lastIndex = 0;
+          if (re.test(base)) {
+            hit = true;
+            break;
+          }
+        }
+        if (hit) {
+          lineSeen.add(base);
+          violations.push(`${relative(root, file)}:${line}: ${base}`);
         }
       }
-    });
+    }
   }
 }
 

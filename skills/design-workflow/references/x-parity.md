@@ -12,10 +12,10 @@ x-parity:
   exclude:                        # ignored path patterns
     - "**/renderer/**"            # e.g. user-app output
     - "src/locales/**"            # translated strings
-  forbidden:                      # regex (g flag) of forbidden utilities
+  forbidden:                      # regex (g flag) of forbidden BASE utilities
     - "text-(sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)(?![-\\w])"
     - "text-\\[[0-9.]+(px|rem)\\]"
-  allowed:                        # exact matches released (owner exceptions)
+  allowed:                        # exact BASE matches released (owner exceptions)
     - "text-xs"
     - "text-[11px]"
     - "text-[0.625rem]"
@@ -27,6 +27,7 @@ x-parity:
     colors.primary: { selector: ":root", var: "--primary" }
     colors.border: "--border"
     darkColors.primary: { selector: ".dark", var: "--primary" }
+    typography.body-md.fontFamily: { selector: "@theme inline", var: "--font-sans" }
 ```
 
 Rules:
@@ -37,14 +38,45 @@ Rules:
   and `*.test.*` / `*.spec.*` files are not scanned.
 - `forbidden`/`allowed` encode the project's closed vocabulary; every
   `allowed` entry corresponds to an owner-indicated exception in the
-  `DESIGN.md` prose (exceptions / Do's & Don'ts).
+  `DESIGN.md` prose (exceptions / Do's & Don'ts). Candidates are the contents
+  of string literals (single, double and template quotes, template `${…}`
+  expressions scanned recursively), split on whitespace; that reaches JSX
+  `className`, `cn()`/`clsx()` arrays, object keys, templates and ternaries.
+  A leading bracket group is an arbitrary variant only when followed by `:`
+  (`[&_p]:text-sm`); a bare `[` from JS syntax is never one. Other variants
+  are stripped by bracket-aware `:` splitting outside brackets; text inside
+  arbitrary-variant brackets (`[&_[data-value='text-[13px]']]`) is a selector.
+  `forbidden` regexes are anchored at the BASE utility start and `allowed`
+  compares it whole, so a utility-like suffix in a URL, test ID or CSS text is
+  not a class. Tailwind's important marker (`!` after variants or at the end,
+  as in `dark:!text-[13px]` / `text-[13px]!`) is removed from the base before
+  both checks; the marker never turns another utility into an allowlist match.
 - `cssVars` compares the EXACT value (normalized for whitespace/case) of the
-  LAST declaration of the var inside the TOP-LEVEL block of the indicated
-  selector (CSS last-wins) — never "anywhere in the file": an alternate theme
-  with the same value does not mask a broken `:root`.
-- A target selector nested in `@layer`/`@media` is REJECTED with an explicit
-  error: this scanner does not resolve at-rule context. Move the mapped vars
-  to the top level or swap the gate for a real CSS parser.
+  LAST declaration of the var across ALL TOP-LEVEL blocks whose selector
+  normalizes to the indicated selector (CSS last-wins) — never "anywhere in
+  the file": an alternate theme with the same value does not mask a broken
+  `:root`. A later block with a different spelling of the same selector
+  list (quoted/unquoted attribute values, line wraps) still wins.
+- Selector lists use a conservative tokenizer: whitespace/newlines collapse
+  to ONE descendant combinator (never deleted), `> + ~` and attribute
+  operator/value/modifier are kept, comma-separated item order is significant,
+  and quoted/unquoted attribute values are equivalent ONLY when the decoded
+  value is a valid CSS identifier (`[data-theme=dark]` ≡ `[data-theme="dark"]`
+  ≡ `[data-theme='dark']`, but `[data-theme=dark i]` ≠ `[data-theme="dark i"]`
+  and `[data-theme=dark]` ≠ `[data-theme="dark "]`). Anything that cannot be
+  parsed confidently is compared literally. Distinct lists (`.dark` vs
+  `.dark, [data-theme=dark]`) are NOT merged.
+- A mapping selector may name a top-level at-rule block EXACTLY as written:
+  `@theme` or `@theme inline` (whitespace normalized), with the same last-wins
+  and exact-value rules. Other at-rules (`@layer`, `@media`, …) and a target
+  selector nested inside them are REJECTED with an explicit error: this
+  scanner does not resolve at-rule context. Move the mapped vars to the top
+  level or swap the gate for a real CSS parser. For a mapping to `@theme` or
+  `@theme inline`, the var is read across ALL top-level `@theme`, `@theme inline`
+  and `@theme <modifiers>` blocks: two distinct normalized headers declaring it
+  are rejected with `competing @theme declarations` naming both headers (the
+  scanner does not resolve Tailwind precedence); repeated declarations under
+  the same header keep CSS last-wins.
 - Comments and strings are masked only for STRUCTURAL scanning and declaration
   lookup; the VALUE is extracted from the original CSS with quote-aware
   reading (values with `;`/`{` inside quotes do not cut early). Comparison is
