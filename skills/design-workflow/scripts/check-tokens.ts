@@ -15,10 +15,11 @@
  *   - um mapeamento pode nomear um bloco de at-rule de nível superior
  *     exatamente `@theme` ou `@theme inline`; outros at-rules permanecem
  *     rejeitados como escopo aninhado;
- *   - para um mapeamento `@theme`/`@theme inline`, a var é lida em TODOS os blocos
- *     superiores `@theme`, `@theme inline` e `@theme <modifiers>`: dois
+ *   - para um mapeamento `@theme`/`@theme inline`, TODOS os blocos superiores
+ *     `@theme`, `@theme inline` e `@theme <modifiers>` são varridos: dois
  *     cabeçalhos DISTINTOS declarando a mesma var são rejeitados
- *     explicitamente (o scanner não resolve precedência do Tailwind);
+ *     explicitamente (o scanner não resolve precedência do Tailwind), mas o
+ *     valor só vem de declarações do cabeçalho designado pelo mapeamento;
  *     repetição do MESMO cabeçalho mantém last-wins;
  *   - declarações duplicadas em QUALQUER bloco de nível superior cujo
  *     seletor normalizado seja o alvo: a ÚLTIMA vence (semântica CSS) e é
@@ -393,7 +394,8 @@ for (const [tokenPath, rawMapping] of entries) {
   // (`:root { .child { … } }`) NÃO é declaração do escopo-alvo.
   // Última declaração vence entre blocos com o MESMO cabeçalho normalizado
   // (CSS). Cabeçalhos @theme distintos competem: o scanner não resolve a
-  // precedência que o Tailwind aplicaria a eles.
+  // precedência que o Tailwind aplicaria a eles. Só o cabeçalho designado
+  // contribui com o valor: um @theme distinto nunca satisfaz o mapeamento.
   let declarations: string[];
   const scope = mapping.selector.trim().replace(/\s+/g, " ");
   if (scope === "@theme" || scope === "@theme inline") {
@@ -407,7 +409,9 @@ for (const [tokenPath, rawMapping] of entries) {
       );
       continue;
     }
-    declarations = found.map((declaration) => declaration.value);
+    declarations = found
+      .filter((declaration) => declaration.header === scope)
+      .map((declaration) => declaration.value);
   } else {
     const re = new RegExp(
       `(^|[;{}])\\s*${mapping.var.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:`,

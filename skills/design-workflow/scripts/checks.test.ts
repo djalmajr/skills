@@ -201,6 +201,38 @@ describe("check-tokens: CSS-aware selector lists", () => {
     expect(duplicateDrift.output).toContain('efetivo "\"other\", sans-serif"');
   });
 
+  test("the designated @theme header, not any lone header, supplies the value", () => {
+    const mapping = { token: "colors.light", selector: "@theme inline", varName: "--font-sans", value: '"Inter", sans-serif' };
+    const inline = '@theme inline {\n  --font-sans: "Inter", sans-serif;\n}\n';
+    const clean = run("check-tokens.ts", tokenProject(inline, undefined, mapping));
+    expect(clean.status).toBe(0);
+    expect(clean.output).toContain("check-tokens: OK");
+    for (const [label, css] of [
+      ["@theme", '@theme inline {\n  --font-sans-old: "Inter", sans-serif;\n}\n@theme {\n  --font-sans: "Inter", sans-serif;\n}\n'],
+      ["@theme default", '@theme inline {\n  --font-sans-old: "Inter", sans-serif;\n}\n@theme default {\n  --font-sans: "Inter", sans-serif;\n}\n'],
+    ] as const) {
+      const moved = run("check-tokens.ts", tokenProject(css, undefined, mapping));
+      expect(moved.status, label).toBe(1);
+      expect(moved.output, label).toContain("var ausente NESSE escopo");
+    }
+    const competing = run(
+      "check-tokens.ts",
+      tokenProject(inline + '@theme {\n  --font-sans: "Inter", sans-serif;\n}\n', undefined, mapping),
+    );
+    expect(competing.status).toBe(1);
+    expect(competing.output).toContain("competing @theme declarations");
+    const wrongLast = run(
+      "check-tokens.ts",
+      tokenProject(
+        '@theme inline {\n  --font-sans: "Inter", sans-serif;\n  --font-sans: "Other", sans-serif;\n}\n',
+        undefined,
+        mapping,
+      ),
+    );
+    expect(wrongLast.status).toBe(1);
+    expect(wrongLast.output).toContain('efetivo "\"other\", sans-serif"');
+  });
+
   test("distinct selectors are not merged and alias declarations do not count", () => {
     const distinct = run("check-tokens.ts", tokenProject(baseCss, ".dark"));
     expect(distinct.status).toBe(1);
